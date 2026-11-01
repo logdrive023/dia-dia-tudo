@@ -998,4 +998,17 @@ export const ES: Record<string, string> = {
   'Sem permissão para mudar o câmbio.': 'Sin permiso para cambiar el tipo de cambio.',
   'A moeda principal não tem câmbio (ela é a referência).': 'La moneda principal no tiene tipo de cambio (es la referencia).',
   'Digite o valor para vender e para comprar.': 'Escriba el valor para vender y para comprar.',
+
+  // menu novo
+  'Dia a dia': 'Día a día',
+  'Estoque e compras': 'Inventario y compras',
+  'Menu principal': 'Menú principal',
+  'Menu': 'Menú',
+  'Recolher menu': 'Contraer menú',
+  'Expandir menu': 'Expandir menú',
+  '{n} venda(s)': '{n} venta(s)',
+  '{n} na agenda': '{n} en la agenda',
+  'Preços': 'Precios',
+  'Ajustes': 'Ajustes',
+  'Equipe': 'Equipo',
 }

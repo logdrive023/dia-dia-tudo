@@ -13,11 +13,12 @@ export interface Moeda {
   pais: string
 }
 
+/** Foco: boliviano (principal), dólar e real. O guarani existe mas começa desligado. */
 export const MOEDAS: Moeda[] = [
+  { codigo: 'BOB', nome: 'Boliviano', simbolo: 'Bs', casas: 2, pais: 'Bolívia' },
+  { codigo: 'USD', nome: 'Dólar', simbolo: 'US$', casas: 2, pais: 'Estados Unidos' },
   { codigo: 'BRL', nome: 'Real', simbolo: 'R$', casas: 2, pais: 'Brasil' },
   { codigo: 'PYG', nome: 'Guarani', simbolo: '₲', casas: 0, pais: 'Paraguai' },
-  { codigo: 'USD', nome: 'Dólar', simbolo: 'US$', casas: 2, pais: 'Estados Unidos' },
-  { codigo: 'BOB', nome: 'Boliviano', simbolo: 'Bs', casas: 2, pais: 'Bolívia' },
 ]
 
 /** Moeda em que as cotações são digitadas. */

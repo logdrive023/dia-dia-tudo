@@ -28,7 +28,7 @@ export function Painel() {
       <Cartao className="mb-4">
         <div className="flex flex-wrap items-center gap-2">
           <SeletorPeriodo periodo={periodo} onChange={setPeriodo} />
-          <Selecao className="w-auto" valor={moeda} onChange={setMoeda} opcoes={[{ id: 'convertido', nome: `${t('Tudo convertido')} (${cfg?.config.moedaPrincipal ?? ''})` }, ...MOEDAS.map((m) => ({ id: m.codigo, nome: `${t('Só')} ${m.codigo}` }))]} />
+          <Selecao className="w-auto" valor={moeda} onChange={setMoeda} opcoes={[{ id: 'convertido', nome: `${t('Tudo convertido')} (${cfg?.config.moedaPrincipal ?? ''})` }, ...MOEDAS.filter((m) => cfg?.config.moedasAtivas.includes(m.codigo)).map((m) => ({ id: m.codigo, nome: `${t('Só')} ${m.codigo}` }))]} />
           <Selecao className="w-auto" valor={localId} onChange={setLocalId} vazio="Todas as unidades" opcoes={(locais ?? []).map((l) => ({ id: l.id, nome: l.nome }))} />
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={comparar} onChange={(e) => setComparar(e.target.checked)} className="h-5 w-5" /> {t('Comparar com o período anterior')}

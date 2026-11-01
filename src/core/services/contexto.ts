@@ -53,7 +53,7 @@ export interface FormaPagamento {
 
 export const FORMAS_PADRAO: FormaPagamento[] = [
   { id: 'dinheiro', nome: 'Dinheiro (efectivo)', vivo: true, moedas: MOEDAS.map((m) => m.codigo) },
-  { id: 'qr', nome: 'QR', vivo: false, moedas: ['BOB', 'PYG'] },
+  { id: 'qr', nome: 'QR', vivo: false, moedas: ['BOB'] },
   { id: 'pix', nome: 'Pix', vivo: false, moedas: ['BRL'], descontoBp: 0 },
   { id: 'credito', nome: 'Crédito', vivo: false, moedas: ['BRL'] },
   { id: 'debito', nome: 'Débito', vivo: false, moedas: ['BRL'] },
@@ -104,7 +104,7 @@ export const CONFIG_PADRAO: Configuracoes = {
   cambioAuto: 'inicioDoDia',
   cambio: {},
   moedaPrincipal: 'BOB',
-  moedasAtivas: ['BRL', 'PYG', 'USD', 'BOB'],
+  moedasAtivas: ['BOB', 'USD', 'BRL'],
   formas: FORMAS_PADRAO,
   diasTriagemParada: 3,
   diasLoteParado: 60,

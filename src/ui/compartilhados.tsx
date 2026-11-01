@@ -162,7 +162,7 @@ export function Conversor() {
       <Janela aberta={aberto} titulo={t('Conversor de moedas')} onFechar={() => setAberto(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-[7rem_1fr] gap-2">
-            <Selecao valor={moeda} onChange={setMoeda} opcoes={MOEDAS.map((m) => ({ id: m.codigo, nome: `${m.simbolo} ${m.codigo}` }))} />
+            <Selecao valor={moeda} onChange={setMoeda} opcoes={MOEDAS.filter((m) => dados?.config.moedasAtivas.includes(m.codigo)).map((m) => ({ id: m.codigo, nome: `${m.simbolo} ${m.codigo}` }))} />
             <ValorInput moeda={moeda} valor={valor} onChange={setValor} />
           </div>
           {valor !== undefined && (

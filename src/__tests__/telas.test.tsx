@@ -71,14 +71,14 @@ describe('telas (com os dados de exemplo)', () => {
 
   it('funcionária só vê a agenda dela e ações ficam no nome dela', async () => {
     await abrirComDemo()
-    fireEvent.click(screen.getAllByText('Sair')[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sair' })[0])
     await entrarComo('sofia')
     await screen.findByText('Minha agenda', {}, { timeout: 10000 })
     const nav = screen.getAllByRole('navigation')[0]
     expect(within(nav).queryByText('Relatórios')).toBeNull()
     expect(within(nav).queryByText('Caixa')).toBeNull()
     // senha errada não entra
-    fireEvent.click(screen.getAllByText('Sair')[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Sair' })[0])
     fireEvent.change(await screen.findByLabelText('Usuário'), { target: { value: 'admin' } })
     fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'errada' } })
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
