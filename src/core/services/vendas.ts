@@ -10,6 +10,7 @@ import { moverCaixa } from './caixa'
 import { custoDe, moverEstoque } from './estoque'
 import { montarPagamentos, type PagamentoEntrada } from './pagamentos'
 import { moverConta } from './contas'
+import { pendenciasVenda } from './pendencias'
 
 export interface LinhaVendaEntrada {
   id: Id
@@ -52,7 +53,8 @@ async function montarLinhas(ctx: Ctx, entrada: LinhaVendaEntrada[], profissional
     exigirInteiroPositivo(total, `Valor de ${item.nome}`, true)
     const conv = await paraPrincipal(ctx, total, l.moeda, 'venda')
     const profissionalId = l.profissionalId ?? (item.controlaEstoque ? undefined : profissionalPadrao)
-    let comissaoBp = l.comissaoBp
+    // funcionária não escolhe a comissão: vale a do cadastro
+    let comissaoBp = ctx.sessao.perfil === 'admin' ? l.comissaoBp : undefined
     if (comissaoBp === undefined && profissionalId) comissaoBp = (await ctx.repos.pessoas.obter(profissionalId))?.comissaoBp
     if (comissaoBp !== undefined) exigir(Number.isInteger(comissaoBp) && comissaoBp >= 0 && comissaoBp <= 10000, 'Comissão inválida.')
     linhas.push({
@@ -174,6 +176,11 @@ export async function cancelarVenda(ctx: Ctx, d: { id: Id; motivo: string }) {
   exigir(t && t.tipo === 'venda', 'Venda não encontrada.')
   exigir(t.etapa !== 'cancelado', 'Essa venda já foi cancelada.')
   exigir(d.motivo?.trim(), 'Diga o motivo do cancelamento.', 'motivo')
+  // funcionária só desmarca agendamento dela; cancelar venda feita é com o administrador
+  if (ctx.sessao.perfil === 'funcionario') {
+    const eu = ctx.sessao.pessoaId ?? ctx.sessao.usuarioId
+    exigir(t.etapa === 'agendado' && (t.profissionalId === eu || t.linhas.some((l) => l.profissionalId === eu)), 'Só o administrador cancela vendas. Você pode desmarcar os seus agendamentos.')
+  }
   if (t.etapa === 'concluido') {
     for (const l of t.linhas) {
       const item = l.itemId ? await ctx.repos.itens.obter(l.itemId) : undefined
@@ -318,6 +325,8 @@ export interface FiltroVendas {
   etapa?: string
   /** quem registrou (usuário) — "o que a funcionária 1 fez do dia X ao Y" */
   usuarioId?: Id
+  /** 'qualquer' = só as incompletas; ou um tipo: 'faltaReceber', 'semComprovante' */
+  pendencia?: string
 }
 
 /**
@@ -352,6 +361,11 @@ export async function vendas(ctx: Ctx, f: FiltroVendas = {}) {
   const itens = new Map((await ctx.repos.itens.listar()).map((i) => [i.id, i]))
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((p) => [p.id, p]))
   const etapa = f.etapa ?? 'concluido'
+  const cfg = await lerConfig(ctx)
+  const vivas = new Set(cfg.formas.filter((x) => x.vivo).map((x) => x.id))
+  const anexos = await ctx.repos.anexos.listar()
+  const saldoConta = new Map<string, number>()
+  for (const m of await ctx.repos.movConta.listar()) saldoConta.set(m.pessoaId, (saldoConta.get(m.pessoaId) ?? 0) + m.delta)
   return todas
     .filter((t) => t.etapa === etapa)
     .filter((t) => (!f.de || t.data >= f.de) && (!f.ate || t.data <= f.ate))
@@ -367,15 +381,17 @@ export async function vendas(ctx: Ctx, f: FiltroVendas = {}) {
       ...original,
       cliente: original.pessoaId ? pessoas.get(original.pessoaId)?.nome : undefined,
       feitoPor: original.historico.find((h) => h.para === 'concluido')?.porNome ?? original.historico[0]?.porNome,
+      pendencias: pendenciasVenda(original, anexos, vivas, original.pessoaId ? saldoConta.get(original.pessoaId) : undefined),
       valor: valorEm(recorte, f.moeda),
       lucroPrincipal: recorte.linhas.reduce((s, l) => s + l.totalPrincipal - (l.custoPrincipal ?? 0) - (l.comissaoPrincipal ?? 0), 0),
     }))
+    .filter((v) => !f.pendencia || (f.pendencia === 'qualquer' ? v.pendencias.length > 0 : v.pendencias.some((x) => x.id === f.pendencia)))
     .sort((a, b) => (a.data + a.criadoEm < b.data + b.criadoEm ? 1 : -1))
 }
 
 /** Agenda: atendimentos agendados num intervalo (por profissional e local). */
 export async function agenda(ctx: Ctx, p: { de: string; ate: string; profissionalId?: Id; localId?: Id }) {
-  if (ctx.sessao.perfil === 'funcionario') p = { ...p, profissionalId: ctx.sessao.usuarioId }
+  if (ctx.sessao.perfil === 'funcionario') p = { ...p, profissionalId: ctx.sessao.pessoaId ?? ctx.sessao.usuarioId }
   const todas = await ctx.repos.transacoes.listar({ tipo: 'venda' })
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x]))
   const locais = new Map((await ctx.repos.locais.listar()).map((x) => [x.id, x]))
@@ -385,7 +401,7 @@ export async function agenda(ctx: Ctx, p: { de: string; ate: string; profissiona
       const d = dataDeInstante(t.agendadoPara!)
       return d >= p.de && d <= p.ate
     })
-    .filter((t) => !p.profissionalId || t.profissionalId === p.profissionalId)
+    .filter((t) => !p.profissionalId || t.profissionalId === p.profissionalId || t.linhas.some((l) => l.profissionalId === p.profissionalId))
     .filter((t) => !p.localId || t.localId === p.localId)
     .map((t, _i, todos) => ({
       ...t,

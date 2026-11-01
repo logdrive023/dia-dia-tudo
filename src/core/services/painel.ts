@@ -8,7 +8,7 @@ import type { Cartao, DadosPainel, Secao } from '../modulos'
 import { type Ctx, cotacoesAtuais, lerConfig } from './contexto'
 import { situacaoDe } from './emprestimos'
 import { filaTriagem } from './compras'
-import { recortarVenda, valorEm } from './vendas'
+import { recortarVenda, valorEm, vendas } from './vendas'
 
 export interface FiltrosPainel {
   de: string
@@ -175,46 +175,101 @@ export async function painel(ctx: Ctx, f: FiltrosPainel) {
     .map((m) => ({ id: m.id, nome: m.nome, icone: m.icone, secoes: m.painel!(d) as Secao[] }))
 
   const alertas = await alertasGerais(ctx, d)
-  for (const m of modulosAtivos) if (m.alertas) alertas.push(...m.alertas(d))
+  // alertas dos módulos (formato antigo) entram no mesmo formato
+  for (const m of modulosAtivos)
+    for (const a of m.alertas?.(d) ?? [])
+      alertas.push({ id: a.id, titulo: a.texto.charAt(0).toUpperCase() + a.texto.slice(1), acao: '', quantidade: a.quantidade, nivel: a.nivel === 'ruim' ? 'urgente' : a.nivel === 'alerta' ? 'atencao' : 'info', itens: [], detalhe: a.detalhe })
+  const ordem = { urgente: 0, atencao: 1, info: 2 }
+  alertas.sort((a, b) => ordem[a.nivel] - ordem[b.nivel] || b.quantidade - a.quantidade)
 
   return { filtros: f, moedaVis, cartoes, serie, serieAnterior, porArea, porForma, porMoeda, caixa, areas, alertas: alertas.filter((a) => a.quantidade > 0) }
 }
 
+/** Um registro dentro de um alerta: o que é e para onde o toque leva (o registro em si, não só a lista). */
+export interface ItemAlerta {
+  texto: string
+  sub?: string
+  valor?: number
+  detalhe: { tela: string; filtro?: Record<string, string | number | boolean | undefined> }
+}
+
+/**
+ * Alerta do "Atenção agora": título curto, o que fazer, quantos, os primeiros registros (cada um clicável) e
+ * "ver todos" (a lista já filtrada). Nível: urgente (dinheiro/atraso) · atenção (falta algo) · info.
+ */
 export interface Alerta {
   id: string
-  texto: string
+  titulo: string
+  acao: string
   quantidade: number
-  nivel: 'info' | 'alerta' | 'ruim'
+  nivel: 'urgente' | 'atencao' | 'info'
+  /** valor total envolvido (moeda principal), quando é dinheiro */
+  valor?: number
+  itens: ItemAlerta[]
   detalhe?: { tela: string; filtro?: Record<string, string | number | boolean | undefined> }
+  /** compatível com os módulos antigos */
+  texto?: string
 }
+
+const brData = (d: string) => d.slice(0, 10).split('-').reverse().join('/')
 
 async function alertasGerais(ctx: Ctx, d: DadosPainel): Promise<Alerta[]> {
   const cfg = await lerConfig(ctx)
-  const fila = await filaTriagem(ctx)
-  const parada = fila.filter((t) => t.diasParada >= cfg.diasTriagemParada)
-  const semComprovante = (await filaTriagem(ctx, { incluirEncerradas: true })).filter((t) => t.etapa === 'concluido' && t.semComprovanteOrigem)
-  const baixos = d.itens.filter((i) => i.controlaEstoque && i.ativo && i.estoqueIdeal && i.saldo < i.estoqueIdeal)
-  let vencendo = 0
-  let atrasadas = 0
+  const compras = await filaTriagem(ctx, { incluirEncerradas: true })
+  const vendasPend = await vendas(ctx, { pendencia: 'qualquer' })
+  const com = (id: string) => compras.filter((t) => t.pendencias.some((x) => x.id === id))
+  const itemCompra = (t: (typeof compras)[number], id?: string) => ({
+    texto: t.pessoa ?? 'Sem fornecedor',
+    sub: `${brData(t.data)} · ${t.nomeEtapa}${t.etapa !== 'concluido' && t.diasParada ? ` · ${t.diasParada} d parada` : ''}`,
+    valor: id ? t.pendencias.find((x) => x.id === id)?.valor : undefined,
+    detalhe: { tela: 'pedido', filtro: { id: t.id } },
+  })
+  const itemVenda = (v: (typeof vendasPend)[number], id: string) => ({
+    texto: v.cliente ?? 'Sem nome',
+    sub: `${brData(v.data)} · ${v.linhas.map((l) => l.descricao).join(', ')}`,
+    valor: v.pendencias.find((x) => x.id === id)?.valor ?? v.totalPrincipal,
+    detalhe: { tela: 'venda', filtro: { id: v.id } },
+  })
+  const parada = com('paradaTriagem')
+  const semOrigem = com('semComprovanteOrigem')
+  const semFotos = compras.filter((t) => t.etapa !== 'concluido' && t.pendencias.some((x) => x.id === 'semFotos'))
+  const faltaPagar = com('faltaPagar')
+  const faltaReceber = vendasPend.filter((v) => v.pendencias.some((x) => x.id === 'faltaReceber'))
+  const semComprovanteVenda = vendasPend.filter((v) => v.pendencias.some((x) => x.id === 'semComprovante'))
+
+  const pessoas = d.pessoas
+  const atrasadas: ItemAlerta[] = []
+  const vencendo: ItemAlerta[] = []
   for (const e of d.emprestimos.filter((x) => x.situacao === 'aberto' && x.direcao === 'dado')) {
     const s = await situacaoDe(ctx, e)
-    vencendo += s.parcelas.filter((p) => p.status === 'vencendo').length
-    atrasadas += s.parcelas.filter((p) => p.status === 'atrasada').length
+    for (const p of s.parcelas.filter((x) => x.status === 'atrasada' || x.status === 'vencendo')) {
+      const it = { texto: pessoas.get(e.pessoaId)?.nome ?? '—', sub: `Parcela ${p.numero} · venceu ${brData(p.vencimento)}${p.status === 'atrasada' ? ` · ${diasEntre(p.vencimento, d.hoje)} d de atraso` : ''}`, valor: d.paraPrincipal(p.falta, e.moeda), detalhe: { tela: 'emprestimo', filtro: { id: e.id } } }
+      if (p.status === 'atrasada') atrasadas.push(it)
+      else vencendo.push({ ...it, sub: `Parcela ${p.numero} · vence ${brData(p.vencimento)}` })
+    }
   }
+  const baixos = d.itens.filter((i) => i.controlaEstoque && i.ativo && i.estoqueIdeal && i.saldo < i.estoqueIdeal)
   const cot = await cotacoesAtuais(ctx)
-  const velhas = cfg.moedasAtivas.filter((m) => m !== 'BRL' && (!cot[m] || diasEntre(cot[m]!.data, d.hoje) > cfg.diasCotacaoVelha))
+  const velhas = cfg.moedasAtivas.filter((m) => m !== 'BRL' && m !== cfg.moedaPrincipal && (!cot[m] || diasEntre(cot[m]!.data, d.hoje) > cfg.diasCotacaoVelha))
   const dias = await ctx.repos.dias.listar()
   // só a última semana: dia antigo esquecido aberto não vira alarme eterno
-  const abertosAntigos = dias.filter((x) => x.status === 'aberto' && x.data < d.hoje && x.data >= somarDias(d.hoje, -7))
-  return [
-    { id: 'triagemParada', texto: `compra(s) parada(s) na triagem há ${cfg.diasTriagemParada}+ dias`, quantidade: parada.length, nivel: 'alerta', detalhe: { tela: 'comprar' } },
-    { id: 'semComprovante', texto: 'compra(s) sem comprovante de origem', quantidade: semComprovante.length, nivel: 'alerta', detalhe: { tela: 'comprar', filtro: { encerradas: true, semComprovante: true } } },
-    { id: 'atrasadas', texto: 'parcela(s) atrasada(s) para receber', quantidade: atrasadas, nivel: 'ruim', detalhe: { tela: 'emprestimos', filtro: { status: 'atrasada' } } },
-    { id: 'vencendo', texto: 'parcela(s) vencendo em 7 dias', quantidade: vencendo, nivel: 'info', detalhe: { tela: 'emprestimos', filtro: { status: 'vencendo' } } },
-    { id: 'estoqueBaixo', texto: 'item(ns) abaixo do estoque ideal', quantidade: baixos.length, nivel: 'info', detalhe: { tela: 'estoque', filtro: { repor: true } } },
-    { id: 'cotacao', texto: `moeda(s) sem cotação ou com cotação de mais de ${cfg.diasCotacaoVelha} dias`, quantidade: velhas.length, nivel: 'alerta', detalhe: { tela: 'config' } },
-    { id: 'diaAberto', texto: 'dia(s) anterior(es) sem encerrar no caixa', quantidade: abertosAntigos.length, nivel: 'info', detalhe: { tela: 'caixa', filtro: { data: abertosAntigos[0]?.data } } },
+  const abertosAntigos = dias.filter((x) => x.status === 'aberto' && x.data < d.hoje && x.data >= somarDias(d.hoje, -7)).sort((a, b) => (a.data < b.data ? 1 : -1))
+  const soma = (xs: { valor?: number }[]) => xs.reduce((s, x) => s + (x.valor ?? 0), 0)
+
+  const lista: Alerta[] = [
+    { id: 'faltaReceber', nivel: 'urgente', titulo: 'Vendas com valor a receber', acao: 'Cobre ou registre o pagamento (Pessoas e contas › Recebi).', quantidade: faltaReceber.length, itens: faltaReceber.map((v) => itemVenda(v, 'faltaReceber')), detalhe: { tela: 'vendas', filtro: { pendencia: 'faltaReceber' } } },
+    { id: 'atrasadas', nivel: 'urgente', titulo: 'Parcelas de empréstimo atrasadas', acao: 'Cobre no WhatsApp ou registre o pagamento.', quantidade: atrasadas.length, itens: atrasadas, detalhe: { tela: 'emprestimos', filtro: { status: 'atrasada' } } },
+    { id: 'faltaPagar', nivel: 'urgente', titulo: 'Compras com valor a pagar', acao: 'Pague o fornecedor ou registre o acerto.', quantidade: faltaPagar.length, itens: faltaPagar.map((t) => itemCompra(t, 'faltaPagar')), detalhe: { tela: 'comprar', filtro: { encerradas: true, pendencia: 'faltaPagar' } } },
+    { id: 'triagemParada', nivel: 'atencao', titulo: `Compras paradas na triagem (${cfg.diasTriagemParada}+ dias)`, acao: 'Abra e avance a etapa (conferir, pagar, pôr no estoque).', quantidade: parada.length, itens: parada.map((t) => itemCompra(t)), detalhe: { tela: 'comprar', filtro: { pendencia: 'paradaTriagem' } } },
+    { id: 'semComprovante', nivel: 'atencao', titulo: 'Compras sem comprovante de origem', acao: 'Anexe a nota ou recibo de quem vendeu.', quantidade: semOrigem.length, itens: semOrigem.map((t) => itemCompra(t)), detalhe: { tela: 'comprar', filtro: { encerradas: true, pendencia: 'semComprovanteOrigem' } } },
+    { id: 'vendaSemComprovante', nivel: 'atencao', titulo: 'Vendas por QR/transferência sem comprovante', acao: 'Anexe a foto do comprovante na venda.', quantidade: semComprovanteVenda.length, itens: semComprovanteVenda.map((v) => itemVenda(v, 'semComprovante')), detalhe: { tela: 'vendas', filtro: { pendencia: 'semComprovante' } } },
+    { id: 'semFotos', nivel: 'info', titulo: 'Compras na triagem sem fotos', acao: 'Tire fotos do cabelo/pedido ao conferir.', quantidade: semFotos.length, itens: semFotos.map((t) => itemCompra(t)), detalhe: { tela: 'comprar', filtro: { pendencia: 'semFotos' } } },
+    { id: 'vencendo', nivel: 'info', titulo: 'Parcelas vencendo em 7 dias', acao: 'Lembre a pessoa antes do vencimento.', quantidade: vencendo.length, itens: vencendo, detalhe: { tela: 'emprestimos', filtro: { status: 'vencendo' } } },
+    { id: 'estoqueBaixo', nivel: 'info', titulo: 'Itens abaixo do estoque ideal', acao: 'Reponha ou ajuste o estoque ideal.', quantidade: baixos.length, itens: baixos.map((i) => ({ texto: i.nome, sub: `tem ${i.saldo} · ideal ${i.estoqueIdeal}`, detalhe: { tela: 'lote', filtro: { id: i.id } } })), detalhe: { tela: 'estoque', filtro: { repor: true, modulo: baixos[0]?.moduloId } } },
+    { id: 'diaAberto', nivel: 'info', titulo: 'Dias anteriores sem encerrar no caixa', acao: 'Confira o dinheiro e encerre o dia.', quantidade: abertosAntigos.length, itens: abertosAntigos.map((x) => ({ texto: brData(x.data), detalhe: { tela: 'caixa', filtro: { data: x.data } } })), detalhe: { tela: 'caixa', filtro: { data: abertosAntigos[0]?.data } } },
+    { id: 'cotacao', nivel: 'atencao', titulo: 'Câmbio sem atualizar', acao: `Busque a cotação (mais de ${cfg.diasCotacaoVelha} dias).`, quantidade: velhas.length, itens: velhas.map((m) => ({ texto: m, sub: cot[m] ? `última ${brData(cot[m]!.data)}` : 'sem cotação', detalhe: { tela: 'config', filtro: { aba: 'moedas' } } })), detalhe: { tela: 'config', filtro: { aba: 'moedas' } } },
   ]
+  return lista.map((a) => ({ ...a, valor: a.itens.some((i) => i.valor !== undefined) && a.nivel === 'urgente' ? soma(a.itens) : undefined }))
 }
 
 // ---------- diagnóstico ----------
@@ -244,6 +299,17 @@ export async function diagnostico(ctx: Ctx, _p: object = {}) {
       const tol = t.pagamentos.filter((p) => p.moeda !== t.moedaPrincipal).length
       if (Math.abs(pago - t.totalPrincipal) > tol) problemas.push(`Venda ${t.id}: pagamentos ${pago} ≠ total ${t.totalPrincipal}`)
     }
+  }
+  // conta corrente: venda com cliente = total − pago; compra com fornecedor = −(total − pago); cancelada = 0
+  const contas = await ctx.repos.movConta.listar()
+  for (const t of await ctx.repos.transacoes.listar()) {
+    const movs = contas.filter((m) => m.origemId === t.id)
+    if (!t.pessoaId || !movs.length) continue
+    const soma = movs.reduce((s, m) => s + m.delta, 0)
+    const pago = t.pagamentos.reduce((s, p) => s + p.valorPrincipal, 0)
+    const esperado = t.etapa === 'cancelado' ? 0 : t.tipo === 'venda' ? t.totalPrincipal - pago : -(t.totalPrincipal - pago)
+    const tol = t.pagamentos.filter((p) => p.moeda !== t.moedaPrincipal).length
+    if (Math.abs(soma - esperado) > tol) problemas.push(`Conta corrente da ${t.tipo} ${t.codigo ?? t.id}: ${soma} ≠ ${esperado}`)
   }
   for (const e of await ctx.repos.emprestimos.listar()) {
     const s = await situacaoDe(ctx, e)

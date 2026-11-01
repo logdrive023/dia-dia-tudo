@@ -6,6 +6,7 @@ import type { NomeComando, NomeConsulta } from '.'
 export const COMANDOS_FUNCIONARIO = new Set<NomeComando>([
   'concluirVenda',
   'atenderAgendamento',
+  'cancelarVenda',
   'salvarPessoa',
   'registrarAnexo',
   'trocarMinhaSenha',

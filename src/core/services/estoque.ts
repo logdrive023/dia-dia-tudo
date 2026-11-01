@@ -225,6 +225,7 @@ export async function estoque(ctx: Ctx, p: { moduloId?: string; somenteComSaldo?
   const itens = await ctx.repos.itens.listar(p.moduloId ? { moduloId: p.moduloId } : undefined)
   return itens
     .filter((i) => i.controlaEstoque && i.ativo && (!p.somenteComSaldo || i.saldo > 0))
+    .map((i) => (ctx.sessao.perfil === 'admin' ? i : { ...i, custoPrincipal: undefined }))
     .map((i) => {
       const ideal = i.estoqueIdeal ?? 0
       return { ...i, repor: Math.max(0, ideal - i.saldo) }

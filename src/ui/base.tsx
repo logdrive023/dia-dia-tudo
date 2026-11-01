@@ -152,6 +152,17 @@ export function Erro({ texto }: { texto?: string }) {
   return <p className="rounded-xl bg-[var(--ruim)]/10 p-3 text-sm text-[var(--ruim)]">{texto}</p>
 }
 
+/** Registro não encontrado / erro: explica e oferece voltar (nunca "Carregando…" para sempre). */
+export function ErroTela({ texto, onVoltar }: { texto: string; onVoltar(): void }) {
+  const t = useT()
+  return (
+    <div className="mx-auto max-w-md space-y-3 pt-10 text-center">
+      <p className="font-semibold">{t(texto)}</p>
+      <Botao variante="secundario" onClick={onVoltar}>← {t('Voltar')}</Botao>
+    </div>
+  )
+}
+
 export function Titulo({ children, acao, subtitulo }: { children: ReactNode; acao?: ReactNode; subtitulo?: ReactNode }) {
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
@@ -290,7 +301,8 @@ export function Janela({ aberta, titulo, onFechar, children, rodape, larga }: { 
   }, [aberta, onFechar])
   if (!aberta) return null
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 md:items-center" onClick={onFechar}>
+    // tocar fora NÃO fecha: o formulário não perde o que foi digitado (fecha pelo × ou Esc)
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 md:items-center">
       <div
         role="dialog"
         aria-modal="true"
@@ -310,6 +322,41 @@ export function Janela({ aberta, titulo, onFechar, children, rodape, larga }: { 
         {rodape && <div className="border-t border-[var(--borda)] p-3">{rodape}</div>}
       </div>
     </div>
+  )
+}
+
+/** Tela cheia com a mesma forma da Janela: voltar + título + conteúdo + barra de ação fixa embaixo. */
+export function Pagina({ titulo, subtitulo, onVoltar, voltarRotulo, children, rodape }: { titulo: ReactNode; subtitulo?: ReactNode; onVoltar(): void; voltarRotulo?: string; children: ReactNode; rodape?: ReactNode }) {
+  const t = useT()
+  return (
+    <div className="mx-auto max-w-4xl">
+      <button type="button" onClick={onVoltar} className="mb-3 min-h-10 rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">← {t(voltarRotulo ?? 'Voltar')}</button>
+      <h1 className="text-2xl font-bold">{titulo}</h1>
+      {subtitulo && <p className="mb-4 text-sm text-[var(--suave)]">{subtitulo}</p>}
+      <div className={cx(!subtitulo && 'mt-4', 'pb-4')}>{children}</div>
+      {rodape && <div className="sticky bottom-20 z-20 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-3 shadow-lg md:bottom-4">{rodape}</div>}
+    </div>
+  )
+}
+
+/**
+ * "Tem certeza?" antes de ações que mexem em dinheiro, estoque ou agenda: diz o que vai acontecer
+ * e (se pedir) o motivo, que fica no histórico.
+ */
+export function Confirmar({ titulo, texto, rotulo, perigo, pedirMotivo, motivoPadrao, onConfirmar, onFechar }: { titulo: string; texto: string; rotulo: string; perigo?: boolean; pedirMotivo?: boolean; motivoPadrao?: string; onConfirmar(motivo: string): void | Promise<unknown>; onFechar(): void }) {
+  const t = useT()
+  const [motivo, setMotivo] = useState(motivoPadrao ?? '')
+  const [ocupado, setOcupado] = useState(false)
+  return (
+    <Janela aberta titulo={t(titulo)} onFechar={onFechar} rodape={
+      <div className="flex flex-wrap justify-end gap-2">
+        <Botao variante="leve" onClick={onFechar}>{t('Voltar')}</Botao>
+        <Botao variante={perigo ? 'perigo' : 'primario'} disabled={ocupado || (pedirMotivo && !motivo.trim())} onClick={async () => { setOcupado(true); try { await onConfirmar(motivo.trim()) } finally { setOcupado(false); onFechar() } }}>{t(rotulo)}</Botao>
+      </div>
+    }>
+      <p className="text-sm">{t(texto)}</p>
+      {pedirMotivo && <div className="mt-3"><Campo rotulo="Motivo (fica no histórico)"><Entrada autoFocus value={motivo} onChange={(e) => setMotivo(e.target.value)} /></Campo></div>}
+    </Janela>
   )
 }
 

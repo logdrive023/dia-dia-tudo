@@ -7,7 +7,7 @@ import { novoId } from '../core/domain/ids'
 import type { Campos, Id } from '../core/domain/tipos'
 import type { NoRastreio } from '../core/services/estoque'
 import { fatorDaTabela } from '../core/services/precos'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pilula, Selecao, Titulo, Vazio, cx, dataBR, fmt, gramasTexto } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, Titulo, Vazio, cx, dataBR, fmt, gramasTexto, ErroTela } from '../ui/base'
 import { useApp, useComando, useConsulta } from '../ui/contexto'
 import { Anexos } from '../ui/compartilhados'
 import { LinhaDoTempo } from '../ui/linhaTempo'
@@ -24,7 +24,6 @@ export function Estoque() {
   const [busca, setBusca] = useState('')
   const [categoria, setCategoria] = useState('')
   const [soBrutos, setSoBrutos] = useState(!!nav.params.bruto)
-  const [separar, setSeparar] = useState<Id>()
   const [ajustar, setAjustar] = useState<Id>()
   const { dados } = useConsulta('estoque', { moduloId: modulo, somenteComSaldo: !nav.params.repor })
   const lista = (dados ?? [])
@@ -82,7 +81,7 @@ export function Estoque() {
                   <td className="num hidden p-2 text-right md:table-cell">{i.custoPrincipal && i.quantidadeInicial ? formatar(Math.round((i.custoPrincipal * i.saldo) / i.quantidadeInicial), 'BOB') : '—'}</td>
                   <td className="p-2 text-right">
                     <div className="flex justify-end gap-1">
-                      {i.unidade === 'grama' && <Botao variante="secundario" onClick={() => setSeparar(i.id)}>{t('Separar')}</Botao>}
+                      {i.unidade === 'grama' && <Botao variante="secundario" onClick={() => ir('separar', { id: i.id })}>{t('Separar')}</Botao>}
                       <Botao variante="leve" onClick={() => setAjustar(i.id)}>{t('Ajustar')}</Botao>
                     </div>
                   </td>
@@ -92,16 +91,22 @@ export function Estoque() {
           </table>
         </div>
       )}
-      {separar && <Separar loteId={separar} onFechar={() => setSeparar(undefined)} />}
       {ajustar && <Ajustar itemId={ajustar} onFechar={() => setAjustar(undefined)} />}
     </div>
   )
 }
 
 /** Separar um lote (ex.: 40 kg bruto → 20 kg preto 60 cm + 19,5 kg castanho 50 cm; o resto é perda). */
-function Separar({ loteId, onFechar }: { loteId: Id; onFechar(): void }) {
+/** Tela de SEPARAR LOTE (#/separar?id=…): partes, custo por valor de mercado e perda, com o resumo sempre à vista. */
+export function SepararTela() {
+  const { nav, voltar, ir } = useApp()
+  const loteId = nav.params.id as Id
+  return <Separar loteId={loteId} onFechar={voltar} onSeparou={() => ir('lote', { id: loteId })} />
+}
+
+function Separar({ loteId, onFechar, onSeparou }: { loteId: Id; onFechar(): void; onSeparou(): void }) {
   const t = useT()
-  const { dados } = useConsulta('fichaItem', { id: loteId })
+  const { dados, erro } = useConsulta('fichaItem', { id: loteId })
   const { executar, ocupado } = useComando()
   const [id] = useState(() => novoId())
   const [usada, setUsada] = useState<number>()
@@ -117,17 +122,17 @@ function Separar({ loteId, onFechar }: { loteId: Id; onFechar(): void }) {
     const tb = tabelas?.find((x) => (x.categoria ?? 'Normal') === String(p.campos.categoria ?? 'Normal')) ?? tabela
     return tb && med && col ? fatorDaTabela(tb, med, col).fator : undefined
   }
+  if (erro) return <ErroTela texto={erro} onVoltar={onFechar} />
   if (!dados) return null
   const lote = dados.item
   const usar = usada ?? lote.saldo
   const soma = partes.reduce((s, p) => s + (p.quantidade ?? 0), 0)
   const att = (i: number, d: Partial<(typeof partes)[number]>) => setPartes(partes.map((p, k) => (k === i ? { ...p, ...d, campos: { ...p.campos, ...(d.campos ?? {}) } } : p)))
   return (
-    <Janela
-      aberta
-      larga
+    <Pagina
       titulo={`${t('Separar')} ${lote.codigo ?? ''} · ${lote.nome}`}
-      onFechar={onFechar}
+      subtitulo={t('Um lote vira vários; o que sobrar é perda. Ex.: 40 kg bruto → 20 kg preto 60 cm + 19,5 kg castanho 50 cm (perda 0,5 kg).')}
+      onVoltar={onFechar}
       rodape={
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className={cx('text-sm font-semibold', soma > usar ? 'text-[var(--ruim)]' : 'text-[var(--suave)]')}>
@@ -135,7 +140,7 @@ function Separar({ loteId, onFechar }: { loteId: Id; onFechar(): void }) {
           </span>
           <Botao grande disabled={ocupado || !soma || soma > usar} onClick={async () => {
             const r = await executar('separarLote', { id, loteId, quantidadeUsada: usar, saidas: partes.filter((p) => p.quantidade).map((p) => ({ id: p.id, quantidade: p.quantidade!, campos: p.campos, valorReferencia: porValor ? refDe(p) : undefined })) }, t('Lote separado.'))
-            if (r) onFechar()
+            if (r) onSeparou()
           }}>{t('Separar')}</Botao>
         </div>
       }
@@ -160,7 +165,7 @@ function Separar({ loteId, onFechar }: { loteId: Id; onFechar(): void }) {
         ))}
         <Botao variante="secundario" onClick={() => setPartes([...partes, { id: novoId(), campos: { ...partes[partes.length - 1]?.campos, comprimento: undefined } }])}>+ {t('Outra parte')}</Botao>
       </div>
-    </Janela>
+    </Pagina>
   )
 }
 
@@ -189,7 +194,8 @@ export function FichaLote() {
   const t = useT()
   const { nav, ir, voltar } = useApp()
   const id = nav.params.id as Id
-  const { dados } = useConsulta('fichaItem', { id })
+  const { dados, erro } = useConsulta('fichaItem', { id })
+  if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
   const i = dados.item
   const fu = i.unidade === 'grama' ? 'gramas' : 'numero'
@@ -246,7 +252,8 @@ export function FichaLote() {
 export function Rastreio() {
   const t = useT()
   const { nav, ir, voltar } = useApp()
-  const { dados } = useConsulta('rastreio', { compraId: nav.params.compraId as Id | undefined, itemId: nav.params.itemId as Id | undefined })
+  const { dados, erro } = useConsulta('rastreio', { compraId: nav.params.compraId as Id | undefined, itemId: nav.params.itemId as Id | undefined })
+  if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
   const r = dados.resumo
   return (

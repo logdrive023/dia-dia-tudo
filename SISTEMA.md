@@ -43,6 +43,37 @@ Toque no **i** de qualquer item ou número: explicação + **quadro de exemplo**
 
 ---
 
+### Telas com endereço próprio (dá para copiar, abrir de novo e usar o "voltar")
+| Endereço | Tela |
+|---|---|
+| `#/pedidos` | pedidos de compra em **tabela** (busca, ordenar por data/total/parada, situação e "o que falta") |
+| `#/pedidos/novo` | **nova compra** (formulário em 3 passos + resumo ao lado: total, peso, custo/kg, conta do fornecedor) |
+| `#/pedidos/:id` | **o pedido**: etapas, o que falta, itens, andar a triagem, pagamento, conta do fornecedor, lotes gerados, arquivos, linha do tempo, repetir |
+| `#/precos` · `#/precos/:id` | tabelas de preço e a tela de cada uma: Tabela · Editar · **Versões** · **Comparar** |
+| `#/separar?id=…` | separar um lote em vários |
+| `#/emprestimos/novo` | novo empréstimo com prévia das parcelas |
+| `#/vendas/:id` · `#/pessoas/:id` · `#/lotes/:id` · `#/emprestimos/:id` | detalhe de cada registro |
+
+### O que falta (pendências)
+- **Venda**: falta receber (fiado; some quando a pessoa acerta a conta) · pagamento por QR/transferência sem comprovante.
+- **Compra**: sem fotos · sem comprovante de origem · falta pagar (considera os acertos com o fornecedor) · parada na triagem.
+- As listas mostram **✓ Completa** ou o que falta, com filtro "Com pendência" e por tipo.
+- **Atenção agora** (Painel): urgente → atenção → acompanhar; cada alerta abre e mostra os registros, e cada um leva
+  **direto ao pedido/venda/empréstimo**; "Ver todos" abre a lista já filtrada.
+
+### Painel
+- Filtros em **chips** (período, moeda, unidade) com resumo do que está ativo e "limpar"; comparar em interruptor.
+- Seções que **abrem e fecham** (lembradas): Atenção agora · Vendas · Dinheiro · Evolução · De onde vem o dinheiro · áreas.
+- Comparação explícita ("vs período anterior"); sem porcentagem absurda quando não há base.
+- Menu: ícones por grupo, **grupos que abrem e fecham**, trilho de ícones e **esconder a barra** inteira.
+
+### Tabela de preço com versões
+- Toda alteração **publica uma versão nova** (v1, v2…), com data, quem fez e nota ("o que mudou e por quê").
+  Salvar sem mudar nada é recusado.
+- **Comparar** quaisquer duas versões: grade com "era" riscado e "ficou" embaixo (verde subiu, vermelho desceu), resumo
+  (mudaram, subiram, desceram, novos, removidos, medidas e compradores novos) e lista com a % de cada mudança.
+- A tela mostra onde a tabela foi usada; cada venda/compra guarda o fator que usou (o passado não muda).
+
 ## 2. Regras de negócio
 
 ### 2.1 Dinheiro e moedas
@@ -200,7 +231,7 @@ src/screens          uma tela por área
 
 ## 6. Testes
 ```bash
-npm test          # 24 testes: regras, contrato (memória × IndexedDB × API simulada), dados de exemplo, telas
+npm test          # 29 testes: regras, contrato (memória × IndexedDB × API simulada), dados de exemplo, telas
 npm run build     # tipos + build de produção (PWA)
 npm run dev       # http://localhost:5173
 ```
@@ -235,7 +266,7 @@ Lendo os pedidos e o caderno real (PDF de contas), apareceram coisas que nenhum 
 | Gramas e quilos misturados | "2 kg → 7.000", "2008 × 17,5", "21,495 Kg" | Campo g/kg |
 | Quem fez cada coisa | — | Usuário em toda ação, log filtrável, linha do tempo |
 | Salário variável | — | Mês/semana/dia + repetir último pagamento |
-| Contas sempre batendo | — | Diagnóstico (estoque, caixa, dívida, vendas) na tela e nos testes |
+| Contas sempre batendo | — | Diagnóstico (estoque, caixa, dívida, vendas, conta corrente) na tela e nos testes |
 
 ### Feito depois da primeira rodada
 - **Corrigir venda** a qualquer momento, com histórico; **comissões** (ganho + pagamento); **horário ocupado**;

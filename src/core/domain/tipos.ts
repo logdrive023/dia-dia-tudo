@@ -123,6 +123,8 @@ export type TipoTransacao = 'compra' | 'venda'
 
 export interface Transacao extends Base {
   tipo: TipoTransacao
+  /** número curto para falar e buscar: "P-0007" (pedido de compra) */
+  codigo?: string
   moduloId: string
   /** dia do caixa (AAAA-MM-DD) */
   data: string
@@ -185,6 +187,8 @@ export interface MovCaixa extends Base {
   categoria?: string
   /** retirada de sócio (divisão do lucro) */
   socioId?: Id
+  /** valor na moeda principal no dia (ex.: comissão paga): não muda com o câmbio depois */
+  valorPrincipal?: number
   /** despesa da unidade (salão) */
   localId?: Id
   /** pagamento de salário/diária a esta pessoa */

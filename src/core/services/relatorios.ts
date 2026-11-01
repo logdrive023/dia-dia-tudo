@@ -32,10 +32,12 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
   const receita = vendas.reduce((s, t) => s + t.totalPrincipal, 0)
   const cmv = vendas.reduce((s, t) => s + t.linhas.reduce((x, l) => x + (l.custoPrincipal ?? 0), 0), 0)
   const comissoes = vendas.reduce((s, t) => s + t.linhas.reduce((x, l) => x + (l.comissaoPrincipal ?? 0), 0), 0)
-  const caixa = (await ctx.repos.movCaixa.listar()).filter((m) => m.data >= p.de && m.data <= p.ate)
+  const todoCaixa = await ctx.repos.movCaixa.listar()
+  const porId = new Map(todoCaixa.map((m) => [m.id, m]))
+  const caixa = todoCaixa.filter((m) => m.data >= p.de && m.data <= p.ate)
   const despesasPorCategoria = new Map<string, number>()
   // comissão paga não entra aqui: ela já foi descontada como custo em cada venda (senão contaria duas vezes)
-  for (const m of caixa.filter((x) => x.categoria !== 'Comissões' && (x.tipo === 'despesa' || (x.tipo === 'estorno' && x.estornaId && caixa.find((o) => o.id === x.estornaId)?.tipo === 'despesa')))) {
+  for (const m of caixa.filter((x) => x.categoria !== 'Comissões' && (x.tipo === 'despesa' || (x.tipo === 'estorno' && x.estornaId && porId.get(x.estornaId)?.tipo === 'despesa')))) {
     const cat = m.categoria || 'Outras despesas'
     despesasPorCategoria.set(cat, (despesasPorCategoria.get(cat) ?? 0) - conv(m.delta, m.moeda))
   }

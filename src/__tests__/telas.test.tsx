@@ -15,6 +15,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   localStorage.clear()
+  window.history.replaceState(null, '', '/')
 })
 
 /** Abre o app: ele já monta os dados de exemplo sozinho e pede para entrar. */

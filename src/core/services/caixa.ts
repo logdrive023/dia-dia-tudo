@@ -8,7 +8,7 @@ import { auditar, type Ctx, exigirInteiroPositivo, formaPagamento, garantirDiaAb
 
 export async function moverCaixa(
   ctx: Ctx,
-  m: { id?: Id; data: string; moeda: CodigoMoeda; forma: string; delta: number; tipo: TipoCaixa; origemId?: Id; descricao: string; categoria?: string; estornaId?: Id; socioId?: Id; localId?: Id; pessoaId?: Id },
+  m: { id?: Id; data: string; moeda: CodigoMoeda; forma: string; delta: number; tipo: TipoCaixa; origemId?: Id; descricao: string; categoria?: string; estornaId?: Id; socioId?: Id; localId?: Id; pessoaId?: Id; valorPrincipal?: number },
 ) {
   await garantirDiaAberto(ctx, m.data)
   const f = await formaPagamento(ctx, m.forma)
@@ -74,6 +74,10 @@ export async function estornarLancamento(ctx: Ctx, d: { lancamentoId: Id; motivo
     tipo: 'estorno',
     descricao: `Desfeito: ${orig.descricao}`,
     estornaId: orig.id,
+    categoria: orig.categoria,
+    localId: orig.localId,
+    pessoaId: orig.pessoaId,
+    socioId: orig.socioId,
   })
   await ctx.repos.movCaixa.salvar(tocar(ctx, { ...orig, estornadoPor: inv.id }))
   await auditar(ctx, 'estornarLancamento', orig.id, d.motivo ?? orig.descricao)

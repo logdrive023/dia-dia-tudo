@@ -151,7 +151,7 @@ export async function cotacoesAtuais(ctx: Ctx, uso: UsoCambio = 'base'): Promise
     } else {
       const bp = uso === 'venda' ? conf.ajusteVendaBp ?? 0 : conf.ajusteCompraBp ?? 0
       const temBase = m === 'BRL' || !!base[m]
-      if (temBase && bp && base[cfg.moedaPrincipal] !== undefined) tabela[m] = ajustarCotacao(m, cfg.moedaPrincipal, bp, base, uso, base[m]?.data ?? '')
+      if (temBase && bp && (cfg.moedaPrincipal === 'BRL' || base[cfg.moedaPrincipal] !== undefined)) tabela[m] = ajustarCotacao(m, cfg.moedaPrincipal, bp, base, uso, base[m]?.data ?? '')
     }
   }
   return tabela

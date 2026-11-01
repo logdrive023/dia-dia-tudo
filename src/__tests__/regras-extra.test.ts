@@ -169,6 +169,78 @@ describe('câmbio dinâmico ou fixo, para venda e para compra', () => {
   })
 })
 
+describe('tabela de preço com versões', () => {
+  it('cada alteração publica uma versão; compara "era X → ficou Y"; não publica se nada mudou', async () => {
+    const { b } = await novoBackend()
+    const base = { id: 't', moduloId: 'cabelo', nome: 'Geral', moeda: 'BOB', unidadeMedida: 'cm', fatorPor: 'grama' as const, linhas: [40, 60], colunas: [{ id: 'a', nome: 'A' }], valores: { '40|a': '3,5', '60|a': '16' } }
+    expect((await b.comando('salvarTabelaPreco', base)).versao).toBe(1)
+    await expect(b.comando('salvarTabelaPreco', base)).rejects.toThrow(/Nada mudou/)
+    expect((await b.comando('salvarTabelaPreco', { ...base, valores: { '40|a': '3,7', '60|a': '16' }, nota: 'subiu 40' })).versao).toBe(2)
+    await b.comando('salvarTabelaPreco', { ...base, linhas: [40, 60, 70], valores: { '40|a': '3,7', '70|a': '19' } })
+    const vs = await b.consulta('versoesTabela', { id: 't' })
+    expect(vs.map((v) => v.numero)).toEqual([3, 2, 1])
+    expect(vs[1].nota).toBe('subiu 40')
+    const c12 = await b.consulta('compararVersoes', { id: 't', de: 1, para: 2 })
+    expect(c12.celulas).toEqual([{ linha: 40, colunaId: 'a', coluna: 'A', antes: '3,5', depois: '3,7', pct: 5.7 }])
+    const c23 = await b.consulta('compararVersoes', { id: 't', de: 2, para: 3 })
+    expect(c23.resumo).toMatchObject({ mudaram: 2, entraram: 1, sairam: 1, medidasNovas: [70] })
+  })
+})
+
+describe('pendências: o que falta em vendas e compras', () => {
+  it('fiado aparece como "falta receber" e some quando a pessoa paga; o painel leva direto ao registro', async () => {
+    const { b } = await novoBackend()
+    await b.comando('salvarPessoa', { id: 'cli', nome: 'Cliente', papeis: ['cliente'] })
+    await b.comando('salvarItem', { id: 'x', moduloId: 'produtos', tipoItem: 'peca', nome: 'X', saldoInicial: 5 })
+    await b.comando('concluirVenda', { id: 'v', pessoaId: 'cli', linhas: [{ id: 'l', itemId: 'x', quantidade: 1, moeda: 'BOB', total: bs(100) }], pagamentos: [{ id: 'p', forma: 'qr', moeda: 'BOB', valor: bs(60) }] })
+    const v = (await b.consulta('vendas', { pendencia: 'qualquer' }))[0]
+    expect(v.pendencias.map((p) => p.id).sort()).toEqual(['faltaReceber', 'semComprovante'])
+    expect(v.pendencias.find((p) => p.id === 'faltaReceber')?.valor).toBe(bs(40))
+    const painel = await b.consulta('painel', { de: '2026-11-01', ate: '2026-11-01' })
+    const alerta = painel.alertas.find((a) => a.id === 'faltaReceber')!
+    expect(alerta.itens[0].detalhe).toEqual({ tela: 'venda', filtro: { id: 'v' } })
+    await b.comando('registrarAcerto', { id: 'ac', pessoaId: 'cli', direcao: 'recebi', valor: bs(40), moeda: 'BOB', forma: 'dinheiro' })
+    expect((await b.consulta('vendas', { pendencia: 'faltaReceber' })).length).toBe(0)
+  })
+})
+
+describe('funcionária: agenda e vendas no nome da pessoa dela', () => {
+  it('vê só os agendamentos dela (pela pessoa ligada ao usuário) e só desmarca os dela', async () => {
+    const { b, sessao } = await novoBackend('2026-11-01')
+    await b.comando('salvarPessoa', { id: 'p-s', nome: 'Sofia', papeis: ['profissional'] })
+    await b.comando('salvarPessoa', { id: 'p-o', nome: 'Outra', papeis: ['profissional'] })
+    await b.comando('salvarPessoa', { id: 'c', nome: 'Cli', papeis: ['cliente'] })
+    await b.comando('salvarItem', { id: 's', moduloId: 'salao', tipoItem: 'servico', nome: 'Corte' })
+    const ag = (id: string, prof: string, h: string) => b.comando('concluirVenda', { id, pessoaId: 'c', profissionalId: prof, agendadoPara: `2026-11-01T${h}:00:00.000Z`, linhas: [{ id: id + 'l', itemId: 's', quantidade: 1, moeda: 'BOB', total: 100 }], pagamentos: [] })
+    await ag('a1', 'p-s', '14')
+    await ag('a2', 'p-o', '14')
+    await b.comando('salvarUsuario', { id: 'u-s', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', pessoaId: 'p-s', senha: '1234' })
+    Object.assign(sessao, await b.entrar('sofia', '1234'))
+    expect((await b.consulta('agenda', { de: '2026-11-01', ate: '2026-11-01' })).map((x) => x.id)).toEqual(['a1'])
+    await expect(b.comando('cancelarVenda', { id: 'a2', motivo: 'x' })).rejects.toThrow(/desmarcar os seus/)
+    await b.comando('cancelarVenda', { id: 'a1', motivo: 'cliente desmarcou' })
+  })
+
+  it('não muda câmbio, comissão nem salário; editar só o nome não apaga o resto', async () => {
+    const { b, sessao } = await novoBackend('2026-11-01')
+    await b.comando('salvarPessoa', { id: 'p-s', nome: 'Sofia', papeis: ['profissional'], comissaoBp: 3000, salario: { moeda: 'BOB', valor: 300000, periodo: 'mes' } })
+    await b.comando('salvarPessoa', { id: 'c', nome: 'Cli', papeis: ['cliente'], documento: '123', obs: 'boa cliente' })
+    await b.comando('salvarUsuario', { id: 'u-s', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', pessoaId: 'p-s', senha: '1234' })
+    Object.assign(sessao, await b.entrar('sofia', '1234'))
+    await expect(b.comando('salvarCotacao', { id: 'q', moeda: 'USD', valor: '1', sentido: 'basePorMoeda', fonte: 'manual' })).rejects.toThrow(/permissão/)
+    await expect(b.comando('salvarCotacao', { id: 'q2', moeda: 'USD', valor: '6,96', sentido: 'basePorMoeda', fonte: 'auto', uso: 'venda' })).rejects.toThrow(/permissão/)
+    await b.comando('salvarPessoa', { id: 'p-s', nome: 'Sofia', papeis: ['profissional'], comissaoBp: 10000, salario: { moeda: 'BOB', valor: 9999999, periodo: 'mes' } })
+    await b.comando('salvarPessoa', { id: 'c', nome: 'Cliente', papeis: ['cliente'] })
+    await expect(b.comando('salvarPessoa', { id: 'n', nome: 'Nova', papeis: ['funcionario'] })).rejects.toThrow(/administrador/)
+    Object.assign(sessao, { usuarioId: 'sistema', perfil: 'admin', pessoaId: undefined })
+    const pessoas = await b.consulta('pessoas', {})
+    const sofia = pessoas.find((p) => p.id === 'p-s')!
+    expect(sofia.comissaoBp).toBe(3000)
+    expect(sofia.salario?.valor).toBe(300000)
+    expect(pessoas.find((p) => p.id === 'c')).toMatchObject({ nome: 'Cliente', documento: '123', obs: 'boa cliente' })
+  })
+})
+
 describe('fronteira da arquitetura', () => {
   it('só o adaptador local conhece o banco (Dexie): trocar pela API não mexe em telas e regras', () => {
     const raiz = join(__dirname, '..')

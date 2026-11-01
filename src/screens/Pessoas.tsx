@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id, Papel } from '../core/domain/tipos'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Janela, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, gramasTexto } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Janela, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, gramasTexto, ErroTela } from '../ui/base'
 import { useApp, useComando, useConsulta } from '../ui/contexto'
 import { linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { LinhaDoTempo } from '../ui/linhaTempo'
@@ -110,12 +110,13 @@ export function FichaPessoa() {
   const t = useT()
   const { nav, voltar, ir, sessao } = useApp()
   const id = nav.params.id as Id
-  const { dados } = useConsulta('fichaPessoa', { id })
-  const { dados: conta } = useConsulta('contaPessoa', { pessoaId: id })
+  const { dados, erro } = useConsulta('fichaPessoa', { id })
+  const { dados: conta } = useConsulta('contaPessoa', { pessoaId: id }, sessao.perfil === 'admin')
   const [acerto, setAcerto] = useState<'recebi' | 'paguei'>()
   const [editar, setEditar] = useState(false)
   const { cfg } = useCotacoes()
   const m = cfg?.moedaPrincipal ?? 'BOB'
+  if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
   const p = dados.pessoa
   return (
@@ -167,7 +168,7 @@ export function FichaPessoa() {
         <ul className="divide-y divide-[var(--borda)] text-sm">
           {dados.timeline.slice(0, 50).map((e) => (
             <li key={e.id + e.tipo} className="flex justify-between gap-2 py-2">
-              <button type="button" className="text-left underline" onClick={() => ir(e.tipo === 'compra' ? 'comprar' : e.tipo === 'venda' ? 'venda' : 'emprestimo', { id: e.id })}>
+              <button type="button" className="text-left underline" onClick={() => ir(e.tipo === 'compra' ? 'pedido' : e.tipo === 'venda' ? 'venda' : 'emprestimo', { id: e.id })}>
                 {dataBR(e.data)} · {t(e.tipo === 'compra' ? 'Comprei dela' : e.tipo === 'venda' ? 'Venda/atendimento' : 'Empréstimo')}: {e.texto}
               </button>
               <span className="num shrink-0">{formatar(e.valor, m)} <Pilula>{t(e.etapa)}</Pilula></span>
@@ -187,7 +188,8 @@ function Acerto({ pessoaId, direcao, onFechar }: { pessoaId: Id; direcao: 'receb
   const { cfg } = useCotacoes()
   const { executar, ocupado } = useComando()
   const [id] = useState(() => novoId())
-  const [moeda, setMoeda] = useState(cfg?.moedaPrincipal ?? 'BOB')
+  const [moedaEscolhida, setMoeda] = useState<string>()
+  const moeda = moedaEscolhida ?? cfg?.moedaPrincipal ?? 'BOB'
   const [forma, setForma] = useState('dinheiro')
   const [valor, setValor] = useState<number>()
   const [adiantamento, setAdiantamento] = useState(false)

@@ -17,7 +17,8 @@ import { useT } from '../ui/i18n'
 
 export function Config() {
   const t = useT()
-  const [aba, setAba] = useState('geral')
+  const { nav } = useApp()
+  const [aba, setAba] = useState((nav.params.aba as string) ?? 'geral')
   return (
     <div>
       <Titulo>{t('Configurações')}</Titulo>

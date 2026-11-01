@@ -148,17 +148,25 @@ export function ValoresConvertidos({ valor, moeda, uso = 'venda' }: { valor: num
   )
 }
 
+/** Abre o conversor de qualquer lugar (menu, telas). */
+export function abrirConversor() {
+  window.dispatchEvent(new Event('tudo:conversor'))
+}
+
 export function Conversor() {
   const t = useT()
   const [aberto, setAberto] = useState(false)
+  useEffect(() => {
+    const f = () => setAberto(true)
+    window.addEventListener('tudo:conversor', f)
+    return () => window.removeEventListener('tudo:conversor', f)
+  }, [])
   const [moeda, setMoeda] = useState('BOB')
   const [valor, setValor] = useState<number>()
   const { dados } = useConsulta('configuracoes', {})
   return (
     <>
-      <button type="button" onClick={() => setAberto(true)} className="nao-imprimir fixed bottom-20 right-4 z-30 h-12 w-12 rounded-full bg-[var(--marca)] text-xl text-white shadow-lg md:bottom-6" aria-label={t('Conversor de moedas')} title={t('Conversor de moedas')}>
-        💱
-      </button>
+
       <Janela aberta={aberto} titulo={t('Conversor de moedas')} onFechar={() => setAberto(false)}>
         <div className="space-y-3">
           <div className="grid grid-cols-[7rem_1fr] gap-2">

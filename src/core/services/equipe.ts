@@ -67,9 +67,10 @@ export async function organograma(ctx: Ctx, p: { localId?: Id; de: string; ate: 
   const equipe = todos.filter((x) => !localId || x.localId === localId)
   const ids = new Set(equipe.map((x) => x.id))
   const des = await desempenho(ctx, p.de, p.ate)
+  const admin = ctx.sessao.perfil === 'admin'
   const montar = (pessoa: Pessoa): NoOrganograma => ({
-    pessoa,
-    salarioPrincipal: salarioMensal(pessoa, conv),
+    pessoa: admin ? pessoa : { ...pessoa, salario: undefined, comissaoBp: undefined, documento: undefined },
+    salarioPrincipal: admin ? salarioMensal(pessoa, conv) : 0,
     atendimentos: des.get(pessoa.id)?.atendimentos ?? 0,
     faturamento: des.get(pessoa.id)?.faturamento ?? 0,
     subordinados: equipe.filter((x) => x.superiorId === pessoa.id).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map(montar),
@@ -80,6 +81,8 @@ export async function organograma(ctx: Ctx, p: { localId?: Id; de: string; ate: 
 
 /** Resumo rápido (cartão ao tocar no funcionário): nome, cargo, salário, unidade, desempenho. */
 export async function resumoFuncionario(ctx: Ctx, p: { id: Id; de: string; ate: string }) {
+  // funcionária só vê o resumo dela
+  if (ctx.sessao.perfil !== 'admin') exigir(p.id === (ctx.sessao.pessoaId ?? ctx.sessao.usuarioId), 'Sem permissão para ver isso.')
   const pessoa = await ctx.repos.pessoas.obter(p.id)
   if (!pessoa) return undefined
   const conv = await conversor(ctx)
@@ -123,7 +126,7 @@ export async function unidades(ctx: Ctx, p: { de: string; ate: string }) {
     const comissoes = concluidas.reduce((s, t) => s + t.linhas.reduce((x, li) => x + (li.comissaoPrincipal ?? 0), 0), 0)
     const custoCabelo = concluidas.reduce((s, t) => s + t.linhas.reduce((x, li) => x + (li.custoPrincipal ?? 0), 0), 0)
     // despesas da unidade, sem os salários (esses entram pela estimativa acima)
-    const despesas = -caixa.filter((m) => m.localId === l.id && !m.pessoaId && (m.tipo === 'despesa' || m.tipo === 'estorno')).reduce((s, m) => s + conv(m.delta, m.moeda), 0)
+    const despesas = -caixa.filter((m) => m.localId === l.id && !m.pessoaId && (m.tipo === 'despesa' || (m.tipo === 'estorno' && m.categoria !== undefined))).reduce((s, m) => s + conv(m.delta, m.moeda), 0)
     const saidas = salarios + comissoes + custoCabelo + despesas
     return {
       local: l,

@@ -41,7 +41,7 @@ export async function salvarPessoa(
       atual = atual.superiorId ? await ctx.repos.pessoas.obter(atual.superiorId) : undefined
     }
   }
-  const dados = {
+  const novos: Partial<Pessoa> = {
     nome: d.nome.trim(),
     telefone: tel,
     documento: d.documento?.trim() || undefined,
@@ -54,8 +54,16 @@ export async function salvarPessoa(
     superiorId: d.superiorId || undefined,
     acesso: d.acesso,
   }
+  // só muda o que a tela mandou (editar pela Equipe não apaga documento nem observação)
+  const dados = Object.fromEntries(Object.entries(novos).filter(([k]) => k === 'nome' || k === 'papeis' || k in d)) as Partial<Pessoa> & { nome: string; papeis: Papel[] }
+  if (ctx.sessao.perfil !== 'admin') {
+    // funcionária cadastra e edita clientes, mas não comissão, salário, acesso, chefe, cargo nem unidade
+    for (const k of ['comissaoBp', 'salario', 'acesso', 'superiorId', 'cargo'] as const) delete dados[k]
+    if (existente) delete dados.localId
+    exigir(!d.papeis.some((p) => p === 'funcionario' || p === 'socio') || existente?.papeis.some((p) => p === 'funcionario' || p === 'socio'), 'Só o administrador cadastra funcionários.')
+  }
   if (existente) await ctx.repos.pessoas.salvar(tocar(ctx, { ...existente, ...dados }))
-  else await ctx.repos.pessoas.salvar(novo<Pessoa>(ctx, { id: d.id, ...dados }))
+  else await ctx.repos.pessoas.salvar(novo<Pessoa>(ctx, { id: d.id, ...dados } as Parameters<typeof novo<Pessoa>>[1]))
   await auditar(ctx, 'salvarPessoa', d.id, dados.nome)
   return { id: d.id }
 }
@@ -73,8 +81,16 @@ export async function salvarCotacao(
   d: { id: Id; moeda: CodigoMoeda; valor: string; sentido: 'basePorMoeda' | 'moedaPorBase'; fonte?: 'manual' | 'auto'; contra?: CodigoMoeda; uso?: UsoCambio },
 ) {
   exigir(MOEDAS.some((m) => m.codigo === d.moeda) && d.moeda !== 'BRL', 'Moeda inválida.')
-  // funcionária só grava a busca automática da internet; cotação digitada é com o administrador
-  exigir(ctx.sessao.perfil === 'admin' || d.fonte === 'auto', 'Sem permissão para mudar o câmbio.')
+  // funcionária só grava a busca automática da internet (como base), e só se for plausível; o resto é do administrador
+  if (ctx.sessao.perfil !== 'admin') {
+    exigir(d.fonte === 'auto' && (d.uso ?? 'base') === 'base' && !d.contra, 'Sem permissão para mudar o câmbio.')
+    const ultima = (await cotacoesAtuais(ctx))[d.moeda]
+    if (ultima) {
+      const conv = (c: { valor: string; sentido: string }) => { const v = Number(c.valor.replace(/\./g, '').replace(',', '.')); return c.sentido === 'basePorMoeda' ? v : 1 / v }
+      const r = conv(d) / conv(ultima)
+      exigir(r > 0.8 && r < 1.25, 'Cotação muito diferente da última: peça ao administrador.')
+    }
+  }
   exigir(!d.contra || (d.contra !== d.moeda && MOEDAS.some((m) => m.codigo === d.contra)), 'Moeda de referência inválida.')
   decimalValido(d.valor)
   await ctx.repos.cotacoes.salvar(
@@ -166,6 +182,8 @@ export async function salvarConfig(ctx: Ctx, d: Partial<Configuracoes>) {
   const atual = await lerConfig(ctx)
   const valor = { ...atual, ...d }
   exigir(valor.moedasAtivas.includes(valor.moedaPrincipal), 'A moeda principal precisa estar ativa.')
+  if (valor.moedaPrincipal !== atual.moedaPrincipal && (await ctx.repos.transacoes.listar()).length)
+    exigir(false, 'Já existem vendas/compras na moeda principal atual: trocar agora misturaria moedas nos totais. Faça um backup e comece de novo para trocar.')
   if (valor.socios.length) {
     exigir(valor.socios.every((x) => x.nome.trim() && Number.isInteger(x.parteBp) && x.parteBp > 0), 'Cada sócio precisa de nome e parte.')
     exigir(valor.socios.reduce((s, x) => s + x.parteBp, 0) === 10000, 'As partes dos sócios precisam somar 100%.')
@@ -230,7 +248,9 @@ export async function configuracoes(ctx: Ctx, _p: object = {}) {
 export async function pessoas(ctx: Ctx, p: { papel?: Papel; busca?: string } = {}) {
   const todas = await ctx.repos.pessoas.listar()
   const b = p.busca?.trim().toLowerCase()
+  const func = ctx.sessao.perfil !== 'admin'
   return todas
+    .map((x) => (func ? { ...x, salario: undefined, comissaoBp: undefined, documento: undefined } : x))
     .filter((x) => !p.papel || x.papeis.includes(p.papel))
     .filter((x) => !b || x.nome.toLowerCase().includes(b) || x.telefone?.includes(b))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))

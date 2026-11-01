@@ -21,11 +21,12 @@ export async function registrarAcerto(
   ctx: Ctx,
   d: { id: Id; pessoaId: Id; direcao: 'recebi' | 'paguei'; adiantamento?: boolean; valor: number; moeda: CodigoMoeda; forma: string; descricao?: string },
 ) {
-  if ((await ctx.repos.movConta.listar({ origemId: d.id })).length) return { id: d.id }
+  if ((await ctx.repos.movConta.listar({ origemId: d.id })).length || (await ctx.repos.movCaixa.listar({ origemId: d.id })).length) return { id: d.id }
   const pessoa = await ctx.repos.pessoas.obter(d.pessoaId)
   exigir(pessoa, 'Escolha a pessoa.', 'pessoaId')
   exigirInteiroPositivo(d.valor, 'Valor')
   const { valorPrincipal } = await paraPrincipal(ctx, d.valor, d.moeda, d.direcao === 'recebi' ? 'venda' : 'compra')
+  exigir(valorPrincipal > 0, 'Valor pequeno demais para registrar.')
   const recebi = d.direcao === 'recebi'
   const rotulo = d.adiantamento ? (recebi ? 'Adiantamento recebido' : 'Adiantamento dado') : recebi ? 'Recebi' : 'Paguei'
   const descricao = `${rotulo} · ${pessoa.nome}${d.descricao?.trim() ? ` · ${d.descricao.trim()}` : ''}`

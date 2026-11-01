@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { formatar } from '../core/domain/dinheiro'
 import { dataLocal, diaDaSemana, somarDias } from '../core/domain/datas'
 import type { Id } from '../core/domain/tipos'
-import { Abas, Botao, Carregando, Erro, Cartao, Entrada, Janela, Pilula, Selecao, Titulo, Vazio, cx, dataBR } from '../ui/base'
+import { Abas, Botao, Carregando, Confirmar, Erro, Cartao, Entrada, Janela, Pilula, Selecao, Titulo, Vazio, cx, dataBR } from '../ui/base'
 import { useApp, useComando, useConsulta } from '../ui/contexto'
 import { EditorPagamentos, type PagamentoTela, linkWhatsApp } from '../ui/compartilhados'
 import { useT } from '../ui/i18n'
@@ -18,6 +18,7 @@ export function Agenda() {
   const [localId, setLocalId] = useState('')
   const [profissionalId, setProfissionalId] = useState('')
   const [atender, setAtender] = useState<Id>()
+  const [desmarcar, setDesmarcar] = useState<Id>()
   const de = modo === 'dia' ? data : somarDias(data, -((new Date(data + 'T12:00').getDay() + 6) % 7))
   const ate = modo === 'dia' ? data : somarDias(de, 6)
   const { dados, erro } = useConsulta('agenda', { de, ate, localId: localId || undefined, profissionalId: profissionalId || undefined })
@@ -72,7 +73,7 @@ export function Agenda() {
                           <div className="mt-2 flex flex-wrap gap-2">
                             <Botao onClick={() => setAtender(a.id)}>{t('Atender')}</Botao>
                             <a className="min-h-10 rounded-xl bg-[var(--marca-suave)] px-3 py-2 text-sm font-semibold text-[var(--marca)]" target="_blank" rel="noreferrer" href={linkWhatsApp(`${t('Olá')} ${a.cliente ?? ''}! ${t('Lembrete do seu horário')}: ${dataBR(a.agendadoPara)} ${new Date(a.agendadoPara!).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · ${a.local ?? ''}`)}>{t('Lembrar')}</a>
-                            <Botao variante="leve" onClick={() => executar('cancelarVenda', { id: a.id, motivo: t('Cliente desmarcou') }, t('Desmarcado.'))}>{t('Desmarcar')}</Botao>
+                            <Botao variante="leve" onClick={() => setDesmarcar(a.id)}>{t('Desmarcar')}</Botao>
                           </div>
                         )}
                       </li>
@@ -85,6 +86,7 @@ export function Agenda() {
         </div>
       )}
       {atender && <Atender id={atender} onFechar={() => setAtender(undefined)} />}
+      {desmarcar && <Confirmar titulo="Desmarcar atendimento?" texto="O horário fica livre e o atendimento sai da agenda (fica no histórico)." rotulo="Desmarcar" perigo pedirMotivo motivoPadrao={t('Cliente desmarcou')} onFechar={() => setDesmarcar(undefined)} onConfirmar={(motivo) => executar('cancelarVenda', { id: desmarcar, motivo }, t('Desmarcado.'))} />}
     </div>
   )
 }

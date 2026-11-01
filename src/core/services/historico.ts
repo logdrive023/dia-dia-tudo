@@ -41,6 +41,7 @@ const NOMES_ACAO: Record<string, string> = {
   salvarPessoa: 'Cadastro de pessoa',
   salvarTabelaPreco: 'Tabela de preço salva',
   tabelaPrecoAnterior: 'Versão anterior da tabela',
+  tabelaPrecoVersao: 'Versão da tabela publicada',
   salvarCotacao: 'Cotação salva',
   salvarCambio: 'Câmbio configurado',
   pagarSalario: 'Salário pago',
@@ -95,7 +96,7 @@ export async function linhaDoTempo(ctx: Ctx, p: { id: Id }) {
     }
   }
   for (const a of log.filter((x) => !(t && (x.acao === 'avancarTriagem' || x.acao === 'criarCompra' || x.acao === 'concluirVenda' || x.acao === 'agendar' || x.acao === 'corrigirVenda'))))
-    eventos.push({ em: a.criadoEm, tipo: a.acao === 'anexar' ? 'anexo' : 'acao', titulo: nomeAcao(a.acao), detalhe: a.acao === 'tabelaPrecoAnterior' ? undefined : a.resumo, por: a.usuarioNome })
+    eventos.push({ em: a.criadoEm, tipo: a.acao === 'anexar' ? 'anexo' : 'acao', titulo: nomeAcao(a.acao), detalhe: a.acao === 'tabelaPrecoAnterior' || a.acao === 'tabelaPrecoVersao' ? undefined : a.resumo, por: a.usuarioNome })
   for (const an of await ctx.repos.anexos.listar({ donoId: p.id })) if (!log.some((a) => a.acao === 'anexar' && a.resumo.endsWith(an.nome))) eventos.push({ em: an.criadoEm, tipo: 'anexo', titulo: 'Arquivo anexado', detalhe: an.nome })
   return eventos.sort((a, b) => (a.em < b.em ? -1 : 1))
 }
@@ -104,7 +105,7 @@ export async function linhaDoTempo(ctx: Ctx, p: { id: Id }) {
 export async function logDetalhado(ctx: Ctx, p: { de?: string; ate?: string; usuarioId?: Id; acao?: string; busca?: string; limite?: number }) {
   const b = p.busca?.trim().toLowerCase()
   const todos = (await ctx.repos.auditoria.listar())
-    .filter((a) => a.acao !== 'tabelaPrecoAnterior')
+    .filter((a) => a.acao !== 'tabelaPrecoAnterior' && a.acao !== 'tabelaPrecoVersao')
     .filter((a) => (!p.de || a.criadoEm.slice(0, 10) >= p.de) && (!p.ate || a.criadoEm.slice(0, 10) <= p.ate))
     .filter((a) => !p.usuarioId || a.criadoPor === p.usuarioId)
     .filter((a) => !p.acao || a.acao === p.acao)

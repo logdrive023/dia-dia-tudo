@@ -6,7 +6,7 @@ import { MOEDAS, formatar } from '../core/domain/dinheiro'
 import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { MovCaixa } from '../core/domain/tipos'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Janela, Pilula, Selecao, Titulo, ValorInput, cx, dataBR } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Janela, Pilula, Selecao, Titulo, ValorInput, cx, dataBR } from '../ui/base'
 import { useApp, useComando, useConsulta } from '../ui/contexto'
 import { linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { useT } from '../ui/i18n'
@@ -20,6 +20,8 @@ export function Caixa() {
   const { executar, ocupado } = useComando()
   const [lancar, setLancar] = useState(false)
   const [encerrar, setEncerrar] = useState(false)
+  const [desfazer, setDesfazer] = useState<MovCaixa>()
+  const [reabrir, setReabrir] = useState(false)
   const nomeForma = new Map((cfg?.formas ?? []).map((f) => [f.id, f.nome]))
   if (!dados) return <Carregando />
   return (
@@ -35,7 +37,7 @@ export function Caixa() {
                 <Botao variante="secundario" onClick={() => setEncerrar(true)}>{t('Encerrar o dia')}</Botao>
               </>
             ) : (
-              <Botao variante="secundario" disabled={ocupado} onClick={() => executar('reabrirDia', { data }, t('Dia reaberto.'))}>{t('Reabrir o dia')}</Botao>
+              <Botao variante="secundario" disabled={ocupado} onClick={() => setReabrir(true)}>{t('Reabrir o dia')}</Botao>
             )}
           </div>
         }
@@ -84,7 +86,7 @@ export function Caixa() {
               <div className="flex shrink-0 items-center gap-2">
                 <span className={cx('num font-bold', m.delta < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>{m.delta > 0 ? '+' : ''}{formatar(m.delta, m.moeda)}</span>
                 {['entrada', 'despesa', 'retirada', 'dar', 'saldoInicial'].includes(m.tipo) && !m.estornadoPor && dados.status !== 'encerrado' && (
-                  <button type="button" className="text-xs text-[var(--suave)] underline" onClick={() => executar('estornarLancamento', { lancamentoId: m.id }, t('Desfeito (fica no histórico).'))}>{t('desfazer')}</button>
+                  <Botao variante="leve" onClick={() => setDesfazer(m)}>{t('desfazer')}</Botao>
                 )}
               </div>
             </li>
@@ -92,6 +94,8 @@ export function Caixa() {
         </ul>
       </Cartao>
       {lancar && <Lancar onFechar={() => setLancar(false)} />}
+      {desfazer && <Confirmar titulo="Desfazer lançamento?" texto={`${desfazer.descricao}: ${formatar(desfazer.delta, desfazer.moeda)}. Entra um lançamento inverso; o original fica no histórico.`} rotulo="Desfazer" perigo onFechar={() => setDesfazer(undefined)} onConfirmar={(motivo) => executar('estornarLancamento', { lancamentoId: desfazer.id, motivo: motivo || undefined }, t('Desfeito (fica no histórico).'))} />}
+      {reabrir && <Confirmar titulo="Reabrir o dia?" texto="O dia volta a aceitar lançamentos. O dinheiro contado no encerramento fica guardado." rotulo="Reabrir o dia" onFechar={() => setReabrir(false)} onConfirmar={() => executar('reabrirDia', { data }, t('Dia reaberto.'))} />}
       {encerrar && <Encerrar data={data} contas={dados.contas} movimentos={dados.movimentos} onFechar={() => setEncerrar(false)} />}
     </div>
   )
@@ -105,7 +109,8 @@ function Lancar({ onFechar }: { onFechar(): void }) {
   const { dados: locais } = useConsulta('locais', {})
   const [id] = useState(() => novoId())
   const [tipo, setTipo] = useState<'despesa' | 'entrada' | 'retirada' | 'dar'>('despesa')
-  const [moeda, setMoeda] = useState(cfg?.moedaPrincipal ?? 'BOB')
+  const [moedaEscolhida, setMoeda] = useState<string>()
+  const moeda = moedaEscolhida ?? cfg?.moedaPrincipal ?? 'BOB'
   const [forma, setForma] = useState('dinheiro')
   const [valor, setValor] = useState<number>()
   const [descricao, setDescricao] = useState('')

@@ -142,6 +142,10 @@ async function montar(b: BackendNoAparelho) {
     valores: { '38|cirila': '1', '40|cirila': '2', '50|cirila': '5', '55|cirila': '5', '60|cirila': '12', '40|venda': '2,5', '50|venda': '6', '55|venda': '6,5', '60|venda': '14,5' },
   })
 
+  // nova versão da tabela (o caderno muda toda semana): sobe 60 e 70 cm para P.W. e Henrique
+  const tg = (await b.consulta('tabelasPreco', {})).find((x) => x.id === tabGeral)!
+  await c(20, 'salvarTabelaPreco', { ...tg, valores: { ...tg.valores, '60|pw': '18,5', '70|pw': '20', '60|henry': '17,5', '40|lp': '3,2', '100|pw': '24' }, linhas: [...tg.linhas, 100], nota: 'Subiu 60–70 cm para P.W. e Henrique; entrou 100 cm' })
+
   // ---------- serviços do salão ----------
   const S = async (sid: string, nome: string, preco: number, duracaoMin: number, retornoDias?: number, cat?: string) => {
     await c(45, 'salvarItem', { id: sid, moduloId: 'salao', tipoItem: 'servico', nome, precoSugerido: { moeda: 'BOB', valor: bs(preco) }, duracaoMin, retornoDias, campos: { categoria: cat } })

@@ -14,12 +14,13 @@ import { IdiomaContexto, type Idioma, traduzir, useT } from './ui/i18n'
 import { MENU, Shell } from './ui/Shell'
 import { Agenda } from './screens/Agenda'
 import { Caixa } from './screens/Caixa'
-import { Comprar } from './screens/Comprar'
+import { Comprar, NovaCompraTela, Pedido } from './screens/Comprar'
+import { PAI, hashParaNav, navParaHash } from './app/rotas'
 import { Config } from './screens/Config'
 import { Entrar } from './screens/Entrar'
-import { Emprestimos, FichaEmprestimo } from './screens/Emprestimos'
+import { Emprestimos, FichaEmprestimo, NovoEmprestimo } from './screens/Emprestimos'
 import { Equipe } from './screens/Equipe'
-import { Estoque, FichaLote, Rastreio } from './screens/Estoque'
+import { Estoque, FichaLote, Rastreio, SepararTela } from './screens/Estoque'
 import { Painel } from './screens/Painel'
 import { FichaPessoa, Pessoas } from './screens/Pessoas'
 import { Precos } from './screens/Precos'
@@ -31,6 +32,8 @@ const TELAS: Record<string, () => JSX.Element> = {
   painel: Painel,
   vender: Vender,
   comprar: Comprar,
+  pedido: Pedido,
+  novaCompra: NovaCompraTela,
   estoque: Estoque,
   lote: FichaLote,
   rastreio: Rastreio,
@@ -41,13 +44,16 @@ const TELAS: Record<string, () => JSX.Element> = {
   pessoa: FichaPessoa,
   emprestimos: Emprestimos,
   emprestimo: FichaEmprestimo,
+  novoEmprestimo: NovoEmprestimo,
+  separar: SepararTela,
   precos: Precos,
+  tabelaPreco: Precos,
   relatorios: Relatorios,
   config: Config,
   vendas: Vendas,
   venda: DetalheVenda,
 }
-const SO_ADMIN = new Set([...MENU.filter((m) => m.admin).map((m) => m.tela), 'rastreio', 'emprestimo', 'vendas'])
+const SO_ADMIN = new Set([...MENU.filter((m) => m.admin).map((m) => m.tela), 'rastreio', 'emprestimo', 'vendas', 'pedido', 'novaCompra', 'tabelaPreco', 'novoEmprestimo', 'separar'])
 
 function lerSessao(padrao: Sessao): Sessao {
   try {
@@ -68,15 +74,29 @@ export default function App() {
   }, [])
   const backend = inicial.backend
   const [sessao, setSessao] = useState<Sessao>({ ...inicial.sessao })
-  const [pilha, setPilha] = useState<Navegacao[]>([{ tela: sessao.perfil === 'admin' ? 'painel' : 'agenda', params: {} }])
+  // abre direto no endereço da barra (ex.: #/pedidos/P-0007), se houver
+  const [pilha, setPilha] = useState<Navegacao[]>(() => [hashParaNav(window.location.hash) ?? { tela: sessao.perfil === 'admin' ? 'painel' : 'agenda', params: {} }])
   const [aviso, setAviso] = useState<{ texto: string; tipo: 'ok' | 'erro' }>()
   const nav = pilha[pilha.length - 1]
 
   const ir = useCallback((tela: string, params: Params = {}) => {
-    setPilha((p) => [...p.slice(-30), { tela, params }])
+    const n = { tela, params }
+    setPilha((p) => [...p.slice(-30), n])
+    history.pushState(null, '', navParaHash(n))
     window.scrollTo(0, 0)
   }, [])
-  const voltar = useCallback(() => setPilha((p) => (p.length > 1 ? p.slice(0, -1) : p)), [])
+  // voltar: pelo histórico; se a tela foi aberta direto por um link, vai para a lista "pai" (nunca sai do app)
+  const pilhaRef = useRef(pilha)
+  pilhaRef.current = pilha
+  const voltar = useCallback(() => {
+    if (pilhaRef.current.length > 1) history.back()
+    else {
+      const atual = pilhaRef.current[pilhaRef.current.length - 1]
+      const n = { tela: PAI[atual.tela] ?? 'painel', params: {} }
+      setPilha([n])
+      history.replaceState(null, '', navParaHash(n))
+    }
+  }, [])
   const avisar = useCallback((texto: string, tipo: 'ok' | 'erro' = 'ok') => setAviso({ texto, tipo }), [])
   const trocarSessao = useCallback(
     (s: Sessao) => {
@@ -95,15 +115,18 @@ export default function App() {
     const id = setTimeout(() => setAviso(undefined), aviso.tipo === 'erro' ? 6000 : 2500)
     return () => clearTimeout(id)
   }, [aviso])
-  // botão "voltar" do celular volta uma tela
+  // "voltar"/"avançar" do navegador e do celular seguem o endereço
   useEffect(() => {
-    const f = () => voltar()
+    const f = () => {
+      const n = hashParaNav(window.location.hash)
+      if (n) setPilha((p) => (p.length > 1 ? p.slice(0, -1) : [n]).map((x, i, a) => (i === a.length - 1 ? n : x)))
+    }
     window.addEventListener('popstate', f)
     return () => window.removeEventListener('popstate', f)
-  }, [voltar])
+  }, [])
   useEffect(() => {
-    if (pilha.length > 1) history.pushState(null, '')
-  }, [pilha.length])
+    if (!window.location.hash) history.replaceState(null, '', navParaHash(nav))
+  }, [nav])
   useEffect(() => {
     if (backend.tipo !== 'api') atualizarCambio(backend).catch(() => undefined)
   }, [backend])
@@ -114,7 +137,7 @@ export default function App() {
       <ComIdioma>
         <Preparar>
           {!sessao.usuarioId ? (
-            <Entrar onEntrou={(s) => (trocarSessao(s), setPilha([{ tela: s.perfil === 'admin' ? 'painel' : 'agenda', params: {} }]))} />
+            <Entrar onEntrou={(s) => (trocarSessao(s), setPilha([hashParaNav(window.location.hash) ?? { tela: s.perfil === 'admin' ? 'painel' : 'agenda', params: {} }]))} />
           ) : (
             <>
               <Shell>
@@ -153,7 +176,12 @@ function ComIdioma({ children }: { children: ReactNode }) {
 
 function Tela() {
   const { nav, sessao } = useApp()
-  const nome = sessao.perfil !== 'admin' && SO_ADMIN.has(nav.tela) ? 'agenda' : nav.tela
+  const proibida = sessao.perfil !== 'admin' && SO_ADMIN.has(nav.tela)
+  const nome = proibida ? 'agenda' : nav.tela
+  // endereço e tela sempre juntos: se a tela não é permitida, o endereço também vira a agenda
+  useEffect(() => {
+    if (proibida) history.replaceState(null, '', navParaHash({ tela: 'agenda', params: {} }))
+  }, [proibida])
   const T = TELAS[nome] ?? Painel
   return <T />
 }
@@ -213,6 +241,8 @@ function NovaVersao() {
 
 /** Erro numa tela vira aviso com "Tentar de novo" (nunca tela branca). */
 class Recuperacao extends Component<{ children: ReactNode; chave: string }, { erro?: string; chave: string }> {
+  static contextType = IdiomaContexto
+  declare context: Idioma
   state: { erro?: string; chave: string } = { chave: this.props.chave }
   static getDerivedStateFromError(e: Error) {
     return { erro: e.message }
@@ -225,9 +255,9 @@ class Recuperacao extends Component<{ children: ReactNode; chave: string }, { er
     return (
       <div className="mx-auto max-w-md space-y-3 pt-10 text-center">
         <div className="text-4xl">⚠️</div>
-        <p className="font-semibold">{traduzir('pt', 'Algo deu errado nesta tela.')}</p>
+        <p className="font-semibold">{traduzir(this.context, 'Algo deu errado nesta tela.')}</p>
         <p className="text-xs text-[var(--suave)]">{this.state.erro}</p>
-        <Botao onClick={() => this.setState({ erro: undefined })}>{traduzir('pt', 'Tentar de novo')}</Botao>
+        <Botao onClick={() => this.setState({ erro: undefined })}>{traduzir(this.context, 'Tentar de novo')}</Botao>
       </div>
     )
   }

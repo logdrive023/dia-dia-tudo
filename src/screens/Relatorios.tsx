@@ -159,7 +159,7 @@ function ComprasDet({ de, ate }: { de: string; ate: string }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-xs text-[var(--suave)]"><th>{t('Data')}</th><th>{t('Fornecedor')}</th><th>{t('Item')}</th><th className="text-right">{t('Quantidade')}</th><th className="text-right">{t('Total')}</th><th>{t('Etapa')}</th></tr></thead>
-          <tbody>{dados.map((l, i) => <tr key={i} className="cursor-pointer border-t border-[var(--borda)] hover:bg-[var(--marca-suave)]" onClick={() => ir('comprar', { id: l.compraId })}><td className="py-1">{dataBR(l.data)}</td><td>{l.fornecedor}</td><td>{l.descricao}</td><td className="num text-right">{gramasTexto(l.quantidade)}</td><td className="num text-right">{formatar(l.total, l.moeda)}</td><td>{t(l.etapa)}</td></tr>)}</tbody>
+          <tbody>{dados.map((l, i) => <tr key={i} className="cursor-pointer border-t border-[var(--borda)] hover:bg-[var(--marca-suave)]" onClick={() => ir('pedido', { id: l.compraId })}><td className="py-1">{dataBR(l.data)}</td><td>{l.fornecedor}</td><td>{l.descricao}</td><td className="num text-right">{gramasTexto(l.quantidade)}</td><td className="num text-right">{formatar(l.total, l.moeda)}</td><td>{t(l.etapa)}</td></tr>)}</tbody>
         </table>
       </div>
     </Cartao>

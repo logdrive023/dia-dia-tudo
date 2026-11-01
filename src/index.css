@@ -63,3 +63,7 @@ body {
     color: #000;
   }
 }
+
+/* faixas que rolam para o lado (abas, chips) sem barra de rolagem aparente */
+.sem-barra { scrollbar-width: none; }
+.sem-barra::-webkit-scrollbar { display: none; }

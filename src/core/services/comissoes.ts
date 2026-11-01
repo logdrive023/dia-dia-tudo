@@ -8,7 +8,7 @@ import type { CodigoMoeda } from '../domain/dinheiro'
 import { converter } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
 import type { Id } from '../domain/tipos'
-import { auditar, type Ctx, cotacoesAtuais, exigirInteiroPositivo, lerConfig } from './contexto'
+import { auditar, type Ctx, cotacoesAtuais, exigirInteiroPositivo, lerConfig, paraPrincipal } from './contexto'
 import { moverCaixa } from './caixa'
 
 export const CATEGORIA_COMISSAO = 'Comissões'
@@ -48,7 +48,7 @@ export async function comissoes(ctx: Ctx, p: { de?: string; ate?: string; pessoa
   const pagos = (await ctx.repos.movCaixa.listar())
     .filter((m) => m.categoria === CATEGORIA_COMISSAO && m.pessoaId && !m.estornadoPor && m.tipo === 'despesa')
     .filter((m) => !pessoaId || m.pessoaId === pessoaId)
-    .map((m) => ({ tipo: 'pago' as const, data: m.data, pessoaId: m.pessoaId!, descricao: m.descricao, valor: -conv(m.delta, m.moeda), forma: m.forma, moeda: m.moeda, valorMoeda: -m.delta }))
+    .map((m) => ({ tipo: 'pago' as const, data: m.data, pessoaId: m.pessoaId!, descricao: m.descricao, valor: m.valorPrincipal !== undefined ? -Math.sign(m.delta) * m.valorPrincipal : -conv(m.delta, m.moeda), forma: m.forma, moeda: m.moeda, valorMoeda: -m.delta }))
   const ids = [...new Set([...ganhos.map((g) => g.pessoaId), ...pagos.map((x) => x.pessoaId)])]
   const porPessoa = ids
     .map((id) => {
@@ -78,7 +78,9 @@ export async function pagarComissao(ctx: Ctx, d: { id: Id; pessoaId: Id; valor: 
   const pessoa = await ctx.repos.pessoas.obter(d.pessoaId)
   exigir(pessoa, 'Escolha a profissional.', 'pessoaId')
   exigirInteiroPositivo(d.valor, 'Valor')
+  const { valorPrincipal } = await paraPrincipal(ctx, d.valor, d.moeda)
   await moverCaixa(ctx, {
+    valorPrincipal,
     id: d.id,
     data: ctx.relogio.hoje(),
     moeda: d.moeda,

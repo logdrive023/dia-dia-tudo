@@ -7,7 +7,7 @@ import { dataLocal, somarMeses } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { Id, TipoJuros } from '../core/domain/tipos'
 import { calcularParcelas } from '../core/services/emprestimos'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Janela, Pilula, Selecao, Titulo, ValorInput, Vazio, dataBR } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, dataBR, ErroTela } from '../ui/base'
 import { useApp, useComando, useConsulta } from '../ui/contexto'
 import { Anexos, SeletorPessoa, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { LinhaDoTempo } from '../ui/linhaTempo'
@@ -19,11 +19,10 @@ export function Emprestimos() {
   const t = useT()
   const { nav, ir } = useApp()
   const [direcao, setDirecao] = useState<string>((nav.params.direcao as string) ?? '')
-  const [novo, setNovo] = useState(false)
   const { dados } = useConsulta('emprestimos', { direcao: (direcao || undefined) as 'dado' | undefined, status: nav.params.status as string | undefined })
   return (
     <div>
-      <Titulo acao={<Botao onClick={() => setNovo(true)}>+ {t('Empréstimo')}</Botao>} subtitulo={t('O sistema só registra e calcula o que foi combinado.')}>{t('Empréstimos')}</Titulo>
+      <Titulo acao={<Botao onClick={() => ir('novoEmprestimo')}>+ {t('Empréstimo')}</Botao>} subtitulo={t('O sistema só registra e calcula o que foi combinado.')}>{t('Empréstimos')}</Titulo>
       <Abas atual={direcao} onChange={setDirecao} abas={[{ id: '', nome: 'Todos' }, { id: 'dado', nome: 'Me devem' }, { id: 'tomado', nome: 'Eu devo' }]} />
       {nav.params.status && <p className="mb-2 text-sm">{t('Filtro')}: <Pilula tom="alerta">{t(String(nav.params.status))}</Pilula> <button type="button" className="underline" onClick={() => ir('emprestimos')}>{t('limpar')}</button></p>}
       {!dados ? <Carregando /> : !dados.length ? <Vazio texto="Nenhum empréstimo." /> : (
@@ -40,12 +39,14 @@ export function Emprestimos() {
           ))}
         </ul>
       )}
-      {novo && <NovoEmprestimo onFechar={() => setNovo(false)} />}
     </div>
   )
 }
 
-function NovoEmprestimo({ onFechar }: { onFechar(): void }) {
+/** Tela de NOVO EMPRÉSTIMO (#/emprestimos/novo): a prévia das parcelas aparece enquanto digita. */
+export function NovoEmprestimo() {
+  const { voltar } = useApp()
+  const onFechar = voltar
   const t = useT()
   const { cfg } = useCotacoes()
   const { executar, ocupado } = useComando()
@@ -53,7 +54,8 @@ function NovoEmprestimo({ onFechar }: { onFechar(): void }) {
   const [id] = useState(() => novoId())
   const [direcao, setDirecao] = useState<'dado' | 'tomado'>('dado')
   const [pessoaId, setPessoaId] = useState<Id>()
-  const [moeda, setMoeda] = useState(cfg?.moedaPrincipal ?? 'BOB')
+  const [moedaEscolhida, setMoeda] = useState<string>()
+  const moeda = moedaEscolhida ?? cfg?.moedaPrincipal ?? 'BOB'
   const [principal, setPrincipal] = useState<number>()
   const [tipo, setTipo] = useState<TipoJuros>('simples')
   const [taxa, setTaxa] = useState('5')
@@ -68,9 +70,9 @@ function NovoEmprestimo({ onFechar }: { onFechar(): void }) {
     previa = undefined
   }
   return (
-    <Janela aberta titulo={t('Novo empréstimo')} onFechar={onFechar} rodape={<Botao grande className="w-full" disabled={ocupado || !previa || !pessoaId} onClick={async () => {
+    <Pagina titulo={t('Novo empréstimo')} subtitulo={t('O sistema só registra e calcula o que foi combinado.')} voltarRotulo="Empréstimos" onVoltar={onFechar} rodape={<Botao grande className="w-full" disabled={ocupado || !previa || !pessoaId} onClick={async () => {
       const r = await executar('criarEmprestimo', { id, direcao, pessoaId: pessoaId!, moeda, principal: principal!, juros: { tipo, taxaMensalBp: Math.round(Number(taxa.replace(',', '.')) * 100), valorFixo: fixo }, parcelas: n, primeiroVencimento: primeiro, forma }, t('Empréstimo registrado.'))
-      if (r) (onFechar(), ir('emprestimo', { id }))
+      if (r) ir('emprestimo', { id })
     }}>{t('Registrar')}</Botao>}>
       <div className="space-y-3">
         <Abas atual={direcao} onChange={(v) => setDirecao(v as typeof direcao)} abas={[{ id: 'dado', nome: 'Eu emprestei' }, { id: 'tomado', nome: 'Eu peguei emprestado' }]} />
@@ -94,7 +96,7 @@ function NovoEmprestimo({ onFechar }: { onFechar(): void }) {
           </div>
         )}
       </div>
-    </Janela>
+    </Pagina>
   )
 }
 
@@ -102,13 +104,14 @@ export function FichaEmprestimo() {
   const t = useT()
   const { nav, voltar } = useApp()
   const id = nav.params.id as Id
-  const { dados } = useConsulta('emprestimo', { id })
+  const { dados, erro } = useConsulta('emprestimo', { id })
   const { executar, ocupado } = useComando()
   const { cfg } = useCotacoes()
   const [pagar, setPagar] = useState(false)
   const [valor, setValor] = useState<number>()
   const [forma, setForma] = useState('dinheiro')
   const [pid, setPid] = useState(() => novoId())
+  if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
   const e = dados.emprestimo
   const cobranca = `${t('Olá')} ${dados.pessoa?.nome ?? ''}! ${t('Parcelas em aberto')}: ${dados.parcelas.filter((p) => p.falta).map((p) => `${p.numero}ª ${dataBR(p.vencimento)} ${formatar(p.falta, e.moeda)}`).join(' · ')}. ${t('Total que falta')}: ${formatar(dados.saldo, e.moeda)}.`

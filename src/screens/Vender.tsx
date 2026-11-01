@@ -103,7 +103,7 @@ function AssistenteVenda(p: {
   const { cot } = useCotacoes('venda')
   const [pessoaId, setPessoaId] = useState<Id>()
   const [localId, setLocalId] = useState<Id | undefined>(sessao.localId)
-  const [profissionalId, setProfissionalId] = useState<Id | undefined>(sessao.perfil === 'funcionario' ? sessao.usuarioId : undefined)
+  const [profissionalId, setProfissionalId] = useState<Id | undefined>(sessao.perfil === 'funcionario' ? sessao.pessoaId ?? sessao.usuarioId : undefined)
   const [agendar, setAgendar] = useState(false)
   const [quando, setQuando] = useState(`${dataLocal()}T10:00`)
   const [linhas, setLinhas] = useState<LinhaTela[]>([])
@@ -118,7 +118,7 @@ function AssistenteVenda(p: {
 
   const textoRecibo = () => {
     const linhasTxt = linhas.map((l) => (l.calculo ? `${l.calculo.medida ?? ''}${l.calculo.categoria && l.calculo.categoria !== 'Normal' ? ' ' + l.calculo.categoria : ''} | ${l.quantidade.toLocaleString('pt-BR')} × ${l.calculo.fator} = ${formatar(l.total, l.moeda)}` : `${l.nome}: ${formatar(l.total, l.moeda)}`))
-    return [`*${p.nomeNegocio}*`, pessoa ? `${t('Cliente')}: ${pessoa.nome}` : '', agendar ? `${t('Agendado para')} ${quando.replace('T', ' ')}` : '', ...linhasTxt, `*${t('Total')}: ${formatar(total, moedaVenda)}*`, t('Gracias por tu compra!')].filter(Boolean).join('\n')
+    return [`*${p.nomeNegocio}*`, pessoa ? `${t('Cliente')}: ${pessoa.nome}` : '', agendar ? `${t('Agendado para')} ${quando.replace('T', ' ')}` : '', ...linhasTxt, `*${t('Total')}: ${formatar(total, moedaVenda)}*`, t('Obrigado pela compra!')].filter(Boolean).join('\n')
   }
 
   const conflitoParams = agendar && profissionalId && quando ? { profissionalId, inicio: new Date(quando).toISOString(), itens: linhas.map((l) => l.itemId), ignorarId: undefined } : undefined

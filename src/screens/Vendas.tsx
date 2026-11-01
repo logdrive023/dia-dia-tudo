@@ -3,12 +3,13 @@
 import { useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../core/domain/dinheiro'
 import type { Id, Transacao } from '../core/domain/tipos'
-import { Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR } from '../ui/base'
+import { Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, ErroTela } from '../ui/base'
 import { useApp, useComando, useConsulta } from '../ui/contexto'
 import { Anexos, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { useT } from '../ui/i18n'
 import { baixarCSV } from './Relatorios'
+import { FiltroPendencia, SeloPendencias } from '../ui/pendencias'
 
 export function Vendas() {
   const t = useT()
@@ -16,7 +17,11 @@ export function Vendas() {
   const f = nav.params
   const { dados: usuarios } = useConsulta('pessoas', { papel: 'funcionario' })
   const [usuarioId, setUsuarioId] = useState((f.usuarioId as string) ?? '')
-  const { dados } = useConsulta('vendas', { de: f.de as string, ate: f.ate as string, moduloId: f.moduloId as string, forma: f.forma as string, moeda: f.moeda as string, localId: f.localId as string, profissionalId: f.profissionalId as string, usuarioId: usuarioId || undefined })
+  const [pendencia, setPendencia] = useState((f.pendencia as string) ?? '')
+  const base = { de: f.de as string, ate: f.ate as string, moduloId: f.moduloId as string, forma: f.forma as string, moeda: f.moeda as string, localId: f.localId as string, profissionalId: f.profissionalId as string, usuarioId: usuarioId || undefined }
+  const { dados: todas } = useConsulta('vendas', base)
+  const dados = todas?.filter((v) => !pendencia || (pendencia === 'qualquer' ? v.pendencias.length > 0 : v.pendencias.some((p) => p.id === pendencia)))
+  const contagem = todas && { '': todas.length, qualquer: todas.filter((v) => v.pendencias.length).length, faltaReceber: todas.filter((v) => v.pendencias.some((p) => p.id === 'faltaReceber')).length, semComprovante: todas.filter((v) => v.pendencias.some((p) => p.id === 'semComprovante')).length }
   const soma = (dados ?? []).reduce((s, v) => s + v.valor, 0)
   const moeda = (f.moeda as string) || dados?.[0]?.moedaPrincipal || 'BOB'
   return (
@@ -24,6 +29,9 @@ export function Vendas() {
       <Titulo subtitulo={`${f.de ? dataBR(f.de as string) : ''} – ${f.ate ? dataBR(f.ate as string) : ''}${f.moduloId ? ` · ${f.moduloId}` : ''}`} acao={dados && <Botao variante="secundario" onClick={() => baixarCSV('vendas', dados.map((v) => ({ data: v.data, cliente: v.cliente ?? '', itens: v.linhas.map((l) => l.descricao).join(' + '), valor: v.valor / 100, lucro: v.lucroPrincipal / 100, feito_por: v.feitoPor ?? '' })))}>CSV</Botao>}>
         {t('Vendas')}
       </Titulo>
+      <div className="mb-2">
+        <FiltroPendencia valor={pendencia} onChange={setPendencia} contagem={contagem} opcoes={[{ id: 'faltaReceber', nome: 'Falta receber' }, { id: 'semComprovante', nome: 'Sem comprovante' }]} />
+      </div>
       <div className="mb-3 flex flex-wrap gap-2">
         <Selecao className="w-auto" valor={usuarioId} onChange={setUsuarioId} vazio="Feitas por qualquer pessoa" opcoes={(usuarios ?? []).map((u) => ({ id: u.id, nome: u.nome }))} />
       </div>
@@ -36,6 +44,7 @@ export function Vendas() {
                 <div className="min-w-0">
                   <b>{v.cliente ?? t('Sem nome')}</b>
                   <div className="truncate text-xs text-[var(--suave)]">{dataBR(v.data)} · {v.linhas.map((l) => l.descricao).join(' + ')}{v.feitoPor ? ` · ${t('por')} ${v.feitoPor}` : ''}</div>
+                  <div className="mt-1"><SeloPendencias pendencias={v.pendencias} moeda={v.moedaPrincipal} /></div>
                 </div>
                 <span className="num shrink-0 font-bold">{formatar(v.valor, moeda)}</span>
               </button>
@@ -51,14 +60,19 @@ export function DetalheVenda() {
   const t = useT()
   const { nav, voltar, sessao } = useApp()
   const id = nav.params.id as Id
-  const { dados } = useConsulta('venda', { id })
+  const { dados, erro } = useConsulta('venda', { id })
   const { executar, ocupado } = useComando()
   const [cancelar, setCancelar] = useState(false)
   const [corrigir, setCorrigir] = useState(false)
   const [motivo, setMotivo] = useState('')
+  if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
   const v = dados.venda
   const correcoes = v.historico.filter((h) => h.tipo === 'correcao')
+  const pago = v.pagamentos.reduce((s, x) => s + x.valorPrincipal, 0)
+  const faltaReceber = v.etapa === 'concluido' && v.totalPrincipal - pago > v.pagamentos.length ? v.totalPrincipal - pago : 0
+  const naoVivo = v.pagamentos.some((x) => x.forma !== 'dinheiro')
+  const semComprovante = v.etapa === 'concluido' && naoVivo && !dados.anexos.some((a) => a.categoria === 'comprovante')
   const texto = [`${t('Venda')} ${dataBR(v.data)}`, dados.cliente ? `${t('Cliente')}: ${dados.cliente.nome}` : '', ...v.linhas.map((l) => (l.campos.calculo ? String(l.campos.calculo) : `${l.descricao}: ${formatar(l.total, l.moeda)}`)), `${t('Total')}: ${formatar(v.totalPrincipal, v.moedaPrincipal)}`].filter(Boolean).join('\n')
   return (
     <div className="space-y-4">
@@ -66,6 +80,11 @@ export function DetalheVenda() {
       <Titulo subtitulo={<>{dataBR(v.data)} · <Pilula tom={v.etapa === 'concluido' ? 'bom' : v.etapa === 'cancelado' ? 'ruim' : 'marca'}>{t(v.etapa)}</Pilula>{dados.local ? ` · ${dados.local.nome}` : ''}{dados.profissional ? ` · ${dados.profissional.nome}` : ''}</>}>
         {t('Venda')} · {dados.cliente?.nome ?? t('Sem nome')}
       </Titulo>
+      {v.etapa === 'concluido' && (
+        <div className="mb-4">
+          <SeloPendencias moeda={v.moedaPrincipal} pendencias={[...(faltaReceber ? [{ id: 'faltaReceber' as const, texto: 'Falta receber', valor: faltaReceber, nivel: 'urgente' as const }] : []), ...(semComprovante ? [{ id: 'semComprovante' as const, texto: 'Sem comprovante do pagamento', nivel: 'atencao' as const }] : [])]} />
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         <Cartao titulo={t('Itens')}>
           <ul className="divide-y divide-[var(--borda)] text-sm">

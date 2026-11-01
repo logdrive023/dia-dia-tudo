@@ -6,8 +6,9 @@ import { diasEntre } from '../domain/datas'
 import type { Campos, Id, Item, Linha, Transacao } from '../domain/tipos'
 import { auditar, type Ctx, exigirInteiroPositivo, lerConfig, novo, paraPrincipal, tocar } from './contexto'
 import { moverCaixa } from './caixa'
-import { moverEstoque, proximoCodigo } from './estoque'
+import { custoDe, moverEstoque, proximoCodigo } from './estoque'
 import { montarPagamentos, type PagamentoEntrada } from './pagamentos'
+import { pendenciasCompra } from './pendencias'
 import { moverConta } from './contas'
 import { estornarConta } from './vendas'
 
@@ -85,6 +86,7 @@ export async function criarCompra(
   const t = novo<Transacao>(ctx, {
     id: d.id,
     tipo: 'compra',
+    codigo: await proximoCodigo(ctx, 'P'),
     moduloId: d.moduloId,
     data: ctx.relogio.hoje(),
     etapa: c.etapas[0].id,
@@ -216,6 +218,11 @@ async function entrarNoEstoque(ctx: Ctx, compra: Transacao) {
       l.itemId = lote.id
     }
     exigir(itemId, 'Item da compra sem cadastro.')
+    if (!tipo.nasceNaCompra) {
+      // custo médio: custo do que já tinha + o que entrou, dividido pela quantidade nova
+      const item = await ctx.repos.itens.obter(itemId)
+      if (item) await ctx.repos.itens.salvar(tocar(ctx, { ...item, custoPrincipal: custoDe(item, item.saldo) + l.totalPrincipal, quantidadeInicial: item.saldo + l.quantidade }))
+    }
     await moverEstoque(ctx, { itemId, delta: l.quantidade, motivo: 'compra', origemId: compra.id, descricao: 'Compra concluída' })
   }
 }
@@ -258,27 +265,41 @@ export async function cancelarCompra(ctx: Ctx, d: { compraId: Id; motivo: string
 // ---------- consultas ----------
 
 /** Fila da triagem: compras por etapa, com quantos dias estão paradas e o que falta. */
-export async function filaTriagem(ctx: Ctx, p: { moduloId?: string; incluirEncerradas?: boolean } = {}) {
+export async function filaTriagem(ctx: Ctx, p: { moduloId?: string; incluirEncerradas?: boolean; pendencia?: string } = {}) {
   const hoje = ctx.relogio.hoje()
+  const cfg = await lerConfig(ctx)
   const compras = (await ctx.repos.transacoes.listar({ tipo: 'compra' })).filter((t) => !p.moduloId || t.moduloId === p.moduloId)
   const anexos = await ctx.repos.anexos.listar()
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x]))
+  const saldoConta = new Map<string, number>()
+  for (const m of await ctx.repos.movConta.listar()) saldoConta.set(m.pessoaId, (saldoConta.get(m.pessoaId) ?? 0) + m.delta)
   return compras
     .filter((t) => p.incluirEncerradas || !['concluido', ETAPA_RECUSADO, ETAPA_CANCELADO].includes(t.etapa))
     .map((t) => {
       const mod = ctx.modulos.obter(t.moduloId)
       const ultimo = t.historico[t.historico.length - 1]?.em ?? t.criadoEm
       const meus = anexos.filter((a) => a.donoId === t.id)
+      const etapas = mod.compra?.etapas ?? []
+      const idxPago = etapas.findIndex((e) => e.faz?.includes('pagamento'))
+      const diasParada = diasEntre(ultimo.slice(0, 10), hoje)
+      const pendencias = pendenciasCompra({ ...t, diasParada }, meus, {
+        pedeOrigem: !!mod.compra?.pedirComprovanteOrigem,
+        jaPassouDoPago: idxPago >= 0 && etapas.findIndex((e) => e.id === t.etapa) >= idxPago,
+        diasParadaLimite: cfg.diasTriagemParada,
+        saldoConta: t.pessoaId ? saldoConta.get(t.pessoaId) : undefined,
+      })
       return {
         ...t,
         pessoa: t.pessoaId ? pessoas.get(t.pessoaId)?.nome : undefined,
-        diasParada: diasEntre(ultimo.slice(0, 10), hoje),
+        diasParada,
+        pendencias,
         nomeEtapa: mod.compra?.etapas.find((e) => e.id === t.etapa)?.nome ?? t.etapa,
         semFotos: !meus.some((a) => a.categoria === 'pedido' || a.categoria === 'produto'),
         semComprovanteOrigem: !!mod.compra?.pedirComprovanteOrigem && !meus.some((a) => a.categoria === 'origem'),
         anexos: meus.length,
       }
     })
+    .filter((t) => !p.pendencia || (p.pendencia === 'qualquer' ? t.pendencias.length > 0 : t.pendencias.some((x) => x.id === p.pendencia)))
     .sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1))
 }
 
@@ -288,4 +309,34 @@ export async function compra(ctx: Ctx, p: { id: Id }) {
   const pessoa = t.pessoaId ? await ctx.repos.pessoas.obter(t.pessoaId) : undefined
   const anexos = await ctx.repos.anexos.listar({ donoId: t.id })
   return { compra: t, pessoa, anexos, modulo: ctx.modulos.obter(t.moduloId).id }
+}
+
+/**
+ * Tela do PEDIDO (pedidos/:id): tudo de uma compra num lugar — etapas, pendências, itens, pagamentos,
+ * conta do fornecedor, lotes que nasceram dela e as outras compras da mesma pessoa.
+ */
+export async function pedido(ctx: Ctx, p: { id: Id }) {
+  const fila = await filaTriagem(ctx, { incluirEncerradas: true })
+  const t = fila.find((x) => x.id === p.id)
+  if (!t) throw new ErroNegocio('Pedido não encontrado.')
+  const mod = ctx.modulos.obter(t.moduloId)
+  const anexos = await ctx.repos.anexos.listar({ donoId: t.id })
+  const pessoa = t.pessoaId ? await ctx.repos.pessoas.obter(t.pessoaId) : undefined
+  const saldoConta = t.pessoaId ? (await ctx.repos.movConta.listar({ pessoaId: t.pessoaId })).reduce((s, m) => s + m.delta, 0) : undefined
+  const lotes = (await ctx.repos.itens.listar()).filter((i) => (i.origem?.tipo === 'compra' && i.origem.id === t.id) || i.origem?.compraId === t.id)
+  const outras = fila.filter((x) => x.pessoaId && x.pessoaId === t.pessoaId && x.id !== t.id).slice(0, 5)
+  const gramas = t.linhas.reduce((s, l) => s + l.quantidade, 0)
+  return {
+    compra: t,
+    pessoa,
+    anexos,
+    etapas: (mod.compra?.etapas ?? []).map((e) => ({ id: e.id, nome: e.nome, ajuda: e.ajuda, faz: e.faz ?? [] })),
+    modulo: { id: mod.id, nome: mod.nome, icone: mod.icone },
+    pago: t.pagamentos.reduce((s, x) => s + x.valorPrincipal, 0),
+    gramas,
+    custoKg: gramas ? Math.round((t.totalPrincipal * 1000) / gramas) : 0,
+    saldoConta,
+    lotes: lotes.map((l) => ({ id: l.id, codigo: l.codigo, nome: l.nome, saldo: l.saldo, inicial: l.quantidadeInicial ?? 0, unidade: l.unidade })),
+    outras: outras.map((x) => ({ id: x.id, codigo: x.codigo, data: x.data, total: x.totalPrincipal, etapa: x.nomeEtapa })),
+  }
 }
