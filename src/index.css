@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Cores básicas (poucas e com função): marca, texto, fundo, bom, alerta, ruim. Tema escuro automático. */
+:root {
+  --fundo: #f7f6fb;
+  --cartao: #ffffff;
+  --texto: #1f1d2b;
+  --suave: #6b6880;
+  --borda: #e6e3f0;
+  --marca: #7c3aed;
+  --marca-suave: #f1eafe;
+  --bom: #15803d;
+  --alerta: #b45309;
+  --ruim: #b91c1c;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #14131a;
+    --cartao: #1e1c27;
+    --texto: #f1f0f7;
+    --suave: #a7a3bd;
+    --borda: #2f2c3d;
+    --marca: #a78bfa;
+    --marca-suave: #2a2340;
+    --bom: #4ade80;
+    --alerta: #fbbf24;
+    --ruim: #f87171;
+    color-scheme: dark;
+  }
+}
+
+html,
+body {
+  background: var(--fundo);
+  color: var(--texto);
+  -webkit-tap-highlight-color: transparent;
+}
+#root {
+  overflow-x: clip;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+}
+:focus-visible {
+  outline: 3px solid var(--marca);
+  outline-offset: 2px;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+@media print {
+  .nao-imprimir {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+}

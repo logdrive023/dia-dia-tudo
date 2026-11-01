@@ -1,0 +1,234 @@
+// Casca do app: escolhe o armazenamento (uma vez), guarda quem está usando, navega entre telas, mostra avisos,
+// atualiza o câmbio, oferece os dados de exemplo no primeiro uso e avisa quando há versão nova.
+
+import { Component, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { BackendNoAparelho } from './adapters/noAparelho'
+import { atualizarCambio } from './app/cambio'
+import { criarBackend } from './app/criarBackend'
+import { carregarDemo } from './app/demo'
+import type { Sessao } from './core/ports/portas'
+import { Botao, Carregando } from './ui/base'
+import { Conversor } from './ui/compartilhados'
+import { type AppCtx, Ctx, type Navegacao, type Params, useApp, useConsulta } from './ui/contexto'
+import { IdiomaContexto, type Idioma, traduzir, useT } from './ui/i18n'
+import { MENU, Shell } from './ui/Shell'
+import { Agenda } from './screens/Agenda'
+import { Caixa } from './screens/Caixa'
+import { Comprar } from './screens/Comprar'
+import { Config } from './screens/Config'
+import { Entrar } from './screens/Entrar'
+import { Emprestimos, FichaEmprestimo } from './screens/Emprestimos'
+import { Equipe } from './screens/Equipe'
+import { Estoque, FichaLote, Rastreio } from './screens/Estoque'
+import { Painel } from './screens/Painel'
+import { FichaPessoa, Pessoas } from './screens/Pessoas'
+import { Precos } from './screens/Precos'
+import { Relatorios } from './screens/Relatorios'
+import { DetalheVenda, Vendas } from './screens/Vendas'
+import { Vender } from './screens/Vender'
+
+const TELAS: Record<string, () => JSX.Element> = {
+  painel: Painel,
+  vender: Vender,
+  comprar: Comprar,
+  estoque: Estoque,
+  lote: FichaLote,
+  rastreio: Rastreio,
+  caixa: Caixa,
+  agenda: Agenda,
+  equipe: Equipe,
+  pessoas: Pessoas,
+  pessoa: FichaPessoa,
+  emprestimos: Emprestimos,
+  emprestimo: FichaEmprestimo,
+  precos: Precos,
+  relatorios: Relatorios,
+  config: Config,
+  vendas: Vendas,
+  venda: DetalheVenda,
+}
+const SO_ADMIN = new Set([...MENU.filter((m) => m.admin).map((m) => m.tela), 'rastreio', 'emprestimo', 'vendas'])
+
+function lerSessao(padrao: Sessao): Sessao {
+  try {
+    const s = JSON.parse(localStorage.getItem('tudo.sessao') ?? 'null') as Sessao | null
+    return s?.usuarioId ? { ...padrao, ...s } : padrao
+  } catch {
+    return padrao
+  }
+}
+
+export default function App() {
+  // o backend é criado uma vez só (a sessão é o mesmo objeto que as regras usam)
+  const inicial = useMemo(() => {
+    const c = criarBackend()
+    // ninguém entrou ainda, a não ser que a sessão tenha ficado salva neste aparelho
+    Object.assign(c.sessao, lerSessao({ ...c.sessao, usuarioId: '', nome: '' }))
+    return c
+  }, [])
+  const backend = inicial.backend
+  const [sessao, setSessao] = useState<Sessao>({ ...inicial.sessao })
+  const [pilha, setPilha] = useState<Navegacao[]>([{ tela: sessao.perfil === 'admin' ? 'painel' : 'agenda', params: {} }])
+  const [aviso, setAviso] = useState<{ texto: string; tipo: 'ok' | 'erro' }>()
+  const nav = pilha[pilha.length - 1]
+
+  const ir = useCallback((tela: string, params: Params = {}) => {
+    setPilha((p) => [...p.slice(-30), { tela, params }])
+    window.scrollTo(0, 0)
+  }, [])
+  const voltar = useCallback(() => setPilha((p) => (p.length > 1 ? p.slice(0, -1) : p)), [])
+  const avisar = useCallback((texto: string, tipo: 'ok' | 'erro' = 'ok') => setAviso({ texto, tipo }), [])
+  const trocarSessao = useCallback(
+    (s: Sessao) => {
+      Object.assign(inicial.sessao, s)
+      setSessao({ ...s })
+      try {
+        localStorage.setItem('tudo.sessao', JSON.stringify(s))
+      } catch {
+        /* ignora */
+      }
+    },
+    [inicial],
+  )
+  useEffect(() => {
+    if (!aviso) return
+    const id = setTimeout(() => setAviso(undefined), aviso.tipo === 'erro' ? 6000 : 2500)
+    return () => clearTimeout(id)
+  }, [aviso])
+  // botão "voltar" do celular volta uma tela
+  useEffect(() => {
+    const f = () => voltar()
+    window.addEventListener('popstate', f)
+    return () => window.removeEventListener('popstate', f)
+  }, [voltar])
+  useEffect(() => {
+    if (pilha.length > 1) history.pushState(null, '')
+  }, [pilha.length])
+  useEffect(() => {
+    if (backend.tipo !== 'api') atualizarCambio(backend).catch(() => undefined)
+  }, [backend])
+
+  const ctx: AppCtx = { backend, sessao, trocarSessao, nav, ir, voltar, avisar }
+  return (
+    <Ctx.Provider value={ctx}>
+      <ComIdioma>
+        <Preparar>
+          {!sessao.usuarioId ? (
+            <Entrar onEntrou={(s) => (trocarSessao(s), setPilha([{ tela: s.perfil === 'admin' ? 'painel' : 'agenda', params: {} }]))} />
+          ) : (
+            <>
+              <Shell>
+                <Recuperacao chave={nav.tela}>
+                  <Tela />
+                </Recuperacao>
+              </Shell>
+              <Conversor />
+            </>
+          )}
+        </Preparar>
+        <NovaVersao />
+        {aviso && (
+          <div role="status" className={`fixed inset-x-4 bottom-24 z-50 mx-auto max-w-md rounded-2xl p-3 text-center font-semibold text-white shadow-lg md:bottom-6 ${aviso.tipo === 'erro' ? 'bg-[var(--ruim)]' : 'bg-[var(--bom)]'}`} onClick={() => setAviso(undefined)}>
+            <Traduz texto={aviso.texto} />
+          </div>
+        )}
+      </ComIdioma>
+    </Ctx.Provider>
+  )
+}
+
+function Traduz({ texto }: { texto: string }) {
+  const t = useT()
+  return <>{t(texto)}</>
+}
+
+function ComIdioma({ children }: { children: ReactNode }) {
+  const { dados } = useConsulta('configuracoes', {})
+  const idioma = (dados?.config.idioma ?? 'pt') as Idioma
+  useEffect(() => {
+    document.documentElement.lang = idioma === 'es' ? 'es' : 'pt-BR'
+  }, [idioma])
+  return <IdiomaContexto.Provider value={idioma}>{children}</IdiomaContexto.Provider>
+}
+
+function Tela() {
+  const { nav, sessao } = useApp()
+  const nome = sessao.perfil !== 'admin' && SO_ADMIN.has(nav.tela) ? 'agenda' : nav.tela
+  const T = TELAS[nome] ?? Painel
+  return <T />
+}
+
+/**
+ * Primeiro uso no aparelho: já deixa tudo pronto para testar — dados fictícios de 45 dias e usuários de teste.
+ * Depois mostra a tela de entrar. (Com a API não faz nada: quem tem os dados é o servidor.)
+ */
+function Preparar({ children }: { children: ReactNode }) {
+  const t = useT()
+  const { backend, avisar } = useApp()
+  const { dados } = useConsulta('usuariosDemo', {}, backend.tipo !== 'api')
+  const [montando, setMontando] = useState(false)
+  const montou = useRef(false)
+  useEffect(() => {
+    if (backend.tipo === 'api' || !dados || dados.length || montando || montou.current) return
+    montou.current = true
+    setMontando(true)
+    carregarDemo(backend as BackendNoAparelho)
+      .catch((e) => avisar(e instanceof Error ? e.message : String(e), 'erro'))
+      .finally(() => setMontando(false))
+  }, [backend, dados, montando, avisar])
+  if (backend.tipo !== 'api' && (!dados || !dados.length))
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center">
+        <div className="text-5xl">💇‍♀️✂️🤝</div>
+        <p className="font-semibold">{t('Preparando a demonstração com dados de exemplo…')}</p>
+        {!dados && <Carregando />}
+      </div>
+    )
+  return <>{children}</>
+}
+
+/** Versão nova publicada: avisa, mas só recarrega quando a pessoa tocar (não perde uma venda no meio). */
+function NovaVersao() {
+  const t = useT()
+  const [atualizar, setAtualizar] = useState<() => void>()
+  useEffect(() => {
+    if (import.meta.env.DEV || !('serviceWorker' in navigator)) return
+    import('virtual:pwa-register')
+      .then(({ registerSW }) => {
+        const up = registerSW({
+          onNeedRefresh: () => setAtualizar(() => () => up(true)),
+          onRegisteredSW: (_u, reg) => reg && setInterval(() => reg.update(), 3600_000),
+        })
+      })
+      .catch(() => undefined)
+  }, [])
+  if (!atualizar) return null
+  return (
+    <div className="fixed inset-x-4 top-3 z-50 mx-auto flex max-w-md items-center justify-between gap-2 rounded-2xl bg-[var(--marca)] p-3 text-white shadow-lg">
+      <span className="text-sm font-semibold">🆕 {t('Nova versão disponível')}</span>
+      <Botao variante="secundario" onClick={atualizar}>{t('Atualizar')}</Botao>
+    </div>
+  )
+}
+
+/** Erro numa tela vira aviso com "Tentar de novo" (nunca tela branca). */
+class Recuperacao extends Component<{ children: ReactNode; chave: string }, { erro?: string; chave: string }> {
+  state: { erro?: string; chave: string } = { chave: this.props.chave }
+  static getDerivedStateFromError(e: Error) {
+    return { erro: e.message }
+  }
+  static getDerivedStateFromProps(p: { chave: string }, s: { erro?: string; chave: string }) {
+    return p.chave !== s.chave ? { erro: undefined, chave: p.chave } : null
+  }
+  render() {
+    if (!this.state.erro) return this.props.children
+    return (
+      <div className="mx-auto max-w-md space-y-3 pt-10 text-center">
+        <div className="text-4xl">⚠️</div>
+        <p className="font-semibold">{traduzir('pt', 'Algo deu errado nesta tela.')}</p>
+        <p className="text-xs text-[var(--suave)]">{this.state.erro}</p>
+        <Botao onClick={() => this.setState({ erro: undefined })}>{traduzir('pt', 'Tentar de novo')}</Botao>
+      </div>
+    )
+  }
+}

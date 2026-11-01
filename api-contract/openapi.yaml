@@ -1,0 +1,194 @@
+# Contrato da API (rascunho gerado a partir de src/core/services/index.ts).
+# O app já fala este contrato pelo adaptador src/adapters/api/backendApi.ts e é testado contra uma API simulada
+# (src/adapters/api/apiSimulada.ts). O servidor de verdade só precisa responder igual.
+openapi: 3.1.0
+info:
+  title: Tudo · API
+  version: 1.0.0
+  description: |
+    Um endpoint por COMANDO (muda dados) e um por CONSULTA (só lê). Os corpos são os mesmos tipos do app
+    (src/core/domain/tipos.ts e as assinaturas em src/core/services/*). Dinheiro sempre inteiro na menor unidade
+    da moeda; datas "AAAA-MM-DD"; instantes ISO 8601 UTC; ids ULID gerados no aparelho.
+servers:
+  - url: https://api.exemplo.com
+security:
+  - bearer: []
+paths:
+  /v1/comandos/{nome}:
+    post:
+      summary: Executa um comando de negócio (tudo ou nada, numa transação)
+      parameters:
+        - name: nome
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+            - lancarCaixa
+            - estornarLancamento
+            - encerrarDia
+            - reabrirDia
+            - salvarItem
+            - ajustarEstoque
+            - transformarLote
+            - separarLote
+            - salvarTabelaPreco
+            - registrarAcerto
+            - ajustarConta
+            - criarCompra
+            - avancarTriagem
+            - cancelarCompra
+            - concluirVenda
+            - atenderAgendamento
+            - cancelarVenda
+            - corrigirVenda
+            - pagarComissao
+            - salvarUsuario
+            - trocarMinhaSenha
+            - criarEmprestimo
+            - pagarEmprestimo
+            - salvarPessoa
+            - salvarLocal
+            - salvarCotacao
+            - salvarConfig
+            - salvarModulo
+            - pagarSalario
+            - registrarAnexo
+            - removerAnexo
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: "nome:id da operação. Repetir a mesma chave devolve o mesmo resultado (toque duplo não duplica)."
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: 'Mesmo formato de DadosComando<nome> no app.' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
+        '422':
+          description: Regra recusou (mensagem amigável para mostrar como está)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Erro' }
+  /v1/consultas/{nome}:
+    get:
+      summary: Executa uma consulta (só leitura)
+      parameters:
+        - name: nome
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+            - painel
+            - resumoMenu
+            - diagnostico
+            - caixaDoDia
+            - diasDoCaixa
+            - estoque
+            - catalogo
+            - movimentosDoItem
+            - fichaItem
+            - rastreio
+            - tabelasPreco
+            - tabelaVigente
+            - historicoTabela
+            - calcularPreco
+            - contas
+            - contaPessoa
+            - organograma
+            - resumoFuncionario
+            - unidades
+            - sugestaoSalario
+            - ultimoLancamento
+            - linhaDoTempo
+            - logDetalhado
+            - dre
+            - livroCaixa
+            - inventario
+            - balanco
+            - vendasDetalhadas
+            - comprasDetalhadas
+            - filaTriagem
+            - compra
+            - vendas
+            - venda
+            - agenda
+            - conflitosAgenda
+            - comissoes
+            - usuarios
+            - usuariosDemo
+            - emprestimos
+            - emprestimo
+            - pessoas
+            - fichaPessoa
+            - locais
+            - configuracoes
+            - anexosDe
+        - name: p
+          in: query
+          required: false
+          description: Parâmetros da consulta em JSON (mesmo formato de ParamsConsulta<nome>).
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
+  /v1/auth/entrar:
+    post:
+      summary: Entrar (devolve token e sessão; o token vai no Authorization de todo pedido)
+      security: []
+      responses:
+        '200': { description: "{ token, sessao }" }
+        '422': { description: Usuário ou senha não conferem }
+  /v1/arquivos:
+    post:
+      summary: Envia foto/PDF/arquivo (depois o app chama o comando registrarAnexo)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                id: { type: string }
+                arquivo: { type: string, format: binary }
+      responses:
+        '200': { description: OK }
+  /v1/arquivos/{id}:
+    get:
+      summary: Baixa um arquivo
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: O arquivo }
+  /v1/backup:
+    get:
+      summary: Exporta tudo (mesmo formato do backup do app)
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Importa um backup (migração da demonstração para o servidor)
+      responses:
+        '200': { description: OK }
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+  schemas:
+    Erro:
+      type: object
+      properties:
+        erro:
+          type: object
+          properties:
+            mensagem: { type: string }
+            campo: { type: string }
