@@ -67,6 +67,10 @@ async function montar(b: BackendNoAparelho) {
     await c(d, 'salvarCotacao', { id: id(), moeda: 'USD', valor: '5,40', sentido: 'basePorMoeda' })
   }
 
+  // câmbio: dólar dinâmico (internet) com ajuste; real fixo digitado para vender e comprar
+  await c(45, 'salvarCambio', { moeda: 'USD', modo: 'dinamico', ajusteVendaBp: -100, ajusteCompraBp: 100 })
+  await c(45, 'salvarCambio', { moeda: 'BRL', modo: 'fixo', fixoVenda: '1,25', fixoCompra: '1,30', idVenda: id(), idCompra: id() })
+
   // ---------- unidades ----------
   const centro = 'loc-centro'
   const norte = 'loc-norte'

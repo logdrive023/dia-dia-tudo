@@ -1,6 +1,6 @@
 // Pagamentos em qualquer moeda: cada um guarda a cotação usada e o valor na moeda principal.
 
-import { formatar, type CodigoMoeda } from '../domain/dinheiro'
+import { formatar, type CodigoMoeda, type UsoCambio } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
 import type { Id, Linha, Pagamento } from '../domain/tipos'
 import { type Ctx, exigirInteiroPositivo, formaPagamento, lerConfig, paraPrincipal } from './contexto'
@@ -23,6 +23,8 @@ export async function montarPagamentos(
   _linhas: Linha[],
   /** com pessoa: pode pagar só uma parte (o resto fica na conta dela) ou a mais (fica de crédito) */
   permitirParcial = false,
+  /** venda: recebo em outra moeda (taxa de venda); compra: pago em outra moeda (taxa de compra) */
+  uso: UsoCambio = 'base',
 ): Promise<Pagamento[]> {
   const cfg = await lerConfig(ctx)
   const pagamentos: Pagamento[] = []
@@ -30,7 +32,7 @@ export async function montarPagamentos(
     exigirInteiroPositivo(p.valor, 'Pagamento')
     const f = await formaPagamento(ctx, p.forma)
     exigir(f.moedas.includes(p.moeda), `${f.nome} não aceita ${p.moeda}.`)
-    const conv = await paraPrincipal(ctx, p.valor, p.moeda)
+    const conv = await paraPrincipal(ctx, p.valor, p.moeda, uso)
     pagamentos.push({ id: p.id, forma: p.forma, moeda: p.moeda, valor: p.valor, cotacao: conv.cotacao, valorPrincipal: conv.valorPrincipal })
   }
   const soma = pagamentos.reduce((s, p) => s + p.valorPrincipal, 0)

@@ -42,6 +42,7 @@ const NOMES_ACAO: Record<string, string> = {
   salvarTabelaPreco: 'Tabela de preço salva',
   tabelaPrecoAnterior: 'Versão anterior da tabela',
   salvarCotacao: 'Cotação salva',
+  salvarCambio: 'Câmbio configurado',
   pagarSalario: 'Salário pago',
   anexar: 'Arquivo anexado',
   removerAnexo: 'Anexo removido',

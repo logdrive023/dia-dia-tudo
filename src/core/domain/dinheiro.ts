@@ -87,7 +87,16 @@ export interface Cotacao {
   valor: string
   sentido: 'basePorMoeda' | 'moedaPorBase'
   data: string
+  /**
+   * Contra qual moeda o valor foi digitado (padrão: BRL, a base). Ex.: câmbio fixo "1 USD = 6,96 BOB" →
+   * { moeda: 'USD', valor: '6,96', sentido: 'basePorMoeda', contra: 'BOB' }. A conversão continua exata.
+   */
+  contra?: CodigoMoeda
+  /** para que serve: base (a do mercado), venda (quando recebo em outra moeda) ou compra (quando pago em outra moeda) */
+  uso?: UsoCambio
 }
+
+export type UsoCambio = 'base' | 'venda' | 'compra'
 
 interface Racional {
   num: bigint
@@ -103,12 +112,37 @@ function decimalParaRacional(texto: string): Racional {
   return { num, den: 10n ** BigInt(d.length) }
 }
 
-/** Quantos BRL (unidade maior) vale 1 unidade maior da moeda. */
-export function taxaParaBase(c: Cotacao | undefined, codigo: CodigoMoeda): Racional {
-  if (codigo === MOEDA_BASE) return { num: 1n, den: 1n }
-  if (!c) throw new ErroNegocio(`Falta a cotação de ${codigo}. Cadastre em Configurações › Moedas.`)
+/** Quantos BRL (unidade maior) vale 1 unidade maior da moeda (segue a moeda "contra", se houver). */
+export function taxaParaBase(c: Cotacao | undefined, codigo: CodigoMoeda, tabela?: TabelaCotacoes, profundidade = 0): Racional {
+  // o real é a base interna; só muda quando tem câmbio próprio contra outra moeda (fixo/ajustado para venda ou compra)
+  if (codigo === MOEDA_BASE && (!c || !c.contra || c.contra === MOEDA_BASE)) return { num: 1n, den: 1n }
+  if (!c) throw new ErroNegocio(`Falta a cotação de ${codigo}. Cadastre em Configurações › Moedas e câmbio.`)
   const r = decimalParaRacional(c.valor)
-  return c.sentido === 'basePorMoeda' ? r : { num: r.den, den: r.num }
+  const direto = c.sentido === 'basePorMoeda' ? r : { num: r.den, den: r.num }
+  if (!c.contra || c.contra === MOEDA_BASE) return direto
+  if (c.contra === codigo || profundidade > 3) throw new ErroNegocio(`Cotação de ${codigo} em círculo.`)
+  const contra = taxaParaBase(tabela?.[c.contra], c.contra, tabela, profundidade + 1)
+  return { num: direto.num * contra.num, den: direto.den * contra.den }
+}
+
+/** Texto decimal (com vírgula) de um racional, com até 10 casas. */
+export function racionalParaTexto(r: Racional): string {
+  const escala = 10n ** 10n
+  const v = dividirArredondando(r.num * escala, r.den)
+  const inteira = v / escala
+  const dec = (v % escala).toString().padStart(10, '0').replace(/0+$/, '')
+  return dec ? `${inteira},${dec}` : `${inteira}`
+}
+
+/**
+ * Cotação de uma moeda escrita CONTRA a moeda de referência, com ajuste em pontos-base (sobre o valor da moeda).
+ * Ex.: base 1 USD = 6,96 BOB, ajuste −150 (−1,5%) → { USD, 6,8556, contra BOB }. Serve para qualquer moeda, inclusive o real.
+ */
+export function ajustarCotacao(codigo: CodigoMoeda, referencia: CodigoMoeda, bp: number, tabela: TabelaCotacoes, uso: UsoCambio, data = ''): Cotacao {
+  const m = taxaParaBase(tabela[codigo], codigo, tabela)
+  const r = taxaParaBase(tabela[referencia], referencia, tabela)
+  const aj = { num: m.num * r.den * BigInt(10000 + bp), den: m.den * r.num * 10000n }
+  return { moeda: codigo, valor: racionalParaTexto(aj), sentido: 'basePorMoeda', contra: referencia, data, uso }
 }
 
 function dividirArredondando(num: bigint, den: bigint): bigint {
@@ -133,8 +167,8 @@ export type TabelaCotacoes = Record<CodigoMoeda, Cotacao | undefined>
  */
 export function converter(valor: number, de: CodigoMoeda, para: CodigoMoeda, cot: TabelaCotacoes): number {
   if (de === para) return valor
-  const a = taxaParaBase(cot[de], de)
-  const b = taxaParaBase(cot[para], para)
+  const a = taxaParaBase(cot[de], de, cot)
+  const b = taxaParaBase(cot[para], para, cot)
   const casas = moeda(para).casas - moeda(de).casas
   let num = BigInt(Math.round(valor)) * a.num * b.den
   let den = a.den * b.num
@@ -143,9 +177,21 @@ export function converter(valor: number, de: CodigoMoeda, para: CodigoMoeda, cot
   return Number(dividirArredondando(num, den))
 }
 
-/** Texto amigável da cotação: "1 USD = R$ 5,43". */
+/** Texto amigável da cotação: "1 USD = BRL 5,43" ou "1 USD = BOB 6,96". */
 export function textoCotacao(c: Cotacao): string {
-  return c.sentido === 'basePorMoeda' ? `1 ${c.moeda} = ${MOEDA_BASE} ${c.valor}` : `1 ${MOEDA_BASE} = ${c.valor} ${c.moeda}`
+  const contra = c.contra ?? MOEDA_BASE
+  return c.sentido === 'basePorMoeda' ? `1 ${c.moeda} = ${contra} ${c.valor}` : `1 ${contra} = ${c.valor} ${c.moeda}`
+}
+
+/** Quanto vale 1 unidade de "de" em "para" (para mostrar: "1 USD = 6,9600 BOB"). */
+export function valorDeUm(de: CodigoMoeda, para: CodigoMoeda, cot: TabelaCotacoes): number | undefined {
+  try {
+    const escala = 1_000_000
+    const v = converter(escala * 10 ** moeda(de).casas, de, para, cot)
+    return v / (escala * 10 ** moeda(para).casas)
+  } catch {
+    return undefined
+  }
 }
 
 /**

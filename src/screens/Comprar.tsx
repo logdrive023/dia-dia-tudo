@@ -318,7 +318,7 @@ function EtapasCompra(p: {
             </details>
           )}
           {prox.faz?.includes('pagamento') && (
-            <EditorPagamentos total={c.totalPrincipal} moedaTotal={c.moedaPrincipal} pagamentos={p.pagamentos} onChange={p.setPagamentos} permiteFiado={!!c.pessoaId} />
+            <EditorPagamentos uso="compra" total={c.totalPrincipal} moedaTotal={c.moedaPrincipal} pagamentos={p.pagamentos} onChange={p.setPagamentos} permiteFiado={!!c.pessoaId} />
           )}
           <Campo rotulo="Observação / motivo (fica no histórico)"><Entrada value={p.motivo} onChange={(e) => p.setMotivo(e.target.value)} /></Campo>
           <div className="flex flex-wrap gap-2">

@@ -100,7 +100,7 @@ function AssistenteVenda(p: {
   const t = useT()
   const { sessao } = useApp()
   const { executar, ocupado } = useComando()
-  const { cot } = useCotacoes()
+  const { cot } = useCotacoes('venda')
   const [pessoaId, setPessoaId] = useState<Id>()
   const [localId, setLocalId] = useState<Id | undefined>(sessao.localId)
   const [profissionalId, setProfissionalId] = useState<Id | undefined>(sessao.perfil === 'funcionario' ? sessao.usuarioId : undefined)

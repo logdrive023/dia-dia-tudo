@@ -9,6 +9,8 @@ export const COMANDOS_FUNCIONARIO = new Set<NomeComando>([
   'salvarPessoa',
   'registrarAnexo',
   'trocarMinhaSenha',
+  'registrarBuscaCambio',
+  'salvarCotacao',
 ])
 
 export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
@@ -32,6 +34,7 @@ export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
   'comissoes',
   'usuariosDemo',
   'resumoMenu',
+  'cambio',
 ])
 
 /** Comandos que funcionam antes de alguém entrar. */

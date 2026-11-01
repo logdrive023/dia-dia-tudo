@@ -53,6 +53,8 @@ export const comandos = {
   salvarPessoa: cadastros.salvarPessoa,
   salvarLocal: cadastros.salvarLocal,
   salvarCotacao: cadastros.salvarCotacao,
+  salvarCambio: cadastros.salvarCambio,
+  registrarBuscaCambio: cadastros.registrarBuscaCambio,
   salvarConfig: cadastros.salvarConfig,
   salvarModulo: cadastros.salvarModulo,
   pagarSalario: equipe.pagarSalario,
@@ -105,6 +107,7 @@ export const consultas = {
   fichaPessoa: cadastros.fichaPessoa,
   locais: cadastros.locais,
   configuracoes: cadastros.configuracoes,
+  cambio: cadastros.cambio,
   anexosDe: cadastros.anexosDe,
 }
 

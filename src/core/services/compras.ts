@@ -30,7 +30,7 @@ async function montarLinha(ctx: Ctx, l: LinhaCompraEntrada, nomePadrao: string):
   exigirInteiroPositivo(l.quantidade, 'Quantidade')
   const total = l.calculo?.fator ? multiplicarFator(l.quantidade, l.calculo.fator, l.moeda) : l.total
   exigirInteiroPositivo(total, 'Valor', true)
-  const { valorPrincipal, cotacao } = await paraPrincipal(ctx, total, l.moeda)
+  const { valorPrincipal, cotacao } = await paraPrincipal(ctx, total, l.moeda, 'compra')
   const campos: Campos = { ...(l.campos ?? {}) }
   if (l.calculo?.fator) {
     if (l.calculo.medida && campos.comprimento === undefined) campos.comprimento = l.calculo.medida
@@ -140,7 +140,7 @@ export async function avancarTriagem(
       exigirInteiroPositivo(a.total, 'Valor', true)
       historicoAjustes.push(`${l.descricao}: valor ${l.total} → ${a.total}`)
       l.total = a.total
-      const conv = await paraPrincipal(ctx, a.total, l.moeda)
+      const conv = await paraPrincipal(ctx, a.total, l.moeda, 'compra')
       l.totalPrincipal = conv.valorPrincipal
       l.cotacao = conv.cotacao
     }
@@ -160,7 +160,7 @@ export async function avancarTriagem(
     const prox = c.etapas[idx + 1]
     exigir(prox.id === d.para, `A próxima etapa é "${prox.nome}".`)
     if (prox.faz?.includes('pagamento')) {
-      const pagamentos = await montarPagamentos(ctx, d.pagamentos ?? [], compra.totalPrincipal, compra.linhas, !!compra.pessoaId)
+      const pagamentos = await montarPagamentos(ctx, d.pagamentos ?? [], compra.totalPrincipal, compra.linhas, !!compra.pessoaId, 'compra')
       for (const p of pagamentos)
         await moverCaixa(ctx, {
           data: ctx.relogio.hoje(),

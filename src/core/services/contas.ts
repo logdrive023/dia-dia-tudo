@@ -25,7 +25,7 @@ export async function registrarAcerto(
   const pessoa = await ctx.repos.pessoas.obter(d.pessoaId)
   exigir(pessoa, 'Escolha a pessoa.', 'pessoaId')
   exigirInteiroPositivo(d.valor, 'Valor')
-  const { valorPrincipal } = await paraPrincipal(ctx, d.valor, d.moeda)
+  const { valorPrincipal } = await paraPrincipal(ctx, d.valor, d.moeda, d.direcao === 'recebi' ? 'venda' : 'compra')
   const recebi = d.direcao === 'recebi'
   const rotulo = d.adiantamento ? (recebi ? 'Adiantamento recebido' : 'Adiantamento dado') : recebi ? 'Recebi' : 'Paguei'
   const descricao = `${rotulo} · ${pessoa.nome}${d.descricao?.trim() ? ` · ${d.descricao.trim()}` : ''}`

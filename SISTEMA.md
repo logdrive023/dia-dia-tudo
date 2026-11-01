@@ -49,8 +49,17 @@ Toque no **i** de qualquer item ou número: explicação + **quadro de exemplo**
 - Sempre **inteiro na menor unidade** (centavos; guarani sem centavos). Digitação aceita `1.474,80`, `70`, `70,5`, `71.000`.
 - Moedas: **BOB** (principal da demonstração), BRL, PYG, USD. Cotações digitadas como `1 USD = 5,40 BRL` ou `1 BRL = 1.450 PYG`;
   conversão exata (racionais em BigInt, um arredondamento). **Cada lançamento guarda a cotação usada**: o passado não muda.
-- **Câmbio automático grátis** (open.er-api.com): uma vez **no começo do dia** (todas as vendas do dia usam a mesma) ou
-  **na hora** (a cada hora). Sem internet usa a última e avisa a data. Configurações › Moedas e câmbio.
+- **Câmbio por moeda, dinâmico ou fixo, com taxa de VENDA e de COMPRA** (Configurações › Moedas e câmbio):
+  - **Dinâmico** = cotação da internet (open.er-api.com, grátis) ± ajuste em % para venda e para compra.
+    Ex.: base 1 USD = 6,96 Bs; venda −1% = 6,89 (recebo dólar valendo um pouco menos); compra +1% = 7,03.
+  - **Fixo** = você digita contra a moeda principal: "para vender 1 USD = 6,90 Bs; para comprar 1 USD = 7,00 Bs".
+    A internet não muda nada.
+  - **Venda** é usada quando entra dinheiro em outra moeda (vendas, atendimentos, recebimentos); **compra** quando sai
+    (compras, pagamento a fornecedor). Relatórios e "caixa agora" usam a **base**.
+- **Base local**: toda busca na internet é **guardada no aparelho** (histórico com data e origem) — de todas as moedas,
+  mesmo as desligadas. Sem internet, vale a última base guardada; a tela mostra quando foi a última busca boa.
+  Quando buscar: **uma vez no começo do dia** (todas as vendas do dia usam a mesma) ou **na hora de usar** (a cada hora).
+- A cotação usada fica gravada em cada venda/compra: mudar o câmbio depois não muda o passado.
 - Formas: Dinheiro/efectivo (conta como "na mão"), QR (BOB/PYG), Pix/crédito/débito (BRL), transferência.
 
 ### 2.2 Tabela de preço (multiplicador)

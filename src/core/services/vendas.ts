@@ -50,7 +50,7 @@ async function montarLinhas(ctx: Ctx, entrada: LinhaVendaEntrada[], profissional
     exigirInteiroPositivo(l.quantidade, `Quantidade de ${item.nome}`)
     const total = l.calculo?.fator ? multiplicarFator(l.quantidade, l.calculo.fator, l.moeda) : l.total
     exigirInteiroPositivo(total, `Valor de ${item.nome}`, true)
-    const conv = await paraPrincipal(ctx, total, l.moeda)
+    const conv = await paraPrincipal(ctx, total, l.moeda, 'venda')
     const profissionalId = l.profissionalId ?? (item.controlaEstoque ? undefined : profissionalPadrao)
     let comissaoBp = l.comissaoBp
     if (comissaoBp === undefined && profissionalId) comissaoBp = (await ctx.repos.pessoas.obter(profissionalId))?.comissaoBp
@@ -85,7 +85,7 @@ async function montarLinhas(ctx: Ctx, entrada: LinhaVendaEntrada[], profissional
 
 async function concluir(ctx: Ctx, v: Transacao, pagamentosEntrada: PagamentoEntrada[]): Promise<Transacao> {
   // com cliente identificado pode pagar em partes: o resto vai para a conta dela (fiado)
-  const pagamentos = await montarPagamentos(ctx, pagamentosEntrada, v.totalPrincipal, v.linhas, !!v.pessoaId)
+  const pagamentos = await montarPagamentos(ctx, pagamentosEntrada, v.totalPrincipal, v.linhas, !!v.pessoaId, 'venda')
   const hoje = ctx.relogio.hoje()
   for (const l of v.linhas) {
     const item = await ctx.repos.itens.obter(l.itemId!)
@@ -239,7 +239,7 @@ export async function corrigirVenda(
     if (t.etapa === 'concluido' && item?.controlaEstoque && qtd !== l.quantidade)
       await moverEstoque(ctx, { itemId: item.id, delta: l.quantidade - qtd, motivo: 'correcao', origemId: v.id, descricao: `Correção da venda: ${l.quantidade} → ${qtd}` })
     ajustes.push(`${l.descricao}: ${l.quantidade.toLocaleString('pt-BR')} = ${formatar(l.total, l.moeda)} → ${qtd.toLocaleString('pt-BR')}${fator ? ` × ${fator}` : ''} = ${formatar(total, l.moeda)}`)
-    const conv = await paraPrincipal(ctx, total, l.moeda)
+    const conv = await paraPrincipal(ctx, total, l.moeda, 'venda')
     l.quantidade = qtd
     l.total = total
     l.totalPrincipal = conv.valorPrincipal
@@ -264,7 +264,7 @@ export async function corrigirVenda(
       const f = await formaPagamento(ctx, dif.forma)
       exigir(f.moedas.includes(dif.moeda), `${f.nome} não aceita ${dif.moeda}.`)
       const cfg = await lerConfig(ctx)
-      const valor = converter(diff, cfg.moedaPrincipal, dif.moeda, await cotacoesAtuais(ctx))
+      const valor = converter(diff, cfg.moedaPrincipal, dif.moeda, await cotacoesAtuais(ctx, 'venda'))
       await moverCaixa(ctx, { data: ctx.relogio.hoje(), moeda: dif.moeda, forma: dif.forma, delta: valor, tipo: 'correcao', origemId: v.id, descricao: `Correção da venda · ${d.motivo}` })
       v.pagamentos.push({ id: `${v.id}-corr-${v.historico.length}`, forma: dif.forma, moeda: dif.moeda, valor, valorPrincipal: diff })
     }

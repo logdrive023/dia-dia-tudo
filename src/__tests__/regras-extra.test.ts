@@ -122,6 +122,53 @@ describe('login e permissões', () => {
   })
 })
 
+describe('câmbio dinâmico ou fixo, para venda e para compra', () => {
+  it('dinâmico usa a base da internet ± ajuste; fixo usa o digitado; venda e compra separados; sem internet vale a última base', async () => {
+    const { b } = await novoBackend()
+    // base (como se viesse da internet): 1 BRL = 1,28 BOB; 1 USD = 5,40 BRL → 1 USD = 6,912 BOB
+    await b.comando('salvarCotacao', { id: 'auto-usd', moeda: 'USD', valor: '5,40', sentido: 'basePorMoeda', fonte: 'auto' })
+    const ver = async () => (await b.consulta('cambio', {})).moedas.find((m) => m.moeda === 'USD')!
+    expect((await ver()).base).toBeCloseTo(6.912, 4)
+    // dinâmico com ajuste: venda −1%, compra +1%
+    await b.comando('salvarCambio', { moeda: 'USD', modo: 'dinamico', ajusteVendaBp: -100, ajusteCompraBp: 100 })
+    expect((await ver()).venda).toBeCloseTo(6.84288, 4)
+    expect((await ver()).compra).toBeCloseTo(6.98112, 4)
+    // venda recebendo 100 USD usa a taxa de venda; compra pagando 100 USD usa a de compra
+    await b.comando('salvarItem', { id: 'x', moduloId: 'produtos', tipoItem: 'peca', nome: 'X', saldoInicial: 10 })
+    await b.comando('lancarCaixa', { id: 'ini', tipo: 'saldoInicial', moeda: 'USD', forma: 'dinheiro', valor: 100000, descricao: 'x' })
+    await b.comando('salvarPessoa', { id: 'c', nome: 'C', papeis: ['cliente', 'fornecedor'] })
+    await b.comando('concluirVenda', { id: 'v', pessoaId: 'c', linhas: [{ id: 'l', itemId: 'x', quantidade: 1, moeda: 'USD', total: 10000 }], pagamentos: [{ id: 'p', forma: 'dinheiro', moeda: 'USD', valor: 10000 }] })
+    const v = (await b.consulta('venda', { id: 'v' })).venda
+    expect(v.totalPrincipal).toBe(68429) // 100 USD × 6,84288 = Bs 684,29
+    expect(v.linhas[0].cotacao?.uso).toBe('venda')
+    // fixo: digitado contra a moeda principal, exato
+    await b.comando('salvarCambio', { moeda: 'USD', modo: 'fixo', fixoVenda: '6,90', fixoCompra: '7,00', idVenda: 'fv', idCompra: 'fc' })
+    expect((await ver()).venda).toBe(6.9)
+    expect((await ver()).compra).toBe(7)
+    await b.comando('criarCompra', { id: 'co', moduloId: 'produtos', pessoaId: 'c', linhas: [{ id: 'cl', itemId: 'x', quantidade: 1, moeda: 'USD', total: 10000 }] })
+    expect((await b.consulta('compra', { id: 'co' })).compra.totalPrincipal).toBe(70000) // 100 USD × 7,00
+    // a internet não muda o fixo; a venda antiga continua com a cotação que usou
+    await b.comando('salvarCotacao', { id: 'auto-usd2', moeda: 'USD', valor: '6,00', sentido: 'basePorMoeda', fonte: 'auto' })
+    expect((await ver()).venda).toBe(6.9)
+    expect((await b.consulta('venda', { id: 'v' })).venda.totalPrincipal).toBe(68429)
+    // sem internet: registra a falha e continua com a última base guardada
+    await b.comando('registrarBuscaCambio', { ok: false, mensagem: 'Sem internet', fonte: 'teste' })
+    const cam = await b.consulta('cambio', {})
+    expect(cam.status?.ok).toBe(false)
+    expect(cam.moedas.find((m) => m.moeda === 'USD')!.base).toBeCloseTo(7.68, 4) // 6,00 × 1,28
+    expect((await b.consulta('diagnostico', {})).ok).toBe(true)
+    // o real (base interna) também pode ser fixo ou ajustado
+    const real = async () => (await b.consulta('cambio', {})).moedas.find((m) => m.moeda === 'BRL')!
+    expect((await real()).base).toBeCloseTo(1.28, 4)
+    await b.comando('salvarCambio', { moeda: 'BRL', modo: 'fixo', fixoVenda: '1,25', fixoCompra: '1,30', idVenda: 'rv', idCompra: 'rc' })
+    expect((await real()).venda).toBe(1.25)
+    expect((await real()).compra).toBe(1.3)
+    await b.comando('salvarCambio', { moeda: 'BRL', modo: 'dinamico', ajusteVendaBp: -200 })
+    expect((await real()).venda).toBeCloseTo(1.2544, 4)
+    expect((await real()).compra).toBeCloseTo(1.28, 4)
+  })
+})
+
 describe('fronteira da arquitetura', () => {
   it('só o adaptador local conhece o banco (Dexie): trocar pela API não mexe em telas e regras', () => {
     const raiz = join(__dirname, '..')

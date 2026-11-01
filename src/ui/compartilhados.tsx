@@ -68,9 +68,11 @@ export interface PagamentoTela {
   valor?: number
 }
 
-export function useCotacoes() {
+/** Câmbio em uso: 'venda' (recebo em outra moeda), 'compra' (pago em outra moeda) ou 'base' (mercado). */
+export function useCotacoes(uso: 'base' | 'venda' | 'compra' = 'base') {
   const { dados } = useConsulta('configuracoes', {})
-  return { cot: (dados?.cotacoes ?? {}) as TabelaCotacoes, cfg: dados?.config }
+  const tabela = uso === 'venda' ? dados?.cotacoesVenda : uso === 'compra' ? dados?.cotacoesCompra : dados?.cotacoes
+  return { cot: (tabela ?? {}) as TabelaCotacoes, cfg: dados?.config }
 }
 
 export function conv(v: number, de: string, para: string, cot: TabelaCotacoes) {
@@ -82,9 +84,9 @@ export function conv(v: number, de: string, para: string, cot: TabelaCotacoes) {
 }
 
 /** Lista de pagamentos (qualquer moeda e forma). Mostra quanto falta/sobra na moeda do total. */
-export function EditorPagamentos({ total, moedaTotal, pagamentos, onChange, permiteFiado }: { total: number; moedaTotal: string; pagamentos: PagamentoTela[]; onChange(p: PagamentoTela[]): void; permiteFiado: boolean }) {
+export function EditorPagamentos({ total, moedaTotal, pagamentos, onChange, permiteFiado, uso = 'venda' }: { total: number; moedaTotal: string; pagamentos: PagamentoTela[]; onChange(p: PagamentoTela[]): void; permiteFiado: boolean; uso?: 'venda' | 'compra' }) {
   const t = useT()
-  const { cot, cfg } = useCotacoes()
+  const { cot, cfg } = useCotacoes(uso)
   const formas = cfg?.formas ?? []
   const pago = pagamentos.reduce((s, p) => s + (p.valor ? conv(p.valor, p.moeda, moedaTotal, cot) ?? 0 : 0), 0)
   const falta = total - pago
@@ -133,8 +135,8 @@ export function EditorPagamentos({ total, moedaTotal, pagamentos, onChange, perm
 
 // ---------- conversor ----------
 
-export function ValoresConvertidos({ valor, moeda }: { valor: number; moeda: string }) {
-  const { cot, cfg } = useCotacoes()
+export function ValoresConvertidos({ valor, moeda, uso = 'venda' }: { valor: number; moeda: string; uso?: 'venda' | 'compra' | 'base' }) {
+  const { cot, cfg } = useCotacoes(uso)
   const outras = (cfg?.moedasAtivas ?? []).filter((m) => m !== moeda)
   return (
     <div className="flex flex-wrap gap-1">
@@ -165,12 +167,16 @@ export function Conversor() {
           </div>
           {valor !== undefined && (
             <ul className="space-y-1">
-              {MOEDAS.filter((m) => m.codigo !== moeda).map((m) => {
-                const v = conv(valor, moeda, m.codigo, (dados?.cotacoes ?? {}) as TabelaCotacoes)
+              {MOEDAS.filter((m) => m.codigo !== moeda && dados?.config.moedasAtivas.includes(m.codigo)).map((m) => {
+                const v = (tab?: object) => conv(valor, moeda, m.codigo, (tab ?? {}) as TabelaCotacoes)
+                const venda = v(dados?.cotacoesVenda)
+                const compra = v(dados?.cotacoesCompra)
                 return (
-                  <li key={m.codigo} className="num flex justify-between rounded-xl bg-[var(--fundo)] p-3 text-lg font-bold">
-                    <span>{m.nome}</span>
-                    <span>{v === undefined ? '—' : formatar(v, m.codigo)}</span>
+                  <li key={m.codigo} className="rounded-xl bg-[var(--fundo)] p-3">
+                    <div className="num flex justify-between text-lg font-bold"><span>{m.nome}</span><span>{v(dados?.cotacoes) === undefined ? '—' : formatar(v(dados?.cotacoes)!, m.codigo)}</span></div>
+                    {(venda !== v(dados?.cotacoes) || compra !== v(dados?.cotacoes)) && (
+                      <div className="num flex justify-between text-xs text-[var(--suave)]"><span>{t('venda')} {venda === undefined ? '—' : formatar(venda, m.codigo)}</span><span>{t('compra')} {compra === undefined ? '—' : formatar(compra, m.codigo)}</span></div>
+                    )}
                   </li>
                 )
               })}

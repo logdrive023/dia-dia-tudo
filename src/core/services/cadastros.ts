@@ -1,7 +1,7 @@
 // Pessoas, locais, cotações, configurações e anexos (metadados; o arquivo em si vai pela porta de arquivos).
 
 import { MOEDAS, type CodigoMoeda } from '../domain/dinheiro'
-import { taxaParaBase } from '../domain/dinheiro'
+import { textoCotacao, valorDeUm, type UsoCambio } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
 import { diasEntre } from '../domain/datas'
 import type { Anexo, CategoriaAnexo, CotacaoRegistro, Id, Local, Papel, Pessoa } from '../domain/tipos'
@@ -68,12 +68,98 @@ export async function salvarLocal(ctx: Ctx, d: Omit<Local, keyof import('../doma
   return { id: d.id }
 }
 
-export async function salvarCotacao(ctx: Ctx, d: { id: Id; moeda: CodigoMoeda; valor: string; sentido: 'basePorMoeda' | 'moedaPorBase'; fonte?: 'manual' | 'auto' }) {
+export async function salvarCotacao(
+  ctx: Ctx,
+  d: { id: Id; moeda: CodigoMoeda; valor: string; sentido: 'basePorMoeda' | 'moedaPorBase'; fonte?: 'manual' | 'auto'; contra?: CodigoMoeda; uso?: UsoCambio },
+) {
   exigir(MOEDAS.some((m) => m.codigo === d.moeda) && d.moeda !== 'BRL', 'Moeda inválida.')
-  taxaParaBase({ ...d, data: '' }, d.moeda) // valida o número
-  await ctx.repos.cotacoes.salvar(novo<CotacaoRegistro>(ctx, { id: d.id, moeda: d.moeda, valor: d.valor.trim(), sentido: d.sentido, data: ctx.relogio.hoje(), fonte: d.fonte ?? 'manual' }))
+  // funcionária só grava a busca automática da internet; cotação digitada é com o administrador
+  exigir(ctx.sessao.perfil === 'admin' || d.fonte === 'auto', 'Sem permissão para mudar o câmbio.')
+  exigir(!d.contra || (d.contra !== d.moeda && MOEDAS.some((m) => m.codigo === d.contra)), 'Moeda de referência inválida.')
+  decimalValido(d.valor)
+  await ctx.repos.cotacoes.salvar(
+    novo<CotacaoRegistro>(ctx, { id: d.id, moeda: d.moeda, valor: d.valor.trim(), sentido: d.sentido, data: ctx.relogio.hoje(), fonte: d.fonte ?? 'manual', contra: d.contra, uso: d.uso ?? 'base' }),
+  )
   await auditar(ctx, 'salvarCotacao', d.id, `${d.moeda} ${d.valor}`)
   return { id: d.id }
+}
+
+function decimalValido(v: string) {
+  const t = String(v ?? '').trim().replace(/\./g, '').replace(',', '.')
+  exigir(/^\d+(\.\d+)?$/.test(t) && Number(t) > 0, `Cotação inválida: ${v}`)
+}
+
+/**
+ * Câmbio de uma moeda: dinâmico (internet ± ajuste para venda e compra) ou fixo (valores digitados contra a moeda
+ * principal: "1 USD = 6,96 BOB"). Os valores fixos ficam guardados com data (histórico) e valem até mudar de novo.
+ */
+export async function salvarCambio(
+  ctx: Ctx,
+  d: { moeda: CodigoMoeda; modo: 'dinamico' | 'fixo'; ajusteVendaBp?: number; ajusteCompraBp?: number; fixoVenda?: string; fixoCompra?: string; idVenda?: Id; idCompra?: Id },
+) {
+  const cfg = await lerConfig(ctx)
+  exigir(d.moeda !== cfg.moedaPrincipal, 'A moeda principal não tem câmbio (ela é a referência).')
+  for (const bp of [d.ajusteVendaBp, d.ajusteCompraBp]) if (bp !== undefined) exigir(Number.isInteger(bp) && bp > -5000 && bp < 5000, 'Ajuste entre −50% e +50%.')
+  if (d.modo === 'fixo') {
+    const temVenda = !!d.fixoVenda?.trim()
+    const temCompra = !!d.fixoCompra?.trim()
+    const jaTem = (await ctx.repos.cotacoes.listar({ moeda: d.moeda })).some((c) => c.uso === 'venda' || c.uso === 'compra')
+    exigir(temVenda || temCompra || jaTem, 'Digite o valor para vender e para comprar.')
+    if (temVenda) {
+      decimalValido(d.fixoVenda!)
+      await ctx.repos.cotacoes.salvar(novo<CotacaoRegistro>(ctx, { id: d.idVenda, moeda: d.moeda, valor: d.fixoVenda!.trim(), sentido: 'basePorMoeda', contra: cfg.moedaPrincipal, uso: 'venda', data: ctx.relogio.hoje(), fonte: 'manual' }))
+    }
+    if (temCompra) {
+      decimalValido(d.fixoCompra!)
+      await ctx.repos.cotacoes.salvar(novo<CotacaoRegistro>(ctx, { id: d.idCompra, moeda: d.moeda, valor: d.fixoCompra!.trim(), sentido: 'basePorMoeda', contra: cfg.moedaPrincipal, uso: 'compra', data: ctx.relogio.hoje(), fonte: 'manual' }))
+    }
+  }
+  await salvarConfig(ctx, { cambio: { ...cfg.cambio, [d.moeda]: { modo: d.modo, ajusteVendaBp: d.ajusteVendaBp ?? 0, ajusteCompraBp: d.ajusteCompraBp ?? 0 } } })
+  await auditar(ctx, 'salvarCambio', d.moeda, `${d.moeda}: ${d.modo}${d.modo === 'fixo' ? ` · venda ${d.fixoVenda ?? '='} · compra ${d.fixoCompra ?? '='}` : ` · venda ${(d.ajusteVendaBp ?? 0) / 100}% · compra ${(d.ajusteCompraBp ?? 0) / 100}%`}`)
+  return { id: d.moeda }
+}
+
+/** Resultado da última busca na internet (fica guardado: a tela mostra quando foi e se deu certo). */
+export async function registrarBuscaCambio(ctx: Ctx, d: { ok: boolean; mensagem: string; fonte: string }) {
+  const r = await ctx.repos.config.obter('cambioStatus')
+  const valor = { ...d, em: ctx.relogio.agora(), ultimaOk: d.ok ? ctx.relogio.agora() : ((r?.valor as { ultimaOk?: string } | undefined)?.ultimaOk) }
+  await ctx.repos.config.salvar(r ? tocar(ctx, { ...r, valor }) : novo(ctx, { id: 'cambioStatus', valor }))
+  return { id: 'cambioStatus' }
+}
+
+/** Painel do câmbio: por moeda, o modo, a base (internet ou digitada, com data) e as taxas efetivas de venda e compra. */
+export async function cambio(ctx: Ctx, _p: object = {}) {
+  const cfg = await lerConfig(ctx)
+  const base = await cotacoesAtuais(ctx, 'base')
+  const venda = await cotacoesAtuais(ctx, 'venda')
+  const compra = await cotacoesAtuais(ctx, 'compra')
+  const todas = (await ctx.repos.cotacoes.listar()).sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1))
+  const status = (await ctx.repos.config.obter('cambioStatus'))?.valor as { ok: boolean; mensagem: string; em: string; ultimaOk?: string; fonte: string } | undefined
+  const p = cfg.moedaPrincipal
+  const moedas = cfg.moedasAtivas
+    .filter((m) => m !== p)
+    .map((m) => {
+      const conf = cfg.cambio[m] ?? { modo: 'dinamico' as const }
+      const ultimaBase = todas.find((c) => c.moeda === m && (!c.uso || c.uso === 'base'))
+      const fixaVenda = todas.find((c) => c.moeda === m && c.uso === 'venda')
+      const fixaCompra = todas.find((c) => c.moeda === m && c.uso === 'compra')
+      return {
+        moeda: m,
+        modo: conf.modo,
+        ajusteVendaBp: conf.ajusteVendaBp ?? 0,
+        ajusteCompraBp: conf.ajusteCompraBp ?? 0,
+        base: valorDeUm(m, p, base),
+        venda: valorDeUm(m, p, venda),
+        compra: valorDeUm(m, p, compra),
+        baseData: ultimaBase?.criadoEm,
+        baseFonte: ultimaBase?.fonte ?? 'manual',
+        fixoVenda: fixaVenda?.contra === p ? fixaVenda.valor : undefined,
+        fixoCompra: fixaCompra?.contra === p ? fixaCompra.valor : undefined,
+        fixoData: (fixaVenda ?? fixaCompra)?.criadoEm,
+      }
+    })
+  const historico = todas.slice(0, 120).map((c) => ({ id: c.id, moeda: c.moeda, uso: c.uso ?? 'base', fonte: c.fonte ?? 'manual', em: c.criadoEm, texto: textoCotacao(c) }))
+  return { principal: p, auto: cfg.cambioAuto, status, moedas, historico }
 }
 
 export async function salvarConfig(ctx: Ctx, d: Partial<Configuracoes>) {
@@ -132,6 +218,8 @@ export async function configuracoes(ctx: Ctx, _p: object = {}) {
   return {
     config: cfg,
     cotacoes: cot,
+    cotacoesVenda: await cotacoesAtuais(ctx, 'venda'),
+    cotacoesCompra: await cotacoesAtuais(ctx, 'compra'),
     historico,
     cotacaoVelha: Object.values(cot).some((c) => c && diasEntre(c.data, hoje) > cfg.diasCotacaoVelha),
     modulos: ctx.modulos.todos().map((m) => ({ id: m.id, nome: m.nome, icone: m.icone, descricao: m.descricao, personalizado: !!m.personalizado, recursos: m.recursos, temCompra: !!m.compra, temVenda: !!m.venda, pergunta: m.venda?.pergunta, telaPropria: m.telaPropria, etapas: (m.compra?.etapas ?? []).map((e) => ({ id: e.id, nome: e.nome, ajuda: e.ajuda, faz: e.faz ?? [] })), tiposItem: m.tiposItem.map((x) => ({ id: x.id, nome: x.nome, unidade: x.unidade, controlaEstoque: x.controlaEstoque, campos: x.campos })) })),
