@@ -1,10 +1,10 @@
 // RELATÓRIOS contábeis e gerenciais: resultado (DRE) e divisão entre sócias, livro caixa, inventário, balanço,
 // vendas e compras linha a linha, contas, e o LOG de tudo (filtra por usuário e período). CSV e imprimir/PDF.
 
-import { useState } from 'react'
 import { formatar } from '../core/domain/dinheiro'
-import { Abas, Botao, Carregando, Cartao, Entrada, Selecao, Titulo, Vazio, cx, dataBR, gramasTexto } from '../ui/base'
-import { useApp, useConsulta } from '../ui/contexto'
+import { Abas, Botao, Carregando, Cartao, Entrada, Selecao, Titulo, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao } from '../ui/base'
+import { useApp, useConsulta, useParamTela } from '../ui/contexto'
+import { clicavel } from '../ui/compartilhados'
 import { SeletorPeriodo, usePeriodo } from '../ui/filtros'
 import { useT } from '../ui/i18n'
 
@@ -27,10 +27,13 @@ export function baixarCSV(nome: string, linhas: Record<string, string | number>[
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
+const LINHA = 'cursor-pointer border-t border-[var(--borda)] hover:bg-[var(--marca-suave)] focus:bg-[var(--marca-suave)] focus:outline-none'
+
 const RELATORIOS = [
   { id: 'dre', nome: 'Resultado e sócias' },
   { id: 'caixa', nome: 'Livro caixa' },
   { id: 'vendas', nome: 'Vendas' },
+  { id: 'servicos', nome: 'Serviços: receita × insumos' },
   { id: 'compras', nome: 'Compras' },
   { id: 'inventario', nome: 'Inventário' },
   { id: 'balanco', nome: 'Balanço' },
@@ -39,8 +42,7 @@ const RELATORIOS = [
 
 export function Relatorios() {
   const t = useT()
-  const { nav } = useApp()
-  const [rel, setRel] = useState((nav.params.relatorio as string) ?? 'dre')
+  const [rel, setRel] = useParamTela('relatorio', 'dre')
   const [periodo, setPeriodo] = usePeriodo('rel.periodo', 'mes')
   return (
     <div>
@@ -53,10 +55,60 @@ export function Relatorios() {
       {rel === 'dre' && <Dre de={periodo.de} ate={periodo.ate} />}
       {rel === 'caixa' && <Livro de={periodo.de} ate={periodo.ate} />}
       {rel === 'vendas' && <VendasDet de={periodo.de} ate={periodo.ate} />}
+      {rel === 'servicos' && <ServicosInsumos de={periodo.de} ate={periodo.ate} />}
       {rel === 'compras' && <ComprasDet de={periodo.de} ate={periodo.ate} />}
       {rel === 'inventario' && <Inventario />}
       {rel === 'balanco' && <Balanco />}
-      {rel === 'log' && <Log de={periodo.de} ate={periodo.ate} usuarioInicial={nav.params.usuarioId as string | undefined} />}
+      {rel === 'log' && <Log de={periodo.de} ate={periodo.ate} />}
+    </div>
+  )
+}
+
+/** Serviços do salão: receita, insumos (custo do salão), comissão e margem do salão, por tipo e por serviço. */
+function ServicosInsumos({ de, ate }: { de: string; ate: string }) {
+  const t = useT()
+  const { dados } = useConsulta('servicosReceitaInsumos', { de, ate })
+  if (!dados) return <Carregando />
+  const m = dados.moeda
+  const tabela = (titulo: string, linhas: typeof dados.porServico, csv: string) => (
+    <Cartao titulo={t(titulo)} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV(csv, linhas.map((l) => ({ nome: l.nome, tipo: l.categoria, feitos: l.n, receita: l.receita / 100, insumos: l.insumos / 100, comissao: l.comissao / 100, margem_salao: l.margem / 100 })))}>CSV</Botao>}>
+      {!linhas.length ? (
+        <Vazio texto="Nada no período." />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[32rem] text-sm">
+            <thead>
+              <tr className="text-left text-xs text-[var(--suave)]">
+                <th className="py-1">{t('Serviço')}</th>
+                <th className="text-right">{t('Feitos')}</th>
+                <th className="text-right">{t('Receita')}</th>
+                <th className="text-right">{t('Insumos')}</th>
+                <th className="text-right">{t('Comissão')}</th>
+                <th className="text-right">{t('Margem do salão')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...linhas, { ...dados.total, nome: t('Total') }].map((l, i) => (
+                <tr key={i} className={cx('border-t border-[var(--borda)]', i === linhas.length && 'font-bold')}>
+                  <td className="py-1">{l.nome}</td>
+                  <td className="num text-right">{l.n}</td>
+                  <td className="num text-right">{formatar(l.receita, m)}</td>
+                  <td className="num text-right text-[var(--ruim)]">{l.insumos ? `−${formatar(l.insumos, m)}` : '—'}</td>
+                  <td className="num text-right text-[var(--ruim)]">{l.comissao ? `−${formatar(l.comissao, m)}` : '—'}</td>
+                  <td className={cx('num text-right font-semibold', l.margem < 0 && 'text-[var(--ruim)]')}>{formatar(l.margem, m)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Cartao>
+  )
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-[var(--suave)]">{t('Insumos (tinta, água oxigenada…) são custo do salão e saem antes da comissão. Margem do salão = receita − insumos − comissão.')}</p>
+      {tabela('Por tipo de serviço', dados.porCategoria, 'servicos-por-tipo')}
+      {tabela('Por serviço', dados.porServico, 'servicos-receita-insumos')}
     </div>
   )
 }
@@ -68,7 +120,7 @@ function Dre({ de, ate }: { de: string; ate: string }) {
   const m = dados.moeda
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Cartao titulo={t('Resultado do período')} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('resultado', dados.linhas.map((l) => ({ conta: l.conta, valor: l.valor / 100 })))}>CSV</Botao>} ajuda="Receita − custo do que foi vendido − comissões = lucro bruto; − despesas = resultado.">
+      <Cartao titulo={t('Resultado do período')} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('resultado', dados.linhas.map((l) => ({ conta: l.conta, valor: l.valor / 100 })))}>CSV</Botao>} ajuda="Receita − custo do que foi vendido − insumos dos serviços − comissões = lucro bruto; − despesas = resultado.">
         <table className="w-full text-sm">
           <tbody>
             {dados.linhas.map((l, i) => (
@@ -79,7 +131,7 @@ function Dre({ de, ate }: { de: string; ate: string }) {
             ))}
           </tbody>
         </table>
-        <p className="mt-2 text-sm text-[var(--suave)]">{dados.vendas} {t('vendas')} · {t('margem')} {(dados.margem / 100).toLocaleString('pt-BR')}%</p>
+        <p className="mt-2 text-sm text-[var(--suave)]">{dados.vendas} {t('vendas')} · {t('margem')} {(dados.margem / 100).toLocaleString(loc())}%</p>
       </Cartao>
       <Cartao titulo={t('Divisão entre sócias')} ajuda="Resultado × parte de cada uma − o que já retirou = quanto falta acertar (o “÷ 2” do caderno).">
         {!dados.socios.length ? <Vazio texto="Cadastre as sócias em Configurações." /> : (
@@ -132,15 +184,15 @@ function VendasDet({ de, ate }: { de: string; ate: string }) {
   const total = dados.reduce((s, l) => s + l.totalPrincipal, 0)
   const lucro = dados.reduce((s, l) => s + l.lucro, 0)
   return (
-    <Cartao titulo={`${t('Vendas linha a linha')} · ${formatar(total, 'BOB')} · ${t('lucro')} ${formatar(lucro, 'BOB')}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('vendas-detalhadas', dados.map((l) => ({ data: l.data, cliente: l.cliente, lote: l.lote, descricao: l.descricao, medida: l.medida, categoria: l.categoria, quantidade: l.quantidade, fator: l.fator, total: l.total / 100, moeda: l.moeda, total_principal: l.totalPrincipal / 100, custo: l.custo / 100, lucro: l.lucro / 100 })))}>CSV</Botao>}>
+    <Cartao titulo={`${t('Vendas linha a linha')} · ${formatar(total, moedaPadrao())} · ${t('lucro')} ${formatar(lucro, moedaPadrao())}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('vendas-detalhadas', dados.map((l) => ({ data: l.data, cliente: l.cliente, lote: l.lote, descricao: l.descricao, medida: l.medida, categoria: l.categoria, quantidade: l.quantidade, fator: l.fator, total: l.total / 100, moeda: l.moeda, total_principal: l.totalPrincipal / 100, custo: l.custo / 100, lucro: l.lucro / 100 })))}>CSV</Botao>}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-xs text-[var(--suave)]"><th>{t('Data')}</th><th>{t('Cliente')}</th><th>{t('Lote')}</th><th>{t('Conta')}</th><th className="text-right">{t('Total')}</th><th className="text-right">{t('Lucro')}</th></tr></thead>
           <tbody>{dados.map((l, i) => (
-            <tr key={i} className="cursor-pointer border-t border-[var(--borda)] hover:bg-[var(--marca-suave)]" onClick={() => ir('venda', { id: l.vendaId })}>
+            <tr key={i} {...clicavel(() => ir('venda', { id: l.vendaId }))} className={LINHA}>
               <td className="whitespace-nowrap py-1">{dataBR(l.data)}</td><td>{l.cliente}</td><td className="font-mono text-xs">{l.lote}</td>
-              <td className="num">{l.fator ? `${l.medida} | ${l.quantidade.toLocaleString('pt-BR')} × ${l.fator}` : `${l.descricao} × ${l.quantidade}`}</td>
-              <td className="num text-right">{formatar(l.total, l.moeda)}</td><td className={cx('num text-right', l.lucro < 0 && 'text-[var(--ruim)]')}>{formatar(l.lucro, 'BOB')}</td>
+              <td className="num">{l.fator ? `${l.medida} | ${l.quantidade.toLocaleString(loc())} × ${l.fator}` : `${l.descricao} × ${l.quantidade}`}</td>
+              <td className="num text-right">{formatar(l.total, l.moeda)}</td><td className={cx('num text-right', l.lucro < 0 && 'text-[var(--ruim)]')}>{formatar(l.lucro, moedaPadrao())}</td>
             </tr>
           ))}</tbody>
         </table>
@@ -159,7 +211,7 @@ function ComprasDet({ de, ate }: { de: string; ate: string }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-xs text-[var(--suave)]"><th>{t('Data')}</th><th>{t('Fornecedor')}</th><th>{t('Item')}</th><th className="text-right">{t('Quantidade')}</th><th className="text-right">{t('Total')}</th><th>{t('Etapa')}</th></tr></thead>
-          <tbody>{dados.map((l, i) => <tr key={i} className="cursor-pointer border-t border-[var(--borda)] hover:bg-[var(--marca-suave)]" onClick={() => ir('pedido', { id: l.compraId })}><td className="py-1">{dataBR(l.data)}</td><td>{l.fornecedor}</td><td>{l.descricao}</td><td className="num text-right">{gramasTexto(l.quantidade)}</td><td className="num text-right">{formatar(l.total, l.moeda)}</td><td>{t(l.etapa)}</td></tr>)}</tbody>
+          <tbody>{dados.map((l, i) => <tr key={i} {...clicavel(() => ir('pedido', { id: l.compraId }))} className={LINHA}><td className="py-1">{dataBR(l.data)}</td><td>{l.fornecedor}</td><td>{l.descricao}</td><td className="num text-right">{gramasTexto(l.quantidade)}</td><td className="num text-right">{formatar(l.total, l.moeda)}</td><td>{t(l.etapa)}</td></tr>)}</tbody>
         </table>
       </div>
     </Cartao>
@@ -172,10 +224,10 @@ function Inventario() {
   const { dados } = useConsulta('inventario', {})
   if (!dados) return <Carregando />
   return (
-    <Cartao titulo={`${t('Inventário a custo')} · ${formatar(dados.valor, 'BOB')}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('inventario', dados.linhas.map((l) => ({ codigo: l.codigo, nome: l.nome, quantidade: l.quantidade, unidade: l.unidade, valor_custo: l.valorCusto / 100, desde: l.desde })))}>CSV</Botao>}>
+    <Cartao titulo={`${t('Inventário a custo')} · ${formatar(dados.valor, moedaPadrao())}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('inventario', dados.linhas.map((l) => ({ codigo: l.codigo, nome: l.nome, quantidade: l.quantidade, unidade: l.unidade, valor_custo: l.valorCusto / 100, desde: l.desde })))}>CSV</Botao>}>
       <table className="w-full text-sm">
         <thead><tr className="text-left text-xs text-[var(--suave)]"><th>{t('Código')}</th><th>{t('Item')}</th><th className="text-right">{t('Quantidade')}</th><th className="text-right">{t('Custo')}</th></tr></thead>
-        <tbody>{dados.linhas.map((l) => <tr key={l.id} className="cursor-pointer border-t border-[var(--borda)]" onClick={() => ir('lote', { id: l.id })}><td className="font-mono text-xs">{l.codigo}</td><td className="py-1">{l.nome}</td><td className="num text-right">{l.unidade === 'grama' ? gramasTexto(l.quantidade) : l.quantidade}</td><td className="num text-right">{formatar(l.valorCusto, 'BOB')}</td></tr>)}</tbody>
+        <tbody>{dados.linhas.map((l) => <tr key={l.id} {...clicavel(() => ir('lote', { id: l.id }))} className={LINHA}><td className="font-mono text-xs">{l.codigo}</td><td className="py-1">{l.nome}</td><td className="num text-right">{l.unidade === 'grama' ? gramasTexto(l.quantidade) : l.quantidade}</td><td className="num text-right">{formatar(l.valorCusto, moedaPadrao())}</td></tr>)}</tbody>
       </table>
     </Cartao>
   )
@@ -206,11 +258,11 @@ function Balanco() {
   )
 }
 
-function Log({ de, ate, usuarioInicial }: { de: string; ate: string; usuarioInicial?: string }) {
+function Log({ de, ate }: { de: string; ate: string }) {
   const t = useT()
-  const [usuarioId, setUsuarioId] = useState(usuarioInicial ?? '')
-  const [acao, setAcao] = useState('')
-  const [busca, setBusca] = useState('')
+  const [usuarioId, setUsuarioId] = useParamTela('usuarioId', '')
+  const [acao, setAcao] = useParamTela('acao', '')
+  const [busca, setBusca] = useParamTela('busca', '')
   const { dados } = useConsulta('logDetalhado', { de, ate, usuarioId: usuarioId || undefined, acao: acao || undefined, busca: busca || undefined })
   const { dados: todos } = useConsulta('logDetalhado', { limite: 0 })
   return (
@@ -224,7 +276,7 @@ function Log({ de, ate, usuarioInicial }: { de: string; ate: string; usuarioInic
         <ul className="divide-y divide-[var(--borda)] text-sm">
           {dados.linhas.map((l) => (
             <li key={l.id} className="py-2">
-              <div className="text-xs text-[var(--suave)]">{new Date(l.criadoEm).toLocaleString('pt-BR')} · <b>{l.usuarioNome ?? l.criadoPor}</b></div>
+              <div className="text-xs text-[var(--suave)]">{new Date(l.criadoEm).toLocaleString(loc())} · <b>{l.usuarioNome ?? l.criadoPor}</b></div>
               <div><b>{t(l.nomeAcao)}</b> · {l.resumo}</div>
             </li>
           ))}

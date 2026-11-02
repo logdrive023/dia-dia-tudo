@@ -5,58 +5,67 @@ import { useEffect, useState } from 'react'
 import { MOEDAS, converter, formatar, type TabelaCotacoes } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { CategoriaAnexo, Id, Papel } from '../core/domain/tipos'
-import { Botao, Campo, Entrada, Janela, Pilula, Selecao, ValorInput, cx } from './base'
+import { Botao, Campo, Entrada, Janela, Pilula, Selecao, ValorInput, cx, moedaPadrao } from './base'
 import { useApp, useComando, useConsulta } from './contexto'
 import { useT } from './i18n'
+import { VisorFotos, useEnviarFotos } from './fotos'
+import { ehFoto } from '../core/services/fotos'
 
 // ---------- pessoa ----------
 
 export function SeletorPessoa({ valor, onChange, papel, localId, rotulo = 'Pessoa', opcional }: { valor?: Id; onChange(id: Id | undefined): void; papel?: Papel; localId?: Id; rotulo?: string; opcional?: boolean }) {
   const t = useT()
   const { dados } = useConsulta('pessoas', { papel })
-  const { executar } = useComando()
+  const { executar, ocupado } = useComando()
   const [novo, setNovo] = useState(false)
   const [nome, setNome] = useState('')
   const [tel, setTel] = useState('')
   const lista = (dados ?? []).filter((p) => !localId || !p.localId || p.localId === localId)
+  const salvar = async () => {
+    const id = novoId()
+    const r = await executar('salvarPessoa', { id, nome: nome.trim(), telefone: tel, papeis: [papel ?? 'cliente'], localId })
+    if (r) {
+      onChange(id)
+      setNovo(false)
+      setNome('')
+      setTel('')
+    }
+  }
+  // o rótulo envolve só a lista; o botão "+ Nova" e a janela ficam fora (rótulo não pode ter outros controles)
   return (
-    <Campo rotulo={rotulo}>
-      <div className="flex gap-2">
-        <Selecao className="flex-1" valor={valor} onChange={(v) => onChange(v || undefined)} vazio={opcional ? 'Sem nome (não fica na conta)' : 'Escolha…'} opcoes={lista.map((p) => ({ id: p.id, nome: p.nome }))} />
-        <Botao variante="secundario" onClick={() => setNovo(true)} aria-label={t('Cadastrar nova pessoa')}>
+    <div>
+      <div className="flex items-end gap-2">
+        <Campo rotulo={rotulo} className="min-w-0 flex-1">
+          <Selecao valor={valor} onChange={(v) => onChange(v || undefined)} vazio={opcional ? 'Sem nome (não fica na conta)' : 'Escolha…'} opcoes={lista.map((p) => ({ id: p.id, nome: p.nome }))} />
+        </Campo>
+        <Botao variante="secundario" className="min-h-11" onClick={() => setNovo(true)} aria-label={t('Cadastrar nova pessoa')}>
           + {t('Nova')}
         </Botao>
       </div>
-      <Janela
-        aberta={novo}
-        titulo={t('Cadastro rápido')}
-        onFechar={() => setNovo(false)}
-        rodape={
-          <Botao
-            grande
-            className="w-full"
-            onClick={async () => {
-              const id = novoId()
-              const r = await executar('salvarPessoa', { id, nome, telefone: tel, papeis: [papel ?? 'cliente'], localId })
-              if (r) {
-                onChange(id)
-                setNovo(false)
-                setNome('')
-                setTel('')
-              }
-            }}
-          >
-            {t('Salvar')}
-          </Botao>
-        }
-      >
+      <Janela aberta={novo} titulo={t('Cadastro rápido')} onFechar={() => setNovo(false)} rodape={<Botao grande className="w-full" disabled={ocupado || !nome.trim()} onClick={salvar}>{t('Salvar')}</Botao>}>
         <div className="space-y-3">
-          <Campo rotulo="Nome"><Entrada autoFocus value={nome} onChange={(e) => setNome(e.target.value)} /></Campo>
+          <Campo rotulo="Nome"><Entrada autoFocus value={nome} onChange={(e) => setNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && nome.trim() && !ocupado && salvar()} /></Campo>
           <Campo rotulo="WhatsApp (opcional)"><Entrada inputMode="tel" value={tel} onChange={(e) => setTel(e.target.value)} placeholder="+591 7…" /></Campo>
         </div>
       </Janela>
-    </Campo>
+    </div>
   )
+}
+
+/** Linha de tabela/lista clicável que também abre pelo teclado (Enter/Espaço). */
+export function clicavel(acao?: () => void) {
+  if (!acao) return {}
+  return {
+    role: 'link',
+    tabIndex: 0,
+    onClick: acao,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        acao()
+      }
+    },
+  }
 }
 
 // ---------- pagamentos ----------
@@ -161,7 +170,7 @@ export function Conversor() {
     window.addEventListener('tudo:conversor', f)
     return () => window.removeEventListener('tudo:conversor', f)
   }, [])
-  const [moeda, setMoeda] = useState('BOB')
+  const [moeda, setMoeda] = useState(moedaPadrao)
   const [valor, setValor] = useState<number>()
   const { dados } = useConsulta('configuracoes', {})
   return (
@@ -218,56 +227,77 @@ export async function comprimirImagem(arquivo: File, max = 1600): Promise<Blob> 
   }
 }
 
-export function Anexos({ donoId, categorias = ['pedido', 'comprovante'] }: { donoId: Id; categorias?: CategoriaAnexo[] }) {
+/**
+ * Fotos e arquivos de um registro. Com categoria de foto (pedido/produto/resultado) aparece "📷 Tirar foto" (abre a
+ * câmera direto no celular). Foto é reduzida e ganha miniatura; tocar abre o visor em tela cheia. esconderFotos =
+ * só os arquivos (o lote mostra as fotos no bloco próprio, com as herdadas).
+ */
+export function Anexos({ donoId, categorias = ['pedido', 'comprovante'], esconderFotos }: { donoId: Id; categorias?: CategoriaAnexo[]; esconderFotos?: boolean }) {
   const t = useT()
-  const { backend, avisar } = useApp()
-  const { dados } = useConsulta('anexosDe', { donoId })
+  const { backend } = useApp()
+  const { dados: todos } = useConsulta('anexosDe', { donoId })
+  const dados = esconderFotos ? todos?.filter((a) => !ehFoto(a)) : todos
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [ver, setVer] = useState<string>()
+  const [enviando, setEnviando] = useState<CategoriaAnexo | 'camera'>()
+  const { enviar } = useEnviarFotos()
   const nomes: Record<CategoriaAnexo, string> = { pedido: 'Foto do pedido', produto: 'Foto do produto', comprovante: 'Comprovante', origem: 'Comprovante de origem', resultado: 'Foto do resultado', outro: 'Outro' }
+  const camera = categorias.find((c) => c === 'produto' || c === 'pedido' || c === 'resultado')
   useEffect(() => {
-    for (const a of dados ?? []) if (!urls[a.id]) backend.urlDoAnexo(a.id).then((u) => u && setUrls((x) => ({ ...x, [a.id]: u })))
+    for (const a of dados ?? []) if (!urls[a.id] && !a.miniatura) backend.urlDoAnexo(a.id).then((u) => u && setUrls((x) => ({ ...x, [a.id]: u })))
   }, [dados, backend, urls])
+  const fotos = (dados ?? []).filter((a) => a.mime.startsWith('image/'))
+  const subir = async (e: React.ChangeEvent<HTMLInputElement>, c: CategoriaAnexo, qual: CategoriaAnexo | 'camera') => {
+    const fs = [...(e.target.files ?? [])]
+    e.target.value = ''
+    if (!fs.length || enviando) return
+    setEnviando(qual)
+    try {
+      if (await enviar(donoId, fs, c, false)) avisar()
+    } finally {
+      setEnviando(undefined)
+    }
+  }
+  const { avisar: avisarApp } = useApp()
+  const avisar = () => avisarApp(t('Anexado.'), 'ok')
+  const estilo = (forte?: boolean) => cx('inline-flex min-h-10 items-center gap-1 rounded-xl px-3 text-sm font-semibold focus-within:ring-2 focus-within:ring-[var(--marca)] focus-within:ring-offset-2', forte ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]', enviando ? 'cursor-wait opacity-60' : 'cursor-pointer')
   return (
     <div>
       <div className="flex flex-wrap gap-2">
+        {camera && (
+          <label aria-disabled={!!enviando} className={estilo(true)}>
+            📷 {enviando === 'camera' ? t('Enviando…') : t('Tirar foto')}
+            <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={!!enviando} onChange={(e) => subir(e, camera, 'camera')} />
+          </label>
+        )}
         {categorias.map((c) => (
-          <label key={c} className="inline-flex min-h-10 cursor-pointer items-center gap-1 rounded-xl bg-[var(--marca-suave)] px-3 text-sm font-semibold text-[var(--marca)]">
-            📎 {t(nomes[c])}
-            <input
-              type="file"
-              accept="image/*,application/pdf,*/*"
-              className="hidden"
-              onChange={async (e) => {
-                const f = e.target.files?.[0]
-                e.target.value = ''
-                if (!f) return
-                try {
-                  const blob = await comprimirImagem(f)
-                  await backend.anexar({ id: novoId(), donoId, categoria: c, nome: f.name, arquivo: blob })
-                  avisar(t('Anexado.'), 'ok')
-                } catch (err) {
-                  avisar(err instanceof Error ? err.message : String(err), 'erro')
-                }
-              }}
-            />
+          <label key={c} aria-disabled={!!enviando} className={estilo()}>
+            📎 {enviando === c ? t('Enviando…') : t(nomes[c])}
+            <input type="file" accept="image/*,application/pdf,*/*" multiple className="sr-only" disabled={!!enviando} onChange={(e) => subir(e, c, c)} />
           </label>
         ))}
       </div>
       {!!dados?.length && (
         <ul className="mt-2 flex flex-wrap gap-2">
-          {dados.map((a) => (
-            <li key={a.id}>
-              <button type="button" onClick={() => setVer(a.id)} className="block h-16 w-16 overflow-hidden rounded-lg border border-[var(--borda)] text-[10px]" title={`${t(nomes[a.categoria])}: ${a.nome}`}>
-                {a.mime.startsWith('image/') && urls[a.id] ? <img src={urls[a.id]} alt={a.nome} className="h-full w-full object-cover" /> : <span className="p-1">📄 {t(nomes[a.categoria])}</span>}
-              </button>
-            </li>
-          ))}
+          {dados.map((a) => {
+            const src = a.miniatura ?? urls[a.id]
+            return (
+              <li key={a.id}>
+                <button type="button" onClick={() => setVer(a.id)} className="block h-16 w-16 overflow-hidden rounded-lg border border-[var(--borda)] text-[10px]" title={`${t(nomes[a.categoria])}: ${a.nome}`}>
+                  {a.mime.startsWith('image/') && src ? <img src={src} alt={a.nome} loading="lazy" className="h-full w-full object-cover" /> : <span className="p-1">📄 {t(nomes[a.categoria])}</span>}
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
-      <Janela aberta={!!ver} titulo={t('Anexo')} onFechar={() => setVer(undefined)}>
-        {ver && urls[ver] && (dados?.find((a) => a.id === ver)?.mime.startsWith('image/') ? <img src={urls[ver]} alt="" className="w-full rounded-xl" /> : <a href={urls[ver]} target="_blank" rel="noreferrer" className="underline">{t('Abrir arquivo')}</a>)}
-      </Janela>
+      {ver && fotos.some((a) => a.id === ver) ? (
+        <VisorFotos fotos={fotos.map((a) => ({ id: a.id, miniatura: a.miniatura, nome: a.nome, em: a.criadoEm, propria: true }))} inicio={fotos.findIndex((a) => a.id === ver)} onFechar={() => setVer(undefined)} />
+      ) : (
+        <Janela aberta={!!ver} titulo={t('Anexo')} onFechar={() => setVer(undefined)}>
+          {ver && urls[ver] && <a href={urls[ver]} target="_blank" rel="noreferrer" className="underline">{t('Abrir arquivo')}</a>}
+        </Janela>
+      )}
     </div>
   )
 }

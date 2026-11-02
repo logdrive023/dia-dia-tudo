@@ -6,7 +6,10 @@ import { diasEntre } from '../domain/datas'
 import type { Campos, Id, Item, Linha, Transacao } from '../domain/tipos'
 import { auditar, type Ctx, exigirInteiroPositivo, lerConfig, novo, paraPrincipal, tocar } from './contexto'
 import { moverCaixa } from './caixa'
-import { custoDe, moverEstoque, proximoCodigo } from './estoque'
+import { comprasDe, custoDe, moverEstoque } from './estoque'
+import { codigoNovaCompra, codigoNovoLote, exigirCodigosLivres, type ModoCompra, siglasPorPessoa } from './codigos'
+import { lerFormCompra, obrigatorioNoForm } from './formCompra'
+import { leitorFotos } from './fotos'
 import { montarPagamentos, type PagamentoEntrada } from './pagamentos'
 import { pendenciasCompra } from './pendencias'
 import { moverConta } from './contas'
@@ -62,11 +65,40 @@ function etapasDe(ctx: Ctx, moduloId: string) {
 
 export async function criarCompra(
   ctx: Ctx,
-  d: { id: Id; moduloId: string; pessoaId?: Id; localId?: Id; linhas: LinhaCompraEntrada[]; obs?: string },
+  d: {
+    id: Id
+    moduloId: string
+    pessoaId?: Id
+    localId?: Id
+    linhas: LinhaCompraEntrada[]
+    obs?: string
+    /** código digitado (vazio = o da regra de Configurações › Códigos); recusado se já existir */
+    codigo?: string
+    /** quem da equipe comprou (padrão: a pessoa do usuário que registra) */
+    compradorId?: Id
+    /** tipo de código só desta compra (vazio = a regra de Configurações › Códigos) */
+    modoCodigo?: ModoCompra
+    /** VIAGEM de compra aberta a que esta compra pertence (admin: qualquer aberta; funcionária: só a viagem dela) */
+    viagemId?: Id
+  },
 ) {
   if (await ctx.repos.transacoes.obter(d.id)) return { id: d.id }
   const c = etapasDe(ctx, d.moduloId)
   exigir(d.linhas?.length, 'Coloque pelo menos um item na compra.')
+  // o que o formulário de compra pede como obrigatório (Configurações › Formulário de compra)
+  const form = await lerFormCompra(ctx)
+  exigir(!obrigatorioNoForm(form, 'fornecedor') || d.pessoaId, 'Escolha o fornecedor.', 'pessoaId')
+  exigir(!obrigatorioNoForm(form, 'obs') || d.obs?.trim(), 'Escreva a observação.', 'obs')
+  exigir(!obrigatorioNoForm(form, 'viagem') || d.viagemId, 'Escolha a viagem.', 'viagemId')
+  const viagem = d.viagemId ? await ctx.repos.viagens.obter(d.viagemId) : undefined
+  if (d.viagemId) {
+    exigir(viagem && !viagem.apagadoEm, 'Viagem não encontrada.', 'viagemId')
+    exigir(viagem.status === 'aberta', `A viagem ${viagem.codigo} já foi encerrada.`, 'viagemId')
+    // a funcionária que viaja liga a compra à viagem DELA (a ligação de outras compras é do administrador)
+    exigir(ctx.sessao.perfil === 'admin' || (!!ctx.sessao.pessoaId && viagem.viajantes.includes(ctx.sessao.pessoaId)), 'Você só liga a compra a uma viagem em que você está.', 'viagemId')
+  }
+  if (obrigatorioNoForm(form, 'fotos')) exigir((await ctx.repos.anexos.listar({ donoId: d.id })).length, 'Coloque pelo menos uma foto ou arquivo.', 'fotos')
+  if (d.pessoaId) exigir(await ctx.repos.pessoas.obter(d.pessoaId), 'Fornecedor não encontrado.')
   const tipo = ctx.modulos.tipoItem(d.moduloId, c.tipoItem)
   const linhas: Linha[] = []
   for (const l of d.linhas) {
@@ -83,10 +115,14 @@ export async function criarCompra(
     }
   }
   const cfg = await lerConfig(ctx)
+  if (d.compradorId) exigir(await ctx.repos.pessoas.obter(d.compradorId), 'Quem comprou: pessoa não encontrada.')
+  const compradorId = d.compradorId || (ctx.sessao.pessoaId && (await ctx.repos.pessoas.obter(ctx.sessao.pessoaId)) ? ctx.sessao.pessoaId : undefined)
+  exigir(!obrigatorioNoForm(form, 'comprador') || compradorId, 'Diga quem comprou.', 'compradorId')
   const t = novo<Transacao>(ctx, {
     id: d.id,
     tipo: 'compra',
-    codigo: await proximoCodigo(ctx, 'P'),
+    codigo: await codigoNovaCompra(ctx, { codigo: d.codigo, pessoaId: d.pessoaId, compradorId, modoCodigo: d.modoCodigo }),
+    compradorId,
     moduloId: d.moduloId,
     data: ctx.relogio.hoje(),
     etapa: c.etapas[0].id,
@@ -99,9 +135,12 @@ export async function criarCompra(
     historico: [{ de: '', para: c.etapas[0].id, em: ctx.relogio.agora(), por: ctx.sessao.usuarioId, porNome: ctx.sessao.nome }],
     obs: d.obs,
     campos: {},
+    ...(viagem ? { viagemId: viagem.id } : {}),
   })
   await ctx.repos.transacoes.salvar(t)
-  await auditar(ctx, 'criarCompra', t.id, `${linhas.length} item(ns): ${linhas.map((l) => `${l.descricao} ${l.quantidade}`).join(', ')}`, [t.pessoaId!])
+  // mesma linha de log do "ligar compras" da viagem (uma viagem por compra: compra nova não está em outra)
+  if (viagem) await auditar(ctx, 'vincularCompras', viagem.id, `${viagem.codigo} ← ${t.codigo ?? t.id}`, [t.id])
+  await auditar(ctx, 'criarCompra', t.id, `${t.codigo} · ${linhas.length} item(ns): ${linhas.map((l) => `${l.descricao} ${l.quantidade}`).join(', ')}`, [t.pessoaId!])
   return { id: t.id }
 }
 
@@ -118,7 +157,15 @@ export interface AjusteLinha {
  */
 export async function avancarTriagem(
   ctx: Ctx,
-  d: { compraId: Id; para: string; motivo?: string; ajustes?: AjusteLinha[]; pagamentos?: PagamentoEntrada[] },
+  d: {
+    compraId: Id
+    para: string
+    motivo?: string
+    ajustes?: AjusteLinha[]
+    pagamentos?: PagamentoEntrada[]
+    /** etapa que cria os lotes: código digitado de cada lote (linhaId → código; vazio = o da regra) */
+    codigosLotes?: Record<Id, string>
+  },
 ) {
   const t = await ctx.repos.transacoes.obter(d.compraId)
   exigir(t && t.tipo === 'compra', 'Compra não encontrada.')
@@ -181,7 +228,7 @@ export async function avancarTriagem(
         await moverConta(ctx, { pessoaId: compra.pessoaId, delta: pagamentos.reduce((s, p) => s + p.valorPrincipal, 0), tipo: 'pagamento', origemId: compra.id, descricao: 'Pago na entrega' })
       }
     }
-    if (prox.faz?.includes('estoque')) await entrarNoEstoque(ctx, compra)
+    if (prox.faz?.includes('estoque')) await entrarNoEstoque(ctx, compra, d.codigosLotes)
     compra = { ...compra, etapa: prox.id }
   }
   compra.historico = [
@@ -193,17 +240,19 @@ export async function avancarTriagem(
   return { id: compra.id }
 }
 
-async function entrarNoEstoque(ctx: Ctx, compra: Transacao) {
+async function entrarNoEstoque(ctx: Ctx, compra: Transacao, codigosLotes?: Record<Id, string>) {
   const c = etapasDe(ctx, compra.moduloId)
   const tipo = ctx.modulos.tipoItem(compra.moduloId, c.tipoItem)
-  for (const l of compra.linhas) {
+  // códigos digitados: conferidos antes de criar qualquer lote (sem repetir entre si e sem existir)
+  const { limpos, reservados } = await exigirCodigosLivres(ctx, 'lote', tipo.nasceNaCompra ? compra.linhas.map((l) => codigosLotes?.[l.id]) : [])
+  for (const [k, l] of compra.linhas.entries()) {
     let itemId = l.itemId
     if (tipo.nasceNaCompra) {
       const lote = novo<Item>(ctx, {
         moduloId: compra.moduloId,
         tipoItem: tipo.id,
         nome: tipo.nomear?.(l.campos) ?? l.descricao,
-        codigo: await proximoCodigo(ctx),
+        codigo: await codigoNovoLote(ctx, { codigo: limpos[k], compraId: compra.id, reservados }),
         unidade: tipo.unidade,
         controlaEstoque: tipo.controlaEstoque,
         ativo: true,
@@ -271,6 +320,7 @@ export async function filaTriagem(ctx: Ctx, p: { moduloId?: string; incluirEncer
   const compras = (await ctx.repos.transacoes.listar({ tipo: 'compra' })).filter((t) => !p.moduloId || t.moduloId === p.moduloId)
   const anexos = await ctx.repos.anexos.listar()
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x]))
+  const siglas = await siglasPorPessoa(ctx)
   const saldoConta = new Map<string, number>()
   for (const m of await ctx.repos.movConta.listar()) saldoConta.set(m.pessoaId, (saldoConta.get(m.pessoaId) ?? 0) + m.delta)
   return compras
@@ -283,18 +333,23 @@ export async function filaTriagem(ctx: Ctx, p: { moduloId?: string; incluirEncer
       const idxPago = etapas.findIndex((e) => e.faz?.includes('pagamento'))
       const diasParada = diasEntre(ultimo.slice(0, 10), hoje)
       const pendencias = pendenciasCompra({ ...t, diasParada }, meus, {
+        pedeFotos: mod.compra?.pedirFotos !== false,
         pedeOrigem: !!mod.compra?.pedirComprovanteOrigem,
         jaPassouDoPago: idxPago >= 0 && etapas.findIndex((e) => e.id === t.etapa) >= idxPago,
-        diasParadaLimite: cfg.diasTriagemParada,
+        diasParadaLimite: mod.compra?.personalizado ? mod.compra.avisarParadaDias : cfg.diasTriagemParada,
         saldoConta: t.pessoaId ? saldoConta.get(t.pessoaId) : undefined,
       })
       return {
         ...t,
         pessoa: t.pessoaId ? pessoas.get(t.pessoaId)?.nome : undefined,
+        comprador: t.compradorId ? pessoas.get(t.compradorId)?.nome : undefined,
+        sigla: t.pessoaId ? siglas.get(t.pessoaId) : undefined,
+        /** texto da busca: código atual e anteriores, fornecedor e quem comprou (com as siglas) */
+        busca: [t.codigo, ...(t.codigosAnteriores ?? []), ...[t.pessoaId, t.compradorId].flatMap((x) => (x ? [pessoas.get(x)?.nome, siglas.get(x)] : []))].filter(Boolean).join(' ').toLowerCase(),
         diasParada,
         pendencias,
         nomeEtapa: mod.compra?.etapas.find((e) => e.id === t.etapa)?.nome ?? t.etapa,
-        semFotos: !meus.some((a) => a.categoria === 'pedido' || a.categoria === 'produto'),
+        semFotos: mod.compra?.pedirFotos !== false && !meus.some((a) => a.categoria === 'pedido' || a.categoria === 'produto'),
         semComprovanteOrigem: !!mod.compra?.pedirComprovanteOrigem && !meus.some((a) => a.categoria === 'origem'),
         anexos: meus.length,
       }
@@ -322,13 +377,18 @@ export async function pedido(ctx: Ctx, p: { id: Id }) {
   const mod = ctx.modulos.obter(t.moduloId)
   const anexos = await ctx.repos.anexos.listar({ donoId: t.id })
   const pessoa = t.pessoaId ? await ctx.repos.pessoas.obter(t.pessoaId) : undefined
+  const comprador = t.compradorId ? await ctx.repos.pessoas.obter(t.compradorId) : undefined
   const saldoConta = t.pessoaId ? (await ctx.repos.movConta.listar({ pessoaId: t.pessoaId })).reduce((s, m) => s + m.delta, 0) : undefined
-  const lotes = (await ctx.repos.itens.listar()).filter((i) => (i.origem?.tipo === 'compra' && i.origem.id === t.id) || i.origem?.compraId === t.id)
+  const todosItens = await ctx.repos.itens.listar()
+  const lotes = todosItens.filter((i) => comprasDe(i).includes(t.id))
+  const F = await leitorFotos(ctx, { porId: new Map(todosItens.map((i) => [i.id, i])) })
   const outras = fila.filter((x) => x.pessoaId && x.pessoaId === t.pessoaId && x.id !== t.id).slice(0, 5)
+  const vg = t.viagemId ? await ctx.repos.viagens.obter(t.viagemId) : undefined
   const gramas = t.linhas.reduce((s, l) => s + l.quantidade, 0)
   return {
     compra: t,
     pessoa,
+    comprador: comprador ? { id: comprador.id, nome: comprador.nome } : undefined,
     anexos,
     etapas: (mod.compra?.etapas ?? []).map((e) => ({ id: e.id, nome: e.nome, ajuda: e.ajuda, faz: e.faz ?? [] })),
     modulo: { id: mod.id, nome: mod.nome, icone: mod.icone },
@@ -336,7 +396,11 @@ export async function pedido(ctx: Ctx, p: { id: Id }) {
     gramas,
     custoKg: gramas ? Math.round((t.totalPrincipal * 1000) / gramas) : 0,
     saldoConta,
-    lotes: lotes.map((l) => ({ id: l.id, codigo: l.codigo, nome: l.nome, saldo: l.saldo, inicial: l.quantidadeInicial ?? 0, unidade: l.unidade })),
+    lotes: lotes.map((l) => ({ id: l.id, codigo: l.codigo, nome: l.nome, saldo: l.saldo, inicial: l.quantidadeInicial ?? 0, unidade: l.unidade, campos: { comprimento: l.campos.comprimento, categoria: l.campos.categoria }, foto: F.principal(l.id), fotosProprias: F.proprias(l.id) })),
+    /** viagem de compra a que pertence (chip na tela do pedido) */
+    viagem: vg && !vg.apagadoEm ? { id: vg.id, codigo: vg.codigo, nome: vg.nome, destino: vg.destino, status: vg.status } : undefined,
+    /** fotos da compra (as que os lotes herdam) */
+    fotos: F.daCompra(t.id),
     outras: outras.map((x) => ({ id: x.id, codigo: x.codigo, data: x.data, total: x.totalPrincipal, etapa: x.nomeEtapa })),
   }
 }

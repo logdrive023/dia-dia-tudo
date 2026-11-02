@@ -88,7 +88,7 @@ function painelCabelo(d: DadosPainel): Secao[] {
   const funil = [
     ...etapas.map(([id, nome]) => ({ nome, quantidade: comprasTodas.filter((t) => t.etapa === id).length, detalhe: { tela: 'comprar' } })),
     { nome: 'No estoque (no período)', quantidade: comprasCabelo.length, detalhe: { tela: 'comprar', filtro: { encerradas: true } } },
-    { nome: 'Para separar (lotes brutos)', quantidade: brutos.length, detalhe: { tela: 'estoque', filtro: { modulo: 'cabelo', bruto: true } } },
+    { nome: 'Para separar (lotes brutos)', quantidade: brutos.length, detalhe: { tela: 'triagem' } },
   ]
 
   return [
@@ -98,7 +98,7 @@ function painelCabelo(d: DadosPainel): Secao[] {
       cartoes: [
         { id: 'cab.estoque', nome: 'Em estoque', valor: gramas, formato: 'gramas', ajuda: 'Soma das gramas de todos os lotes. Ex.: 20 kg preto + 19,5 kg castanho = 39,5 kg.', detalhe: { tela: 'estoque', filtro: { modulo: 'cabelo' } } },
         { id: 'cab.valor', nome: 'Estoque a custo', valor: valorCusto, formato: 'dinheiro', moeda: d.moedaPrincipal, ajuda: 'Quanto custou o cabelo que está parado. Ex.: 1 kg que custou Bs 12.000 → Bs 12.000.', detalhe: { tela: 'relatorios', filtro: { relatorio: 'inventario' } } },
-        { id: 'cab.brutos', nome: 'Lotes para separar', valor: brutos.reduce((s, i) => s + i.saldo, 0), formato: 'gramas', ajuda: 'Cabelo comprado em bruto que ainda não passou pela separação por medida/categoria.', detalhe: { tela: 'estoque', filtro: { modulo: 'cabelo', bruto: true } }, destaque: brutos.length ? 'alerta' : undefined },
+        { id: 'cab.brutos', nome: 'Lotes para separar', valor: brutos.reduce((s, i) => s + i.saldo, 0), formato: 'gramas', ajuda: 'Cabelo comprado em bruto que ainda não passou pela separação por medida/categoria.', detalhe: { tela: 'triagem' }, destaque: brutos.length ? 'alerta' : undefined },
         { id: 'cab.lotes', nome: 'Lotes com saldo', valor: comSaldo.length, formato: 'numero', ajuda: 'Quantos lotes ainda têm cabelo.', detalhe: { tela: 'estoque', filtro: { modulo: 'cabelo' } } },
       ],
     },
@@ -165,9 +165,9 @@ export const moduloCabelo: ModuloDef = {
       controlaEstoque: true,
       nasceNaCompra: true,
       campos: [
-        { id: 'estado', nome: 'Situação', tipo: 'lista', opcoes: ['Bruto', 'Separado'], ajuda: 'Bruto = ainda não foi separado por medida/categoria.' },
-        { id: 'comprimento', nome: 'Medida', tipo: 'numero', unidade: 'cm', ajuda: 'Comprimento em cm (40, 50, 55, 60…). Bruto misturado pode ficar sem medida.' },
-        { id: 'categoria', nome: 'Categoria', tipo: 'lista', opcoes: CATEGORIAS_CABELO, ajuda: 'Normal, Tinte (tingido), CH, Rojo, Quemado… Cada uma pode ter sua tabela de preço.' },
+        { id: 'estado', nome: 'Situação', tipo: 'lista', opcoes: ['Bruto', 'Separado'], fixo: true, ajuda: 'Bruto = ainda não foi separado por medida/categoria.' },
+        { id: 'comprimento', nome: 'Medida', tipo: 'numero', unidade: 'cm', fixo: true, ajuda: 'Comprimento em cm (40, 50, 55, 60…). Bruto misturado pode ficar sem medida.' },
+        { id: 'categoria', nome: 'Categoria', tipo: 'lista', opcoes: CATEGORIAS_CABELO, fixo: true, ajuda: 'Normal, Tinte (tingido), CH, Rojo, Quemado… Cada uma pode ter sua tabela de preço.' },
         { id: 'cor', nome: 'Cor', tipo: 'lista', opcoes: ['Preto', 'Castanho escuro', 'Castanho', 'Castanho claro', 'Loiro', 'Ruivo', 'Grisalho', 'Misturado'] },
         { id: 'textura', nome: 'Textura', tipo: 'lista', opcoes: ['Liso', 'Ondulado', 'Cacheado', 'Crespo'] },
         { id: 'origem', nome: 'Origem', tipo: 'lista', opcoes: ['Bolívia', 'Paraguai', 'Brasil', 'Peru', 'Outro'] },
@@ -201,12 +201,18 @@ export const moduloCabelo: ModuloDef = {
   alertas: (d) => {
     const lotes = d.itens.filter((i) => ehLote(i) && i.saldo > 0)
     const brutos = lotes.filter((i) => i.campos.estado === 'Bruto')
+    // esperando na triagem há mais dias que o aviso da compra (padrão 3)
+    const aviso = moduloCabelo.compra?.avisarParadaDias ?? 3
+    const diasNaFila = (i: Item) => diasEntre((i.faseTriagem?.desde ?? i.criadoEm).slice(0, 10), d.hoje)
+    const esperando = brutos.filter((i) => diasNaFila(i) > aviso).sort((a, b) => diasNaFila(b) - diasNaFila(a))
     const parados = lotes.filter((i) => {
       const ult = d.movEstoque.filter((m) => m.itemId === i.id).map((m) => m.data).sort().pop() ?? i.criadoEm.slice(0, 10)
       return diasEntre(ult, d.hoje) > 60
     })
     return [
-      { id: 'cab.brutos', texto: 'lote(s) bruto(s) esperando separação', quantidade: brutos.length, nivel: 'alerta', detalhe: { tela: 'estoque', filtro: { modulo: 'cabelo', bruto: true } } },
+      { id: 'cab.triagem', texto: `lote(s) esperando na triagem há mais de ${aviso} dias`, acao: 'Abra a Triagem: prepare, unifique ou separe para poder vender.', quantidade: esperando.length, nivel: 'alerta', detalhe: { tela: 'triagem', filtro: { f: 'atrasados' } },
+        itens: esperando.slice(0, 5).map((i) => ({ texto: `${i.codigo ?? ''} · ${i.nome}`, sub: `${(i.saldo / 1000).toLocaleString('pt-BR')} kg · ${diasNaFila(i)} d`, detalhe: { tela: 'lote', filtro: { id: i.id } } })) },
+      { id: 'cab.brutos', texto: 'lote(s) bruto(s) esperando separação', quantidade: brutos.length - esperando.length, nivel: 'info', detalhe: { tela: 'triagem' } },
       { id: 'cab.parados', texto: 'lote(s) parado(s) há mais de 60 dias', quantidade: parados.length, nivel: 'info', detalhe: { tela: 'estoque', filtro: { modulo: 'cabelo' } } },
     ]
   },

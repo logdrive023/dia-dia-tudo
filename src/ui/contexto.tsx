@@ -20,6 +20,10 @@ export interface AppCtx {
   nav: Navegacao
   ir(tela: string, params?: Params): void
   voltar(): void
+  /** muda os parâmetros da tela atual sem criar passo no histórico (filtros, abas, busca) */
+  ajustarParams(p: Params): void
+  /** true = há algo digitado e não salvo: sair pede confirmação */
+  marcarSujo(sujo: boolean): void
   avisar(texto: string, tipo?: 'ok' | 'erro'): void
 }
 
@@ -29,6 +33,25 @@ export function useApp(): AppCtx {
   const c = useContext(Ctx)
   if (!c) throw new Error('fora do app')
   return c
+}
+
+/**
+ * Estado da tela guardado no endereço (#/vendas?aba=x): voltar do detalhe reencontra a lista como estava,
+ * e o link pode ser compartilhado. Ex.: const [aba, setAba] = useParamTela('aba', 'todas')
+ */
+export function useParamTela<T extends string = string>(chave: string, padrao: string): [T, (v: T) => void] {
+  const { nav, ajustarParams } = useApp()
+  const atual = ((nav.params[chave] as string | undefined) ?? padrao) as T
+  return [atual, (v: T) => ajustarParams({ [chave]: v === padrao ? undefined : v })]
+}
+
+/** Avisa antes de sair da tela (menu, voltar, voltar do celular, fechar a aba) se houver dado não salvo. */
+export function useAvisoSaida(sujo: boolean) {
+  const { marcarSujo } = useApp()
+  useEffect(() => {
+    marcarSujo(sujo)
+    return () => marcarSujo(false)
+  }, [sujo, marcarSujo])
 }
 
 /** Consulta que recarrega quando os dados mudam (qualquer comando) ou quando os parâmetros mudam. */

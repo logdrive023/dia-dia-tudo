@@ -9,7 +9,7 @@ import { type ReactNode, useState } from 'react'
 import { MOEDAS, formatar } from '../core/domain/dinheiro'
 import type { Cartao as CartaoDados } from '../core/modulos'
 import type { Alerta } from '../core/services/painel'
-import { Carregando, Cartao, Entrada, Erro, Info, cx, fmt } from '../ui/base'
+import { Abas, Carregando, Cartao, Entrada, Erro, Info, Titulo, cx, fmt, moedaPadrao } from '../ui/base'
 import { useApp, useConsulta } from '../ui/contexto'
 import { calcularPeriodo, type Periodo, type Preset, useLembrado, usePeriodo } from '../ui/filtros'
 import { Barras, Linha, SecaoView } from '../ui/graficos'
@@ -23,7 +23,7 @@ function Chip({ ativo, onClick, children }: { ativo: boolean; onClick(): void; c
       type="button"
       aria-pressed={ativo}
       onClick={onClick}
-      className={cx('min-h-9 shrink-0 rounded-full border px-3 text-sm transition-colors', ativo ? 'border-[var(--marca)] bg-[var(--marca)] font-semibold text-white' : 'border-[var(--borda)] text-[var(--texto)] hover:border-[var(--marca)]')}
+      className={cx('min-h-10 shrink-0 rounded-full border px-3 text-sm transition-colors', ativo ? 'border-[var(--marca)] bg-[var(--marca)] font-semibold text-white' : 'border-[var(--borda)] text-[var(--texto)] hover:border-[var(--marca)]')}
     >
       {children}
     </button>
@@ -64,26 +64,26 @@ function Filtros(p: {
     <div className="mb-4 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3">
       {/* resumo do filtro: sempre visível, um toque abre/fecha */}
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="flex min-h-9 items-center gap-2 rounded-full bg-[var(--marca-suave)] px-3 text-sm font-semibold text-[var(--marca)]">
+        <button type="button" onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="flex min-h-10 items-center gap-2 rounded-full bg-[var(--marca-suave)] px-3 text-sm font-semibold text-[var(--marca)]">
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden><path d="M3 5h18M6 12h12M10 19h4" /></svg>
           {t(nomePeriodo)}
           {p.periodo.preset === 'livre' && <span className="num font-normal">· {p.periodo.de.split('-').reverse().join('/')} – {p.periodo.ate.split('-').reverse().join('/')}</span>}
           <span aria-hidden>{aberto ? '▴' : '▾'}</span>
         </button>
         {ativos.map((a) => (
-          <span key={a.id} className="flex min-h-9 items-center gap-1 rounded-full border border-[var(--borda)] pl-3 pr-1 text-sm">
+          <span key={a.id} className="flex min-h-10 items-center gap-1 rounded-full border border-[var(--borda)] pl-3 pr-0.5 text-sm">
             {a.rotulo}
-            <button type="button" onClick={a.limpar} aria-label={t('Tirar filtro')} className="h-7 w-7 rounded-full hover:bg-[var(--fundo)]">×</button>
+            <button type="button" onClick={a.limpar} aria-label={t('Tirar filtro')} className="h-10 w-10 rounded-full text-lg hover:bg-[var(--fundo)]">×</button>
           </span>
         ))}
-        <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm">
+        <button type="button" role="switch" aria-checked={p.comparar} onClick={() => p.setComparar(!p.comparar)} className="ml-auto flex min-h-10 items-center gap-2 rounded-full px-2 text-sm">
           <span className="text-[var(--suave)]">{t('Comparar')}</span>
-          <button type="button" role="switch" aria-checked={p.comparar} onClick={() => p.setComparar(!p.comparar)} className={cx('relative h-6 w-11 rounded-full transition-colors', p.comparar ? 'bg-[var(--marca)]' : 'bg-[var(--borda)]')}>
+          <span aria-hidden className={cx('relative h-6 w-11 rounded-full transition-colors', p.comparar ? 'bg-[var(--marca)]' : 'bg-[var(--borda)]')}>
             <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', p.comparar ? 'left-[22px]' : 'left-0.5')} />
-          </button>
-        </label>
+          </span>
+        </button>
         {ativos.length > 0 && (
-          <button type="button" onClick={() => (p.setMoeda('convertido'), p.setLocalId(''))} className="text-sm font-semibold text-[var(--marca)]">
+          <button type="button" onClick={() => (p.setMoeda('convertido'), p.setLocalId(''))} className="min-h-10 px-2 text-sm font-semibold text-[var(--marca)]">
             {t('Limpar')}
           </button>
         )}
@@ -130,7 +130,7 @@ function Secao({ id, titulo, resumo, children, acao }: { id: string; titulo: str
   return (
     <section className="mb-6">
       <div className="mb-3 flex items-center gap-2">
-        <button type="button" onClick={() => setFechadas(aberta ? [...fechadas, id] : fechadas.filter((x) => x !== id))} aria-expanded={aberta} className="flex min-h-9 items-center gap-2 rounded-lg pr-2 text-left">
+        <button type="button" onClick={() => setFechadas(aberta ? [...fechadas, id] : fechadas.filter((x) => x !== id))} aria-expanded={aberta} className="flex min-h-10 items-center gap-2 rounded-lg pr-2 text-left">
           <span className={cx('inline-block text-[var(--suave)] transition-transform', aberta ? 'rotate-90' : '')} aria-hidden>›</span>
           <h2 className="text-base font-bold">{t(titulo)}</h2>
         </button>
@@ -252,30 +252,26 @@ function AtencaoAgora({ alertas, moeda }: { alertas: Alerta[]; moeda: string }) 
 
 export function Painel() {
   const t = useT()
-  const { ir, nav } = useApp()
+  const { ir, nav, ajustarParams } = useApp()
   const [periodo, setPeriodo] = usePeriodo()
   const [comparar, setComparar] = useLembrado('painel.comparar', true)
   const [moeda, setMoeda] = useLembrado('painel.moeda', 'convertido')
   const [area, setArea] = useLembrado<string>('painel.area', '')
   const [localId, setLocalId] = useLembrado<string>('painel.local', '')
   const areaAtual = (nav.params.area as string | undefined) ?? area
+  const escolherArea = (id: string) => (setArea(id), ajustarParams({ area: id || undefined }))
   const { dados: cfg } = useConsulta('configuracoes', {})
   const { dados: locais } = useConsulta('locais', {})
   const moedaFiltro = moeda !== 'convertido' && !cfg?.config.moedasAtivas.includes(moeda) ? 'convertido' : moeda
-  const { dados: p, erro } = useConsulta('painel', { de: periodo.de, ate: periodo.ate, comparar, moeda: moedaFiltro, area: areaAtual || undefined, localId: localId || undefined })
+  const { dados: p, erro } = useConsulta('painel', { de: periodo.de, ate: periodo.ate, comparar, moeda: moedaFiltro, area: areaAtual && areaAtual !== 'viagens' ? areaAtual : undefined, localId: localId || undefined })
   const ativos = cfg ? cfg.modulos.filter((m) => cfg.config.modulosAtivos.includes(m.id) && (m.temVenda || m.telaPropria)) : []
-  const principal = cfg?.config.moedaPrincipal ?? 'BOB'
+  const principal = cfg?.config.moedaPrincipal ?? moedaPadrao()
   const c = (id: string) => p?.cartoes.find((x) => x.id === id)
   const fmtC = (id: string) => (c(id) ? fmt(c(id)!.valor, c(id)!.formato, c(id)!.moeda) : '')
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">{t('Painel')}</h1>
-          <p className="text-sm text-[var(--suave)]">{t('Toque em qualquer número para ver de onde ele vem.')}</p>
-        </div>
-      </div>
+      <Titulo subtitulo={t('Toque em qualquer número para ver de onde ele vem.')}>{t('Painel')}</Titulo>
 
       <Filtros
         periodo={periodo}
@@ -292,21 +288,7 @@ export function Painel() {
       />
 
       {/* áreas: abas simples */}
-      <div role="tablist" className="sem-barra mb-5 flex gap-1 overflow-x-auto border-b border-[var(--borda)]">
-        {[{ id: '', nome: 'Visão geral', icone: '' }, ...ativos.map((m) => ({ id: m.id, nome: m.nome, icone: m.icone }))].map((a) => (
-          <button
-            key={a.id}
-            role="tab"
-            aria-selected={areaAtual === a.id}
-            type="button"
-            onClick={() => (setArea(a.id), ir('painel', { area: a.id || undefined }))}
-            className={cx('-mb-px min-h-10 shrink-0 border-b-2 px-3 text-sm', areaAtual === a.id ? 'border-[var(--marca)] font-semibold text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}
-          >
-            {a.icone && <span className="mr-1" aria-hidden>{a.icone}</span>}
-            {t(a.nome)}
-          </button>
-        ))}
-      </div>
+      <Abas variante="sublinhado" atual={areaAtual} onChange={escolherArea} abas={[{ id: '', nome: 'Visão geral' }, ...ativos.map((m) => ({ id: m.id, nome: `${m.icone} ${t(m.nome)}` })), { id: 'viagens', nome: '✈️ Viagens' }]} />
 
       <Erro texto={erro} />
       {!p ? (
@@ -359,7 +341,7 @@ export function Painel() {
             <Secao id="divisoes" titulo="De onde vem o dinheiro">
               <div className="grid gap-3 md:grid-cols-3">
                 <Cartao titulo={t('Por área')}>
-                  <Barras formato="dinheiro" moeda={p.moedaVis} itens={p.porArea.map((a) => ({ rotulo: `${a.icone} ${t(a.nome)}`, valor: a.valor, onClick: () => ir('painel', { area: a.id }) }))} />
+                  <Barras formato="dinheiro" moeda={p.moedaVis} itens={p.porArea.map((a) => ({ rotulo: `${a.icone} ${t(a.nome)}`, valor: a.valor, onClick: () => escolherArea(a.id) }))} />
                 </Cartao>
                 <Cartao titulo={t('Por forma de pagamento')}>
                   <Barras formato="dinheiro" moeda={p.moedaVis} itens={p.porForma.map((f) => ({ rotulo: t(f.nome), valor: f.valor, onClick: () => ir('vendas', { de: periodo.de, ate: periodo.ate, forma: f.id }) }))} />
@@ -378,8 +360,10 @@ export function Painel() {
             </Secao>
           )}
 
+          {(!areaAtual || areaAtual === 'viagens') && <PainelViagens de={periodo.de} ate={periodo.ate} completo={areaAtual === 'viagens'} />}
+
           {p.areas.map((a) => (
-            <Secao key={a.id} id={`area-${a.id}`} titulo={`${a.icone} ${a.nome}`}>
+            <Secao key={a.id} id={`area-${a.id}`} titulo={`${a.icone} ${t(a.nome)}`}>
               <div className="grid gap-3 lg:grid-cols-2">
                 {a.secoes.map((s, i) => (
                   <div key={i} className={s.tipo === 'cartoes' ? 'lg:col-span-2' : ''}>
@@ -392,5 +376,78 @@ export function Painel() {
         </>
       )}
     </div>
+  )
+}
+
+// ---------- viagens de compra (custo da logística em destaque) ----------
+
+function PainelViagens({ de, ate, completo }: { de: string; ate: string; completo?: boolean }) {
+  const t = useT()
+  const { ir } = useApp()
+  const { dados } = useConsulta('viagens', {})
+  if (!dados) return null
+  if (!dados.linhas.length && !completo) return null
+  const m = dados.moeda
+  // viagens que tocam o período do painel (as abertas sempre entram)
+  const doPeriodo = dados.linhas.filter((v) => v.status === 'aberta' || (v.inicio <= ate && (v.fim ?? v.inicio) >= de))
+  const abertas = doPeriodo.filter((v) => v.status === 'aberta')
+  const gasto = doPeriodo.reduce((s, v) => s + v.gasto, 0)
+  const cabelo = doPeriodo.reduce((s, v) => s + v.custoCabelo, 0)
+  const gramas = doPeriodo.reduce((s, v) => s + v.gramas, 0)
+  const resultado = doPeriodo.reduce((s, v) => s + v.resultado, 0)
+  const comRoi = doPeriodo.filter((v) => v.roiBp !== undefined)
+  const roi = comRoi.length ? Math.round(comRoi.reduce((s, v) => s + (v.roiBp ?? 0), 0) / comRoi.length) : undefined
+  const pct = (bp?: number) => (bp === undefined ? '—' : `${(bp / 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`)
+  const cartoes: { nome: string; valor: string; ajuda: string; cor?: string; destaque?: boolean }[] = [
+    { nome: 'Gasto das viagens', valor: formatar(gasto, m), ajuda: 'Logística das viagens do período: combustível, hospedagem, comida… (não inclui o cabelo).', destaque: true },
+    { nome: 'Custo/kg real', valor: gramas ? formatar(Math.round(((cabelo + gasto) * 1000) / gramas), m) : '—', ajuda: '(Cabelo + gastos da viagem) ÷ kg comprados. Ex.: (14.000 + 800) ÷ 4 kg = Bs 3.700/kg.', destaque: true },
+    { nome: 'Logística por kg', valor: gramas ? formatar(Math.round((gasto * 1000) / gramas), m) : '—', ajuda: 'Quanto a viagem somou em cada kg comprado.' },
+    { nome: 'Resultado', valor: formatar(resultado, m), ajuda: 'Receita do cabelo das viagens − (cabelo + gastos). Enquanto há estoque tende a ser negativo.', cor: resultado < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]' },
+    { nome: 'ROI médio', valor: pct(roi), ajuda: 'Média do retorno das viagens com compra.' },
+    { nome: 'Abertas', valor: String(abertas.length), ajuda: 'Viagens em andamento.' },
+  ]
+  return (
+    <Secao id="viagens" titulo={`✈️ ${t('Viagens de compra')}`} resumo={`${t('Gasto das viagens')}: ${formatar(gasto, m)}`} acao={<button type="button" onClick={() => ir('viagens')} className="min-h-10 rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t('Abrir')} →</button>}>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        {cartoes.map((c) => (
+          <button key={c.nome} type="button" onClick={() => ir('viagens')} className={cx('rounded-2xl border bg-[var(--cartao)] p-3 text-left hover:border-[var(--marca)]', c.destaque ? 'border-[var(--alerta)]' : 'border-[var(--borda)]')}>
+            <div className="flex items-center text-xs font-semibold text-[var(--suave)]">{t(c.nome)}<Info texto={c.ajuda} /></div>
+            <div className={cx('num mt-1 text-xl font-bold', c.cor)}>{c.valor}</div>
+          </button>
+        ))}
+      </div>
+      {abertas.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {abertas.map((v) => {
+            const usado = v.orcamento ? Math.min(100, Math.round((v.gasto / v.orcamento) * 100)) : undefined
+            return (
+              <li key={v.id}>
+                <button type="button" onClick={() => ir('viagem', { id: v.id })} className="w-full rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left hover:border-[var(--marca)]">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="font-semibold"><span className="font-mono text-xs text-[var(--marca)]">{v.codigo}</span> {v.nome} {v.acimaOrcamento && <span className="ml-1 rounded-full bg-[var(--ruim)]/15 px-2 py-0.5 text-xs text-[var(--ruim)]">{t('Acima do orçamento')}</span>}</span>
+                    <span className="num text-sm"><b>{formatar(v.gasto, m)}</b>{v.orcamento ? <span className="text-[var(--suave)]"> / {formatar(v.orcamento, m)}</span> : null}</span>
+                  </div>
+                  <div className="text-xs text-[var(--suave)]">{v.viajantes.map((x) => x.nome).join(', ')} · {v.gramas ? `${(v.gramas / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} kg` : t('sem compra ainda')}</div>
+                  {usado !== undefined && <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--borda)]"><div className={cx('h-full', v.acimaOrcamento ? 'bg-[var(--ruim)]' : 'bg-[var(--marca)]')} style={{ width: `${usado}%` }} /></div>}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {completo && dados.comparativo.length > 0 && (
+        <Cartao titulo={t('Por viajante')} className="mt-3">
+          <ul className="divide-y divide-[var(--borda)] text-sm">
+            {dados.comparativo.map((c) => (
+              <li key={c.id} className="flex flex-wrap justify-between gap-2 py-2">
+                <span className="font-semibold">{c.nome} <span className="font-normal text-[var(--suave)]">· {t('{n} viagem(ns)', { n: c.viagens })}</span></span>
+                <span className="num">{t('Custo/kg real')}: <b>{c.custoKgReal !== undefined ? formatar(c.custoKgReal, m) : '—'}</b> · ROI {pct(c.roiMedioBp)}</span>
+              </li>
+            ))}
+          </ul>
+        </Cartao>
+      )}
+      {completo && !dados.linhas.length && <p className="text-sm text-[var(--suave)]">{t('Nenhuma viagem por aqui.')}</p>}
+    </Secao>
   )
 }

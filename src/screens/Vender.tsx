@@ -1,16 +1,17 @@
 // VENDER: assistente que pensa junto. "É cabelo?" (tabela medida × comprador, gramas × fator), "É serviço?"
 // (unidade, cliente, o que vai fazer, quem atende, agora ou agendar) ou qualquer outra modalidade ativa.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatar, multiplicarFator, fatorValido } from '../core/domain/dinheiro'
 import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { Id, Item, TabelaPreco } from '../core/domain/tipos'
 import { fatorDaTabela } from '../core/services/precos'
-import { Botao, Campo, Cartao, Entrada, GramasInput, Selecao, Titulo, ValorInput, Vazio, cx, gramasTexto } from '../ui/base'
-import { useApp, useComando, useConsulta } from '../ui/contexto'
+import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, GramasInput, Selecao, Titulo, ValorInput, Vazio, cx, gramasTexto, loc, moedaPadrao } from '../ui/base'
+import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { Anexos, EditorPagamentos, type PagamentoTela, SeletorPessoa, ValoresConvertidos, linkWhatsApp, useCotacoes, conv } from '../ui/compartilhados'
 import { useT } from '../ui/i18n'
+import { type AjusteServico, EditorServico, SeletorServicos, ajusteParaEntrada, faltaNoAjuste } from '../ui/linhaServico'
 
 interface LinhaTela {
   id: Id
@@ -22,22 +23,43 @@ interface LinhaTela {
   profissionalId?: Id
   calculo?: { medida?: number; fator: string; categoria?: string; tabelaId?: Id; colunaId?: string }
   unidade: Item['unidade']
+  /** salão: preço/insumos/% mudados no atendimento (vazio = catálogo e regra) */
+  ajuste?: AjusteServico
+}
+
+/** o que já foi montado na venda: sobrevive a voltar para a escolha do que vender e à troca de passo */
+interface Carrinho {
+  moduloId: string
+  linhas: LinhaTela[]
+  pagamentos: PagamentoTela[]
+  pessoaId?: Id
 }
 
 export function Vender() {
   const t = useT()
-  const { nav, ir, sessao } = useApp()
+  const { ir, sessao, ajustarParams } = useApp()
   const { dados: cfg } = useConsulta('configuracoes', {})
   const [vendaId, setVendaId] = useState(() => novoId())
-  const [caminho, setCaminho] = useState<string | undefined>(nav.params.modulo as string | undefined)
+  const [caminho, setCaminho] = useParamTela('modulo', '')
+  const [passo, setPasso] = useParamTela<'itens' | 'pagar'>('passo', 'itens')
+  const [carrinho, setCarrinho] = useState<Carrinho>()
+  const [trocar, setTrocar] = useState<string>()
   const [concluida, setConcluida] = useState<{ id: Id; texto: string; telefone?: string }>()
   const ativos = (cfg?.modulos ?? []).filter((m) => cfg?.config.modulosAtivos.includes(m.id) && m.temVenda)
+  const temItens = !!carrinho?.linhas.length
+  useAvisoSaida(temItens && !concluida)
 
   const reiniciar = () => {
     setVendaId(novoId())
-    setCaminho(undefined)
+    setCarrinho(undefined)
     setConcluida(undefined)
+    ajustarParams({ modulo: undefined, passo: undefined, lote: undefined, coluna: undefined, medida: undefined, categoria: undefined })
   }
+  const escolher = (id: string) => {
+    if (temItens && carrinho!.moduloId !== id) return setTrocar(id)
+    setCaminho(id)
+  }
+  const pergunta = (m: { id: string; nome: string; pergunta?: string }) => (m.pergunta ? t(m.pergunta) : perguntaDe(m.id, m.nome, t))
 
   if (concluida)
     return (
@@ -53,37 +75,83 @@ export function Vender() {
             {t('Enviar recibo no WhatsApp')}
           </a>
           <Botao grande onClick={reiniciar}>{t('Nova venda')}</Botao>
+          <Botao variante="secundario" onClick={() => ir('venda', { id: concluida.id })}>{t('Ver venda')}</Botao>
           {sessao.perfil === 'admin' && <Botao variante="leve" onClick={() => ir('caixa')}>{t('Ver no caixa')}</Botao>}
         </div>
       </div>
     )
 
-  if (!caminho)
+  const mod = ativos.find((m) => m.id === caminho)
+  if (!caminho || (cfg && !mod)) {
+    const emAndamento = temItens ? ativos.find((m) => m.id === carrinho!.moduloId) : undefined
     return (
       <div>
         <Titulo subtitulo={t('Escolha e o assistente pergunta o resto.')}>{t('O que você está vendendo?')}</Titulo>
+        {emAndamento && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[var(--marca)] bg-[var(--marca-suave)] p-3">
+            <span className="text-sm font-semibold">{emAndamento.icone} {t('Venda em andamento: {n} item(ns).', { n: carrinho!.linhas.length })}</span>
+            <div className="flex gap-2">
+              <Botao variante="leve" onClick={() => setTrocar('')}>{t('Descartar')}</Botao>
+              <Botao onClick={() => setCaminho(emAndamento.id)}>{t('Continuar')}</Botao>
+            </div>
+          </div>
+        )}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {ativos.map((m) => (
-            <button key={m.id} type="button" onClick={() => setCaminho(m.id)} className="min-h-28 rounded-2xl border-2 border-[var(--borda)] bg-[var(--cartao)] p-4 text-left hover:border-[var(--marca)]">
+            <button key={m.id} type="button" onClick={() => escolher(m.id)} className="min-h-28 rounded-2xl border-2 border-[var(--borda)] bg-[var(--cartao)] p-4 text-left hover:border-[var(--marca)]">
               <div className="text-3xl">{m.icone}</div>
-              <div className="mt-1 text-lg font-bold">{t(m.pergunta ?? perguntaDe(m.id, m.nome))}</div>
+              <div className="mt-1 text-lg font-bold">{pergunta(m)}</div>
               <div className="text-sm text-[var(--suave)]">{t(m.descricao)}</div>
             </button>
           ))}
         </div>
+        {trocar !== undefined && (
+          <Confirmar
+            titulo="Descartar a venda em andamento?"
+            texto="Os itens já adicionados vão ser tirados da venda."
+            rotulo="Descartar"
+            perigo
+            onConfirmar={() => {
+              setVendaId(novoId())
+              setCarrinho(undefined)
+              if (trocar) ajustarParams({ modulo: trocar, passo: undefined })
+            }}
+            onFechar={() => setTrocar(undefined)}
+          />
+        )}
       </div>
     )
+  }
 
-  const mod = ativos.find((m) => m.id === caminho)
-  const porTabela = caminho === 'cabelo' || !!mod?.recursos?.tabelaPreco
-  const atendimento = caminho === 'salao' || !!mod?.recursos?.agenda
+  if (!mod) return <Carregando />
+  const porTabela = caminho === 'cabelo' || !!mod.recursos?.tabelaPreco
+  const atendimento = caminho === 'salao' || !!mod.recursos?.agenda
+  const atual: Carrinho = carrinho?.moduloId === caminho ? carrinho : { moduloId: caminho, linhas: [], pagamentos: [] }
   return (
-    <AssistenteVenda key={vendaId} vendaId={vendaId} moduloId={caminho} porTabela={porTabela} atendimento={atendimento} titulo={mod ? `${mod.icone} ${t(mod.pergunta ?? perguntaDe(mod.id, mod.nome))}` : ''} onVoltar={() => setCaminho(undefined)} onConcluir={setConcluida} moedaPrincipal={cfg?.config.moedaPrincipal ?? 'BOB'} nomeNegocio={cfg?.config.nomeNegocio ?? ''} />
+    <AssistenteVenda
+      key={vendaId}
+      vendaId={vendaId}
+      moduloId={caminho}
+      porTabela={porTabela}
+      atendimento={atendimento}
+      titulo={`${mod.icone} ${pergunta(mod)}`}
+      carrinho={atual}
+      onCarrinho={(c) => setCarrinho((x) => ({ ...(x?.moduloId === caminho ? x : atual), ...c, moduloId: caminho }))}
+      passo={atual.linhas.length ? passo : 'itens'}
+      onPasso={setPasso}
+      onVoltar={() => ajustarParams({ modulo: undefined, passo: undefined, lote: undefined, coluna: undefined, medida: undefined, categoria: undefined })}
+      onConcluir={(r) => {
+        setConcluida(r)
+        ajustarParams({ modulo: undefined, passo: undefined, lote: undefined, coluna: undefined, medida: undefined, categoria: undefined })
+      }}
+      moedaPrincipal={cfg?.config.moedaPrincipal ?? moedaPadrao()}
+      nomeNegocio={cfg?.config.nomeNegocio ?? ''}
+    />
   )
 }
 
-function perguntaDe(id: string, nome: string) {
-  return id === 'cabelo' ? 'É cabelo?' : id === 'salao' ? 'É serviço?' : `É ${nome.toLowerCase()}?`
+function perguntaDe(id: string, nome: string, t: ReturnType<typeof useT>) {
+  return id === 'cabelo' ? t('É cabelo?') : id === 'salao' ? t('É serviço?') : t('É {nome}?', { nome: t(nome).toLowerCase() })
 }
 
 function AssistenteVenda(p: {
@@ -94,6 +162,10 @@ function AssistenteVenda(p: {
   titulo: string
   moedaPrincipal: string
   nomeNegocio: string
+  carrinho: Carrinho
+  onCarrinho(c: Partial<Carrinho>): void
+  passo: 'itens' | 'pagar'
+  onPasso(p: 'itens' | 'pagar'): void
   onVoltar(): void
   onConcluir(r: { id: Id; texto: string; telefone?: string }): void
 }) {
@@ -101,23 +173,31 @@ function AssistenteVenda(p: {
   const { sessao } = useApp()
   const { executar, ocupado } = useComando()
   const { cot } = useCotacoes('venda')
-  const [pessoaId, setPessoaId] = useState<Id>()
+  const { linhas, pagamentos, pessoaId } = p.carrinho
+  const setLinhas = (l: LinhaTela[]) => p.onCarrinho({ linhas: l })
+  const setPagamentos = (x: PagamentoTela[]) => p.onCarrinho({ pagamentos: x })
+  const setPessoaId = (id: Id | undefined) => p.onCarrinho({ pessoaId: id })
   const [localId, setLocalId] = useState<Id | undefined>(sessao.localId)
   const [profissionalId, setProfissionalId] = useState<Id | undefined>(sessao.perfil === 'funcionario' ? sessao.pessoaId ?? sessao.usuarioId : undefined)
   const [agendar, setAgendar] = useState(false)
   const [quando, setQuando] = useState(`${dataLocal()}T10:00`)
-  const [linhas, setLinhas] = useState<LinhaTela[]>([])
-  const [pagamentos, setPagamentos] = useState<PagamentoTela[]>([])
-  const [passo, setPasso] = useState<'itens' | 'pagar'>('itens')
+  const { passo, onPasso: setPasso } = p
   const { dados: locais } = useConsulta('locais', {})
   const { dados: pessoas } = useConsulta('pessoas', {})
-  const moedaVenda = p.porTabela ? 'BOB' : p.moedaPrincipal
+  const { dados: tabelas } = useConsulta('tabelasPreco', { moduloId: p.moduloId }, p.porTabela)
+  const moedaVenda = p.porTabela ? linhas.find((l) => l.calculo)?.moeda ?? tabelas?.[0]?.moeda ?? p.moedaPrincipal : p.moedaPrincipal
   const total = linhas.reduce((s, l) => s + (conv(l.total, l.moeda, moedaVenda, cot) ?? 0), 0)
   const profissionais = (pessoas ?? []).filter((x) => x.papeis.includes('profissional') && (!localId || !x.localId || x.localId === localId))
   const pessoa = pessoas?.find((x) => x.id === pessoaId)
+  // salão: catálogo e regra da comissão para a memória do cálculo de cada linha
+  const salao = p.atendimento && p.moduloId === 'salao'
+  const { dados: servicos } = useConsulta('catalogo', { moduloId: 'salao', incluirAvulsos: true }, salao)
+  const { cfg } = useCotacoes()
+  const servicoDe = (id: Id) => servicos?.find((i) => i.id === id)
+  const pendenciaAjuste = linhas.map((l) => (l.unidade === 'servico' && l.ajuste ? faltaNoAjuste({ item: servicoDe(l.itemId), total: l.total, moeda: l.moeda, ajuste: l.ajuste, perfil: sessao.perfil, cot, moedaPrincipal: p.moedaPrincipal }) : undefined)).find(Boolean)
 
   const textoRecibo = () => {
-    const linhasTxt = linhas.map((l) => (l.calculo ? `${l.calculo.medida ?? ''}${l.calculo.categoria && l.calculo.categoria !== 'Normal' ? ' ' + l.calculo.categoria : ''} | ${l.quantidade.toLocaleString('pt-BR')} × ${l.calculo.fator} = ${formatar(l.total, l.moeda)}` : `${l.nome}: ${formatar(l.total, l.moeda)}`))
+    const linhasTxt = linhas.map((l) => (l.calculo ? `${l.calculo.medida ?? ''}${l.calculo.categoria && l.calculo.categoria !== 'Normal' ? ' ' + t(l.calculo.categoria) : ''} | ${l.quantidade.toLocaleString(loc())} × ${l.calculo.fator} = ${formatar(l.total, l.moeda)}` : `${l.nome}: ${formatar(l.total, l.moeda)}`))
     return [`*${p.nomeNegocio}*`, pessoa ? `${t('Cliente')}: ${pessoa.nome}` : '', agendar ? `${t('Agendado para')} ${quando.replace('T', ' ')}` : '', ...linhasTxt, `*${t('Total')}: ${formatar(total, moedaVenda)}*`, t('Obrigado pela compra!')].filter(Boolean).join('\n')
   }
 
@@ -132,7 +212,7 @@ function AssistenteVenda(p: {
       localId,
       profissionalId,
       agendadoPara: agendar ? new Date(quando).toISOString() : undefined,
-      linhas: linhas.map((l) => ({ id: l.id, itemId: l.itemId, quantidade: l.quantidade, moeda: l.moeda, total: l.total, profissionalId: l.profissionalId, calculo: l.calculo })),
+      linhas: linhas.map((l) => ({ id: l.id, itemId: l.itemId, quantidade: l.quantidade, moeda: l.moeda, total: l.total, profissionalId: l.profissionalId, calculo: l.calculo, ...ajusteParaEntrada(l.ajuste) })),
       pagamentos: agendar ? [] : pagamentos.filter((x) => x.valor).map((x) => ({ id: x.id, forma: x.forma, moeda: x.moeda, valor: x.valor! })),
     })
     if (r) p.onConcluir({ id: r.id, texto: textoRecibo(), telefone: pessoa?.telefone })
@@ -158,12 +238,9 @@ function AssistenteVenda(p: {
                     <Campo rotulo="Quem vai atender?">
                       <Selecao valor={profissionalId} onChange={(v) => setProfissionalId(v || undefined)} vazio="Escolha…" opcoes={profissionais.map((x) => ({ id: x.id, nome: `${x.nome}${x.cargo ? ` · ${x.cargo}` : ''}` }))} />
                     </Campo>
-                    <Campo rotulo="Quando?">
-                      <div className="flex gap-2">
-                        <Botao variante={agendar ? 'secundario' : 'primario'} onClick={() => setAgendar(false)}>{t('Agora')}</Botao>
-                        <Botao variante={agendar ? 'primario' : 'secundario'} onClick={() => setAgendar(true)}>{t('Agendar')}</Botao>
-                      </div>
-                      {agendar && <Entrada type="datetime-local" className="mt-2" value={quando} onChange={(e) => setQuando(e.target.value)} />}
+                    <Campo rotulo="Quando?" comoDiv>
+                      <Escolha rotulo="Quando?" valor={agendar ? 'agendar' : 'agora'} onChange={(v) => setAgendar(v === 'agendar')} opcoes={[{ id: 'agora', nome: 'Agora' }, { id: 'agendar', nome: 'Agendar' }]} />
+                      {agendar && <Entrada type="datetime-local" aria-label={t('Data e hora')} className="mt-2" value={quando} onChange={(e) => setQuando(e.target.value)} />}
                       {temConflito && (
                         <p className="mt-2 rounded-xl bg-[var(--alerta)]/10 p-2 text-sm font-semibold text-[var(--alerta)]">
                           ⚠️ {t('Horário ocupado')}: {conflitos!.map((c) => `${c.cliente ?? ''} ${c.inicio.slice(11)}–${c.fim.slice(11)}`).join(', ')}. {t('Dá para agendar mesmo assim.')}
@@ -176,7 +253,12 @@ function AssistenteVenda(p: {
               {!p.atendimento && <Cartao><SeletorPessoa rotulo={p.porTabela ? 'Quem está comprando?' : 'Cliente'} valor={pessoaId} onChange={setPessoaId} opcional /></Cartao>}
 
               {p.porTabela || (p.atendimento && p.moduloId === 'salao') ? null : <ItensSimples moduloId={p.moduloId} moeda={p.moedaPrincipal} onAdd={(l) => setLinhas([...linhas, l])} profissionalId={profissionalId} />}
-              {p.atendimento && <ItensSimples moduloId={p.moduloId} moeda={p.moedaPrincipal} rotulo="O que vai fazer?" onAdd={(l) => setLinhas([...linhas, { ...l, profissionalId }])} profissionalId={profissionalId} />}
+              {p.atendimento &&
+                (salao ? (
+                  <SeletorServicos moeda={p.moedaPrincipal} onAdd={(i, preco) => setLinhas([...linhas, { id: novoId(), itemId: i.id, nome: i.nome, quantidade: 1, moeda: i.precoSugerido?.moeda ?? p.moedaPrincipal, total: preco, unidade: i.unidade, profissionalId }])} />
+                ) : (
+                  <ItensSimples moduloId={p.moduloId} moeda={p.moedaPrincipal} rotulo="O que vai fazer?" onAdd={(l) => setLinhas([...linhas, { ...l, profissionalId }])} profissionalId={profissionalId} />
+                ))}
               {(p.porTabela || p.atendimento) && (
                 <LinhasCabelo
                   moduloId={p.porTabela ? p.moduloId : 'cabelo'}
@@ -209,11 +291,27 @@ function AssistenteVenda(p: {
                 <li key={l.id} className="flex items-start justify-between gap-2 border-b border-[var(--borda)] pb-2">
                   <div className="min-w-0">
                     <div className="font-semibold">{l.nome}</div>
-                    {l.calculo && <div className="num text-[var(--suave)]">{l.calculo.medida} | {l.quantidade.toLocaleString('pt-BR')} × {l.calculo.fator}</div>}
+                    {l.calculo && <div className="num text-[var(--suave)]">{l.calculo.medida} | {l.quantidade.toLocaleString(loc())} × {l.calculo.fator}</div>}
+                    {salao && l.unidade === 'servico' && passo === 'itens' && (
+                      <EditorServico
+                        item={servicoDe(l.itemId)}
+                        total={l.total}
+                        moeda={l.moeda}
+                        onTotal={(v) => setLinhas(linhas.map((x) => (x.id === l.id ? { ...x, total: v } : x)))}
+                        ajuste={l.ajuste ?? {}}
+                        onAjuste={(a) => setLinhas(linhas.map((x) => (x.id === l.id ? { ...x, ajuste: a } : x)))}
+                        profissional={pessoas?.find((x) => x.id === (l.profissionalId ?? profissionalId))}
+                        temProfissional={!!(l.profissionalId ?? profissionalId)}
+                        cot={cot}
+                        moedaPrincipal={p.moedaPrincipal}
+                        padraoBp={cfg?.comissaoPadraoBp}
+                        podeMudarComissao={sessao.perfil === 'admin' || !!cfg?.comissaoFuncionarioMuda}
+                      />
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="num font-bold">{formatar(l.total, l.moeda)}</span>
-                    {passo === 'itens' && <button type="button" aria-label={t('Tirar')} className="px-1 text-lg" onClick={() => setLinhas(linhas.filter((x) => x.id !== l.id))}>×</button>}
+                    {passo === 'itens' && <button type="button" aria-label={t('Tirar')} className="min-h-10 min-w-10 rounded-full text-lg hover:bg-[var(--marca-suave)]" onClick={() => setLinhas(linhas.filter((x) => x.id !== l.id))}>×</button>}
                   </div>
                 </li>
               ))}
@@ -226,9 +324,12 @@ function AssistenteVenda(p: {
           {total > 0 && <div className="mt-1"><ValoresConvertidos valor={total} moeda={moedaVenda} /></div>}
           <div className="mt-4">
             {passo === 'itens' ? (
-              <Botao grande className="w-full" disabled={!linhas.length} onClick={() => (agendar ? confirmar() : setPasso('pagar'))}>
-                {agendar ? (temConflito ? t('Agendar mesmo assim') : t('Agendar')) : t('Continuar para pagamento')}
-              </Botao>
+              <>
+                {pendenciaAjuste && <p className="mb-2 text-sm font-semibold text-[var(--alerta)]">{t(pendenciaAjuste)}</p>}
+                <Botao grande className="w-full" disabled={!linhas.length || !!pendenciaAjuste} onClick={() => (agendar ? confirmar() : setPasso('pagar'))}>
+                  {agendar ? (temConflito ? t('Agendar mesmo assim') : t('Agendar')) : t('Continuar para pagamento')}
+                </Botao>
+              </>
             ) : (
               <Botao grande className="w-full" disabled={ocupado} onClick={confirmar}>
                 {t('Confirmar venda')}
@@ -300,6 +401,30 @@ function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: { modulo
   const [gramas, setGramas] = useState<number>()
   const [fator, setFator] = useState('')
   const [loteEscolhido, setLoteEscolhido] = useState<Id>()
+  // vindo da Triagem (#/vender?modulo=cabelo&lote=… ou &medida=60&categoria=Normal): já abre com a medida, a categoria,
+  // o lote e as gramas dele
+  const { nav } = useApp()
+  const loteParam = nav.params.lote as Id | undefined
+  const medidaParam = nav.params.medida ? Number(nav.params.medida) : undefined
+  const [aplicado, setAplicado] = useState(false)
+  useEffect(() => {
+    if (aplicado || (!loteParam && !medidaParam) || !estoque) return
+    setAplicado(true)
+    if (nav.params.coluna) setColuna(String(nav.params.coluna))
+    if (!loteParam) {
+      setAberto(true)
+      if (nav.params.categoria) setCategoria(String(nav.params.categoria))
+      setMedida(medidaParam)
+      return
+    }
+    const l = estoque.find((i) => i.id === loteParam)
+    if (!l) return
+    setAberto(true)
+    setCategoria(String(l.campos.categoria || 'Normal'))
+    if (l.campos.comprimento) setMedida(Number(l.campos.comprimento))
+    setLoteEscolhido(l.id)
+    setGramas(l.saldo)
+  }, [aplicado, loteParam, medidaParam, estoque, nav.params.coluna, nav.params.categoria])
 
   const usados = new Map<Id, number>()
   for (const l of jaUsado) usados.set(l.itemId, (usados.get(l.itemId) ?? 0) + l.quantidade)
@@ -308,10 +433,11 @@ function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: { modulo
     .map((i) => ({ ...i, livre: i.saldo - (usados.get(i.id) ?? 0) }))
     .filter((i) => i.livre > 0)
     .sort((a, b) => (a.criadoEm < b.criadoEm ? -1 : 1))
+  const moedaTabela = tabela?.moeda ?? moedaPadrao()
   const fatorTabela = tabela && medida && colunaAtual ? fatorDaTabela(tabela, medida, colunaAtual).fator : undefined
   const fatorUsado = fator.trim() || fatorTabela || ''
   const disponivel = loteEscolhido ? lotes.find((l) => l.id === loteEscolhido)?.livre ?? 0 : lotes.reduce((s, l) => s + l.livre, 0)
-  const totalPrev = gramas && fatorValido(fatorUsado) ? multiplicarFator(gramas, fatorUsado, tabela?.moeda ?? 'BOB') : undefined
+  const totalPrev = gramas && fatorValido(fatorUsado) ? multiplicarFator(gramas, fatorUsado, moedaTabela) : undefined
   const medidas = [...new Set([...(tabela?.linhas ?? []), ...(estoque ?? []).filter((i) => i.campos.comprimento).map((i) => Number(i.campos.comprimento))])].sort((a, b) => a - b)
 
   if (!aberto)
@@ -335,8 +461,8 @@ function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: { modulo
         itemId: l.id,
         nome: `${l.codigo ? l.codigo + ' · ' : ''}${l.nome}`,
         quantidade: q,
-        moeda: tabela?.moeda ?? 'BOB',
-        total: multiplicarFator(q, fatorUsado, tabela?.moeda ?? 'BOB'),
+        moeda: moedaTabela,
+        total: multiplicarFator(q, fatorUsado, moedaTabela),
         unidade: 'grama',
         calculo: { medida, fator: fatorUsado.replace('.', ','), categoria, tabelaId: tabela?.id, colunaId: colunaAtual },
       })
@@ -360,12 +486,12 @@ function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: { modulo
         </Campo>
       </div>
       <div className="mt-3">
-        <span className="mb-1 block text-sm font-semibold text-[var(--suave)]">{t('Medida (cm)')}</span>
-        <div className="flex flex-wrap gap-1">
+        <span id="medida-cabelo" className="mb-1 block text-sm font-semibold text-[var(--suave)]">{t('Medida (cm)')}</span>
+        <div role="group" aria-labelledby="medida-cabelo" className="flex flex-wrap gap-1">
           {medidas.map((m) => {
             const temEstoque = (estoque ?? []).some((i) => Number(i.campos.comprimento) === m && String(i.campos.categoria || 'Normal') === categoria && i.saldo > (usados.get(i.id) ?? 0))
             return (
-              <button key={m} type="button" onClick={() => (setMedida(m), setFator(''), setLoteEscolhido(undefined))} className={cx('min-h-11 min-w-12 rounded-xl border px-2 font-bold', medida === m ? 'border-[var(--marca)] bg-[var(--marca)] text-white' : 'border-[var(--borda)]', !temEstoque && 'opacity-40')}>
+              <button key={m} type="button" aria-pressed={medida === m} onClick={() => (setMedida(m), setFator(''), setLoteEscolhido(undefined))} className={cx('min-h-11 min-w-12 rounded-xl border px-2 font-bold', medida === m ? 'border-[var(--marca)] bg-[var(--marca)] text-white' : 'border-[var(--borda)]', !temEstoque && 'opacity-40')}>
                 {m}
               </button>
             )
@@ -381,14 +507,14 @@ function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: { modulo
             <Entrada inputMode="decimal" value={fator} placeholder={fatorTabela ?? '?'} onChange={(e) => setFator(e.target.value)} />
           </Campo>
           <Campo rotulo="Lote">
-            <Selecao valor={loteEscolhido} onChange={(v) => setLoteEscolhido(v || undefined)} vazio={t('Automático (mais antigo)')} opcoes={lotes.map((l) => ({ id: l.id, nome: `${l.codigo ?? ''} ${gramasTexto(l.livre)}` }))} />
+            <Selecao valor={loteEscolhido} onChange={(v) => setLoteEscolhido(v || undefined)} vazio="Automático (mais antigo)" opcoes={lotes.map((l) => ({ id: l.id, nome: `${l.codigo ?? ''} ${gramasTexto(l.livre)}` }))} />
           </Campo>
         </div>
       )}
       {medida && (
         <div className="mt-3 rounded-xl bg-[var(--fundo)] p-3">
           <div className="num text-lg font-bold">
-            {medida} | {gramas ? gramas.toLocaleString('pt-BR') : '—'} × {fatorUsado || '?'} = {totalPrev !== undefined ? formatar(totalPrev, tabela?.moeda ?? 'BOB') : '—'}
+            {medida} | {gramas ? gramas.toLocaleString(loc()) : '—'} × {fatorUsado || '?'} = {totalPrev !== undefined ? formatar(totalPrev, moedaTabela) : '—'}
           </div>
           <div className="text-xs text-[var(--suave)]">
             {t('Disponível')}: {gramasTexto(disponivel)}

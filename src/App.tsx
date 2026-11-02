@@ -7,26 +7,29 @@ import { atualizarCambio } from './app/cambio'
 import { criarBackend } from './app/criarBackend'
 import { carregarDemo } from './app/demo'
 import type { Sessao } from './core/ports/portas'
-import { Botao, Carregando } from './ui/base'
+import { Botao, Carregando, Confirmar, definirPadroes } from './ui/base'
 import { Conversor } from './ui/compartilhados'
 import { type AppCtx, Ctx, type Navegacao, type Params, useApp, useConsulta } from './ui/contexto'
-import { IdiomaContexto, type Idioma, traduzir, useT } from './ui/i18n'
+import { IdiomaContexto, type Idioma, localeDe, traduzir, useT } from './ui/i18n'
 import { MENU, Shell } from './ui/Shell'
 import { Agenda } from './screens/Agenda'
 import { Caixa } from './screens/Caixa'
 import { Comprar, NovaCompraTela, Pedido } from './screens/Comprar'
-import { PAI, hashParaNav, navParaHash } from './app/rotas'
-import { Config } from './screens/Config'
+import { PAI, hashParaNav, navParaHash, normalizarNav } from './app/rotas'
+import { Config } from './screens/Configuracoes'
 import { Entrar } from './screens/Entrar'
 import { Emprestimos, FichaEmprestimo, NovoEmprestimo } from './screens/Emprestimos'
 import { Equipe } from './screens/Equipe'
 import { Estoque, FichaLote, Rastreio, SepararTela } from './screens/Estoque'
 import { Painel } from './screens/Painel'
+import { Triagem } from './screens/Triagem'
 import { FichaPessoa, Pessoas } from './screens/Pessoas'
 import { Precos } from './screens/Precos'
 import { Relatorios } from './screens/Relatorios'
 import { DetalheVenda, Vendas } from './screens/Vendas'
 import { Vender } from './screens/Vender'
+import { FichaViagem, Viagens, NovaViagemTela } from './screens/Viagens'
+import { Financiamentos, FichaFinanciamento, NovoFinanciamento } from './screens/Financiamentos'
 
 const TELAS: Record<string, () => JSX.Element> = {
   painel: Painel,
@@ -34,6 +37,7 @@ const TELAS: Record<string, () => JSX.Element> = {
   comprar: Comprar,
   pedido: Pedido,
   novaCompra: NovaCompraTela,
+  triagem: Triagem,
   estoque: Estoque,
   lote: FichaLote,
   rastreio: Rastreio,
@@ -50,10 +54,17 @@ const TELAS: Record<string, () => JSX.Element> = {
   tabelaPreco: Precos,
   relatorios: Relatorios,
   config: Config,
+  configSecao: Config,
   vendas: Vendas,
   venda: DetalheVenda,
+  viagens: Viagens,
+  viagem: FichaViagem,
+  adiantamentos: Financiamentos,
+  financiamento: FichaFinanciamento,
+  novoFinanciamento: NovoFinanciamento,
+  novaViagem: NovaViagemTela,
 }
-const SO_ADMIN = new Set([...MENU.filter((m) => m.admin).map((m) => m.tela), 'rastreio', 'emprestimo', 'vendas', 'pedido', 'novaCompra', 'tabelaPreco', 'novoEmprestimo', 'separar'])
+const SO_ADMIN = new Set([...MENU.filter((m) => m.admin).map((m) => m.tela), 'rastreio', 'emprestimo', 'vendas', 'pedido', 'novaCompra', 'tabelaPreco', 'novoEmprestimo', 'separar', 'configSecao', 'viagem', 'novaViagem', 'novoFinanciamento'])
 
 function lerSessao(padrao: Sessao): Sessao {
   try {
@@ -80,7 +91,7 @@ export default function App() {
   const nav = pilha[pilha.length - 1]
 
   const ir = useCallback((tela: string, params: Params = {}) => {
-    const n = { tela, params }
+    const n = normalizarNav({ tela, params })
     setPilha((p) => [...p.slice(-30), n])
     history.pushState(null, '', navParaHash(n))
     window.scrollTo(0, 0)
@@ -98,6 +109,36 @@ export default function App() {
     }
   }, [])
   const avisar = useCallback((texto: string, tipo: 'ok' | 'erro' = 'ok') => setAviso({ texto, tipo }), [])
+  const ajustarParams = useCallback((p: Params) => {
+    setPilha((pl) => {
+      const atual = pl[pl.length - 1]
+      const params = { ...atual.params, ...p }
+      for (const k of Object.keys(params)) if (params[k] === undefined || params[k] === '') delete params[k]
+      const n = { tela: atual.tela, params }
+      history.replaceState(null, '', navParaHash(n))
+      return [...pl.slice(0, -1), n]
+    })
+  }, [])
+  // dado não salvo: menu, voltar e voltar do celular pedem confirmação antes de sair
+  const sujoRef = useRef(false)
+  const [saida, setSaida] = useState<() => void>()
+  const marcarSujo = useCallback((s: boolean) => {
+    sujoRef.current = s
+  }, [])
+  useEffect(() => {
+    const f = (e: BeforeUnloadEvent) => {
+      if (sujoRef.current) e.preventDefault()
+    }
+    window.addEventListener('beforeunload', f)
+    return () => window.removeEventListener('beforeunload', f)
+  }, [])
+  const protegido = useCallback(<A extends unknown[]>(acao: (...a: A) => void) => (...a: A) => {
+    if (!sujoRef.current) return acao(...a)
+    setSaida(() => () => {
+      sujoRef.current = false
+      acao(...a)
+    })
+  }, [])
   const trocarSessao = useCallback(
     (s: Sessao) => {
       Object.assign(inicial.sessao, s)
@@ -118,6 +159,15 @@ export default function App() {
   // "voltar"/"avançar" do navegador e do celular seguem o endereço
   useEffect(() => {
     const f = () => {
+      if (sujoRef.current) {
+        const ali = pilhaRef.current[pilhaRef.current.length - 1]
+        history.pushState(null, '', navParaHash(ali))
+        setSaida(() => () => {
+          sujoRef.current = false
+          history.go(-2)
+        })
+        return
+      }
       const n = hashParaNav(window.location.hash)
       if (n) setPilha((p) => (p.length > 1 ? p.slice(0, -1) : [n]).map((x, i, a) => (i === a.length - 1 ? n : x)))
     }
@@ -131,7 +181,9 @@ export default function App() {
     if (backend.tipo !== 'api') atualizarCambio(backend).catch(() => undefined)
   }, [backend])
 
-  const ctx: AppCtx = { backend, sessao, trocarSessao, nav, ir, voltar, avisar }
+  const irSeguro = useMemo(() => protegido(ir), [protegido, ir])
+  const voltarSeguro = useMemo(() => protegido(voltar), [protegido, voltar])
+  const ctx: AppCtx = { backend, sessao, trocarSessao, nav, ir: irSeguro, voltar: voltarSeguro, avisar, ajustarParams, marcarSujo }
   return (
     <Ctx.Provider value={ctx}>
       <ComIdioma>
@@ -150,6 +202,9 @@ export default function App() {
           )}
         </Preparar>
         <NovaVersao />
+        {saida && (
+          <Confirmar titulo="Sair sem salvar?" texto="O que você digitou nesta tela ainda não foi salvo e vai ser perdido." rotulo="Sair sem salvar" perigo onConfirmar={() => saida()} onFechar={() => setSaida(undefined)} />
+        )}
         {aviso && (
           <div role="status" className={`fixed inset-x-4 bottom-24 z-50 mx-auto max-w-md rounded-2xl p-3 text-center font-semibold text-white shadow-lg md:bottom-6 ${aviso.tipo === 'erro' ? 'bg-[var(--ruim)]' : 'bg-[var(--bom)]'}`} onClick={() => setAviso(undefined)}>
             <Traduz texto={aviso.texto} />
@@ -168,6 +223,8 @@ function Traduz({ texto }: { texto: string }) {
 function ComIdioma({ children }: { children: ReactNode }) {
   const { dados } = useConsulta('configuracoes', {})
   const idioma = (dados?.config.idioma ?? 'pt') as Idioma
+  // antes de desenhar as telas: números/datas no formato do idioma e a moeda principal como padrão
+  definirPadroes({ locale: localeDe(idioma), moeda: dados?.config.moedaPrincipal ?? 'BOB' })
   useEffect(() => {
     document.documentElement.lang = idioma === 'es' ? 'es' : 'pt-BR'
   }, [idioma])

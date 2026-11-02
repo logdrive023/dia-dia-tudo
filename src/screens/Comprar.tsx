@@ -4,17 +4,27 @@
 //  /pedidos/:id       tela do PEDIDO (etapas, o que falta, itens, pagamento, conta, lotes, arquivos, linha do tempo)
 // Todo pedido passa pela triagem (quem fez fica registrado) e só então entra no estoque.
 
-import { type ReactNode, useState } from 'react'
+import { Caminho, RastreioTotal } from '../ui/rastreioTotal'
+import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { formatar, multiplicarFator, fatorValido } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
-import type { Campos, Id, Transacao } from '../core/domain/tipos'
+import type { Campos, Id, Linha, Transacao } from '../core/domain/tipos'
+import type { ModoCompra } from '../core/services/codigos'
+import { CAMPOS_FORM, type CampoFormId, FORM_COMPRA_PADRAO, type FormCompraConfig } from '../core/services/formCompra'
 import { fatorDaTabela } from '../core/services/precos'
-import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Erro, GramasInput, Info, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto } from '../ui/base'
-import { useApp, useComando, useConsulta } from '../ui/contexto'
+import { CATEGORIAS_CABELO } from '../modules/cabelo'
+import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Erro, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao } from '../ui/base'
+import { useApp, useAvisoSaida, useParamTela, useComando, useConsulta } from '../ui/contexto'
 import { Anexos, EditorPagamentos, type PagamentoTela, SeletorPessoa } from '../ui/compartilhados'
+import { CamposDinamicos, resumoCampos } from '../ui/camposDinamicos'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { FiltroPendencia, SeloPendencias } from '../ui/pendencias'
 import { useT } from '../ui/i18n'
+import { CampoCodigo, CampoCodigoCompra, CodigoSelo, TrocarCodigo } from '../ui/codigos'
+import { BuscaPessoa } from '../ui/buscaPessoa'
+import { MenuAcoes } from '../ui/menuAcoes'
+import { MiniaturaLote, marcadorLote } from '../ui/fotos'
+import { ImprimirEtiquetas } from '../ui/etiquetas'
 
 const ENCERRADAS = ['concluido', 'recusado', 'cancelado']
 const codigoDe = (c: { codigo?: string; id: string }) => c.codigo ?? `#${c.id.slice(-5)}`
@@ -55,11 +65,14 @@ type Ordem = 'data' | 'total' | 'parada'
 
 export function Comprar() {
   const t = useT()
-  const { nav, ir } = useApp()
-  const [aba, setAba] = useState<'abertas' | 'encerradas' | 'todas'>(nav.params.encerradas ? 'encerradas' : 'abertas')
-  const [pendencia, setPendencia] = useState(((nav.params.pendencia as string) ?? (nav.params.semComprovante ? 'semComprovanteOrigem' : '')) as string)
-  const [busca, setBusca] = useState('')
-  const [ordem, setOrdem] = useState<{ por: Ordem; desc: boolean }>({ por: 'data', desc: true })
+  const { nav, ir, sessao, ajustarParams } = useApp()
+  // lista no endereço: voltar do pedido reencontra a mesma aba, filtro, busca e ordem
+  const [aba, setAba] = useParamTela<'abertas' | 'encerradas' | 'todas'>('aba', nav.params.encerradas ? 'encerradas' : 'abertas')
+  const [pendencia, setPendencia] = useParamTela('pendencia', nav.params.semComprovante ? 'semComprovanteOrigem' : '')
+  const [busca, setBusca] = useParamTela('busca', '')
+  const [ordemTxt, setOrdemTxt] = useParamTela('ordem', 'data-desc')
+  const ordem = { por: ordemTxt.split('-')[0] as Ordem, desc: ordemTxt.endsWith('-desc') }
+  const setOrdem = (o: { por: Ordem; desc: boolean }) => setOrdemTxt(`${o.por}-${o.desc ? 'desc' : 'asc'}`)
   const { dados: fila } = useConsulta('filaTriagem', { incluirEncerradas: true })
   const { dados: cfg } = useConsulta('configuracoes', {})
   if (nav.params.id) return <Pedido />
@@ -70,7 +83,7 @@ export function Comprar() {
   const b = busca.trim().toLowerCase()
   const lista = daAba
     .filter((c) => !pendencia || tem(c, pendencia))
-    .filter((c) => !b || `${codigoDe(c)} ${c.pessoa ?? ''} ${c.linhas.map((l) => l.descricao).join(' ')} ${c.obs ?? ''}`.toLowerCase().includes(b))
+    .filter((c) => !b || `${codigoDe(c)} ${c.busca} ${c.linhas.map((l) => l.descricao).join(' ')} ${c.obs ?? ''}`.toLowerCase().includes(b))
     .sort((x, y) => {
       const v = ordem.por === 'total' ? x.totalPrincipal - y.totalPrincipal : ordem.por === 'parada' ? x.diasParada - y.diasParada : x.data + x.criadoEm < y.data + y.criadoEm ? -1 : 1
       return ordem.desc ? -v : v
@@ -78,12 +91,14 @@ export function Comprar() {
   const opcoesPend = [{ id: 'paradaTriagem', nome: 'Parada na triagem' }, { id: 'semFotos', nome: 'Sem fotos' }, { id: 'semComprovanteOrigem', nome: 'Sem comprovante de origem' }, { id: 'faltaPagar', nome: 'Falta pagar' }]
   const contagem = Object.fromEntries([['', daAba.length], ['qualquer', daAba.filter((c) => tem(c, 'qualquer')).length], ...opcoesPend.map((o) => [o.id, daAba.filter((c) => tem(c, o.id)).length])])
   const abertas = todas.filter((c) => !ENCERRADAS.includes(c.etapa))
+  const filtrar = (a: typeof aba, p: string) => ajustarParams({ aba: a === 'abertas' ? undefined : a, pendencia: p || undefined })
   const resumo = [
-    { nome: 'Na triagem', valor: String(abertas.length) },
-    { nome: 'Valor na triagem', valor: formatar(abertas.reduce((s, c) => s + c.totalPrincipal, 0), cfg?.config.moedaPrincipal ?? 'BOB') },
-    { nome: 'Peso na triagem', valor: gramasTexto(abertas.reduce((s, c) => s + c.linhas.reduce((x, l) => x + l.quantidade, 0), 0)) },
-    { nome: 'Com pendência', valor: String(todas.filter((c) => c.pendencias.length).length) },
+    { nome: 'Na triagem', valor: String(abertas.length), abrir: () => filtrar('abertas', '') },
+    { nome: 'Valor na triagem', valor: formatar(abertas.reduce((s, c) => s + c.totalPrincipal, 0), cfg?.config.moedaPrincipal ?? moedaPadrao()), abrir: () => filtrar('abertas', '') },
+    { nome: 'Peso na triagem', valor: gramasTexto(abertas.reduce((s, c) => s + c.linhas.reduce((x, l) => x + l.quantidade, 0), 0)), abrir: () => filtrar('abertas', '') },
+    { nome: 'Com pendência', valor: String(todas.filter((c) => c.pendencias.length).length), abrir: () => filtrar('todas', 'qualquer') },
   ]
+  const contaAba = { abertas: abertas.length, encerradas: todas.length - abertas.length, todas: todas.length }
   const Th = ({ por, children, direita }: { por?: Ordem; children: ReactNode; direita?: boolean }) => (
     <th className={cx('whitespace-nowrap px-3 py-2 text-xs font-medium text-[var(--suave)]', direita && 'text-right')}>
       {por ? (
@@ -108,23 +123,34 @@ export function Comprar() {
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {resumo.map((r) => (
-          <div key={r.nome} className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3">
+          <button key={r.nome} type="button" onClick={r.abrir} className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left hover:border-[var(--marca)]">
             <div className="text-xs text-[var(--suave)]">{t(r.nome)}</div>
             <div className="num text-xl font-bold">{r.valor}</div>
-          </div>
+          </button>
         ))}
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-[var(--borda)]">
-        {([['abertas', 'Na triagem'], ['encerradas', 'Encerradas'], ['todas', 'Todas']] as const).map(([id, nome]) => (
-          <button key={id} type="button" role="tab" aria-selected={aba === id} onClick={() => setAba(id)} className={cx('-mb-px min-h-10 border-b-2 px-3 text-sm', aba === id ? 'border-[var(--marca)] font-semibold text-[var(--marca)]' : 'border-transparent text-[var(--suave)]')}>
-            {t(nome)}
-          </button>
-        ))}
-        <Entrada className="mb-1 ml-auto w-full sm:w-64" placeholder={t('Buscar pedido, fornecedor, item…')} value={busca} onChange={(e) => setBusca(e.target.value)} />
-      </div>
-      <div className="mb-3">
-        <FiltroPendencia valor={pendencia} onChange={setPendencia} contagem={contagem} opcoes={opcoesPend.filter((o) => contagem[o.id] || pendencia === o.id)} />
+      {/* um bloco de filtros: situação + busca em cima, pendências embaixo (as regras do que falta são configuráveis) */}
+      <div className="mb-3 space-y-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="tablist" aria-label={t('Situação')} className="flex gap-1 rounded-xl bg-[var(--marca-suave)] p-1">
+            {([['abertas', 'Na triagem'], ['encerradas', 'Encerradas'], ['todas', 'Todas']] as const).map(([id, nome]) => (
+              <button key={id} type="button" role="tab" aria-selected={aba === id} onClick={() => setAba(id)} className={cx('min-h-10 rounded-lg px-3 text-sm font-semibold', aba === id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
+                {t(nome)} <span className="num opacity-70">{contaAba[id]}</span>
+              </button>
+            ))}
+          </div>
+          <Entrada type="search" className="w-full sm:ml-auto sm:w-72" placeholder={t('Buscar código (atual ou antigo), sigla, fornecedor, item…')} value={busca} onChange={(e) => setBusca(e.target.value)} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('O que falta')}</span>
+          <div className="min-w-0 flex-1">
+            <FiltroPendencia valor={pendencia} onChange={setPendencia} contagem={contagem} opcoes={opcoesPend.filter((o) => contagem[o.id] || pendencia === o.id)} />
+          </div>
+          {sessao.perfil === 'admin' && (
+            <button type="button" onClick={() => ir('config', { aba: 'etapas' })} className="min-h-10 rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Etapas e regras')}</button>
+          )}
+        </div>
       </div>
 
       {!fila ? (
@@ -149,9 +175,9 @@ export function Comprar() {
               {lista.map((c) => {
                 const gramas = c.linhas.reduce((s, l) => s + l.quantidade, 0)
                 return (
-                  <tr key={c.id} onClick={() => ir('pedido', { id: c.id })} className="cursor-pointer border-t border-[var(--borda)] first:border-t-0 hover:bg-[var(--marca-suave)] max-md:grid max-md:grid-cols-[1fr_auto] max-md:gap-x-3 max-md:p-3">
+                  <tr key={c.id} tabIndex={0} role="link" aria-label={`${codigoDe(c)} · ${c.pessoa ?? ''}`} onKeyDown={(e) => e.key === 'Enter' && ir('pedido', { id: c.id })} onClick={() => ir('pedido', { id: c.id })} className="cursor-pointer border-t border-[var(--borda)] first:border-t-0 hover:bg-[var(--marca-suave)] max-md:grid max-md:grid-cols-[1fr_auto] max-md:gap-x-3 max-md:p-3">
                     <td className="px-3 py-3 max-md:p-0">
-                      <span className="font-mono text-xs font-semibold text-[var(--marca)]">{codigoDe(c)}</span>
+                      <span className="whitespace-nowrap font-mono text-sm font-bold text-[var(--marca)]" title={c.codigosAnteriores?.length ? `${t('antes')}: ${c.codigosAnteriores.join(', ')}` : undefined}>{codigoDe(c)}</span>
                       <span className="block text-xs text-[var(--suave)]">{dataBR(c.data)}</span>
                     </td>
                     <td className="px-3 py-3 font-semibold max-md:order-first max-md:col-span-2 max-md:p-0">{c.pessoa ?? t('Sem fornecedor')}</td>
@@ -164,7 +190,7 @@ export function Comprar() {
                       <Progresso etapas={etapasDo(c.moduloId)} atual={c.etapa} mini />
                     </td>
                     <td className="px-3 py-3 max-md:col-span-2 max-md:p-0 max-md:pt-1">
-                      <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} compacto />
+                      <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} />
                     </td>
                     <td className="num px-3 py-3 text-right text-[var(--suave)] max-md:hidden">{ENCERRADAS.includes(c.etapa) ? '—' : `${c.diasParada} d`}</td>
                     <td className="num px-3 py-3 text-right font-bold max-md:col-start-2 max-md:row-start-2 max-md:p-0">{formatar(c.totalPrincipal, c.moedaPrincipal)}</td>
@@ -179,6 +205,12 @@ export function Comprar() {
   )
 }
 
+const CAMPOS_FIXOS = ['estado', 'comprimento', 'categoria', 'obs']
+/** No jeito "passo a passo": em que passo cada campo do formulário aparece (a ordem dos passos segue a dos campos). */
+const PASSO_DO_CAMPO: Record<CampoFormId, string> = { fornecedor: 'Fornecedor', codigo: 'Fornecedor', comprador: 'Fornecedor', coluna: 'Fornecedor', itens: 'O que veio', atributos: 'O que veio', estado: 'Estado', obs: 'Estado', fotos: 'Fotos', viagem: 'Fornecedor' }
+const SELETOR_CAMPO = 'input:not([type=file]):not([type=checkbox]):not([type=radio]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
+const CAMPOS_TIRAR = ['fator', 'tabelaId', 'colunaId', 'calculo']
+
 interface LinhaNova {
   id: Id
   modo: 'bruto' | 'tabela' | 'item'
@@ -187,213 +219,730 @@ interface LinhaNova {
   total?: number
   medida?: number
   fator?: string
+  /** fator da compra repetida (vale quando a tabela de hoje não tem fator para a medida) */
+  fatorAntigo?: string
   campos: Campos
 }
 
-/** Tela de NOVA COMPRA (também usada para "repetir" uma compra: os campos vêm preenchidos). */
+/** Linhas de uma compra anterior (repetir): mesma medida, peso e valor; o fator vem da tabela de hoje. */
+function deLinhas(ls: Linha[], cabelo: boolean): LinhaNova[] {
+  return ls.map((l) => {
+    const fator = typeof l.campos.fator === 'string' ? l.campos.fator : undefined
+    return {
+      id: novoId(),
+      modo: fator ? 'tabela' : cabelo ? 'bruto' : 'item',
+      itemId: cabelo ? undefined : l.itemId,
+      quantidade: l.quantidade,
+      total: fator ? undefined : l.total,
+      medida: typeof l.campos.comprimento === 'number' ? l.campos.comprimento : undefined,
+      fatorAntigo: fator,
+      campos: Object.fromEntries(Object.entries(l.campos).filter(([k]) => !CAMPOS_TIRAR.includes(k))),
+    }
+  })
+}
+
+/** Tela de NOVA COMPRA (também usada para "repetir" uma compra: os campos vêm preenchidos). O jeito da tela vem de Configurações › Formulário de compra. */
 export function NovaCompraTela() {
   const { nav } = useApp()
   const { dados: cfg } = useConsulta('configuracoes', {})
+  const { dados: form, erro: erroForm } = useConsulta('formCompra', {})
   const repetir = nav.params.repetir as Id | undefined
   const { dados: base } = useConsulta('compra', { id: repetir ?? '' }, !!repetir)
-  if (!cfg || (repetir && !base)) return <Carregando />
+  const f = form ?? (erroForm ? FORM_COMPRA_PADRAO : undefined)
+  if (!cfg || !f || (repetir && !base)) return <Carregando />
   const modulos = cfg.modulos.filter((m) => m.temCompra && cfg.config.modulosAtivos.includes(m.id))
-  return <NovaCompra key={repetir ?? 'nova'} modulos={modulos} base={base?.compra} />
+  return <NovaCompra key={repetir ?? 'nova'} modulos={modulos} base={base?.compra} form={f} />
 }
 
-function NovaCompra({ modulos, base }: { modulos: { id: string; nome: string; icone: string }[]; base?: Transacao }) {
+function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: string; icone: string }[]; base?: Transacao; form: FormCompraConfig }) {
   const t = useT()
-  const { ir, voltar } = useApp()
+  const { ir, voltar, marcarSujo, sessao } = useApp()
+  const admin = sessao.perfil === 'admin'
   const { executar, ocupado } = useComando()
-  const [id] = useState(() => novoId())
-  const [moduloId, setModuloId] = useState(base?.moduloId ?? modulos[0]?.id ?? 'cabelo')
-  const [pessoaId, setPessoaId] = useState<Id | undefined>(base?.pessoaId)
-  const [obs, setObs] = useState('')
+  // id do rascunho (as fotos já anexadas ficam nele); começar de novo = id novo
+  const [id, setId] = useState(() => novoId())
+  const cfgCampo = (c: CampoFormId) => form.campos.find((x) => x.id === c)
+  const visivel = (c: CampoFormId) => !!cfgCampo(c)?.visivel
+  const obrig = (c: CampoFormId) => !!cfgCampo(c)?.obrigatorio
+  const [moduloId, setModuloId] = useState(base?.moduloId ?? (form.padroes.moduloId && modulos.some((m) => m.id === form.padroes.moduloId) ? form.padroes.moduloId : modulos[0]?.id ?? 'cabelo'))
   const ehCabelo = moduloId === 'cabelo'
-  const [linhas, setLinhas] = useState<LinhaNova[]>(
-    base
-      ? base.linhas.map((l) => ({ id: novoId(), modo: l.campos.fator ? 'tabela' : ehCabelo ? 'bruto' : 'item', itemId: ehCabelo ? undefined : l.itemId, quantidade: l.quantidade, total: l.total, medida: l.campos.comprimento as number | undefined, fator: l.campos.fator as string | undefined, campos: { ...l.campos } }))
-      : [{ id: novoId(), modo: ehCabelo ? 'bruto' : 'item', campos: ehCabelo ? { estado: 'Bruto', categoria: 'Normal' } : {} }],
-  )
+  const modulo = modulos.find((m) => m.id === moduloId)
+  const [pessoaId, setPessoaIdBruto] = useState<Id | undefined>(base?.pessoaId)
+  const [compradorId, setCompradorId] = useState<Id | undefined>(sessao.pessoaId)
+  const moeda = form.padroes.moeda ?? moedaPadrao()
+
+  // código do pedido: o tipo vem da regra (ou do formulário) e dá para trocar só nesta compra
+  const { dados: codigos } = useConsulta('codigos', {}, admin)
+  const regraCompra = codigos?.regras.compra
+  const [modoEscolhido, setModoEscolhido] = useState<ModoCompra | undefined>(form.padroes.modoCodigo)
+  const modoCodigo: ModoCompra = modoEscolhido ?? regraCompra?.modo ?? 'incremental'
+  const [codigo, setCodigo] = useState('')
+  const [codigoOk, setCodigoOk] = useState(true)
+  const marcarCodigo = useCallback((ok: boolean) => setCodigoOk(ok), [])
+  const porComprador = modoCodigo === 'porPessoa' && regraCompra?.base === 'comprador'
+  const { dados: previsto } = useConsulta('codigoDisponivel', { tipo: 'compra', codigo: '', modoCodigo, pessoaId, compradorId }, admin)
+  const codigoMostrado = modoCodigo === 'manual' && codigo.trim() ? codigo.trim() : previsto?.sugestao
+
+  const [obs, setObs] = useState('')
+  const [estado, setEstado] = useState<string[]>([])
+  // VIAGEM: as abertas (funcionária vê só as dela); vem escolhida a viagem aberta de quem comprou (ou de quem registra)
+  const { dados: vgs } = useConsulta('viagens', { status: 'aberta' })
+  const viagensAbertas = vgs?.linhas ?? []
+  const [viagemEscolhida, setViagemEscolhida] = useState<string>()
+  const quemViaja = compradorId ?? sessao.pessoaId
+  const viagemSugerida = quemViaja ? viagensAbertas.find((v) => v.viajantes.some((x) => x.id === quemViaja)) : undefined
+  const viagemId = viagemEscolhida === undefined ? viagemSugerida?.id : viagemEscolhida || undefined
+  const viagemAtual = viagensAbertas.find((v) => v.id === viagemId)
+  const nomeViagem = (v: (typeof viagensAbertas)[number]) => [v.codigo, v.nome, v.destino].filter(Boolean).join(' · ')
+  const [tentou, setTentou] = useState(false)
+  const [abertos, setAbertos] = useState<Set<CampoFormId>>(() => new Set(form.campos.filter((c) => c.aberto || c.obrigatorio).map((c) => c.id)))
+  const [focarCampo, setFocarCampo] = useState<CampoFormId>()
+  const [attrAbertos, setAttrAbertos] = useState<Set<Id>>(new Set())
+
+  const novaLinha = (cabelo: boolean, ant?: LinhaNova): LinhaNova =>
+    cabelo
+      ? { id: novoId(), modo: ant?.modo === 'tabela' || ant?.modo === 'bruto' ? ant.modo : form.padroes.modoLinha, medida: ant?.modo === 'tabela' ? ant.medida : undefined, campos: { categoria: (ant?.campos.categoria as string | undefined) ?? 'Normal', ...(ant?.campos.cor ? { cor: ant.campos.cor } : {}) } }
+      : { id: novoId(), modo: 'item', campos: {} }
+  const [linhas, setLinhas] = useState<LinhaNova[]>(() => (base ? deLinhas(base.linhas, ehCabelo) : [novaLinha(ehCabelo)]))
+  const att = (i: number, d: Partial<LinhaNova>) => setLinhas((ls) => ls.map((l, k) => (k === i ? { ...l, ...d } : l)))
+
   const { dados: tabelas } = useConsulta('tabelasPreco', { moduloId: 'cabelo' })
   const { dados: catalogo } = useConsulta('catalogo', { moduloId })
+  const { dados: cfgApp } = useConsulta('configuracoes', {})
+  const { dados: fila } = useConsulta('filaTriagem', { incluirEncerradas: true })
+  const { dados: conta } = useConsulta('contaPessoa', { pessoaId: pessoaId ?? '' }, !!pessoaId)
+  const { dados: anexos } = useConsulta('anexosDe', { donoId: id })
   const tabela = tabelas?.find((x) => !x.categoria) ?? tabelas?.[0]
-  const colunaFornecedor = tabela?.colunas.find((c) => c.pessoaId === pessoaId)?.id
+  const modCfg = cfgApp?.modulos.find((m) => m.id === moduloId)
+  const etapasFluxo = modCfg?.etapas ?? []
+  // atributos do tipo de item (os do código + os criados em Configurações › Atributos)
+  const camposTipo = modCfg?.tiposItem.find((x) => x.controlaEstoque)?.campos ?? []
+  const extras = camposTipo.filter((c) => !CAMPOS_FIXOS.includes(c.id))
+
+  // fornecedor: recentes, sigla, última compra e a coluna de costume
+  const recentes = [...new Set((fila ?? []).map((c) => c.pessoaId).filter((x): x is Id => !!x))].slice(0, 5)
+  const siglas: Record<Id, string> = Object.fromEntries([...(fila ?? []).filter((c) => c.pessoaId && c.sigla).map((c) => [c.pessoaId!, c.sigla!]), ...(codigos?.pessoas ?? []).map((p) => [p.id, p.sigla])])
+  const ultima = pessoaId ? (fila ?? []).find((c) => c.pessoaId === pessoaId) : undefined
   const [coluna, setColuna] = useState<string>()
-  const col = coluna ?? colunaFornecedor ?? tabela?.colunas[0]?.id
-  const att = (i: number, d: Partial<LinhaNova>) => setLinhas(linhas.map((l, k) => (k === i ? { ...l, ...d } : l)))
+  const colunaUsual = tabela?.colunas.find((c) => c.pessoaId && c.pessoaId === pessoaId)?.id ?? (ultima?.linhas.map((l) => l.campos.colunaId).find((x) => typeof x === 'string') as string | undefined) ?? form.padroes.colunaId
+  const existeColuna = (c?: string) => !!c && !!tabela?.colunas.some((x) => x.id === c)
+  const col = existeColuna(coluna) ? coluna : existeColuna(colunaUsual) ? colunaUsual : tabela?.colunas[0]?.id
+  const nomeColuna = tabela?.colunas.find((c) => c.id === col)?.nome
+  const aplicarPessoa = (p?: Id) => (setPessoaIdBruto(p), setColuna(undefined))
+
+  const fatorDaLinha = (l: LinhaNova) => {
+    if (l.fator?.trim()) return fatorValido(l.fator) ? l.fator.trim() : undefined
+    return (tabela && l.medida && col ? fatorDaTabela(tabela, l.medida, col).fator : undefined) ?? l.fatorAntigo
+  }
   const totalLinha = (l: LinhaNova) => {
     if (l.modo === 'tabela') {
-      const f = l.fator || (tabela && l.medida && col ? fatorDaTabela(tabela, l.medida, col).fator : undefined)
-      return l.quantidade && f && fatorValido(f) ? multiplicarFator(l.quantidade, f, 'BOB') : undefined
+      const f = fatorDaLinha(l)
+      return l.quantidade && f ? multiplicarFator(l.quantidade, f, moeda) : undefined
     }
     return l.total
   }
   const total = linhas.reduce((s, l) => s + (totalLinha(l) ?? 0), 0)
   const pesoTotal = linhas.reduce((s, l) => s + (l.quantidade ?? 0), 0)
+  const custoKg = ehCabelo && pesoTotal > 0 && total > 0 ? Math.round((total * 1000) / pesoTotal) : undefined
+  const descLinha = (l: LinhaNova) =>
+    l.modo === 'tabela' ? `${l.medida ?? '?'} cm · ${t(String(l.campos.categoria ?? 'Normal'))}` : l.modo === 'bruto' ? `${t('Bruto')}${l.campos.cor ? ` · ${t(String(l.campos.cor))}` : ''}` : catalogo?.find((x) => x.id === l.itemId)?.nome ?? '—'
+
+  // o que falta (o botão diz; cada campo mostra o seu depois da primeira tentativa)
+  const faltasLinha = (l: LinhaNova, i: number) => {
+    const n = i + 1
+    const r: string[] = []
+    if (l.modo === 'item' && !l.itemId) r.push(t('item da linha {n}', { n }))
+    if (!l.quantidade) r.push(t(ehCabelo ? 'peso da linha {n}' : 'quantidade da linha {n}', { n }))
+    if (l.modo === 'tabela') {
+      if (l.fator?.trim() && !fatorValido(l.fator)) r.push(t('fator da linha {n}', { n }))
+      else if (!fatorDaLinha(l)) r.push(t(l.medida ? 'fator da linha {n}' : 'medida da linha {n}', { n }))
+    } else if (!l.total) r.push(t('valor da linha {n}', { n }))
+    if (l.modo !== 'item') for (const c of extras.filter((x) => x.obrigatorio)) if (l.campos[c.id] === undefined || l.campos[c.id] === '') r.push(`${t(c.nome)} (${t('linha {n}', { n })})`)
+    return r
+  }
+  const mostrarCodigo = visivel('codigo') && admin && !!codigos
+  const faltas = [
+    ...(obrig('fornecedor') && !pessoaId ? [t('fornecedor')] : []),
+    ...(!linhas.length ? [t('o que veio')] : linhas.flatMap(faltasLinha)),
+    ...(obrig('comprador') && !compradorId ? [t('quem comprou')] : []),
+    ...(mostrarCodigo && modoCodigo === 'manual' && !codigoOk ? [t('código livre')] : []),
+    ...(obrig('estado') && !estado.length ? [t('estado na chegada')] : []),
+    ...(obrig('obs') && !obs.trim() ? [t('observação')] : []),
+    ...(obrig('fotos') && !anexos?.length ? [t('fotos')] : []),
+    ...(obrig('viagem') && !viagemId ? [t('viagem')] : []),
+  ]
+  const pode = !faltas.length && !ocupado
+
+  // passo a passo (opcional): os passos seguem a ordem dos campos; dá para registrar de qualquer passo quando está completo
+  const aplicavel = (c: CampoFormId) => (c === 'coluna' ? ehCabelo && !!tabela : c === 'codigo' ? mostrarCodigo : c === 'viagem' ? viagensAbertas.length > 0 || obrig('viagem') : c !== 'atributos')
+  const campos = form.campos.filter((c) => c.visivel && aplicavel(c.id))
+  const passos = form.layout === 'passos' ? [...new Set(campos.map((c) => PASSO_DO_CAMPO[c.id])), 'Revisar'] : []
+  const [passoTxt, setPasso] = useParamTela('passo', '0')
+  const passo = Math.min(Number(passoTxt) || 0, Math.max(0, passos.length - 1))
+  const noPasso = (c: CampoFormId) => !passos.length || PASSO_DO_CAMPO[c] === passos[passo]
+  const revisando = passos.length > 0 && passos[passo] === 'Revisar'
+  const ultimoPasso = !passos.length || passo >= passos.length - 1
+
+  // algo digitado e não registrado: sair pede confirmação
+  useAvisoSaida(!ocupado && (linhas.some((l) => l.quantidade || l.total) || !!obs.trim() || estado.length > 0))
+
+  const caixa = useRef<HTMLDivElement>(null)
+  // começa no primeiro campo (e no primeiro de cada passo)
+  useEffect(() => {
+    caixa.current?.querySelector<HTMLElement>(SELETOR_CAMPO)?.focus()
+  }, [passo])
+  // campo aberto pelo "+": o cursor vai para ele
+  useEffect(() => {
+    if (!focarCampo) return
+    caixa.current?.querySelector<HTMLElement>(`[data-campo="${focarCampo}"] :is(${SELETOR_CAMPO})`)?.focus()
+    setFocarCampo(undefined)
+  }, [focarCampo])
+
+  const abrir = (c: CampoFormId) => (setAbertos(new Set([...abertos, c])), setFocarCampo(c))
+  const estaAberto = (c: CampoFormId) => abertos.has(c) || (c === 'comprador' && porComprador) || (c === 'viagem' && !!viagemSugerida)
+  // TROCAR fornecedor ou módulo com algo preenchido: pergunta e começa limpo (só o módulo/fornecedor novo fica)
+  const preenchido = linhas.some((l) => l.quantidade || l.total || l.itemId) || estado.length > 0 || !!obs.trim() || (anexos?.length ?? 0) > 0 || !!codigo.trim()
+  const limparRascunho = (cabelo: boolean) => {
+    setLinhas([novaLinha(cabelo)])
+    setEstado([])
+    setObs('')
+    setCodigo('')
+    setTentou(false)
+    setAttrAbertos(new Set())
+    setColuna(undefined)
+    setId(novoId())
+  }
+  /** último fornecedor escolhido ("Trocar" limpa a escolha antes de escolher outro) */
+  const ultimoFornecedor = useRef<Id | undefined>(base?.pessoaId)
+  const [trocando, setTrocando] = useState<{ tipo: 'fornecedor' | 'modulo'; valor?: string; antes?: Id }>()
+  const confirmou = useRef(false)
+  const setPessoaId = (p?: Id) => {
+    const antes = ultimoFornecedor.current
+    if (p && antes && p !== antes && preenchido) {
+      aplicarPessoa(p)
+      confirmou.current = false
+      return setTrocando({ tipo: 'fornecedor', valor: p, antes })
+    }
+    if (p) ultimoFornecedor.current = p
+    aplicarPessoa(p)
+  }
+  const trocarModulo = (m: string) => {
+    if (m === moduloId) return
+    if (preenchido) {
+      confirmou.current = false
+      return setTrocando({ tipo: 'modulo', valor: m })
+    }
+    setModuloId(m)
+    setLinhas([novaLinha(m === 'cabelo')])
+  }
+  const confirmarTroca = () => {
+    if (!trocando) return
+    confirmou.current = true
+    if (trocando.tipo === 'fornecedor') {
+      ultimoFornecedor.current = trocando.valor
+      limparRascunho(ehCabelo)
+    } else {
+      setModuloId(trocando.valor!)
+      limparRascunho(trocando.valor === 'cabelo')
+    }
+  }
+  const fecharTroca = () => {
+    // "Voltar": fica o fornecedor de antes (e o módulo de antes) com tudo o que foi preenchido
+    if (!confirmou.current && trocando?.tipo === 'fornecedor') aplicarPessoa(trocando.antes)
+    setTrocando(undefined)
+  }
 
   const salvar = async () => {
+    if (!pode) {
+      setTentou(true)
+      document.querySelector<HTMLElement>('[data-falta]')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+      return
+    }
     const r = await executar('criarCompra', {
       id,
       moduloId,
       pessoaId,
-      obs,
+      compradorId,
+      modoCodigo: modoEscolhido,
+      codigo: modoCodigo === 'manual' ? codigo.trim() || undefined : undefined,
+      viagemId,
+      obs: [estado.length ? `${t('Estado na chegada')}: ${estado.map((x) => t(x)).join(', ')}` : '', obs.trim()].filter(Boolean).join(' · ') || undefined,
       linhas: linhas.map((l) => {
-        const fator = l.modo === 'tabela' ? l.fator || (tabela && l.medida && col ? fatorDaTabela(tabela, l.medida, col).fator : undefined) : undefined
+        const fator = l.modo === 'tabela' ? fatorDaLinha(l) : undefined
         return {
           id: l.id,
           itemId: l.itemId,
           quantidade: l.quantidade ?? 0,
-          moeda: 'BOB',
+          moeda,
           total: l.total ?? 0,
           campos: { ...l.campos, estado: l.modo === 'bruto' ? 'Bruto' : ehCabelo ? 'Separado' : undefined },
           calculo: fator ? { medida: l.medida, fator, tabelaId: tabela?.id, colunaId: col, categoria: l.campos.categoria as string | undefined } : undefined,
         }
       }),
     }, t('Compra registrada. Agora é só andar a triagem.'))
-    if (r) ir('pedido', { id: r.id })
+    if (r) {
+      marcarSujo(false)
+      ir('pedido', { id: r.id })
+    }
   }
+  const proximo = () => setPasso(String(passo + 1))
+  const principal = ultimoPasso ? salvar : proximo
+
+  // teclado (desktop): Enter vai para o próximo campo; no último, faz o botão principal. Ctrl+Enter registra.
+  const aoTeclar = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.defaultPrevented) return
+    const el = e.target as HTMLElement
+    if (e.ctrlKey || e.metaKey) return (e.preventDefault(), void salvar())
+    if (!['INPUT', 'SELECT'].includes(el.tagName) || el.dataset.enter === 'proprio') return
+    e.preventDefault()
+    const todos = [...e.currentTarget.querySelectorAll<HTMLElement>(SELETOR_CAMPO)].filter((x) => x.tagName !== 'TEXTAREA')
+    const k = todos.indexOf(el)
+    if (k >= 0 && k < todos.length - 1) todos[k + 1].focus()
+    else void principal()
+  }
+
+  const rotuloFalta = faltas.length ? `${t('Falta')}: ${faltas[0]}${faltas.length > 1 ? ` +${faltas.length - 1}` : ''}` : ''
+  const botaoRegistrar = (extra?: string) => (
+    <Botao grande aria-disabled={!pode} disabled={ocupado} onClick={salvar} className={cx('leading-tight', !pode && 'opacity-60', extra)} title={faltas.join(', ')}>
+      {pode ? t('Registrar pedido') : rotuloFalta}
+    </Botao>
+  )
+  const botaoPrincipal = (extra?: string) =>
+    ultimoPasso ? botaoRegistrar(extra) : (
+      <Botao grande onClick={proximo} className={cx('leading-tight', extra)}>{t('Próximo')}: {t(passos[passo + 1])} →</Botao>
+    )
+
+  // ---------- cada campo ----------
+  const sigla = pessoaId ? siglas[pessoaId] : undefined
+  const saldo = conta?.saldo ?? 0
+  const detalheFornecedor = pessoaId ? (
+    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs">
+      {sigla && <span className="rounded bg-[var(--cartao)] px-1.5 py-0.5 font-mono font-bold text-[var(--marca)]">{sigla}</span>}
+      {conta && <span className={cx('font-semibold', saldo < 0 ? 'text-[var(--ruim)]' : saldo > 0 ? 'text-[var(--bom)]' : 'text-[var(--suave)]')}>{saldo < 0 ? `${t('Devo')} ${formatar(-saldo, conta.moeda)}` : saldo > 0 ? `${t('Me deve')} ${formatar(saldo, conta.moeda)}` : t('Conta em dia')}</span>}
+      {ultima && (
+        <a href={`#/pedidos/${encodeURIComponent(ultima.id)}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-[var(--suave)] hover:text-[var(--marca)] hover:underline">
+          {t('Última')}: {dataBR(ultima.data)} · {gramasTexto(ultima.linhas.reduce((s, l) => s + l.quantidade, 0))} · {formatar(ultima.totalPrincipal, ultima.moedaPrincipal)} ↗
+        </a>
+      )}
+      {ultima && ultima.moduloId === moduloId && (
+        <button type="button" className="min-h-11 font-semibold text-[var(--marca)]" onClick={() => setLinhas(deLinhas(ultima.linhas, ehCabelo))}>⟳ {t('Repetir a última')}</button>
+      )}
+    </div>
+  ) : undefined
+
+
+  const linhaTela = (l: LinhaNova, i: number) => {
+    const fator = l.modo === 'tabela' ? fatorDaLinha(l) : undefined
+    const fatorTabela = tabela && l.medida && col ? fatorDaTabela(tabela, l.medida, col).fator : undefined
+    const tl = totalLinha(l)
+    const faltam = faltasLinha(l, i)
+    const tocado = tentou || !!l.quantidade || !!l.total || !!l.medida
+    const resumoAttr = resumoCampos(camposTipo, l.campos, CAMPOS_FIXOS)
+    const mostrarAttr = l.modo !== 'item' && extras.length > 0 && (visivel('atributos') || extras.some((c) => c.obrigatorio))
+    const attrAberto = attrAbertos.has(l.id) || (visivel('atributos') && !!cfgCampo('atributos')?.aberto && !attrAbertos.has(`-${l.id}`)) || (tentou && faltam.some((x) => x.includes('(')))
+    const alternarAttr = () => {
+      const s = new Set(attrAbertos)
+      if (attrAberto) (s.delete(l.id), s.add(`-${l.id}`))
+      else (s.add(l.id), s.delete(`-${l.id}`))
+      setAttrAbertos(s)
+    }
+    return (
+      <div key={l.id} className={cx('rounded-xl border p-3', tentou && faltam.length ? 'border-[var(--ruim)]/60' : 'border-[var(--borda)]')}>
+        <div className="mb-2 flex items-center gap-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--marca-suave)] text-xs font-bold text-[var(--marca)]">{i + 1}</span>
+          {ehCabelo && (
+            <div role="radiogroup" aria-label={t('Como veio')} className="flex min-w-0 flex-1 gap-1 rounded-xl bg-[var(--marca-suave)] p-1 sm:flex-none">
+              {(['bruto', 'tabela'] as const).map((m) => (
+                <button key={m} type="button" role="radio" aria-checked={l.modo === m} onClick={() => att(i, { modo: m })} className={cx('min-h-9 flex-1 whitespace-nowrap rounded-lg px-3 text-sm font-semibold', l.modo === m ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
+                  {t(m === 'bruto' ? 'Bruto' : 'Pela tabela')}
+                </button>
+              ))}
+            </div>
+          )}
+          {ehCabelo && <Info texto="Bruto = lote misturado, separa depois (peso + valor pago). Pela tabela = já separado: medida | gramas × fator da coluna do fornecedor." />}
+          {linhas.length > 1 && <button type="button" className="ml-auto h-11 w-11 shrink-0 rounded-xl text-xl hover:bg-[var(--fundo)]" aria-label={t('Tirar a linha {n}', { n: i + 1 })} onClick={() => setLinhas(linhas.filter((_, k) => k !== i))}>×</button>}
+        </div>
+
+        {l.modo === 'tabela' && (
+          <div className="mb-2">
+            <span className="mb-1 block text-sm font-semibold text-[var(--suave)]">{t('Medida (cm)')}</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {form.medidas.map((m) => (
+                <button key={m} type="button" aria-pressed={l.medida === m} onClick={() => att(i, { medida: m })} className={cx('num min-h-11 min-w-11 rounded-xl border px-2 text-sm font-bold', l.medida === m ? 'border-[var(--marca)] bg-[var(--marca)] text-white' : 'border-[var(--borda)] hover:border-[var(--marca)]')}>
+                  {m}
+                </button>
+              ))}
+              <Entrada aria-label={t('Outra medida (cm)')} inputMode="numeric" className="num w-20" placeholder={t('outra')} value={l.medida && !form.medidas.includes(l.medida) ? l.medida : ''} onChange={(e) => att(i, { medida: Number(e.target.value.replace(/\D/g, '')) || undefined })} />
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {l.modo === 'item' && (
+            <Campo rotulo="Item" className="col-span-2">
+              <Selecao valor={l.itemId} onChange={(v) => att(i, { itemId: v || undefined })} vazio="Escolha…" opcoes={(catalogo ?? []).map((x) => ({ id: x.id, nome: x.nome }))} />
+            </Campo>
+          )}
+          {l.modo === 'tabela' && (
+            <Campo rotulo="Categoria">
+              <Selecao valor={String(l.campos.categoria ?? 'Normal')} onChange={(v) => att(i, { campos: { ...l.campos, categoria: v } })} opcoes={CATEGORIAS_CABELO.map((c) => ({ id: c, nome: c }))} />
+            </Campo>
+          )}
+          <Campo rotulo={ehCabelo ? 'Peso' : 'Quantidade'}>
+            {ehCabelo ? <GramasInput valor={l.quantidade} onChange={(q) => att(i, { quantidade: q })} /> : <Entrada inputMode="numeric" value={l.quantidade ?? ''} onChange={(e) => att(i, { quantidade: Number(e.target.value.replace(/\D/g, '')) || undefined })} />}
+          </Campo>
+          {l.modo === 'tabela' ? (
+            <Campo rotulo="Fator">
+              <Entrada inputMode="decimal" className={cx('num', l.fator?.trim() && !fatorValido(l.fator) && 'border-[var(--ruim)]')} value={l.fator ?? ''} placeholder={fatorTabela ?? l.fatorAntigo ?? '?'} onChange={(e) => att(i, { fator: e.target.value })} />
+            </Campo>
+          ) : (
+            <Campo rotulo="Valor total" className={l.modo === 'item' ? 'col-span-2 sm:col-span-1' : ''}><ValorInput moeda={moeda} valor={l.total} onChange={(v) => att(i, { total: v })} /></Campo>
+          )}
+        </div>
+
+        {l.modo === 'tabela' && (l.medida || l.quantidade) ? (
+          <p className={cx('num mt-3 break-words text-xl font-black leading-tight sm:text-2xl', tl === undefined && 'text-[var(--suave)]')} aria-live="polite">
+            {l.medida ?? '?'} | {l.quantidade ? l.quantidade.toLocaleString(loc()) : '?'} × {fator ?? '?'} = {tl !== undefined ? formatar(tl, moeda) : '?'}
+          </p>
+        ) : null}
+        {l.modo === 'tabela' && !l.fator?.trim() && !fatorTabela && l.fatorAntigo && <p className="mt-1 text-xs text-[var(--suave)]">{t('Fator da compra repetida (a tabela não tem esta medida).')}</p>}
+        {ehCabelo && l.quantidade && tl ? <p className="num mt-1 text-sm text-[var(--suave)]">{formatar(Math.round((tl * 1000) / l.quantidade), moeda)}/kg</p> : null}
+
+        {mostrarAttr && (
+          <div className="mt-2 rounded-xl bg-[var(--fundo)]">
+            <button type="button" aria-expanded={attrAberto} onClick={alternarAttr} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm">
+              <span aria-hidden className="text-xs">{attrAberto ? '▾' : '▸'}</span>
+              <b className="shrink-0">{t('Atributos')}</b>
+              <span className="min-w-0 truncate text-[var(--suave)]">{resumoAttr.length ? resumoAttr.map((x) => x.valor).join(' · ') : t('nenhum')}</span>
+            </button>
+            {attrAberto && <div className="px-3 pb-3"><CamposDinamicos campos={camposTipo} valores={l.campos} pular={CAMPOS_FIXOS} onChange={(v) => att(i, { campos: v })} /></div>}
+          </div>
+        )}
+        {tocado && faltam.length > 0 && (tentou || l.quantidade) ? <p data-falta={tentou ? '' : undefined} className={cx('mt-2 text-xs font-semibold', tentou ? 'text-[var(--ruim)]' : 'text-[var(--suave)]')}>{t('Falta')}: {faltam.map((x) => x.replace(` ${t('da linha {n}', { n: i + 1 })}`, '')).join(', ')}</p> : null}
+      </div>
+    )
+  }
+
+  const campoTela = (c: CampoFormId): ReactNode => {
+    switch (c) {
+      case 'fornecedor':
+        return (
+          <Bloco obrigatorio={obrig(c)} campo={c}>
+            <BuscaPessoa rotulo={obrig('fornecedor') ? 'De quem? *' : 'De quem?'} valor={pessoaId} onChange={setPessoaId} papel="fornecedor" recentes={recentes} siglas={siglas} detalhe={detalheFornecedor} erro={tentou && obrig('fornecedor') && !pessoaId ? `${t('Falta')}: ${t('fornecedor')}` : undefined} />
+          </Bloco>
+        )
+      case 'itens':
+        return (
+          <Bloco obrigatorio={obrig(c)} campo={c} titulo="O que veio" acao={<span className="num text-sm font-bold">{formatar(total, moeda)}</span>}>
+            <div className="space-y-3">
+              {linhas.map(linhaTela)}
+              <Botao variante="secundario" className="min-h-11 w-full sm:w-auto" onClick={() => setLinhas([...linhas, novaLinha(ehCabelo, linhas[linhas.length - 1])])}>+ {t('Outra linha')}</Botao>
+            </div>
+          </Bloco>
+        )
+      case 'codigo':
+        return (
+          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Código do pedido" acao={<Info texto="Como este pedido vai ser chamado (e os lotes dele). Escolha o tipo só para esta compra; a regra fica em Configurações › Códigos." />}>
+            <CampoCodigoCompra
+              modo={modoCodigo}
+              onModo={(m) => (setModoEscolhido(m), setCodigo(''))}
+              valor={codigo}
+              onChange={setCodigo}
+              contexto={{ pessoaId, compradorId }}
+              onEstado={marcarCodigo}
+              semPessoa={(regraCompra?.base === 'comprador' ? !compradorId : !pessoaId) ? (regraCompra?.base === 'comprador' ? 'Sem quem comprou: sai o incremental.' : 'Sem fornecedor: sai o incremental.') : undefined}
+            />
+          </Bloco>
+        )
+      case 'coluna':
+        return (
+          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Coluna da tabela" acao={<Info texto="Compra pela tabela: medida | gramas × fator da coluna do fornecedor. Vem a coluna ligada ao fornecedor (ou a da última compra dele)." />}>
+            <Selecao valor={col} onChange={setColuna} opcoes={(tabela?.colunas ?? []).map((x) => ({ id: x.id, nome: x.id === colunaUsual ? `${x.nome} · ${t('do fornecedor')}` : x.nome }))} />
+          </Bloco>
+        )
+      case 'comprador':
+        return (
+          <Bloco obrigatorio={obrig(c)} campo={c}>
+            <SeletorPessoa rotulo={obrig('comprador') || porComprador ? 'Quem comprou? *' : 'Quem comprou?'} valor={compradorId} onChange={setCompradorId} papel="funcionario" opcional={!obrig('comprador') && !porComprador} />
+            <Falta se={tentou && obrig('comprador') && !compradorId} texto={t('quem comprou')} />
+          </Bloco>
+        )
+      case 'estado':
+        return (
+          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Estado na chegada">
+            <div className="flex flex-wrap gap-2">
+              {form.estados.map((e) => (
+                <button key={e} type="button" aria-pressed={estado.includes(e)} onClick={() => setEstado(estado.includes(e) ? estado.filter((x) => x !== e) : [...estado, e])} className={cx('min-h-11 rounded-full border px-3 text-sm', estado.includes(e) ? 'border-[var(--marca)] bg-[var(--marca)] font-semibold text-white' : 'border-[var(--borda)] hover:border-[var(--marca)]')}>
+                  {t(e)}
+                </button>
+              ))}
+            </div>
+            <Falta se={tentou && obrig('estado') && !estado.length} texto={t('estado na chegada')} />
+          </Bloco>
+        )
+      case 'obs':
+        return (
+          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Observação">
+            <textarea rows={2} aria-label={t('Observação')} value={obs} onChange={(e) => setObs(e.target.value)} placeholder={t('Ex.: veio em 3 sacos, 1 com fios mais curtos.')} className="w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-base outline-none focus:border-[var(--marca)]" />
+            <Falta se={tentou && obrig('obs') && !obs.trim()} texto={t('observação')} />
+          </Bloco>
+        )
+      case 'fotos':
+        return (
+          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Fotos e arquivos">
+            <Anexos donoId={id} categorias={['pedido', 'produto', 'comprovante', 'origem']} />
+            <Falta se={tentou && obrig('fotos') && !anexos?.length} texto={t('fotos')} />
+          </Bloco>
+        )
+      case 'viagem':
+        return (
+          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Viagem" acao={<Info texto="Compra feita numa viagem de compra: os gastos da viagem são divididos entre as compras dela e o resultado da viagem conta com esta." />}>
+            <Selecao valor={viagemId ?? ''} onChange={(v) => setViagemEscolhida(v)} vazio={t('Sem viagem')} opcoes={viagensAbertas.map((v) => ({ id: v.id, nome: nomeViagem(v) }))} />
+            {viagemSugerida && viagemId === viagemSugerida.id && viagemEscolhida === undefined && <p className="mt-1 text-xs text-[var(--suave)]">{t('Escolhida porque quem comprou está nesta viagem.')}</p>}
+            <Falta se={tentou && obrig('viagem') && !viagemId} texto={t('viagem')} />
+          </Bloco>
+        )
+      default:
+        return null
+    }
+  }
+  /** rótulo do "+" de um campo fechado (com o valor que já vale, quando tem) */
+  const rotuloFechado = (c: CampoFormId) => {
+    if (c === 'codigo') return `# ${codigoMostrado ?? t('Código do pedido')}`
+    if (c === 'coluna') return `${t('Coluna')}: ${nomeColuna ?? '—'}`
+    if (c === 'fotos') return `+ ${t('Fotos')}${anexos?.length ? ` (${anexos.length})` : ''}`
+    if (c === 'estado') return `+ ${t('Estado na chegada')}`
+    if (c === 'obs') return `+ ${t('Observação')}`
+    return `+ ${t(CAMPOS_FORM[c].nome)}`
+  }
+
+  const partes: ReactNode[] = []
+  let fechados: CampoFormId[] = []
+  const soltar = () => {
+    if (!fechados.length) return
+    const ids = fechados
+    partes.push(
+      <div key={`mais-${ids.join('-')}`} className="flex flex-wrap gap-2">
+        {ids.map((c) => (
+          <button key={c} type="button" data-campo-fechado={c} onClick={() => abrir(c)} className={cx('min-h-11 max-w-full truncate rounded-full border border-dashed px-4 text-sm font-semibold', c === 'codigo' ? 'font-mono' : '', 'border-[var(--borda)] text-[var(--marca)] hover:border-[var(--marca)] hover:bg-[var(--marca-suave)]')}>
+            {c === 'comprador' && compradorId ? <NomeComprador id={compradorId} /> : rotuloFechado(c)}
+          </button>
+        ))}
+      </div>,
+    )
+    fechados = []
+  }
+  for (const c of campos.filter((x) => noPasso(x.id))) {
+    if (estaAberto(c.id)) {
+      soltar()
+      partes.push(<Fragment key={c.id}>{campoTela(c.id)}</Fragment>)
+    } else fechados.push(c.id)
+  }
+  soltar()
+
+  const linhasResumo = linhas.map((l) => ({ id: l.id, texto: descLinha(l), qtd: ehCabelo ? gramasTexto(l.quantidade ?? 0) : String(l.quantidade ?? 0), valor: totalLinha(l) }))
+  const nomeFornecedor = ultima?.pessoa ?? (pessoaId ? conta?.pessoa?.nome : undefined)
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2">
-        <Botao variante="leve" onClick={voltar}>← {t('Pedidos')}</Botao>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <Botao variante="leve" onClick={voltar}>← {t('Voltar')}</Botao>
+        {admin && <button type="button" onClick={() => ir('config', { aba: 'formCompra' })} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Personalizar')}</button>}
       </div>
-      <h1 className="mb-4 text-2xl font-bold">{t(base ? 'Repetir compra' : 'Nova compra')}</h1>
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-      <div className="space-y-4">
-        <Cartao titulo={t('1. Fornecedor e tipo')}>
-        <div className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Campo rotulo="O que está comprando?">
-            <Selecao valor={moduloId} onChange={setModuloId} opcoes={modulos.map((m) => ({ id: m.id, nome: `${m.icone} ${t(m.nome)}` }))} />
-          </Campo>
-          <SeletorPessoa rotulo="De quem?" valor={pessoaId} onChange={setPessoaId} papel="fornecedor" />
-        </div>
-        {ehCabelo && tabela && (
-          <Campo rotulo="Coluna da tabela (preço do fornecedor)" ajuda="Compra pela tabela: medida | gramas × fator da coluna do fornecedor.">
-            <Selecao valor={col} onChange={setColuna} opcoes={tabela.colunas.map((c) => ({ id: c.id, nome: c.nome }))} />
-          </Campo>
-        )}
-        </div>
-        </Cartao>
-        <Cartao titulo={t('2. O que veio')}>
-        <div className="space-y-3">
-        {linhas.map((l, i) => (
-          <div key={l.id} className="rounded-xl border border-[var(--borda)] p-3">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              {ehCabelo && (
-                <div className="flex gap-1">
-                  {(['bruto', 'tabela'] as const).map((m) => (
-                    <button key={m} type="button" onClick={() => att(i, { modo: m })} className={cx('rounded-lg px-3 py-1 text-sm font-semibold', l.modo === m ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
-                      {t(m === 'bruto' ? 'Lote bruto (separar depois)' : 'Já separado (pela tabela)')}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <button type="button" className="ml-auto text-xl" aria-label={t('Tirar')} onClick={() => setLinhas(linhas.filter((_, k) => k !== i))}>×</button>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-4">
-              {l.modo === 'item' && (
-                <Campo rotulo="Item" className="sm:col-span-2">
-                  <Selecao valor={l.itemId} onChange={(v) => att(i, { itemId: v })} vazio="Escolha…" opcoes={(catalogo ?? []).map((x) => ({ id: x.id, nome: x.nome }))} />
-                </Campo>
-              )}
-              {l.modo === 'tabela' && (
-                <>
-                  <Campo rotulo="Medida (cm)"><Entrada inputMode="numeric" value={l.medida ?? ''} onChange={(e) => att(i, { medida: Number(e.target.value) || undefined })} /></Campo>
-                  <Campo rotulo="Categoria"><Selecao valor={String(l.campos.categoria ?? 'Normal')} onChange={(v) => att(i, { campos: { ...l.campos, categoria: v } })} opcoes={['Normal', 'Tinte', 'CH', 'CH+', 'Rojo', 'Quemado', 'Menudo', 'Entresaque'].map((c) => ({ id: c, nome: c }))} /></Campo>
-                </>
-              )}
-              <Campo rotulo={moduloId === 'cabelo' ? 'Peso' : 'Quantidade'}>
-                {moduloId === 'cabelo' ? <GramasInput valor={l.quantidade} onChange={(q) => att(i, { quantidade: q })} /> : <Entrada inputMode="numeric" value={l.quantidade ?? ''} onChange={(e) => att(i, { quantidade: Number(e.target.value) || undefined })} />}
-              </Campo>
-              {l.modo === 'tabela' ? (
-                <Campo rotulo="Fator">
-                  <Entrada inputMode="decimal" value={l.fator ?? ''} placeholder={tabela && l.medida && col ? fatorDaTabela(tabela, l.medida, col).fator ?? '?' : '?'} onChange={(e) => att(i, { fator: e.target.value })} />
-                </Campo>
-              ) : (
-                <Campo rotulo="Valor total"><ValorInput moeda="BOB" valor={l.total} onChange={(v) => att(i, { total: v })} /></Campo>
-              )}
-            </div>
-            {l.modo === 'bruto' && (
-              <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                <Campo rotulo="Cor"><Selecao valor={String(l.campos.cor ?? '')} vazio="—" onChange={(v) => att(i, { campos: { ...l.campos, cor: v } })} opcoes={['Misturado', 'Preto', 'Castanho', 'Loiro'].map((c) => ({ id: c, nome: c }))} /></Campo>
-                <Campo rotulo="Origem"><Selecao valor={String(l.campos.origem ?? '')} vazio="—" onChange={(v) => att(i, { campos: { ...l.campos, origem: v } })} opcoes={['Bolívia', 'Paraguai', 'Brasil', 'Peru', 'Outro'].map((c) => ({ id: c, nome: c }))} /></Campo>
-                {l.quantidade && l.total ? <p className="self-end text-sm text-[var(--suave)]">{t('Custo por kg')}: <b className="num">{formatar(Math.round((l.total * 1000) / l.quantidade), 'BOB')}</b></p> : null}
-              </div>
-            )}
-            {l.modo === 'tabela' && totalLinha(l) !== undefined && (
-              <p className="num mt-2 font-bold">{l.medida} | {l.quantidade?.toLocaleString('pt-BR')} × {l.fator || (tabela && l.medida && col ? fatorDaTabela(tabela, l.medida, col).fator : '?')} = {formatar(totalLinha(l)!, 'BOB')}</p>
-            )}
-          </div>
-        ))}
-        <Botao variante="secundario" onClick={() => setLinhas([...linhas, { id: novoId(), modo: ehCabelo ? 'tabela' : 'item', campos: ehCabelo ? { categoria: 'Normal' } : {} }])}>+ {t('Outra linha')}</Botao>
-        </div>
-        </Cartao>
-        <Cartao titulo={t('3. Fotos, PDF e arquivos')} ajuda="Foto do cabelo/pedido e o comprovante de origem. Ex.: foto do lote na balança + recibo de quem vendeu.">
-          <Anexos donoId={id} categorias={['pedido', 'produto', 'comprovante', 'origem']} />
-          <div className="mt-3"><Campo rotulo="Observação"><Entrada value={obs} onChange={(e) => setObs(e.target.value)} /></Campo></div>
-        </Cartao>
-      </div>
+      <h1 className="mb-3 text-2xl font-bold">{t(base ? 'Repetir compra' : 'Nova compra')}</h1>
 
-      {/* resumo fixo ao lado */}
-      <aside className="h-fit space-y-3 lg:sticky lg:top-4">
-        <Cartao titulo={t('Resumo do pedido')}>
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between"><dt className="text-[var(--suave)]">{t('Linhas')}</dt><dd className="num">{linhas.length}</dd></div>
-            {ehCabelo && <div className="flex justify-between"><dt className="text-[var(--suave)]">{t('Peso')}</dt><dd className="num">{gramasTexto(pesoTotal)}</dd></div>}
-            {ehCabelo && pesoTotal > 0 && total > 0 && <div className="flex justify-between"><dt className="text-[var(--suave)]">{t('Custo por kg')}</dt><dd className="num">{formatar(Math.round((total * 1000) / pesoTotal), 'BOB')}</dd></div>}
-            <div className="flex justify-between border-t border-[var(--borda)] pt-2 text-base font-bold"><dt>{t('Total')}</dt><dd className="num">{formatar(total, 'BOB')}</dd></div>
-          </dl>
-          <Botao grande className="mt-4 w-full" disabled={ocupado || !linhas.length || total <= 0} onClick={salvar}>{t('Registrar pedido')}</Botao>
-          <p className="mt-2 text-xs text-[var(--suave)]">{t('Depois de registrar, o pedido anda pela triagem: Chegou → Conferido → Pago → No estoque.')}</p>
-        </Cartao>
-        {pessoaId && <ContaFornecedor pessoaId={pessoaId} />}
-      </aside>
+      {passos.length > 0 && (
+        <ol className="mb-3 flex gap-1 overflow-x-auto pb-1" aria-label={t('Passos')}>
+          {passos.map((nome, i) => (
+            <li key={nome} className="shrink-0">
+              <button type="button" aria-current={passo === i ? 'step' : undefined} onClick={() => setPasso(String(i))} className={cx('flex min-h-11 items-center gap-2 rounded-full px-3 text-sm font-semibold', passo === i ? 'bg-[var(--marca)] text-white' : i < passo ? 'bg-[var(--marca-suave)] text-[var(--marca)]' : 'border border-[var(--borda)] text-[var(--suave)]')}>
+                <span className="num">{i < passo ? '✓' : i + 1}</span> {t(nome)}
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {trocando && (
+        <Confirmar
+          titulo={trocando.tipo === 'fornecedor' ? 'Trocar o fornecedor?' : 'Trocar o que está comprando?'}
+          texto={trocando.tipo === 'fornecedor' ? 'Trocar o fornecedor apaga o que foi preenchido. Continuar?' : 'Trocar o que está comprando apaga o que foi preenchido. Continuar?'}
+          rotulo="Continuar"
+          onConfirmar={confirmarTroca}
+          onFechar={fecharTroca}
+        />
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div ref={caixa} onKeyDown={aoTeclar} className="min-w-0 space-y-3">
+          {modulos.length > 1 && (!passos.length || passo === 0) && (
+            modulos.length <= 4 ? (
+              <div role="radiogroup" aria-label={t('O que está comprando?')} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {modulos.map((m) => (
+                  <button key={m.id} type="button" role="radio" aria-checked={m.id === moduloId} onClick={() => trocarModulo(m.id)} className={cx('flex min-h-14 min-w-0 items-center gap-2 rounded-2xl border-2 px-2 py-2 text-left text-sm font-semibold', m.id === moduloId ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] hover:border-[var(--marca)]')}>
+                    <span className="text-2xl" aria-hidden>{m.icone}</span>
+                    <span className="min-w-0 break-words leading-tight [overflow-wrap:anywhere]">{t(m.nome)}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <Campo rotulo="O que está comprando?"><Selecao valor={moduloId} onChange={trocarModulo} opcoes={modulos.map((m) => ({ id: m.id, nome: `${m.icone} ${t(m.nome)}` }))} /></Campo>
+            )
+          )}
+
+          {revisando ? (
+            <Cartao titulo={t('Revisar e registrar')}>
+              <ul className="divide-y divide-[var(--borda)] text-sm">
+                {mostrarCodigo && <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Código do pedido')}</span><b className="font-mono">{codigoMostrado ?? '…'}</b></li>}
+                <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Tipo')}</span><b>{modulo?.icone} {t(modulo?.nome ?? moduloId)}</b></li>
+                <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Fornecedor')}</span><b>{nomeFornecedor ?? t('Sem fornecedor')}</b></li>
+                {viagemAtual && <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Viagem')}</span><b className="min-w-0 truncate">✈️ {nomeViagem(viagemAtual)}</b></li>}
+                {linhasResumo.map((l) => (
+                  <li key={l.id} className="flex justify-between gap-3 py-2"><span className="min-w-0 truncate">{l.texto}</span><span className="num shrink-0">{l.qtd} · <b>{formatar(l.valor ?? 0, moeda)}</b></span></li>
+                ))}
+                {(estado.length > 0 || obs.trim()) && <li className="py-2"><span className="text-[var(--suave)]">{t('Estado na chegada')}:</span> {[...estado.map((x) => t(x)), obs.trim()].filter(Boolean).join(' · ')}</li>}
+              </ul>
+            </Cartao>
+          ) : (
+            partes
+          )}
+
+          {passos.length > 0 && (
+            <div className="hidden flex-wrap justify-between gap-2 lg:flex">
+              <Botao variante="secundario" disabled={passo === 0} onClick={() => setPasso(String(passo - 1))}>← {t('Anterior')}</Botao>
+              <div className="flex flex-wrap gap-2">
+                {!ultimoPasso && pode && <Botao variante="secundario" onClick={salvar}>{t('Registrar agora')}</Botao>}
+                {botaoPrincipal()}
+              </div>
+            </div>
+          )}
+
+          {/* celular: total e o botão principal sempre à mão */}
+          <div className="sticky bottom-[calc(4.75rem_+_env(safe-area-inset-bottom))] z-10 flex items-center gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-2 pl-3 shadow-lg md:bottom-4 lg:hidden">
+            <div className="min-w-0 flex-1">
+              <div className="num truncate text-lg font-black leading-tight">{formatar(total, moeda)}</div>
+              <div className="num truncate text-xs text-[var(--suave)]">{ehCabelo ? gramasTexto(pesoTotal) : `${linhas.length} ${t('item(ns)')}`}{codigoMostrado && mostrarCodigo ? ` · ${codigoMostrado}` : ''}</div>
+            </div>
+            {passos.length > 0 && passo > 0 && <button type="button" aria-label={t('Anterior')} className="h-12 w-11 shrink-0 rounded-xl text-lg text-[var(--marca)] hover:bg-[var(--marca-suave)]" onClick={() => setPasso(String(passo - 1))}>←</button>}
+            {!ultimoPasso && pode && <Botao variante="secundario" className="shrink-0 px-3" aria-label={t('Registrar agora')} title={t('Registrar agora')} onClick={salvar}>✓</Botao>}
+            {botaoPrincipal('max-w-[60%] shrink-0 px-4 text-sm')}
+          </div>
+        </div>
+
+        {/* resumo fixo ao lado (desktop) */}
+        <aside className="hidden h-fit lg:sticky lg:top-4 lg:block">
+          <Cartao titulo={t('Resumo do pedido')}>
+            <dl className="space-y-2 text-sm">
+              {mostrarCodigo && <div className="flex justify-between gap-2"><dt className="text-[var(--suave)]">{t('Código')}</dt><dd className="truncate font-mono font-bold text-[var(--marca)]">{codigoMostrado ?? '…'}</dd></div>}
+              <div className="flex justify-between gap-2"><dt className="text-[var(--suave)]">{t('Fornecedor')}</dt><dd className="truncate font-semibold">{nomeFornecedor ?? '—'}</dd></div>
+              {viagemAtual && <div className="flex justify-between gap-2"><dt className="text-[var(--suave)]">{t('Viagem')}</dt><dd className="truncate font-semibold">✈️ {nomeViagem(viagemAtual)}</dd></div>}
+            </dl>
+            <ul className="my-3 space-y-1 border-y border-[var(--borda)] py-2 text-sm">
+              {linhasResumo.map((l, i) => (
+                <li key={l.id} className="flex justify-between gap-2">
+                  <span className="min-w-0 truncate"><span className="text-[var(--suave)]">{i + 1}.</span> {l.texto}</span>
+                  <span className="num shrink-0 text-right">{l.qtd} · {l.valor !== undefined ? formatar(l.valor, moeda) : '—'}</span>
+                </li>
+              ))}
+            </ul>
+            <dl className="space-y-1 text-sm">
+              {ehCabelo && <div className="flex justify-between"><dt className="text-[var(--suave)]">{t('Peso')}</dt><dd className="num">{gramasTexto(pesoTotal)}</dd></div>}
+              {custoKg !== undefined && <div className="flex justify-between"><dt className="text-[var(--suave)]">{t('Custo por kg')}</dt><dd className="num">{formatar(custoKg, moeda)}</dd></div>}
+              <div className="flex justify-between border-t border-[var(--borda)] pt-2 text-lg font-black"><dt>{t('Total')}</dt><dd className="num">{formatar(total, moeda)}</dd></div>
+            </dl>
+            <div className="mt-4 flex flex-col gap-2">
+              {botaoPrincipal('w-full')}
+              {!ultimoPasso && pode && <Botao variante="secundario" className="w-full" onClick={salvar}>{t('Registrar agora')}</Botao>}
+            </div>
+            {!pode && tentou && faltas.length > 1 && <p className="mt-2 text-xs text-[var(--ruim)]">{t('Falta')}: {faltas.join(', ')}</p>}
+            <p className="mt-2 text-xs text-[var(--suave)]">{t('Depois de registrar, o pedido anda pela triagem')}: {etapasFluxo.map((e) => t(e.nome)).join(' → ')}.</p>
+            <p className="mt-1 hidden text-xs text-[var(--suave)] lg:block">{t('Enter: próximo campo · Ctrl+Enter: registrar')}</p>
+          </Cartao>
+        </aside>
       </div>
     </div>
   )
 }
 
-/** Situação do fornecedor ao lado da compra: saldo da conta e as últimas compras dele. */
-function ContaFornecedor({ pessoaId }: { pessoaId: Id }) {
+/** compra recusada/cancelada não entra em viagem */
+const encerradaSemViagem = (etapa: string) => etapa === 'recusado' || etapa === 'cancelado'
+
+/** Ligar a compra a uma viagem aberta (admin): usa o "ligar compras" da viagem (uma viagem por compra). */
+function LigarViagem({ compraId, onFechar }: { compraId: Id; onFechar(): void }) {
   const t = useT()
-  const { ir } = useApp()
-  const { dados: conta } = useConsulta('contaPessoa', { pessoaId })
-  const { dados: fila } = useConsulta('filaTriagem', { incluirEncerradas: true })
-  const ultimas = (fila ?? []).filter((c) => c.pessoaId === pessoaId).slice(0, 3)
-  if (!conta) return null
+  const { dados } = useConsulta('viagens', { status: 'aberta' })
+  const { executar, ocupado } = useComando()
+  const [viagemId, setViagemId] = useState('')
+  const abertas = dados?.linhas ?? []
   return (
-    <Cartao titulo={conta.pessoa?.nome}>
-      <p className={cx('text-sm font-semibold', conta.saldo > 0 ? 'text-[var(--bom)]' : conta.saldo < 0 ? 'text-[var(--ruim)]' : 'text-[var(--suave)]')}>{t(conta.texto)}</p>
-      {ultimas.length > 0 && (
-        <ul className="mt-2 space-y-1 text-sm">
-          {ultimas.map((c) => (
-            <li key={c.id}>
-              <button type="button" onClick={() => ir('pedido', { id: c.id })} className="flex w-full justify-between gap-2 text-left hover:text-[var(--marca)]">
-                <span className="truncate"><span className="font-mono text-xs">{codigoDe(c)}</span> · {dataBR(c.data)}</span>
-                <span className="num">{formatar(c.totalPrincipal, c.moedaPrincipal)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+    <Janela aberta titulo={t('Ligar a uma viagem')} onFechar={onFechar} rodape={
+      <Botao grande className="w-full" disabled={ocupado || !viagemId} onClick={async () => (await executar('vincularCompras', { viagemId, compraIds: [compraId] }, t('Compra ligada à viagem.'))) && onFechar()}>✈️ {t('Ligar')}</Botao>
+    }>
+      {!dados ? <Carregando /> : !abertas.length ? <p className="text-sm text-[var(--suave)]">{t('Nenhuma viagem aberta.')}</p> : (
+        <Campo rotulo="Viagem"><Selecao valor={viagemId} onChange={setViagemId} vazio={t('Escolha…')} opcoes={abertas.map((v) => ({ id: v.id, nome: [v.codigo, v.nome, v.destino].filter(Boolean).join(' · ') }))} /></Campo>
       )}
-    </Cartao>
+    </Janela>
   )
+}
+
+/** Um campo do formulário de compra (cartão com título; * quando obrigatório). */
+function Bloco({ campo, titulo, obrigatorio, children, acao }: { campo: CampoFormId; titulo?: string; obrigatorio?: boolean; children: ReactNode; acao?: ReactNode }) {
+  const t = useT()
+  return (
+    <section data-campo={campo} className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 sm:p-4">
+      {(titulo || acao) && (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-bold">{titulo && t(titulo)}{titulo && obrigatorio && <span className="text-[var(--ruim)]"> *</span>}</h2>
+          {acao}
+        </div>
+      )}
+      {children}
+    </section>
+  )
+}
+
+/** "Falta: …" embaixo do campo (aparece depois da primeira tentativa de registrar). */
+function Falta({ se, texto }: { se: boolean; texto: string }) {
+  const t = useT()
+  return se ? <p data-falta className="mt-1 text-xs font-semibold text-[var(--ruim)]">{t('Falta')}: {texto}</p> : null
+}
+
+function NomeComprador({ id }: { id: Id }) {
+  const t = useT()
+  const { dados } = useConsulta('pessoas', { papel: 'funcionario' })
+  return <>{t('Quem comprou')}: {dados?.find((p) => p.id === id)?.nome ?? '…'}</>
 }
 
 
 /** Tela do PEDIDO (pedidos/:id): tudo de uma compra num lugar. */
+/** Para onde foi esta compra: Compra → Triagem(ns) → Lotes → Vendas, em gramas (o mesmo rastreio do lote e da venda). */
+function RastreioDaCompra({ compraId }: { compraId: Id }) {
+  const t = useT()
+  const { dados } = useConsulta('genealogia', { compraId })
+  if (!dados) return null
+  return (
+    <Cartao titulo={t('Para onde foi esta compra')}>
+      <div className="space-y-3">
+        <Caminho g={dados} />
+        <RastreioTotal g={dados} />
+      </div>
+    </Cartao>
+  )
+}
+
 export function Pedido() {
   const t = useT()
-  const { nav, ir, voltar } = useApp()
+  const { nav, ir, voltar, sessao } = useApp()
   const id = nav.params.id as Id
   const { dados, erro } = useConsulta('pedido', { id })
   const { executar, ocupado } = useComando()
   const [ajustes, setAjustes] = useState<Record<Id, { quantidade?: number; total?: number }>>({})
   const [pagamentos, setPagamentos] = useState<PagamentoTela[]>([])
   const [motivo, setMotivo] = useState('')
+  const [trocar, setTrocar] = useState(false)
+  const [etiquetas, setEtiquetas] = useState<Id[]>()
+  const [ligarViagem, setLigarViagem] = useState(false)
+  const [codigosLotes, setCodigosLotes] = useState<Record<Id, string>>({})
   if (erro) return <Erro texto={erro} />
   if (!dados) return <Carregando />
   const c = dados.compra
@@ -403,25 +952,44 @@ export function Pedido() {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Botao variante="leve" onClick={voltar}>← {t('Pedidos')}</Botao>
+        <Botao variante="leve" onClick={voltar}>← {t('Voltar')}</Botao>
       </div>
 
       {/* cabeçalho */}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold text-[var(--marca)]">{codigoDe(c)}</span>
+            <CodigoSelo grande codigo={codigoDe(c)} anteriores={c.codigosAnteriores} />
+            {!!c.codigosAnteriores?.length && <span className="text-xs text-[var(--suave)]">{t('antes')}: <span className="font-mono">{c.codigosAnteriores.join(', ')}</span></span>}
             <Pilula tom={c.etapa === 'concluido' ? 'bom' : encerrado ? 'ruim' : 'marca'}>{t(c.nomeEtapa)}</Pilula>
             <span className="text-sm text-[var(--suave)]">{dados.modulo.icone} {t(dados.modulo.nome)}</span>
+            {dados.viagem && (
+              <button type="button" onClick={() => ir('viagem', { id: dados.viagem!.id })} className="inline-flex min-h-8 max-w-full items-center gap-1 rounded-full bg-[var(--marca-suave)] px-2 text-xs font-semibold text-[var(--marca)] hover:brightness-95" title={t('Abrir a viagem')}>
+                ✈️ <span className="truncate">{t('Viagem')} {dados.viagem.codigo}{dados.viagem.destino ? ` · ${dados.viagem.destino}` : ''}</span>
+              </button>
+            )}
           </div>
           <h1 className="mt-1 text-2xl font-bold">{dados.pessoa?.nome ?? t('Sem fornecedor')}</h1>
-          <p className="text-sm text-[var(--suave)]">{dataBR(c.data)}{c.obs ? ` · ${c.obs}` : ''}{!encerrado ? ` · ${t('parada há {n} dias', { n: c.diasParada })}` : ''}</p>
+          <p className="text-sm text-[var(--suave)]">{dataBR(c.data)}{dados.comprador ? ` · ${t('comprou')}: ${dados.comprador.nome}` : ''}{c.obs ? ` · ${c.obs}` : ''}{!encerrado ? ` · ${t('parada há {n} dias', { n: c.diasParada })}` : ''}</p>
         </div>
-        <div className="text-right">
+        <div className="flex items-start gap-2 text-right">
+          <MenuAcoes comRotulo acoes={[
+            ...(dados.pessoa ? [{ rotulo: 'Ver fornecedor', icone: '👤', onClick: () => ir('pessoa', { id: dados.pessoa!.id }) }] : []),
+            ...(dados.lotes.length ? [{ rotulo: 'Rastrear: para onde foi', icone: '🔎', onClick: () => ir('rastreio', { compraId: c.id }) }] : []),
+            { rotulo: 'Repetir esta compra', icone: '⟳', onClick: () => ir('novaCompra', { repetir: c.id }) },
+            ...(sessao.perfil === 'admin' ? [{ rotulo: 'Trocar código', icone: '#', onClick: () => setTrocar(true), separar: true }] : []),
+            ...(sessao.perfil === 'admin' && !dados.viagem && !encerradaSemViagem(c.etapa) ? [{ rotulo: 'Ligar a uma viagem', icone: '✈️', onClick: () => setLigarViagem(true) }] : []),
+            ...(sessao.perfil === 'admin' && dados.viagem?.status === 'aberta' ? [{ rotulo: 'Tirar da viagem', icone: '✈️', perigo: true, onClick: () => void executar('desvincularCompra', { viagemId: dados.viagem!.id, compraId: c.id }, t('Compra tirada da viagem.')) }] : []),
+          ]} />
+          <div>
           <div className="num text-3xl font-black">{formatar(c.totalPrincipal, m)}</div>
           <div className="num text-sm text-[var(--suave)]">{gramasTexto(dados.gramas)}{dados.custoKg ? ` · ${formatar(dados.custoKg, m)}/kg` : ''}</div>
+          </div>
         </div>
       </div>
+      {trocar && <TrocarCodigo tipo="compra" id={c.id} atual={c.codigo} onFechar={() => setTrocar(false)} />}
+      {etiquetas && <ImprimirEtiquetas ids={etiquetas} onFechar={() => setEtiquetas(undefined)} />}
+      {ligarViagem && <LigarViagem compraId={c.id} onFechar={() => setLigarViagem(false)} />}
 
       {/* etapas */}
       <Cartao className="mb-4">
@@ -429,6 +997,9 @@ export function Pedido() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="text-sm text-[var(--suave)]">{t('O que falta')}:</span>
           <SeloPendencias pendencias={c.pendencias} moeda={m} />
+          {sessao.perfil === 'admin' && (
+            <button type="button" onClick={() => ir('config', { aba: 'etapas', modulo: c.moduloId })} className="ml-auto min-h-10 rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Personalizar etapas')}</button>
+          )}
         </div>
       </Cartao>
 
@@ -466,6 +1037,8 @@ export function Pedido() {
             </div>
           </Cartao>
 
+          {dados.lotes.length > 0 && <RastreioDaCompra compraId={c.id} />}
+
           <EtapasCompra
             compra={c}
             ocupado={ocupado}
@@ -475,6 +1048,8 @@ export function Pedido() {
             setPagamentos={setPagamentos}
             motivo={motivo}
             setMotivo={setMotivo}
+            codigosLotes={codigosLotes}
+            setCodigosLotes={setCodigosLotes}
             avancar={async (para, motivoDado) => {
               const r = await executar('avancarTriagem', {
                 compraId: c.id,
@@ -482,9 +1057,11 @@ export function Pedido() {
                 motivo: motivoDado || motivo || undefined,
                 ajustes: Object.entries(ajustes).map(([linhaId, a]) => ({ linhaId, ...a })),
                 pagamentos: pagamentos.filter((p) => p.valor).map((p) => ({ id: p.id, forma: p.forma, moeda: p.moeda, valor: p.valor! })),
+                codigosLotes: Object.fromEntries(Object.entries(codigosLotes).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v)),
               }, t('Etapa registrada.'))
               if (r) {
                 setAjustes({})
+                setCodigosLotes({})
                 setPagamentos([])
                 setMotivo('')
               }
@@ -534,12 +1111,13 @@ export function Pedido() {
             </Cartao>
           )}
           {dados.lotes.length > 0 && (
-            <Cartao titulo={t('Lotes deste pedido')} acao={<Botao variante="leve" onClick={() => ir('rastreio', { compraId: c.id })}>{t('Rastrear')}</Botao>}>
+            <Cartao titulo={t('Lotes deste pedido')} acao={<span className="flex gap-1"><Botao variante="leve" onClick={() => setEtiquetas(dados.lotes.map((l) => l.id))}>🏷 {t('Etiquetas')}</Botao><Botao variante="leve" onClick={() => ir('rastreio', { compraId: c.id })}>{t('Rastrear')}</Botao></span>}>
               <ul className="space-y-1 text-sm">
                 {dados.lotes.map((l) => (
-                  <li key={l.id}>
-                    <button type="button" onClick={() => ir('lote', { id: l.id })} className="flex w-full justify-between gap-2 text-left hover:text-[var(--marca)]">
-                      <span className="truncate"><span className="font-mono text-xs">{l.codigo}</span> {l.nome}</span>
+                  <li key={l.id} className="flex items-center gap-2">
+                    <MiniaturaLote itemId={l.id} foto={l.foto} marcador={marcadorLote(l.campos, l.nome)} tamanho="sm" />
+                    <button type="button" onClick={() => ir('lote', { id: l.id })} className="flex min-h-10 min-w-0 flex-1 items-center justify-between gap-2 text-left hover:text-[var(--marca)]">
+                      <span className="truncate"><span className="font-mono text-xs font-bold text-[var(--marca)]">{l.codigo}</span> {l.nome}</span>
                       <span className="num shrink-0">{l.unidade === 'grama' ? gramasTexto(l.saldo) : l.saldo}</span>
                     </button>
                   </li>
@@ -568,11 +1146,16 @@ function EtapasCompra(p: {
   setPagamentos(x: PagamentoTela[]): void
   motivo: string
   setMotivo(m: string): void
+  codigosLotes: Record<Id, string>
+  setCodigosLotes(c: Record<Id, string>): void
   avancar(para: string, motivo?: string): void
   cancelar(): void
 }) {
   const t = useT()
   const { dados: cfg } = useConsulta('configuracoes', {})
+  const { dados: codigos } = useConsulta('codigos', {})
+  const [digitarLotes, setDigitarLotes] = useState<boolean>()
+  const [lotesOk, setLotesOk] = useState<Record<Id, boolean>>({})
   const c = p.compra
   // as etapas vêm do módulo (genérico: cada modalidade define as suas)
   const etapas = cfg?.modulos.find((m) => m.id === c.moduloId)?.etapas ?? []
@@ -580,6 +1163,9 @@ function EtapasCompra(p: {
   const prox = etapas[idx + 1]
   const encerrada = ['concluido', 'recusado', 'cancelado'].includes(c.etapa)
   const [recusar, setRecusar] = useState(false)
+  const digitarLotesAgora = digitarLotes ?? codigos?.regras.lote.modo === 'manual'
+  const digitados = Object.values(p.codigosLotes).map((v) => v.trim().toUpperCase()).filter(Boolean)
+  const codigosRepetidos = new Set(digitados).size !== digitados.length
   return (
     <Cartao titulo={t('Andar a triagem')}>
       {prox && !encerrada && <p className="mb-3 text-sm text-[var(--suave)]">{t('Próximo passo')}: <b className="text-[var(--texto)]">{t(prox.nome)}</b> <Info texto={prox.ajuda ?? ''} /></p>}
@@ -602,9 +1188,20 @@ function EtapasCompra(p: {
           {prox.faz?.includes('pagamento') && (
             <EditorPagamentos uso="compra" total={c.totalPrincipal} moedaTotal={c.moedaPrincipal} pagamentos={p.pagamentos} onChange={p.setPagamentos} permiteFiado={!!c.pessoaId} />
           )}
+          {prox.faz?.includes('estoque') && c.moduloId === 'cabelo' && (
+            <div className="space-y-2 rounded-xl bg-[var(--fundo)] p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="text-[var(--suave)]">{t('Código dos lotes que entram')}: <b className="text-[var(--texto)]">{t(digitarLotesAgora ? 'digitado' : 'automático')}</b></span>
+                <Botao variante="leve" onClick={() => (setDigitarLotes(!digitarLotesAgora), p.setCodigosLotes({}))}>{digitarLotesAgora ? t('Usar os automáticos') : `✎ ${t('Digitar os códigos')}`}</Botao>
+              </div>
+              {digitarLotesAgora && c.linhas.map((l, k) => (
+                <CampoCodigo key={l.id} tipo="lote" rotulo={`${t('Lote')} · ${l.descricao}`} valor={p.codigosLotes[l.id] ?? ''} onChange={(v) => p.setCodigosLotes({ ...p.codigosLotes, [l.id]: v })} contexto={{ compraId: c.id, posicao: k }} onEstado={(ok) => setLotesOk((m) => (m[l.id] === ok ? m : { ...m, [l.id]: ok }))} />
+              ))}
+            </div>
+          )}
           <Campo rotulo="Observação / motivo (fica no histórico)"><Entrada value={p.motivo} onChange={(e) => p.setMotivo(e.target.value)} /></Campo>
           <div className="flex flex-wrap gap-2">
-            <Botao grande disabled={p.ocupado} onClick={() => p.avancar(prox.id)}>→ {t(prox.nome)}</Botao>
+            <Botao grande disabled={p.ocupado || (digitarLotesAgora && !!prox.faz?.includes('estoque') && (c.linhas.some((l) => lotesOk[l.id] === false) || codigosRepetidos))} onClick={() => p.avancar(prox.id)}>→ {t(prox.nome)}</Botao>
             {!c.pagamentos.length && <Botao variante="perigo" disabled={p.ocupado} onClick={() => setRecusar(true)}>{t('Recusar')}</Botao>}
             {c.pagamentos.length > 0 && <Botao variante="leve" disabled={p.ocupado || !p.motivo} onClick={p.cancelar}>{t('Cancelar compra')}</Botao>}
           </div>

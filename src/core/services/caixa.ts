@@ -162,7 +162,7 @@ export async function caixaDoDia(ctx: Ctx, p: { data: string }) {
     })
   }
   const movimentos = todos.filter((x) => x.data === p.data).sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1))
-  return { data: p.data, status: dia?.status ?? 'sem movimento', contas, movimentos }
+  return { data: p.data, status: dia?.status ?? 'sem movimento', contas, movimentos, alteracoesDepois: dia?.alteracoesDepois ?? [] }
 }
 
 /** Dias com movimento (para o calendário do caixa). */

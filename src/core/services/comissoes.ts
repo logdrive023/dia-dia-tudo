@@ -1,5 +1,5 @@
 // COMISSÕES tratadas dos dois jeitos, sem contar duas vezes:
-//  1) HISTÓRICO (o que foi ganho): nasce em cada venda/atendimento (linha × % da profissional) e muda junto quando a
+//  1) HISTÓRICO (o que foi ganho): nasce em cada venda/atendimento ((valor − insumos) × %) e muda junto quando a
 //     venda é corrigida ou cancelada. Já entra como custo no lucro da venda.
 //  2) LANÇAMENTO (o que foi pago): pagamento de comissão sai do caixa com a categoria "Comissões".
 //     A pagar = ganho − pago. No resultado (DRE) o pagamento não vira despesa de novo.
@@ -10,6 +10,8 @@ import { exigir } from '../domain/erros'
 import type { Id } from '../domain/tipos'
 import { auditar, type Ctx, cotacoesAtuais, exigirInteiroPositivo, lerConfig, paraPrincipal } from './contexto'
 import { moverCaixa } from './caixa'
+import { memoriaCalculo } from '../domain/comissao'
+import { reterComissaoFinanciamentos } from './financiamentos'
 
 export const CATEGORIA_COMISSAO = 'Comissões'
 
@@ -38,7 +40,14 @@ export async function comissoes(ctx: Ctx, p: { de?: string; ate?: string; pessoa
           pessoaId: (l.profissionalId ?? t.profissionalId)!,
           cliente: t.pessoaId ? pessoas.get(t.pessoaId)?.nome : undefined,
           descricao: l.descricao,
-          base: l.totalPrincipal,
+          // base = valor − insumos do salão (linhas antigas, sem insumo: o valor da linha). Guardada na venda: não muda depois.
+          base: l.baseComissao ?? l.totalPrincipal,
+          valorLinha: l.totalPrincipal,
+          insumo: l.insumoPrincipal ?? 0,
+          insumos: l.insumos ?? [],
+          parteSalao: l.parteSalao ?? (l.baseComissao ?? l.totalPrincipal) - l.comissaoPrincipal!,
+          regra: l.comissaoRegra,
+          memoria: memoriaCalculo(l, cfg.moedaPrincipal),
           bp: l.comissaoBp ?? 0,
           valor: l.comissaoPrincipal!,
           corrigida: t.historico.some((h) => h.tipo === 'correcao'),
@@ -48,7 +57,11 @@ export async function comissoes(ctx: Ctx, p: { de?: string; ate?: string; pessoa
   const pagos = (await ctx.repos.movCaixa.listar())
     .filter((m) => m.categoria === CATEGORIA_COMISSAO && m.pessoaId && !m.estornadoPor && m.tipo === 'despesa')
     .filter((m) => !pessoaId || m.pessoaId === pessoaId)
-    .map((m) => ({ tipo: 'pago' as const, data: m.data, pessoaId: m.pessoaId!, descricao: m.descricao, valor: m.valorPrincipal !== undefined ? -Math.sign(m.delta) * m.valorPrincipal : -conv(m.delta, m.moeda), forma: m.forma, moeda: m.moeda, valorMoeda: -m.delta }))
+    .map((m) => ({ tipo: 'pago' as const, data: m.data, pessoaId: m.pessoaId!, descricao: m.descricao, valor: m.valorPrincipal !== undefined ? -Math.sign(m.delta) * m.valorPrincipal : -conv(m.delta, m.moeda), forma: m.forma as string | undefined, moeda: m.moeda, valorMoeda: -m.delta }))
+  // comissão abatida da dívida de um adiantamento (conta corrente, sem caixa): também é comissão paga
+  for (const m of await ctx.repos.movConta.listar())
+    if (m.tipo === 'comissao' && (!pessoaId || m.pessoaId === pessoaId))
+      pagos.push({ tipo: 'pago', data: m.data, pessoaId: m.pessoaId, descricao: m.descricao, valor: -m.delta, forma: undefined, moeda: m.moeda, valorMoeda: -m.delta })
   const ids = [...new Set([...ganhos.map((g) => g.pessoaId), ...pagos.map((x) => x.pessoaId)])]
   const porPessoa = ids
     .map((id) => {
@@ -75,17 +88,26 @@ export async function comissoes(ctx: Ctx, p: { de?: string; ate?: string; pessoa
 /** Paga comissão (tudo o que falta ou uma parte). Sai do caixa como "Comissões", ligada à profissional. */
 export async function pagarComissao(ctx: Ctx, d: { id: Id; pessoaId: Id; valor: number; moeda: CodigoMoeda; forma: string; referencia?: string }) {
   if (await ctx.repos.movCaixa.obter(d.id)) return { id: d.id }
+  if ((await ctx.repos.movConta.listar({ pessoaId: d.pessoaId })).some((m) => m.origemId?.startsWith(`${d.id}-`) && m.tipo === 'comissao')) return { id: d.id }
   const pessoa = await ctx.repos.pessoas.obter(d.pessoaId)
   exigir(pessoa, 'Escolha a profissional.', 'pessoaId')
   exigirInteiroPositivo(d.valor, 'Valor')
-  const { valorPrincipal } = await paraPrincipal(ctx, d.valor, d.moeda)
+  const { valorPrincipal: totalPrincipal } = await paraPrincipal(ctx, d.valor, d.moeda)
+  // adiantamento marcado "abater das comissões": parte (ou tudo) fica retida e paga a dívida; só o resto sai do caixa
+  const retido = await reterComissaoFinanciamentos(ctx, { pessoaId: pessoa.id, valorPrincipal: totalPrincipal, pagamentoId: d.id })
+  if (retido >= totalPrincipal) {
+    await auditar(ctx, 'pagarComissao', pessoa.id, `${d.valor} ${d.moeda} (retido no adiantamento)`)
+    return { id: d.id }
+  }
+  const valorPrincipal = totalPrincipal - retido
+  const valorMoeda = retido ? d.valor - Math.round((d.valor * retido) / totalPrincipal) : d.valor
   await moverCaixa(ctx, {
     valorPrincipal,
     id: d.id,
     data: ctx.relogio.hoje(),
     moeda: d.moeda,
     forma: d.forma,
-    delta: -d.valor,
+    delta: -valorMoeda,
     tipo: 'despesa',
     categoria: CATEGORIA_COMISSAO,
     descricao: `Comissão · ${pessoa.nome}${d.referencia?.trim() ? ` · ${d.referencia.trim()}` : ''}`,

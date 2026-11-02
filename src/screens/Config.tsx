@@ -1,5 +1,6 @@
-// CONFIGURAÇÕES: geral e idioma, moedas e câmbio automático, sócias, módulos (ligar/desligar e CRIAR modalidade
-// sem programar), unidades, catálogo, dados (demonstração, backup) e onde os dados ficam (local × API).
+// SEÇÕES DAS CONFIGURAÇÕES (cada uma com endereço próprio, ver configSecoes.ts): geral e idioma, sócias, formas de
+// pagamento, moedas e câmbio automático, módulos (ligar/desligar e CRIAR modalidade sem programar), etapas da compra,
+// atributos, unidades, catálogo, usuários, dados (demonstração, backup) e onde os dados ficam (local × API).
 
 import { useEffect, useState } from 'react'
 import type { BackendNoAparelho } from '../adapters/noAparelho'
@@ -8,87 +9,102 @@ import { atualizarCambio } from '../app/cambio'
 import { carregarDemo } from '../app/demo'
 import { MOEDAS, formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
-import type { CampoDef } from '../core/modulos'
+import { COMISSAO_PADRAO_BP, dividir, memoriaCalculo, pct } from '../core/domain/comissao'
+import type { Item } from '../core/domain/tipos'
+import { ETAPA_FINAL, type AtributosConfig, type CampoDef, type EtapaDef, type FluxoCompraConfig } from '../core/modulos'
 import type { ModuloConfig } from '../core/modulosConfig'
 import type { Socio } from '../core/services/contexto'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Info, Janela, Pilula, Selecao, Titulo, ValorInput, Vazio, cx } from '../ui/base'
-import { useApp, useComando, useConsulta } from '../ui/contexto'
+import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, loc, moedaPadrao } from '../ui/base'
+import { BarraSalvar } from '../ui/barraSalvar'
+import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 
-export function Config() {
-  const t = useT()
-  const { nav } = useApp()
-  const [aba, setAba] = useState((nav.params.aba as string) ?? 'geral')
-  return (
-    <div>
-      <Titulo>{t('Configurações')}</Titulo>
-      <Abas atual={aba} onChange={setAba} abas={[
-        { id: 'geral', nome: 'Geral' },
-        { id: 'moedas', nome: 'Moedas e câmbio' },
-        { id: 'modulos', nome: 'Módulos' },
-        { id: 'unidades', nome: 'Unidades' },
-        { id: 'catalogo', nome: 'Catálogo' },
-        { id: 'usuarios', nome: 'Usuários' },
-        { id: 'dados', nome: 'Dados' },
-      ]} />
-      {aba === 'geral' && <Geral />}
-      {aba === 'moedas' && <Moedas />}
-      {aba === 'modulos' && <Modulos />}
-      {aba === 'unidades' && <Unidades />}
-      {aba === 'catalogo' && <Catalogo />}
-      {aba === 'usuarios' && <Usuarios />}
-      {aba === 'dados' && <Dados />}
-    </div>
-  )
-}
-
-function Geral() {
+export function Geral() {
   const t = useT()
   const { dados } = useConsulta('configuracoes', {})
   const { executar, ocupado } = useComando()
   const [nome, setNome] = useState<string>()
-  const [socios, setSocios] = useState<Socio[]>()
+  const sujo = nome !== undefined && nome !== dados?.config.nomeNegocio
+  useAvisoSaida(sujo)
   if (!dados) return <Carregando />
   const c = dados.config
-  const lista = socios ?? c.socios
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <Cartao titulo={t('Negócio')}>
-        <div className="space-y-3">
+    <div className="max-w-xl">
+      <Cartao>
+        <div className="space-y-4">
           <Campo rotulo="Nome do negócio"><Entrada value={nome ?? c.nomeNegocio} onChange={(e) => setNome(e.target.value)} /></Campo>
-          <Campo rotulo="Idioma / Idioma">
-            <div className="flex gap-2">
+          <Campo rotulo="Idioma / Idioma" comoDiv>
+            <div className="flex flex-wrap gap-2">
               {(['pt', 'es'] as const).map((i) => (
-                <Botao key={i} variante={c.idioma === i ? 'primario' : 'secundario'} onClick={() => executar('salvarConfig', { idioma: i })}>{i === 'pt' ? '🇧🇷 Português' : '🇧🇴 Español'}</Botao>
+                <Botao key={i} variante={c.idioma === i ? 'primario' : 'secundario'} className="min-h-11" onClick={() => executar('salvarConfig', { idioma: i })}>{i === 'pt' ? '🇧🇷 Português' : '🇧🇴 Español'}</Botao>
               ))}
             </div>
+            <p className="mt-1 text-xs text-[var(--suave)]">{t('O idioma muda na hora, para todo o sistema.')}</p>
           </Campo>
-          <Botao disabled={ocupado || nome === undefined} onClick={() => executar('salvarConfig', { nomeNegocio: nome }, t('Salvo.'))}>{t('Salvar')}</Botao>
         </div>
       </Cartao>
-      <Cartao titulo={t('Sócias (divisão do lucro)')} ajuda="O resultado do período é dividido pelas partes (ex.: 50% + 50% = o “÷ 2” do caderno).">
-        <ul className="space-y-2">
-          {lista.map((s, i) => (
-            <li key={s.id} className="grid grid-cols-[1fr_6rem_auto] gap-2">
-              <Entrada value={s.nome} onChange={(e) => setSocios(lista.map((x, k) => (k === i ? { ...x, nome: e.target.value } : x)))} />
-              <Entrada inputMode="decimal" value={String(s.parteBp / 100)} onChange={(e) => setSocios(lista.map((x, k) => (k === i ? { ...x, parteBp: Math.round(Number(e.target.value.replace(',', '.')) * 100) || 0 } : x)))} />
-              <button type="button" className="px-2 text-xl" aria-label={t('Tirar')} onClick={() => setSocios(lista.filter((_, k) => k !== i))}>×</button>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-2 flex gap-2">
-          <Botao variante="secundario" onClick={() => setSocios([...lista, { id: novoId(), nome: '', parteBp: 0 }])}>+ {t('Sócia')}</Botao>
-          <Botao disabled={!socios || ocupado} onClick={async () => (await executar('salvarConfig', { socios }, t('Salvo.'))) && setSocios(undefined)}>{t('Salvar')}</Botao>
-        </div>
-      </Cartao>
-      <Cartao titulo={t('Formas de pagamento')} className="md:col-span-2">
-        <ul className="flex flex-wrap gap-2 text-sm">{c.formas.map((f) => <li key={f.id}><Pilula tom={f.vivo ? 'bom' : 'marca'}>{f.vivo ? '💵' : '🏦'} {t(f.nome)} · {f.moedas.join(', ')}</Pilula></li>)}</ul>
-      </Cartao>
+      <BarraSalvar sujo={sujo}>
+        {sujo && <Botao variante="leve" onClick={() => setNome(undefined)}>{t('Desfazer')}</Botao>}
+        <Botao disabled={ocupado || !sujo} onClick={() => executar('salvarConfig', { nomeNegocio: nome }, t('Salvo.'))}>{t('Salvar')}</Botao>
+      </BarraSalvar>
     </div>
   )
 }
 
-function Moedas() {
+export function Socias() {
+  const t = useT()
+  const { dados } = useConsulta('configuracoes', {})
+  const { executar, ocupado } = useComando()
+  const [socios, setSocios] = useState<Socio[]>()
+  useAvisoSaida(socios !== undefined)
+  if (!dados) return <Carregando />
+  const lista = socios ?? dados.config.socios
+  const soma = lista.reduce((s, x) => s + x.parteBp, 0)
+  return (
+    <div className="max-w-xl">
+      <Cartao titulo={t('Divisão do lucro')} ajuda="O resultado do período é dividido pelas partes (ex.: 50% + 50% = o “÷ 2” do caderno).">
+        <ul className="space-y-2">
+          {lista.map((s, i) => (
+            <li key={s.id} className="grid grid-cols-[1fr_6rem_auto] items-center gap-2">
+              <Entrada aria-label={t('Nome')} value={s.nome} onChange={(e) => setSocios(lista.map((x, k) => (k === i ? { ...x, nome: e.target.value } : x)))} />
+              <Entrada aria-label="%" inputMode="decimal" value={String(s.parteBp / 100)} onChange={(e) => setSocios(lista.map((x, k) => (k === i ? { ...x, parteBp: Math.round(Number(e.target.value.replace(',', '.')) * 100) || 0 } : x)))} />
+              <button type="button" className="min-h-11 min-w-11 rounded-lg text-xl" aria-label={t('Tirar')} onClick={() => setSocios(lista.filter((_, k) => k !== i))}>×</button>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <Botao variante="secundario" onClick={() => setSocios([...lista, { id: novoId(), nome: '', parteBp: 0 }])}>+ {t('Sócia')}</Botao>
+          <span className={cx('num text-sm', soma === 10000 ? 'text-[var(--suave)]' : 'font-semibold text-[var(--alerta)]')}>{t('Total')}: {(soma / 100).toLocaleString(loc())}%</span>
+        </div>
+      </Cartao>
+      <BarraSalvar sujo={socios !== undefined}>
+        {socios && <Botao variante="leve" onClick={() => setSocios(undefined)}>{t('Desfazer')}</Botao>}
+        <Botao disabled={!socios || ocupado} onClick={async () => (await executar('salvarConfig', { socios }, t('Salvo.'))) && setSocios(undefined)}>{t('Salvar')}</Botao>
+      </BarraSalvar>
+    </div>
+  )
+}
+
+export function FormasPagamento() {
+  const t = useT()
+  const { dados } = useConsulta('configuracoes', {})
+  if (!dados) return <Carregando />
+  return (
+    <Cartao>
+      <ul className="divide-y divide-[var(--borda)]">
+        {dados.config.formas.map((f) => (
+          <li key={f.id} className="flex min-h-12 flex-wrap items-center gap-2 py-2">
+            <span aria-hidden className="text-xl">{f.vivo ? '💵' : '🏦'}</span>
+            <span className="flex-1 font-semibold">{t(f.nome)}</span>
+            <Pilula tom={f.vivo ? 'bom' : 'marca'}>{f.moedas.join(', ')}</Pilula>
+          </li>
+        ))}
+      </ul>
+    </Cartao>
+  )
+}
+
+export function Moedas() {
   const t = useT()
   const { backend, avisar } = useApp()
   const { dados } = useConsulta('configuracoes', {})
@@ -98,10 +114,10 @@ function Moedas() {
   if (!dados || !cambio) return <Carregando />
   const c = dados.config
   const p = cambio.principal
-  const n4 = (v?: number) => (v === undefined ? '—' : v.toLocaleString('pt-BR', { maximumFractionDigits: v >= 100 ? 2 : 4 }))
+  const n4 = (v?: number) => (v === undefined ? '—' : v.toLocaleString(loc(), { maximumFractionDigits: v >= 100 ? 2 : 4 }))
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
         <Cartao titulo={t('Moeda principal')} ajuda="Os totais e relatórios são mostrados nela. Cada lançamento guarda a cotação do dia: o passado não muda.">
           <Selecao valor={c.moedaPrincipal} onChange={(v) => executar('salvarConfig', { moedaPrincipal: v }, t('Salvo.'))} opcoes={MOEDAS.map((m) => ({ id: m.codigo, nome: `${m.simbolo} ${m.nome} (${m.pais})` }))} />
           <div className="mt-3 flex flex-wrap gap-3">
@@ -116,15 +132,15 @@ function Moedas() {
             <Botao variante="secundario" disabled={buscando} onClick={async () => { setBuscando(true); const r = await atualizarCambio(backend, { forcar: true }); setBuscando(false); avisar(t(r.mensagem), r.ok ? 'ok' : 'erro') }}>⟳ {t(buscando ? 'Buscando…' : 'Buscar agora')}</Botao>
             {cambio.status ? (
               <p className={cx('rounded-xl p-2 text-sm', cambio.status.ok ? 'bg-[var(--bom)]/10 text-[var(--bom)]' : 'bg-[var(--alerta)]/10 text-[var(--alerta)]')}>
-                {cambio.status.ok ? '✓' : '⚠️'} {t(cambio.status.mensagem)} · {new Date(cambio.status.em).toLocaleString('pt-BR')}
-                {!cambio.status.ok && cambio.status.ultimaOk && <> · {t('última base boa')}: {new Date(cambio.status.ultimaOk).toLocaleString('pt-BR')}</>}
+                {cambio.status.ok ? '✓' : '⚠️'} {t(cambio.status.mensagem)} · {new Date(cambio.status.em).toLocaleString(loc())}
+                {!cambio.status.ok && cambio.status.ultimaOk && <> · {t('última base boa')}: {new Date(cambio.status.ultimaOk).toLocaleString(loc())}</>}
               </p>
             ) : <p className="text-sm text-[var(--suave)]">{t('Ainda não buscou na internet.')}</p>}
           </div>
         </Cartao>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 2xl:grid-cols-2">
         {cambio.moedas.map((m) => <CambioMoeda key={m.moeda} m={m} principal={p} n4={n4} />)}
       </div>
 
@@ -132,7 +148,7 @@ function Moedas() {
         <ul className="max-h-64 overflow-y-auto text-sm">
           {cambio.historico.map((h) => (
             <li key={h.id} className="flex flex-wrap items-center gap-2 border-t border-[var(--borda)] py-1">
-              <span className="text-xs text-[var(--suave)]">{new Date(h.em).toLocaleString('pt-BR')}</span>
+              <span className="text-xs text-[var(--suave)]">{new Date(h.em).toLocaleString(loc())}</span>
               <span className="num">{h.texto}</span>
               <Pilula tom={h.fonte === 'auto' ? 'marca' : 'neutro'}>{t(h.fonte === 'auto' ? 'internet' : 'digitada')}</Pilula>
               {h.uso !== 'base' && <Pilula tom="alerta">{t(h.uso === 'venda' ? 'fixa · venda' : 'fixa · compra')}</Pilula>}
@@ -173,7 +189,7 @@ function CambioMoeda({ m, principal, n4 }: { m: LinhaCambio; principal: string; 
     >
       <p className="mb-3 text-sm text-[var(--suave)]">
         {t('Base')}: <b className="num text-[var(--texto)]">1 {m.moeda} = {n4(m.base)} {principal}</b>
-        {m.baseData && <> · {t(m.baseFonte === 'auto' ? 'internet' : 'digitada')} {new Date(m.baseData).toLocaleString('pt-BR')}</>}
+        {m.baseData && <> · {t(m.baseFonte === 'auto' ? 'internet' : 'digitada')} {new Date(m.baseData).toLocaleString(loc())}</>}
         <Info texto={modo === 'dinamico' ? 'Dinâmico: venda e compra seguem a base da internet, com um ajuste em % se quiser. Ex.: base 6,96; venda −1,5% = 6,8556 (recebo dólar valendo um pouco menos); compra +1% = 7,0296.' : 'Fixo: você decide o valor e ele não muda com a internet. Ex.: para vender 1 USD = 6,90; para comprar 1 USD = 7,00.'} />
       </p>
       {modo === 'dinamico' ? (
@@ -195,7 +211,7 @@ function CambioMoeda({ m, principal, n4 }: { m: LinhaCambio; principal: string; 
           <Campo rotulo={`${t('Para comprar')}: 1 ${m.moeda} =`} ajuda="Quando você paga nesta moeda. Ex.: 7,00.">
             <div className="flex items-center gap-1"><Entrada inputMode="decimal" value={fixC} placeholder={n4(m.base)} onChange={(e) => setFixC(e.target.value)} /><span className="text-sm">{principal}</span></div>
           </Campo>
-          {m.fixoData && <p className="col-span-2 text-xs text-[var(--suave)]">{t('Valores fixos desde')} {new Date(m.fixoData).toLocaleString('pt-BR')}</p>}
+          {m.fixoData && <p className="col-span-2 text-xs text-[var(--suave)]">{t('Valores fixos desde')} {new Date(m.fixoData).toLocaleString(loc())}</p>}
         </div>
       )}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -219,7 +235,7 @@ function CambioMoeda({ m, principal, n4 }: { m: LinhaCambio; principal: string; 
   )
 }
 
-function Modulos() {
+export function Modulos() {
   const t = useT()
   const { dados } = useConsulta('configuracoes', {})
   const { executar } = useComando()
@@ -229,7 +245,7 @@ function Modulos() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-[var(--suave)]">{t('Ligue só o que o negócio usa: menus, painel e relatórios se ajustam sozinhos.')}</p>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
         {dados.modulos.map((m) => (
           <Cartao key={m.id} titulo={<>{m.icone} {t(m.nome)} {m.personalizado && <Pilula tom="marca">{t('criado por você')}</Pilula>}</>} acao={
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="h-6 w-6" checked={ativos.includes(m.id)} onChange={(e) => executar('salvarConfig', { modulosAtivos: e.target.checked ? [...ativos, m.id] : ativos.filter((x) => x !== m.id) })} /> {t('Ligado')}</label>
@@ -303,7 +319,207 @@ function CriarModalidade({ inicial, onFechar }: { inicial: ModuloConfig; onFecha
   )
 }
 
-function Unidades() {
+// ---------- atributos do item (campos dinâmicos, sem programar) ----------
+
+export function Atributos() {
+  const t = useT()
+  const { dados } = useConsulta('atributosItem', {})
+  const [tipo, setTipo] = useParamTela('tipo', '')
+  if (!dados) return <Carregando />
+  const atual = dados.find((d) => `${d.moduloId}:${d.tipoId}` === tipo) ?? dados[0]
+  if (!atual) return <Vazio texto="Nenhum tipo de item com estoque." />
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-[var(--suave)]">{t('Os atributos aparecem na compra, no lote, no estoque e nos filtros. Crie os que o negócio usa (ex.: química, espessura do fio, região), esconda os que não usa e ajuste as opções das listas.')}</p>
+      {dados.length > 1 && <Escolha rotulo="Tipo de item" valor={`${atual.moduloId}:${atual.tipoId}`} onChange={setTipo} opcoes={dados.map((d) => ({ id: `${d.moduloId}:${d.tipoId}`, nome: d.nome }))} />}
+      <EditorAtributos key={`${atual.moduloId}:${atual.tipoId}:${JSON.stringify(atual.config)}`} item={atual} />
+    </div>
+  )
+}
+
+const TIPOS_CAMPO = [{ id: 'texto', nome: 'Texto' }, { id: 'numero', nome: 'Número' }, { id: 'lista', nome: 'Lista' }, { id: 'simNao', nome: 'Sim/Não' }]
+
+function EditorAtributos({ item }: { item: { moduloId: string; tipoId: string; padrao: CampoDef[]; config: AtributosConfig } }) {
+  const t = useT()
+  const { executar, ocupado } = useComando()
+  const [c, setC] = useState(item.config)
+  const sujo = JSON.stringify(c) !== JSON.stringify(item.config)
+  useAvisoSaida(sujo)
+  const mudarExtra = (i: number, d: Partial<CampoDef>) => setC({ ...c, extras: c.extras.map((x, k) => (k === i ? { ...x, ...d } : x)) })
+  const opcoesTexto = (lista?: string[]) => (lista ?? []).join(', ')
+  const lerOpcoes = (txt: string) => txt.split(',').map((o) => o.trim())
+  return (
+    <div className="grid gap-4 2xl:grid-cols-2">
+      <Cartao titulo={t('Atributos do sistema')} ajuda="Os marcados com 🔒 não podem ser escondidos: o nome do lote, o preço e a separação dependem deles.">
+        <ul className="divide-y divide-[var(--borda)]">
+          {item.padrao.map((f) => {
+            const oculto = c.ocultos.includes(f.id)
+            return (
+              <li key={f.id} className="py-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={cx('flex-1 font-semibold', oculto && 'text-[var(--suave)] line-through')}>{t(f.nome)}{f.unidade ? ` (${f.unidade})` : ''}</span>
+                  <Pilula>{t(TIPOS_CAMPO.find((x) => x.id === f.tipo)?.nome ?? f.tipo)}</Pilula>
+                  {f.fixo ? (
+                    <span className="min-w-10 text-center" title={t('Não pode ser escondido')}>🔒</span>
+                  ) : (
+                    <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={!oculto} onChange={() => setC({ ...c, ocultos: oculto ? c.ocultos.filter((x) => x !== f.id) : [...c.ocultos, f.id] })} /> {t('Usar')}</label>
+                  )}
+                </div>
+                {f.tipo === 'lista' && !oculto && (
+                  <Campo rotulo="Opções (separadas por vírgula)" className="mt-2">
+                    <Entrada value={opcoesTexto(c.opcoes[f.id] ?? f.opcoes)} onChange={(e) => setC({ ...c, opcoes: { ...c.opcoes, [f.id]: lerOpcoes(e.target.value) } })} />
+                  </Campo>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </Cartao>
+      <Cartao titulo={t('Atributos criados por você')}>
+        {!c.extras.length && <Vazio texto="Nenhum ainda. Ex.: Química (sim/não), Espessura do fio (lista: fino, médio, grosso), Região (texto)." />}
+        <ul className="space-y-3">
+          {c.extras.map((f, i) => (
+            <li key={i} className="rounded-2xl border border-[var(--borda)] p-3">
+              <div className="grid grid-cols-[1fr_8rem_auto] gap-2">
+                <Entrada aria-label={t('Nome do atributo')} placeholder={t('Nome do atributo')} value={f.nome} onChange={(e) => mudarExtra(i, { nome: e.target.value })} />
+                <Selecao valor={f.tipo} onChange={(v) => mudarExtra(i, { tipo: v as CampoDef['tipo'] })} opcoes={TIPOS_CAMPO} />
+                <button type="button" aria-label={t('Tirar')} className="min-h-10 min-w-10 rounded-lg text-xl" onClick={() => setC({ ...c, extras: c.extras.filter((_, k) => k !== i) })}>×</button>
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {f.tipo === 'lista' && <Campo rotulo="Opções (separadas por vírgula)" className="sm:col-span-2"><Entrada value={opcoesTexto(f.opcoes)} placeholder={t('Ex.: fino, médio, grosso')} onChange={(e) => mudarExtra(i, { opcoes: lerOpcoes(e.target.value) })} /></Campo>}
+                {f.tipo === 'numero' && <Campo rotulo="Unidade"><Entrada value={f.unidade ?? ''} placeholder={t('Ex.: cm, mm, %')} onChange={(e) => mudarExtra(i, { unidade: e.target.value })} /></Campo>}
+                <Campo rotulo="Explicação (aparece no ⓘ)"><Entrada value={f.ajuda ?? ''} onChange={(e) => mudarExtra(i, { ajuda: e.target.value })} /></Campo>
+                <label className="flex min-h-10 items-center gap-2 self-end text-sm"><input type="checkbox" className="h-5 w-5" checked={!!f.obrigatorio} onChange={(e) => mudarExtra(i, { obrigatorio: e.target.checked })} /> {t('Obrigatório na compra')}</label>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <Botao variante="secundario" className="mt-3" onClick={() => setC({ ...c, extras: [...c.extras, { id: '', nome: '', tipo: 'texto' }] })}>+ {t('Atributo')}</Botao>
+      </Cartao>
+      <div className="2xl:col-span-2">
+        <BarraSalvar sujo={sujo}>
+          {sujo && <Botao variante="leve" onClick={() => setC(item.config)}>{t('Desfazer')}</Botao>}
+          <Botao disabled={!sujo || ocupado} onClick={() => executar('salvarAtributos', { moduloId: item.moduloId, tipoId: item.tipoId, ...c }, t('Atributos salvos.'))}>{t('Salvar atributos')}</Botao>
+        </BarraSalvar>
+      </div>
+    </div>
+  )
+}
+
+// ---------- etapas da compra (cada negócio monta a sua triagem) ----------
+
+export function EtapasCompra() {
+  const t = useT()
+  const { dados } = useConsulta('fluxosCompra', {})
+  const [moduloId, setModuloId] = useParamTela('modulo', '')
+  if (!dados) return <Carregando />
+  if (!dados.length) return <Vazio texto="Nenhum módulo ligado faz compras." />
+  const atual = dados.find((d) => d.moduloId === moduloId) ?? dados[0]
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-[var(--suave)]">{t('Monte o caminho do pedido de compra: quantas etapas, o nome de cada uma, onde se paga e o que conta como pendência. Vale para os pedidos novos e para os que estão andando.')}</p>
+      {dados.length > 1 && <Escolha rotulo="Módulo" valor={atual.moduloId} onChange={setModuloId} opcoes={dados.map((d) => ({ id: d.moduloId, nome: `${d.icone} ${t(d.nome)}` }))} />}
+      <EditorFluxo key={atual.moduloId + JSON.stringify(atual.fluxo)} item={atual} />
+    </div>
+  )
+}
+
+type ItemFluxo = { moduloId: string; nome: string; personalizado: boolean; fluxo: Required<FluxoCompraConfig>; emUso: Record<string, number> }
+
+function EditorFluxo({ item }: { item: ItemFluxo }) {
+  const t = useT()
+  const { executar, ocupado } = useComando()
+  const [f, setF] = useState(item.fluxo)
+  const [padrao, setPadrao] = useState(false)
+  const sujo = JSON.stringify(f) !== JSON.stringify(item.fluxo)
+  useAvisoSaida(sujo)
+  const etapas = f.etapas
+  const mudar = (i: number, d: Partial<EtapaDef>) => setF({ ...f, etapas: etapas.map((e, k) => (k === i ? { ...e, ...d } : e)) })
+  const alternar = <K extends 'faz' | 'lembrar'>(i: number, campo: K, valor: string) => {
+    const lista = (etapas[i][campo] ?? []) as string[]
+    mudar(i, { [campo]: lista.includes(valor) ? lista.filter((x) => x !== valor) : [...lista, valor] } as Partial<EtapaDef>)
+  }
+  const mover = (i: number, d: -1 | 1) => {
+    const n = [...etapas]
+    ;[n[i], n[i + d]] = [n[i + d], n[i]]
+    setF({ ...f, etapas: n })
+  }
+  const pagaEm = etapas.findIndex((e) => e.faz?.includes('pagamento'))
+  const salvar = () => executar('salvarFluxoCompra', { moduloId: item.moduloId, fluxo: f }, t('Etapas salvas.'))
+  return (
+    <div>
+      <div className="grid gap-4 2xl:grid-cols-[1fr_20rem]">
+        <Cartao titulo={<>{t('Etapas')} {item.personalizado ? <Pilula tom="marca">{t('personalizado')}</Pilula> : <Pilula>{t('padrão do sistema')}</Pilula>}</>}>
+          <ol className="space-y-3">
+            {etapas.map((e, i) => {
+              const final = e.id === ETAPA_FINAL
+              const n = item.emUso[e.id] ?? 0
+              return (
+                <li key={e.id} className="rounded-2xl border border-[var(--borda)] p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--marca-suave)] text-sm font-bold text-[var(--marca)]">{i + 1}</span>
+                    <Entrada aria-label={t('Nome da etapa')} className="min-w-0 flex-1" value={e.nome} onChange={(ev) => mudar(i, { nome: ev.target.value })} />
+                    {n > 0 && <Pilula tom="alerta">{t('{n} pedido(s) aqui', { n })}</Pilula>}
+                    {!final && (
+                      <span className="flex">
+                        <button type="button" aria-label={t('Subir')} disabled={i === 0} onClick={() => mover(i, -1)} className="min-h-10 min-w-10 rounded-lg disabled:opacity-30">↑</button>
+                        <button type="button" aria-label={t('Descer')} disabled={i >= etapas.length - 2} onClick={() => mover(i, 1)} className="min-h-10 min-w-10 rounded-lg disabled:opacity-30">↓</button>
+                        <button type="button" aria-label={t('Tirar')} disabled={n > 0 || etapas.length <= 2} title={n > 0 ? t('Há pedidos nesta etapa') : undefined} onClick={() => setF({ ...f, etapas: etapas.filter((_, k) => k !== i) })} className="min-h-10 min-w-10 rounded-lg text-xl disabled:opacity-30">×</button>
+                      </span>
+                    )}
+                  </div>
+                  <Entrada aria-label={t('O que fazer nesta etapa')} className="mt-2 text-sm" placeholder={t('O que fazer nesta etapa (aparece no ⓘ)')} value={e.ajuda} onChange={(ev) => mudar(i, { ajuda: ev.target.value })} />
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                    {final ? (
+                      <span className="flex min-h-10 items-center text-[var(--suave)]">📦 {t('Aqui o pedido termina e entra no estoque (sempre a última).')}</span>
+                    ) : (
+                      <label className="flex min-h-10 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!e.faz?.includes('pagamento')} disabled={pagaEm >= 0 && pagaEm !== i} onChange={() => alternar(i, 'faz', 'pagamento')} /> 💰 {t('Cobra o pagamento aqui')}</label>
+                    )}
+                    <label className="flex min-h-10 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!e.lembrar?.includes('fotos')} onChange={() => alternar(i, 'lembrar', 'fotos')} /> 📷 {t('Lembrar das fotos')}</label>
+                    <label className="flex min-h-10 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!e.lembrar?.includes('comprovante')} onChange={() => alternar(i, 'lembrar', 'comprovante')} /> 🧾 {t('Lembrar do comprovante')}</label>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+          <Botao variante="secundario" className="mt-3" disabled={etapas.length >= 10} onClick={() => setF({ ...f, etapas: [...etapas.slice(0, -1), { id: novoId().toLowerCase().slice(-10), nome: '', ajuda: '' }, etapas[etapas.length - 1]] })}>
+            + {t('Etapa')}
+          </Botao>
+        </Cartao>
+        <div className="space-y-4">
+          <Cartao titulo={t('O que conta como “falta”')} ajuda="Aparece no pedido, na lista de pedidos e no “Atenção agora” do painel.">
+            <div className="space-y-1 text-sm">
+              <label className="flex min-h-10 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={f.pedirFotos} onChange={(e) => setF({ ...f, pedirFotos: e.target.checked })} /> {t('Sem fotos')}</label>
+              <label className="flex min-h-10 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={f.pedirComprovanteOrigem} onChange={(e) => setF({ ...f, pedirComprovanteOrigem: e.target.checked })} /> {t('Sem comprovante de origem')}</label>
+              <p className="pt-1 text-[var(--suave)]">💰 {t('Falta pagar: depois da etapa que cobra o pagamento.')}</p>
+              <Campo rotulo="Parada na triagem depois de (dias)" className="pt-2">
+                <Entrada inputMode="numeric" className="w-24" value={String(f.avisarParadaDias)} onChange={(e) => setF({ ...f, avisarParadaDias: Math.max(0, Math.round(Number(e.target.value.replace(/\D/g, '')) || 0)) })} />
+              </Campo>
+            </div>
+          </Cartao>
+          <Cartao titulo={t('Como vai ficar')}>
+            <ol className="flex flex-wrap items-center gap-1 text-sm">
+              {etapas.map((e, i) => (
+                <li key={e.id} className="flex items-center gap-1">
+                  <span className="rounded-full bg-[var(--marca-suave)] px-2 py-1 font-semibold text-[var(--marca)]">{i + 1}. {e.nome || '…'}{e.faz?.includes('pagamento') ? ' 💰' : ''}{e.id === ETAPA_FINAL ? ' 📦' : ''}</span>
+                  {i < etapas.length - 1 && <span aria-hidden className="text-[var(--suave)]">→</span>}
+                </li>
+              ))}
+            </ol>
+          </Cartao>
+        </div>
+      </div>
+      <BarraSalvar sujo={sujo}>
+        {item.personalizado && !sujo && <Botao variante="leve" onClick={() => setPadrao(true)}>{t('Voltar ao padrão')}</Botao>}
+        {sujo && <Botao variante="leve" onClick={() => setF(item.fluxo)}>{t('Desfazer')}</Botao>}
+        <Botao disabled={!sujo || ocupado || etapas.some((e) => !e.nome.trim())} onClick={salvar}>{t('Salvar etapas')}</Botao>
+      </BarraSalvar>
+      {padrao && <Confirmar titulo="Voltar ao padrão?" texto="As etapas voltam a ser as do sistema. Pedidos parados numa etapa que deixa de existir impedem a troca." rotulo="Voltar ao padrão" onConfirmar={() => executar('salvarFluxoCompra', { moduloId: item.moduloId, fluxo: null }, t('Etapas do sistema de volta.'))} onFechar={() => setPadrao(false)} />}
+    </div>
+  )
+}
+
+export function Unidades() {
   const t = useT()
   const { dados } = useConsulta('locais', {})
   const { executar, ocupado } = useComando()
@@ -312,7 +528,7 @@ function Unidades() {
     <div>
       <Botao className="mb-3" onClick={() => setEd({ id: novoId(), nome: '', tipo: 'salao' })}>+ {t('Unidade / endereço')}</Botao>
       {!dados ? <Carregando /> : !dados.length ? <Vazio texto="Nenhuma unidade." /> : (
-        <ul className="grid gap-2 md:grid-cols-2">{dados.map((l) => <li key={l.id}><button type="button" className="w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left" onClick={() => setEd({ ...l })}><b>{l.nome}</b> <Pilula>{t(l.tipo === 'salao' ? 'salão' : l.tipo)}</Pilula><div className="text-sm text-[var(--suave)]">{[l.rua, l.numero, l.bairro, l.cidade, l.pais].filter(Boolean).join(', ')}</div></button></li>)}</ul>
+        <ul className="grid gap-2 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">{dados.map((l) => <li key={l.id}><button type="button" className="w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left" onClick={() => setEd({ ...l })}><b>{l.nome}</b> <Pilula>{t(l.tipo === 'salao' ? 'salão' : l.tipo)}</Pilula><div className="text-sm text-[var(--suave)]">{[l.rua, l.numero, l.bairro, l.cidade, l.pais].filter(Boolean).join(', ')}</div></button></li>)}</ul>
       )}
       {ed && (
         <Janela aberta titulo={t('Unidade')} onFechar={() => setEd(undefined)} rodape={<Botao grande className="w-full" disabled={ocupado} onClick={async () => (await executar('salvarLocal', ed, t('Salvo.'))) && setEd(undefined)}>{t('Salvar')}</Botao>}>
@@ -327,30 +543,122 @@ function Unidades() {
   )
 }
 
-function Catalogo() {
+export function Catalogo() {
   const t = useT()
   const { dados: cfg } = useConsulta('configuracoes', {})
   const mods = (cfg?.modulos ?? []).filter((m) => m.tiposItem.some((x) => !x.controlaEstoque || m.id === 'produtos' || m.personalizado) && cfg?.config.modulosAtivos.includes(m.id))
   const [moduloId, setModuloId] = useState('salao')
   const { dados } = useConsulta('catalogo', { moduloId })
   const { executar, ocupado } = useComando()
+  const { avisar } = useApp()
   const mod = mods.find((m) => m.id === moduloId)
   const tipo = mod?.tiposItem[0]
-  const [ed, setEd] = useState<{ id: string; nome: string; preco?: number; duracaoMin?: number; retornoDias?: number; estoqueIdeal?: number; saldoInicial?: number; novo: boolean }>()
+  const moeda = cfg?.config.moedaPrincipal ?? moedaPadrao()
+  const servico = !!tipo && tipo.unidade === 'servico'
+  const categorias = (tipo?.campos.find((c) => c.id === 'categoria')?.opcoes ?? []) as string[]
+  const [ed, setEd] = useState<{
+    id: string
+    nome: string
+    preco?: number
+    moedaPreco?: string
+    duracaoMin?: number
+    retornoDias?: number
+    estoqueIdeal?: number
+    saldoInicial?: number
+    novo: boolean
+    categoria?: string
+    regra: 'padrao' | 'propria'
+    comissaoPct: string
+    insumoMoeda: string
+    insumos: { nome: string; valor?: number }[]
+  }>()
+  const padraoBp = cfg?.config.comissaoPadraoBp ?? COMISSAO_PADRAO_BP
+  const abrir = (i?: Item) =>
+    setEd(
+      i
+        ? {
+            id: i.id,
+            nome: i.nome,
+            preco: i.precoSugerido?.valor,
+            moedaPreco: i.precoSugerido?.moeda,
+            duracaoMin: i.duracaoMin,
+            retornoDias: i.retornoDias,
+            estoqueIdeal: i.estoqueIdeal,
+            novo: false,
+            categoria: (i.campos.categoria as string | undefined) ?? '',
+            regra: i.comissaoBp !== undefined ? 'propria' : 'padrao',
+            comissaoPct: i.comissaoBp !== undefined ? String(i.comissaoBp / 100).replace('.', ',') : '',
+            insumoMoeda: i.insumo?.moeda ?? moeda,
+            insumos: i.insumo?.valor ? (i.insumo.itens?.length ? i.insumo.itens.map((x) => ({ ...x })) : [{ nome: t('Insumos'), valor: i.insumo.valor }]) : [],
+          }
+        : { id: novoId(), nome: '', novo: true, categoria: '', regra: 'padrao', comissaoPct: '', insumoMoeda: moeda, insumos: [] },
+    )
+  const salvar = async () => {
+    if (!ed || !tipo) return
+    const n = Number(ed.comissaoPct.replace(',', '.'))
+    const insumos = ed.insumos.filter((x) => x.valor)
+    const r = await executar(
+      'salvarItem',
+      {
+        id: ed.id,
+        moduloId,
+        tipoItem: tipo.id,
+        nome: ed.nome,
+        precoSugerido: ed.preco !== undefined ? { moeda: ed.moedaPreco ?? moeda, valor: ed.preco } : undefined,
+        duracaoMin: ed.duracaoMin,
+        retornoDias: ed.retornoDias,
+        estoqueIdeal: ed.estoqueIdeal,
+        saldoInicial: ed.novo ? ed.saldoInicial : undefined,
+        ...(servico
+          ? {
+              campos: { categoria: ed.categoria || undefined },
+              comissaoBp: ed.regra === 'propria' && ed.comissaoPct.trim() && Number.isFinite(n) ? Math.round(n * 100) : undefined,
+              insumo: insumos.length ? { moeda: ed.insumoMoeda, valor: 0, itens: insumos.map((x) => ({ nome: x.nome, valor: x.valor! })) } : undefined,
+            }
+          : {}),
+      },
+      t('Salvo.'),
+    )
+    if (r) setEd(undefined)
+  }
+  const somaInsumos = ed?.insumos.reduce((s, x) => s + (x.valor ?? 0), 0) ?? 0
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-2">
         <Selecao className="w-auto" valor={moduloId} onChange={setModuloId} opcoes={mods.map((m) => ({ id: m.id, nome: `${m.icone} ${t(m.nome)}` }))} />
-        <Botao onClick={() => setEd({ id: novoId(), nome: '', novo: true })}>+ {t(tipo?.controlaEstoque ? 'Item' : 'Serviço')}</Botao>
+        <Botao onClick={() => abrir()}>+ {t(tipo?.controlaEstoque ? 'Item' : 'Serviço')}</Botao>
+        {moduloId === 'salao' && (
+          <Botao variante="secundario" disabled={ocupado} onClick={async () => {
+            const r = await executar('restaurarBibliotecaServicos', {})
+            if (r) avisar(r.criados.length ? `${t('Serviços adicionados')}: ${r.criados.join(', ')}` : t('A biblioteca já está toda no catálogo.'), 'ok')
+          }}>{t('Restaurar biblioteca padrão')}</Botao>
+        )}
       </div>
+      {moduloId === 'salao' && cfg && <RegraComissaoSalao padraoBp={padraoBp} funcionariaMuda={!!cfg.config.comissaoFuncionarioMuda} />}
       {!dados ? <Carregando /> : (
-        <ul className="grid gap-2 md:grid-cols-2">{dados.map((i) => <li key={i.id}><button type="button" className="flex w-full justify-between rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left" onClick={() => setEd({ id: i.id, nome: i.nome, preco: i.precoSugerido?.valor, duracaoMin: i.duracaoMin, retornoDias: i.retornoDias, estoqueIdeal: i.estoqueIdeal, novo: false })}><b>{i.nome}</b><span className="num">{i.precoSugerido ? formatar(i.precoSugerido.valor, i.precoSugerido.moeda) : ''}</span></button></li>)}</ul>
+        <ul className="grid gap-2 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+          {dados.map((i) => (
+            <li key={i.id}>
+              <button type="button" className="w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left" onClick={() => abrir(i)}>
+                <span className="flex justify-between gap-2"><b>{i.nome}</b><span className="num">{i.precoSugerido ? formatar(i.precoSugerido.valor, i.precoSugerido.moeda) : ''}</span></span>
+                {i.unidade === 'servico' && (
+                  <span className="mt-1 flex flex-wrap gap-1 text-xs">
+                    {i.duracaoMin ? <Pilula>{i.duracaoMin} min</Pilula> : null}
+                    <Pilula tom={i.comissaoBp !== undefined ? 'marca' : 'neutro'}>{t('Comissão')} {i.comissaoBp !== undefined ? pct(i.comissaoBp) : `${t('padrão')} ${pct(padraoBp)}`}</Pilula>
+                    {i.insumo?.valor ? <Pilula tom="alerta">{t('Insumos')} {formatar(i.insumo.valor, i.insumo.moeda)}{i.insumo.itens?.length ? ` (${i.insumo.itens.map((x) => x.nome).join(' + ')})` : ''}</Pilula> : null}
+                    {i.campos.revisar ? <Pilula tom="ruim">{t('Revisar')} · {t('criado por')} {String(i.campos.criadoPorNome ?? '')}</Pilula> : null}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
       {ed && tipo && (
-        <Janela aberta titulo={t(ed.novo ? 'Novo' : 'Editar')} onFechar={() => setEd(undefined)} rodape={<Botao grande className="w-full" disabled={ocupado} onClick={async () => (await executar('salvarItem', { id: ed.id, moduloId, tipoItem: tipo.id, nome: ed.nome, precoSugerido: ed.preco !== undefined ? { moeda: cfg?.config.moedaPrincipal ?? 'BOB', valor: ed.preco } : undefined, duracaoMin: ed.duracaoMin, retornoDias: ed.retornoDias, estoqueIdeal: ed.estoqueIdeal, saldoInicial: ed.novo ? ed.saldoInicial : undefined }, t('Salvo.'))) && setEd(undefined)}>{t('Salvar')}</Botao>}>
+        <Janela aberta titulo={t(ed.novo ? 'Novo' : 'Editar')} onFechar={() => setEd(undefined)} rodape={<Botao grande className="w-full" disabled={ocupado} onClick={salvar}>{t('Salvar')}</Botao>}>
           <div className="space-y-3">
             <Campo rotulo="Nome"><Entrada value={ed.nome} onChange={(e) => setEd({ ...ed, nome: e.target.value })} /></Campo>
-            <Campo rotulo="Preço sugerido"><ValorInput moeda={cfg?.config.moedaPrincipal ?? 'BOB'} valor={ed.preco} onChange={(v) => setEd({ ...ed, preco: v })} /></Campo>
+            <Campo rotulo="Preço sugerido"><ValorInput moeda={ed.moedaPreco ?? moeda} valor={ed.preco} onChange={(v) => setEd({ ...ed, preco: v })} /></Campo>
             {!tipo.controlaEstoque ? (
               <div className="grid grid-cols-2 gap-2">
                 <Campo rotulo="Duração (min)"><Entrada inputMode="numeric" value={ed.duracaoMin ?? ''} onChange={(e) => setEd({ ...ed, duracaoMin: Number(e.target.value) || undefined })} /></Campo>
@@ -362,6 +670,45 @@ function Catalogo() {
                 {ed.novo && <Campo rotulo="Quantidade inicial"><Entrada inputMode="numeric" value={ed.saldoInicial ?? ''} onChange={(e) => setEd({ ...ed, saldoInicial: Number(e.target.value) || undefined })} /></Campo>}
               </div>
             )}
+            {servico && (
+              <>
+                {categorias.length > 0 && <Campo rotulo="Tipo"><Selecao valor={ed.categoria} onChange={(v) => setEd({ ...ed, categoria: v })} vazio="—" opcoes={categorias.map((c) => ({ id: c, nome: t(c) }))} /></Campo>}
+                <Campo rotulo="Comissão da profissional" comoDiv ajuda="Padrão = vale a % da profissional (se tiver) ou a padrão do salão. Própria = vale para este serviço com qualquer profissional. No atendimento o administrador ainda pode ajustar a linha.">
+                  <Escolha<'padrao' | 'propria'> rotulo="Comissão da profissional" valor={ed.regra} onChange={(v) => setEd({ ...ed, regra: v })} opcoes={[{ id: 'padrao', nome: 'Padrão' }, { id: 'propria', nome: '% própria' }]} />
+                  {ed.regra === 'propria' && <Entrada className="mt-2" inputMode="decimal" aria-label={t('Comissão (%)')} placeholder="50" value={ed.comissaoPct} onChange={(e) => setEd({ ...ed, comissaoPct: e.target.value })} />}
+                </Campo>
+                <div>
+                  <span className="mb-1 block text-sm font-semibold text-[var(--suave)]">{t('Insumos do salão (custo fixo)')}</span>
+                  <p className="mb-2 text-xs text-[var(--suave)]">{t('Saem do valor ANTES da comissão. Ex.: Tintura Bs 300 − Tinta 15 − Água oxigenada 5 = base 280 → 140 salão · 140 profissional.')}</p>
+                  <ul className="space-y-2">
+                    {ed.insumos.map((x, k) => (
+                      <li key={k} className="grid grid-cols-[1fr_8rem_auto] items-center gap-2">
+                        <Entrada aria-label={t('Insumo')} value={x.nome} placeholder={t('Ex.: Tinta')} onChange={(e) => setEd({ ...ed, insumos: ed.insumos.map((y, j) => (j === k ? { ...y, nome: e.target.value } : y)) })} />
+                        <ValorInput moeda={ed.insumoMoeda} valor={x.valor} onChange={(v) => setEd({ ...ed, insumos: ed.insumos.map((y, j) => (j === k ? { ...y, valor: v } : y)) })} />
+                        <button type="button" aria-label={t('Tirar')} className="min-h-10 min-w-10 rounded-full text-lg hover:bg-[var(--marca-suave)]" onClick={() => setEd({ ...ed, insumos: ed.insumos.filter((_, j) => j !== k) })}>×</button>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                    <Botao variante="leve" onClick={() => setEd({ ...ed, insumos: [...ed.insumos, { nome: '', valor: undefined }] })}>+ {t('Insumo')}</Botao>
+                    {somaInsumos > 0 && <span className="num text-sm font-semibold">{t('Total')}: {formatar(somaInsumos, ed.insumoMoeda)}</span>}
+                  </div>
+                  {ed.preco !== undefined && (
+                    <p className="num mt-2 rounded-xl bg-[var(--fundo)] p-2 text-xs">
+                      🧮 {memoriaCalculo((() => {
+                        const n = Number(ed.comissaoPct.replace(',', '.'))
+                        const bp = ed.regra === 'propria' && ed.comissaoPct.trim() && Number.isFinite(n) ? Math.round(n * 100) : padraoBp
+                        const d = dividir(ed.preco, somaInsumos, bp)
+                        return { totalPrincipal: ed.preco, insumoPrincipal: somaInsumos, insumos: ed.insumos.filter((x) => x.valor).map((x) => ({ nome: x.nome || t('Insumos'), valorPrincipal: x.valor! })), comissaoBp: bp, comissaoPrincipal: d.comissao, comissaoRegra: ed.regra === 'propria' ? ('servico' as const) : ('padrao' as const), baseComissao: d.base, parteSalao: d.parteSalao }
+                      })(), ed.moedaPreco ?? moeda, t)}
+                    </p>
+                  )}
+                </div>
+                {!ed.novo && dados?.find((i) => i.id === ed.id)?.campos.revisar && (
+                  <Botao variante="secundario" onClick={async () => (await executar('revisarServico', { id: ed.id }, t('Marcado como revisado.'))) && setEd(undefined)}>✓ {t('Marcar como revisado')}</Botao>
+                )}
+              </>
+            )}
           </div>
         </Janela>
       )}
@@ -369,7 +716,34 @@ function Catalogo() {
   )
 }
 
-function Dados() {
+/** Comissão padrão do salão (50/50) e se a funcionária pode mudar o % no atendimento. */
+function RegraComissaoSalao({ padraoBp, funcionariaMuda }: { padraoBp: number; funcionariaMuda: boolean }) {
+  const t = useT()
+  const { executar, ocupado } = useComando()
+  const [texto, setTexto] = useState(String(padraoBp / 100).replace('.', ','))
+  const [muda, setMuda] = useState(funcionariaMuda)
+  const n = Number(texto.replace(',', '.'))
+  const valido = texto.trim() !== '' && Number.isFinite(n) && n >= 0 && n <= 100
+  const mudou = (valido && Math.round(n * 100) !== padraoBp) || muda !== funcionariaMuda
+  return (
+    <Cartao className="mb-3" titulo={t('Comissão do salão')} ajuda="Ordem: ajuste na linha do atendimento › % própria do serviço › % da profissional › padrão do salão. Insumos saem antes da divisão.">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Campo rotulo="Comissão padrão (%)" ajuda="50 = metade para o salão, metade para a profissional.">
+          <Entrada inputMode="decimal" value={texto} onChange={(e) => setTexto(e.target.value)} />
+        </Campo>
+        <Campo rotulo="Quem muda o % no atendimento?" comoDiv>
+          <Escolha<'admin' | 'todos'> rotulo="Quem muda o % no atendimento?" valor={muda ? 'todos' : 'admin'} onChange={(v) => setMuda(v === 'todos')} opcoes={[{ id: 'admin', nome: 'Só o administrador' }, { id: 'todos', nome: 'Funcionárias também' }]} />
+        </Campo>
+      </div>
+      <p className="mt-2 text-xs text-[var(--suave)]">{t('Insumos: a funcionária pode pôr a mais (com motivo); baixar abaixo do catálogo só o administrador.')}</p>
+      {mudou && (
+        <Botao className="mt-2" disabled={ocupado || !valido} onClick={() => executar('salvarConfig', { comissaoPadraoBp: Math.round(n * 100), comissaoFuncionarioMuda: muda }, t('Salvo.'))}>{t('Salvar')}</Botao>
+      )}
+    </Cartao>
+  )
+}
+
+export function Dados() {
   const t = useT()
   const { backend, avisar } = useApp()
   const [protegido, setProtegido] = useState<boolean>()
@@ -406,7 +780,7 @@ function Dados() {
     }
   }
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
       <Cartao titulo={t('Onde os dados ficam')} ajuda="Hoje tudo fica neste aparelho (demonstração). Para ligar um servidor: VITE_STORAGE=api e VITE_API_URL — telas e regras não mudam.">
         <p className="text-sm">{t('Armazenamento')}: <Pilula tom="marca">{backend.tipo === 'local' ? t('neste aparelho (IndexedDB)') : backend.tipo === 'api' ? 'API' : t('memória')}</Pilula></p>
         {backend.tipo === 'local' && <p className="mt-1 text-sm">{t('Proteção contra limpeza do navegador')}: <Pilula tom={protegido ? 'bom' : 'alerta'}>{protegido ? t('protegido') : t('não garantido')}</Pilula></p>}
@@ -435,7 +809,7 @@ function Dados() {
         <p className="mt-2 text-xs text-[var(--suave)]">{t('O backup leva tudo, inclusive fotos e comprovantes. Serve também para levar a demonstração para outro aparelho.')}</p>
       </Cartao>
       {backend.tipo !== 'api' && (
-        <Cartao titulo={t('Demonstração')} className="md:col-span-2">
+        <Cartao titulo={t('Demonstração')} className="md:col-span-2 lg:col-span-1 xl:col-span-2">
           <div className="flex flex-wrap gap-2">
             <Botao onClick={() => setConfirmar('demo')}>{t('Carregar dados de exemplo')}</Botao>
             <Botao variante="perigo" onClick={() => setConfirmar('zerar')}>{t('Zerar tudo')}</Botao>
@@ -452,7 +826,7 @@ function Dados() {
 
 
 /** Usuários: quem entra no sistema, com qual perfil, ligado a qual pessoa/unidade. Toda ação fica no nome dele. */
-function Usuarios() {
+export function Usuarios() {
   const t = useT()
   const { sessao } = useApp()
   const { dados } = useConsulta('usuarios', {})
@@ -469,12 +843,12 @@ function Usuarios() {
       </div>
       <p className="flex items-center text-sm text-[var(--suave)]">{t('Cada ação do sistema fica registrada no nome do usuário que entrou.')}<Info texto="Administrador vê e faz tudo. Funcionário só vende/atende, vê a própria agenda, a unidade e as próprias comissões. Ex.: Sofia entra e vê só os horários dela." /></p>
       {!dados ? <Carregando /> : (
-        <ul className="grid gap-2 md:grid-cols-2">
+        <ul className="grid gap-2 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
           {dados.map((u) => (
             <li key={u.id}>
               <button type="button" className={cx('w-full rounded-xl border bg-[var(--cartao)] p-3 text-left', u.ativo ? 'border-[var(--borda)]' : 'border-dashed border-[var(--borda)] opacity-60')} onClick={() => setEd({ id: u.id, login: u.login, nome: u.nome, perfil: u.perfil, pessoaId: u.pessoaId, localId: u.localId, ativo: u.ativo, novo: false })}>
                 <div className="flex items-center justify-between gap-2"><b>{u.nome}</b><Pilula tom={u.perfil === 'admin' ? 'marca' : 'neutro'}>{t(u.perfil === 'admin' ? 'Administrador' : 'Funcionário')}</Pilula></div>
-                <div className="text-xs text-[var(--suave)]"><span className="font-mono">{u.login}</span>{u.local ? ` · ${u.local}` : ''}{u.ultimoAcesso ? ` · ${t('último acesso')} ${new Date(u.ultimoAcesso).toLocaleString('pt-BR')}` : ''}{!u.ativo ? ` · ${t('desativado')}` : ''}</div>
+                <div className="text-xs text-[var(--suave)]"><span className="font-mono">{u.login}</span>{u.local ? ` · ${u.local}` : ''}{u.ultimoAcesso ? ` · ${t('último acesso')} ${new Date(u.ultimoAcesso).toLocaleString(loc())}` : ''}{!u.ativo ? ` · ${t('desativado')}` : ''}</div>
               </button>
             </li>
           ))}

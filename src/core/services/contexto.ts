@@ -95,6 +95,10 @@ export interface Configuracoes {
   diasLoteParado: number
   diasCotacaoVelha: number
   modulosAtivos: string[]
+  /** salão: comissão padrão dos serviços em pontos-base (5000 = 50/50 salão × profissional) */
+  comissaoPadraoBp: number
+  /** salão: a funcionária pode mudar o % da comissão na linha do atendimento (senão só o administrador) */
+  comissaoFuncionarioMuda: boolean
 }
 
 export const CONFIG_PADRAO: Configuracoes = {
@@ -110,6 +114,8 @@ export const CONFIG_PADRAO: Configuracoes = {
   diasLoteParado: 60,
   diasCotacaoVelha: 7,
   modulosAtivos: ['cabelo', 'salao', 'emprestimos', 'produtos'],
+  comissaoPadraoBp: 5000,
+  comissaoFuncionarioMuda: false,
 }
 
 export async function lerConfig(ctx: Ctx): Promise<Configuracoes> {
@@ -180,6 +186,18 @@ export async function garantirDiaAberto(ctx: Ctx, data: string): Promise<Dia> {
   const dia = novo<Dia>(ctx, { id: data, data, status: 'aberto', contado: {} })
   await ctx.repos.dias.salvar(dia)
   return dia
+}
+
+/**
+ * Período fechado: o dia encerrado não muda de dinheiro (a diferença entra no caixa de hoje), mas o
+ * resultado daquele dia muda. Por isso só o administrador corrige/cancela, e o dia guarda o aviso.
+ */
+export async function marcarDiaFechado(ctx: Ctx, t: { id: Id; codigo?: string; data: string }, descricao: string) {
+  const dia = await ctx.repos.dias.obter(t.data)
+  if (dia?.status !== 'encerrado') return
+  exigir(ctx.sessao.perfil === 'admin', `O dia ${t.data.split('-').reverse().join('/')} já foi encerrado: só o administrador corrige ou cancela.`)
+  const nova = { origemId: t.id, codigo: t.codigo, descricao, em: ctx.relogio.agora(), porNome: ctx.sessao.nome }
+  await ctx.repos.dias.salvar(tocar(ctx, { ...dia, alteracoesDepois: [...(dia.alteracoesDepois ?? []), nova] }))
 }
 
 export function exigirInteiroPositivo(valor: number, nome: string, permitirZero = false) {

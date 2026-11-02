@@ -4,10 +4,11 @@
 import { converter, formatar, multiplicarFator, proporcao, type CodigoMoeda } from '../domain/dinheiro'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { dataDeInstante } from '../domain/datas'
-import type { Id, Linha, Transacao } from '../domain/tipos'
-import { auditar, cotacoesAtuais, type Ctx, exigirInteiroPositivo, formaPagamento, lerConfig, novo, paraPrincipal, tocar } from './contexto'
+import type { Id, Item, Linha, RegraComissao, Transacao } from '../domain/tipos'
+import { dividir, pct, resolverComissao } from '../domain/comissao'
+import { auditar, cotacoesAtuais, type Ctx, exigirInteiroPositivo, formaPagamento, lerConfig, novo, paraPrincipal, tocar, marcarDiaFechado } from './contexto'
 import { moverCaixa } from './caixa'
-import { custoDe, moverEstoque } from './estoque'
+import { custoDe, moverEstoque, proximoCodigo } from './estoque'
 import { montarPagamentos, type PagamentoEntrada } from './pagamentos'
 import { moverConta } from './contas'
 import { pendenciasVenda } from './pendencias'
@@ -26,6 +27,16 @@ export interface LinhaVendaEntrada {
    * Com fator, o total é calculado aqui (o "total" enviado é ignorado).
    */
   calculo?: { medida?: number; fator: string; categoria?: string; tabelaId?: Id; colunaId?: string }
+  /** salão: insumos desta linha (sem = os do catálogo). Mudar pede motivo; abaixo do catálogo só o administrador. */
+  insumo?: InsumoEntrada
+  /** motivo de cobrar menos que o preço do catálogo (funcionária precisa dizer) */
+  motivoPreco?: string
+}
+
+export interface InsumoEntrada {
+  moeda: CodigoMoeda
+  itens: { nome: string; valor: number }[]
+  motivo?: string
 }
 
 export interface VendaEntrada {
@@ -42,8 +53,47 @@ export interface VendaEntrada {
   ignorarConflito?: boolean
 }
 
+/** Insumos da linha (moeda principal): os enviados ou os do catálogo. Mudar pede motivo; baixar do catálogo é do administrador. */
+async function insumoDaLinha(ctx: Ctx, item: Item, entrada: InsumoEntrada | undefined) {
+  const cat = await insumoCatalogo(ctx, item)
+  if (!entrada) return { insumoPrincipal: cat.total, insumos: cat.itens, motivo: undefined as string | undefined }
+  const itens: { nome: string; valorPrincipal: number }[] = []
+  for (const i of entrada.itens ?? []) {
+    if (!i.valor) continue
+    exigirInteiroPositivo(i.valor, `Insumo ${i.nome || ''}`.trim())
+    itens.push({ nome: i.nome?.trim() || 'Insumos', valorPrincipal: (await paraPrincipal(ctx, i.valor, entrada.moeda)).valorPrincipal })
+  }
+  const total = itens.reduce((s, i) => s + i.valorPrincipal, 0)
+  const mudou = total !== cat.total || JSON.stringify(itens) !== JSON.stringify(cat.itens)
+  if (!mudou) return { insumoPrincipal: cat.total, insumos: cat.itens, motivo: undefined }
+  exigir(entrada.motivo?.trim(), `Diga o motivo de mudar os insumos de ${item.nome} (produto especial, quantidade extra…).`, 'insumoMotivo')
+  if (total < cat.total) exigir(ctx.sessao.perfil === 'admin', `Só o administrador baixa os insumos de ${item.nome} abaixo do catálogo.`)
+  return { insumoPrincipal: total, insumos: itens, motivo: entrada.motivo!.trim() }
+}
+
+/** Insumos do catálogo do serviço, convertidos para a moeda principal agora. */
+export async function insumoCatalogo(ctx: Ctx, item: Pick<Item, 'insumo'>) {
+  const ins = item.insumo
+  if (!ins?.valor) return { total: 0, itens: [] as { nome: string; valorPrincipal: number }[] }
+  const fonte = ins.itens?.length ? ins.itens : [{ nome: 'Insumos', valor: ins.valor }]
+  const itens: { nome: string; valorPrincipal: number }[] = []
+  for (const i of fonte) itens.push({ nome: i.nome, valorPrincipal: (await paraPrincipal(ctx, i.valor, ins.moeda)).valorPrincipal })
+  return { total: itens.reduce((s, i) => s + i.valorPrincipal, 0), itens }
+}
+
+/** Grava na linha a divisão (base, comissão, salão) com o % que vale. */
+function aplicarDivisao(l: Linha, bp: number | undefined, regra: RegraComissao | undefined) {
+  const d = dividir(l.totalPrincipal, l.insumoPrincipal ?? 0, bp)
+  l.comissaoBp = l.profissionalId ? bp : undefined
+  l.comissaoRegra = l.profissionalId && bp !== undefined ? regra : undefined
+  l.comissaoPrincipal = l.profissionalId && bp ? d.comissao : undefined
+  l.baseComissao = d.base
+  l.parteSalao = l.profissionalId && bp ? d.parteSalao : d.base
+}
+
 async function montarLinhas(ctx: Ctx, entrada: LinhaVendaEntrada[], profissionalPadrao?: Id): Promise<Linha[]> {
   exigir(entrada?.length, 'Coloque pelo menos um item na venda.')
+  const cfg = await lerConfig(ctx)
   const linhas: Linha[] = []
   for (const l of entrada) {
     const item = await ctx.repos.itens.obter(l.itemId)
@@ -53,11 +103,19 @@ async function montarLinhas(ctx: Ctx, entrada: LinhaVendaEntrada[], profissional
     exigirInteiroPositivo(total, `Valor de ${item.nome}`, true)
     const conv = await paraPrincipal(ctx, total, l.moeda, 'venda')
     const profissionalId = l.profissionalId ?? (item.controlaEstoque ? undefined : profissionalPadrao)
-    // funcionária não escolhe a comissão: vale a do cadastro
-    let comissaoBp = ctx.sessao.perfil === 'admin' ? l.comissaoBp : undefined
-    if (comissaoBp === undefined && profissionalId) comissaoBp = (await ctx.repos.pessoas.obter(profissionalId))?.comissaoBp
-    if (comissaoBp !== undefined) exigir(Number.isInteger(comissaoBp) && comissaoBp >= 0 && comissaoBp <= 10000, 'Comissão inválida.')
-    linhas.push({
+    const servico = item.unidade === 'servico'
+    // preço abaixo do catálogo: a funcionária diz o motivo; fica guardado na linha e no log
+    const precoCatalogo = servico && !l.calculo?.fator && item.precoSugerido?.valor && item.precoSugerido.moeda === l.moeda ? item.precoSugerido.valor * l.quantidade : undefined
+    if (precoCatalogo !== undefined && total < precoCatalogo && ctx.sessao.perfil !== 'admin')
+      exigir(l.motivoPreco?.trim(), `Diga o motivo de cobrar menos que o catálogo em ${item.nome} (${formatar(precoCatalogo, l.moeda)}).`, 'motivoPreco')
+    // funcionária não escolhe a comissão (a não ser que a configuração deixe): vale a regra
+    const linhaBp = ctx.sessao.perfil === 'admin' || cfg.comissaoFuncionarioMuda ? l.comissaoBp : undefined
+    if (linhaBp !== undefined) exigir(Number.isInteger(linhaBp) && linhaBp >= 0 && linhaBp <= 10000, 'Comissão inválida.')
+    const prof = profissionalId ? await ctx.repos.pessoas.obter(profissionalId) : undefined
+    const regra = resolverComissao({ profissional: !!profissionalId, servico, linhaBp, servicoBp: item.comissaoBp, profissionalBp: prof?.comissaoBp, padraoBp: cfg.comissaoPadraoBp })
+    const ins = servico ? await insumoDaLinha(ctx, item, l.insumo) : { insumoPrincipal: 0, insumos: [], motivo: undefined }
+    exigir(ins.insumoPrincipal <= conv.valorPrincipal, `Os insumos de ${item.nome} passam do valor do serviço.`)
+    const linha: Linha = {
       id: l.id,
       itemId: item.id,
       descricao: l.descricao?.trim() || item.nome,
@@ -68,8 +126,10 @@ async function montarLinhas(ctx: Ctx, entrada: LinhaVendaEntrada[], profissional
       cotacao: conv.cotacao,
       custoPrincipal: item.controlaEstoque ? custoDe(item, l.quantidade) : undefined,
       profissionalId,
-      comissaoBp: profissionalId ? comissaoBp : undefined,
-      comissaoPrincipal: profissionalId && comissaoBp ? proporcao(conv.valorPrincipal, comissaoBp, 10000) : undefined,
+      ...(ins.insumoPrincipal ? { insumoPrincipal: ins.insumoPrincipal, insumos: ins.insumos } : {}),
+      ...(ins.motivo ? { insumoMotivo: ins.motivo } : {}),
+      ...(precoCatalogo !== undefined ? { precoCatalogo } : {}),
+      ...(precoCatalogo !== undefined && total !== precoCatalogo && l.motivoPreco?.trim() ? { motivoPreco: l.motivoPreco.trim() } : {}),
       campos: l.calculo?.fator
         ? {
             medida: l.calculo.medida,
@@ -80,9 +140,20 @@ async function montarLinhas(ctx: Ctx, entrada: LinhaVendaEntrada[], profissional
             calculo: `${l.calculo.medida ?? ''}${l.calculo.categoria ? ' ' + l.calculo.categoria : ''} | ${l.quantidade.toLocaleString('pt-BR')} × ${l.calculo.fator} = ${formatar(total, l.moeda)}`,
           }
         : {},
-    })
+    }
+    aplicarDivisao(linha, regra?.bp, regra?.regra)
+    linhas.push(linha)
   }
   return linhas
+}
+
+/** Log do que mudou no atendimento em relação ao catálogo (preço e insumos). */
+async function auditarAjustes(ctx: Ctx, v: Transacao) {
+  for (const l of v.linhas) {
+    if (l.precoCatalogo !== undefined && l.total !== l.precoCatalogo)
+      await auditar(ctx, 'precoAlterado', v.id, `${l.descricao}: ${formatar(l.precoCatalogo, l.moeda)} → ${formatar(l.total, l.moeda)} · ${l.motivoPreco ?? 'sem motivo'}`, [v.pessoaId!, l.itemId!])
+    if (l.insumoMotivo) await auditar(ctx, 'insumoAjustado', v.id, `${l.descricao}: insumos ${formatar(l.insumoPrincipal ?? 0, v.moedaPrincipal)} · ${l.insumoMotivo}`, [v.pessoaId!, l.itemId!])
+  }
 }
 
 async function concluir(ctx: Ctx, v: Transacao, pagamentosEntrada: PagamentoEntrada[]): Promise<Transacao> {
@@ -122,6 +193,7 @@ export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
   const primeiro = await ctx.repos.itens.obter(linhas[0].itemId!)
   let v = novo<Transacao>(ctx, {
     id: d.id,
+    codigo: await proximoCodigo(ctx, 'V'),
     tipo: 'venda',
     moduloId: primeiro!.moduloId,
     data: d.agendadoPara ? dataDeInstante(d.agendadoPara) : ctx.relogio.hoje(),
@@ -150,6 +222,7 @@ export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
   }
   await ctx.repos.transacoes.salvar(v)
   await auditar(ctx, d.agendadoPara ? 'agendar' : 'concluirVenda', v.id, linhas.map((l) => l.descricao).join(', '), [v.pessoaId!, v.profissionalId!, ...linhas.map((l) => l.itemId!)])
+  await auditarAjustes(ctx, v)
   return { id: v.id }
 }
 
@@ -167,6 +240,7 @@ export async function atenderAgendamento(ctx: Ctx, d: { id: Id; linhas?: LinhaVe
   v = await concluir(ctx, v, d.pagamentos)
   await ctx.repos.transacoes.salvar(tocar(ctx, v))
   await auditar(ctx, 'atenderAgendamento', v.id, '')
+  if (d.linhas) await auditarAjustes(ctx, v)
   return { id: v.id }
 }
 
@@ -182,6 +256,7 @@ export async function cancelarVenda(ctx: Ctx, d: { id: Id; motivo: string }) {
     exigir(t.etapa === 'agendado' && (t.profissionalId === eu || t.linhas.some((l) => l.profissionalId === eu)), 'Só o administrador cancela vendas. Você pode desmarcar os seus agendamentos.')
   }
   if (t.etapa === 'concluido') {
+    await marcarDiaFechado(ctx, t, `Venda cancelada · ${d.motivo}`)
     for (const l of t.linhas) {
       const item = l.itemId ? await ctx.repos.itens.obter(l.itemId) : undefined
       if (item?.controlaEstoque)
@@ -212,6 +287,10 @@ export interface CorrecaoLinha {
   linhaId: Id
   quantidade?: number
   total?: number
+  /** salão: novos insumos da linha (moeda + itens) */
+  insumo?: InsumoEntrada
+  /** administrador: novo % da comissão desta linha */
+  comissaoBp?: number
   /** com fator, o total é recalculado (gramas × fator) */
   fator?: string
 }
@@ -230,6 +309,7 @@ export async function corrigirVenda(
   exigir(t && t.tipo === 'venda', 'Venda não encontrada.')
   exigir(t.etapa === 'concluido' || t.etapa === 'agendado', 'Só dá para corrigir venda concluída ou agendada.')
   exigir(d.motivo?.trim(), 'Diga o motivo da correção.', 'motivo')
+  if (t.etapa === 'concluido') await marcarDiaFechado(ctx, t, `Venda corrigida · ${d.motivo}`)
   const v: Transacao = { ...t, linhas: t.linhas.map((l) => ({ ...l, campos: { ...l.campos } })), pagamentos: [...t.pagamentos] }
   const ajustes: string[] = []
   const antes = v.totalPrincipal
@@ -241,11 +321,28 @@ export async function corrigirVenda(
     const fator = c.fator?.trim() || (l.campos.fator as string | undefined)
     const total = c.fator?.trim() || (fator && c.quantidade !== undefined && c.total === undefined) ? multiplicarFator(qtd, fator!, l.moeda) : c.total ?? l.total
     exigirInteiroPositivo(total, `Valor de ${l.descricao}`, true)
-    if (qtd === l.quantidade && total === l.total) continue
+    // insumos e % da comissão (salão): o que já estava na linha vale; só muda o que vier na correção
+    let insumoNovo: { insumoPrincipal: number; insumos: { nome: string; valorPrincipal: number }[] } | undefined
+    if (c.insumo) {
+      const itensIns: { nome: string; valorPrincipal: number }[] = []
+      for (const i of c.insumo.itens ?? []) {
+        if (!i.valor) continue
+        exigirInteiroPositivo(i.valor, `Insumo ${i.nome || ''}`.trim())
+        itensIns.push({ nome: i.nome?.trim() || 'Insumos', valorPrincipal: (await paraPrincipal(ctx, i.valor, c.insumo.moeda)).valorPrincipal })
+      }
+      const soma = itensIns.reduce((s, i) => s + i.valorPrincipal, 0)
+      if (soma !== (l.insumoPrincipal ?? 0) || JSON.stringify(itensIns) !== JSON.stringify(l.insumos ?? [])) insumoNovo = { insumoPrincipal: soma, insumos: itensIns }
+    }
+    if (c.comissaoBp !== undefined) exigir(Number.isInteger(c.comissaoBp) && c.comissaoBp >= 0 && c.comissaoBp <= 10000, 'Comissão inválida.')
+    const bpNovo = c.comissaoBp !== undefined && c.comissaoBp !== l.comissaoBp && l.profissionalId ? c.comissaoBp : undefined
+    if (qtd === l.quantidade && total === l.total && !insumoNovo && bpNovo === undefined) continue
     const item = l.itemId ? await ctx.repos.itens.obter(l.itemId) : undefined
     if (t.etapa === 'concluido' && item?.controlaEstoque && qtd !== l.quantidade)
       await moverEstoque(ctx, { itemId: item.id, delta: l.quantidade - qtd, motivo: 'correcao', origemId: v.id, descricao: `Correção da venda: ${l.quantidade} → ${qtd}` })
-    ajustes.push(`${l.descricao}: ${l.quantidade.toLocaleString('pt-BR')} = ${formatar(l.total, l.moeda)} → ${qtd.toLocaleString('pt-BR')}${fator ? ` × ${fator}` : ''} = ${formatar(total, l.moeda)}`)
+    if (qtd !== l.quantidade || total !== l.total)
+      ajustes.push(`${l.descricao}: ${l.quantidade.toLocaleString('pt-BR')} = ${formatar(l.total, l.moeda)} → ${qtd.toLocaleString('pt-BR')}${fator ? ` × ${fator}` : ''} = ${formatar(total, l.moeda)}`)
+    if (insumoNovo) ajustes.push(`${l.descricao}: insumos ${formatar(l.insumoPrincipal ?? 0, v.moedaPrincipal)} → ${formatar(insumoNovo.insumoPrincipal, v.moedaPrincipal)}`)
+    if (bpNovo !== undefined) ajustes.push(`${l.descricao}: comissão ${pct(l.comissaoBp ?? 0)} → ${pct(bpNovo)}`)
     const conv = await paraPrincipal(ctx, total, l.moeda, 'venda')
     l.quantidade = qtd
     l.total = total
@@ -256,7 +353,16 @@ export async function corrigirVenda(
       l.campos.calculo = `${l.campos.medida ?? ''}${l.campos.categoria && l.campos.categoria !== 'Normal' ? ' ' + l.campos.categoria : ''} | ${qtd.toLocaleString('pt-BR')} × ${fator} = ${formatar(total, l.moeda)}`
     }
     if (item?.controlaEstoque) l.custoPrincipal = custoDe(item, qtd)
-    if (l.comissaoBp) l.comissaoPrincipal = proporcao(l.totalPrincipal, l.comissaoBp, 10000)
+    if (insumoNovo) {
+      l.insumoPrincipal = insumoNovo.insumoPrincipal || undefined
+      l.insumos = insumoNovo.insumoPrincipal ? insumoNovo.insumos : undefined
+      l.insumoMotivo = d.motivo.trim()
+    }
+    exigir((l.insumoPrincipal ?? 0) <= l.totalPrincipal, `Os insumos de ${l.descricao} passam do valor do serviço.`)
+    // recalcula a divisão com o % guardado na linha (o catálogo de hoje não muda o passado)
+    if (bpNovo !== undefined) aplicarDivisao(l, bpNovo, 'linha')
+    else if (l.baseComissao !== undefined || l.insumoPrincipal) aplicarDivisao(l, l.comissaoBp, l.comissaoRegra)
+    else if (l.comissaoBp) l.comissaoPrincipal = proporcao(l.totalPrincipal, l.comissaoBp, 10000)
   }
   exigir(ajustes.length, 'Nada mudou.')
   v.totalPrincipal = v.linhas.reduce((s, l) => s + l.totalPrincipal, 0)
@@ -383,7 +489,7 @@ export async function vendas(ctx: Ctx, f: FiltroVendas = {}) {
       feitoPor: original.historico.find((h) => h.para === 'concluido')?.porNome ?? original.historico[0]?.porNome,
       pendencias: pendenciasVenda(original, anexos, vivas, original.pessoaId ? saldoConta.get(original.pessoaId) : undefined),
       valor: valorEm(recorte, f.moeda),
-      lucroPrincipal: recorte.linhas.reduce((s, l) => s + l.totalPrincipal - (l.custoPrincipal ?? 0) - (l.comissaoPrincipal ?? 0), 0),
+      lucroPrincipal: recorte.linhas.reduce((s, l) => s + l.totalPrincipal - (l.custoPrincipal ?? 0) - (l.insumoPrincipal ?? 0) - (l.comissaoPrincipal ?? 0), 0),
     }))
     .filter((v) => !f.pendencia || (f.pendencia === 'qualquer' ? v.pendencias.length > 0 : v.pendencias.some((x) => x.id === f.pendencia)))
     .sort((a, b) => (a.data + a.criadoEm < b.data + b.criadoEm ? 1 : -1))

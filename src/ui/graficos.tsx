@@ -5,23 +5,29 @@ import { useState } from 'react'
 import type { Formato, Secao } from '../core/modulos'
 import { CartaoNumero, Cartao, cx, dataBR, fmt } from './base'
 import { useApp } from './contexto'
+import { clicavel } from './compartilhados'
 import { useT } from './i18n'
 
 export function Barras({ itens, formato, moeda }: { itens: { rotulo: string; valor: number; extra?: string; onClick?: () => void }[]; formato: Formato['tipo']; moeda?: string }) {
   const t = useT()
   if (!itens.length) return <p className="text-sm text-[var(--suave)]">{t('Sem dados no período.')}</p>
   const max = Math.max(...itens.map((i) => Math.abs(i.valor)), 1)
+  const barra = (i: (typeof itens)[number]) => (
+    <>
+      <span className="flex justify-between gap-2 text-sm">
+        <span className="truncate">{i.rotulo}</span>
+        <span className="num shrink-0 font-semibold">{fmt(i.valor, formato, moeda)}</span>
+      </span>
+      <span className="mt-1 block h-2 rounded-full bg-[var(--marca-suave)]">
+        <span className="block h-2 rounded-full bg-[var(--marca)]" style={{ width: `${(Math.abs(i.valor) / max) * 100}%` }} />
+      </span>
+    </>
+  )
   return (
     <ul className="space-y-2">
       {itens.map((i) => (
-        <li key={i.rotulo} onClick={i.onClick} className={cx(i.onClick && 'cursor-pointer')}>
-          <div className="flex justify-between gap-2 text-sm">
-            <span className="truncate">{i.rotulo}</span>
-            <span className="num shrink-0 font-semibold">{fmt(i.valor, formato, moeda)}</span>
-          </div>
-          <div className="mt-1 h-2 rounded-full bg-[var(--marca-suave)]">
-            <div className="h-2 rounded-full bg-[var(--marca)]" style={{ width: `${(Math.abs(i.valor) / max) * 100}%` }} />
-          </div>
+        <li key={i.rotulo}>
+          {i.onClick ? <button type="button" onClick={i.onClick} className="block min-h-10 w-full rounded-lg text-left hover:bg-[var(--marca-suave)]">{barra(i)}</button> : barra(i)}
         </li>
       ))}
     </ul>
@@ -45,7 +51,7 @@ export function Linha({ serie, anterior, formato, moeda }: { serie: { data: stri
         <span className="flex items-center gap-1"><i className="inline-block h-1 w-4 rounded bg-[var(--marca)]" /> {t('Faturamento')}</span>
         <span className="flex items-center gap-1"><i className="inline-block h-1 w-4 rounded bg-[var(--bom)]" /> {t('Lucro')}</span>
         {anterior && <span className="flex items-center gap-1"><i className="inline-block h-0 w-4 border-t-2 border-dashed border-[var(--suave)]" /> {t('Período anterior')}</span>}
-        <button type="button" className="ml-auto underline" onClick={() => setTabela(!tabela)}>{t(tabela ? 'Ver gráfico' : 'Ver como tabela')}</button>
+        <button type="button" className="ml-auto min-h-10 underline" onClick={() => setTabela(!tabela)}>{t(tabela ? 'Ver gráfico' : 'Ver como tabela')}</button>
       </div>
       {tabela ? (
         <div className="max-h-64 overflow-auto">
@@ -109,15 +115,20 @@ export function Mapa({ linhas, colunas, valores, formato }: { linhas: string[]; 
 export function Funil({ etapas }: { etapas: { nome: string; quantidade: number; onClick?: () => void }[] }) {
   const t = useT()
   const max = Math.max(1, ...etapas.map((e) => e.quantidade))
+  const etapa = (e: (typeof etapas)[number], i: number) => (
+    <>
+      <span className="w-6 text-center text-xs text-[var(--suave)]">{i + 1}</span>
+      <span className="block flex-1">
+        <span className="flex justify-between text-sm"><span>{t(e.nome)}</span><b className="num">{e.quantidade}</b></span>
+        <span className="mt-1 block h-2 rounded-full bg-[var(--marca-suave)]"><span className="block h-2 rounded-full bg-[var(--marca)]" style={{ width: `${(e.quantidade / max) * 100}%` }} /></span>
+      </span>
+    </>
+  )
   return (
     <ol className="space-y-2">
       {etapas.map((e, i) => (
-        <li key={e.nome} onClick={e.onClick} className={cx('flex items-center gap-2', e.onClick && 'cursor-pointer')}>
-          <span className="w-6 text-center text-xs text-[var(--suave)]">{i + 1}</span>
-          <div className="flex-1">
-            <div className="flex justify-between text-sm"><span>{t(e.nome)}</span><b className="num">{e.quantidade}</b></div>
-            <div className="mt-1 h-2 rounded-full bg-[var(--marca-suave)]"><div className="h-2 rounded-full bg-[var(--marca)]" style={{ width: `${(e.quantidade / max) * 100}%` }} /></div>
-          </div>
+        <li key={e.nome}>
+          {e.onClick ? <button type="button" onClick={e.onClick} className="flex min-h-10 w-full items-center gap-2 rounded-lg text-left hover:bg-[var(--marca-suave)]">{etapa(e, i)}</button> : <div className="flex items-center gap-2">{etapa(e, i)}</div>}
         </li>
       ))}
     </ol>
@@ -137,7 +148,7 @@ export function TabelaSimples({ colunas, linhas, moeda }: { colunas: { id: strin
         </thead>
         <tbody>
           {linhas.map((l, i) => (
-            <tr key={i} onClick={l.onClick} className={cx('border-t border-[var(--borda)]', l.onClick && 'cursor-pointer hover:bg-[var(--marca-suave)]')}>
+            <tr key={i} {...clicavel(l.onClick)} className={cx('border-t border-[var(--borda)]', l.onClick && 'cursor-pointer hover:bg-[var(--marca-suave)] focus:bg-[var(--marca-suave)] focus:outline-none')}>
               {colunas.map((c) => {
                 const v = l.valores[c.id]
                 return <td key={c.id} className={cx('px-2 py-2', c.formato && 'num text-right')}>{typeof v === 'number' && c.formato ? fmt(v, c.formato, moeda) : v}</td>

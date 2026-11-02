@@ -42,11 +42,11 @@ export function pendenciasVenda(t: Transacao, anexos: Anexo[], formasVivas: Set<
 }
 
 /** Compra: fotos, comprovante de origem (se o módulo pede), falta pagar (depois do "Pago") e parada na triagem. */
-export function pendenciasCompra(t: Transacao & { diasParada?: number }, anexos: Anexo[], opcoes: { pedeOrigem: boolean; jaPassouDoPago: boolean; diasParadaLimite: number; saldoConta?: number }): Pendencia[] {
+export function pendenciasCompra(t: Transacao & { diasParada?: number }, anexos: Anexo[], opcoes: { pedeFotos?: boolean; pedeOrigem: boolean; jaPassouDoPago: boolean; diasParadaLimite: number; saldoConta?: number }): Pendencia[] {
   if (t.tipo !== 'compra' || t.etapa === 'cancelado' || t.etapa === 'recusado') return []
   const p: Pendencia[] = []
   const meus = anexos.filter((a) => a.donoId === t.id)
-  if (!meus.some((a) => a.categoria === 'pedido' || a.categoria === 'produto')) p.push({ id: 'semFotos', texto: NOMES_PENDENCIA.semFotos, nivel: 'atencao' })
+  if (opcoes.pedeFotos !== false && !meus.some((a) => a.categoria === 'pedido' || a.categoria === 'produto')) p.push({ id: 'semFotos', texto: NOMES_PENDENCIA.semFotos, nivel: 'atencao' })
   if (opcoes.pedeOrigem && !meus.some((a) => a.categoria === 'origem')) p.push({ id: 'semComprovanteOrigem', texto: NOMES_PENDENCIA.semComprovanteOrigem, nivel: 'atencao' })
   if (opcoes.jaPassouDoPago) {
     const pago = t.pagamentos.reduce((s, x) => s + x.valorPrincipal, 0)

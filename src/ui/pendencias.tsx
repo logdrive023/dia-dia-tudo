@@ -29,7 +29,7 @@ export function FiltroPendencia({ valor, onChange, opcoes, contagem }: { valor: 
   return (
     <div className="sem-barra flex gap-1.5 overflow-x-auto pb-1">
       {[{ id: '', nome: 'Todas' }, { id: 'qualquer', nome: 'Com pendência' }, ...opcoes].map((o) => (
-        <button key={o.id} type="button" aria-pressed={valor === o.id} onClick={() => onChange(o.id)} className={cx('min-h-9 shrink-0 rounded-full border px-3 text-sm', valor === o.id ? 'border-[var(--marca)] bg-[var(--marca)] font-semibold text-white' : 'border-[var(--borda)] hover:border-[var(--marca)]')}>
+        <button key={o.id} type="button" aria-pressed={valor === o.id} onClick={() => onChange(o.id)} className={cx('min-h-10 shrink-0 rounded-full border px-3 text-sm', valor === o.id ? 'border-[var(--marca)] bg-[var(--marca)] font-semibold text-white' : 'border-[var(--borda)] hover:border-[var(--marca)]')}>
           {t(o.nome)}
           {contagem?.[o.id] !== undefined && <span className="num ml-1 opacity-80">{contagem[o.id]}</span>}
         </button>

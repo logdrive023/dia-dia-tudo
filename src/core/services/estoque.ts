@@ -2,8 +2,11 @@
 
 import { fatorValido, multiplicarFator, proporcao } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
-import type { Campos, Id, Item, MotivoEstoque, MovEstoque, Unidade } from '../domain/tipos'
+import type { Campos, Id, InsumoServico, Item, MotivoEstoque, MovEstoque, Transacao, Unidade } from '../domain/tipos'
 import { auditar, type Ctx, exigirInteiroPositivo, novo, tocar } from './contexto'
+import { nomeAcao } from './historico'
+import { codigoNovoLote, exigirCodigosLivres, proximoSequencial, siglasPorPessoa } from './codigos'
+import { leitorFotos } from './fotos'
 
 export async function moverEstoque(
   ctx: Ctx,
@@ -38,6 +41,23 @@ export function unidadeTexto(u: Unidade, q: number): string {
   return `${n}×`
 }
 
+/** TODAS as compras de onde vem o lote (direto, pelo lote-mãe ou pelos lotes unificados). */
+export function comprasDe(i?: Pick<Item, 'origem'>): Id[] {
+  const o = i?.origem
+  if (!o) return []
+  if (o.compraIds?.length) return o.compraIds
+  const c = o.tipo === 'compra' ? o.id : o.compraId
+  return c ? [c] : []
+}
+
+/** Lotes de onde este veio: o lote-mãe (separação) ou os lotes unificados. */
+export function lotesDeOrigem(i?: Pick<Item, 'origem'>): Id[] {
+  const o = i?.origem
+  if (o?.tipo === 'transformacao' && o.id) return [o.id]
+  if (o?.tipo === 'unificacao') return o.ids ?? []
+  return []
+}
+
 /** Custo proporcional de uma quantidade de um lote (na moeda principal). */
 export function custoDe(item: Item, quantidade: number): number {
   if (!item.custoPrincipal || !item.quantidadeInicial) return 0
@@ -60,11 +80,21 @@ export async function salvarItem(
     campos?: Campos
     saldoInicial?: number
     ativo?: boolean
+    /** serviço: % própria (pontos-base); undefined = regra padrão. Ausente na edição = mantém. */
+    comissaoBp?: number
+    /** serviço: insumos fixos (moeda + valor, itens opcionais que somam o valor). Ausente na edição = mantém. */
+    insumo?: InsumoServico
   },
 ) {
   exigir(d.nome?.trim(), 'Dê um nome.', 'nome')
   const tipo = ctx.modulos.tipoItem(d.moduloId, d.tipoItem)
   const existente = await ctx.repos.itens.obter(d.id)
+  if (d.comissaoBp !== undefined) exigir(Number.isInteger(d.comissaoBp) && d.comissaoBp >= 0 && d.comissaoBp <= 10000, 'Comissão inválida.', 'comissaoBp')
+  const insumo = normalizarInsumo(d.insumo)
+  const regra = {
+    comissaoBp: 'comissaoBp' in d ? d.comissaoBp : existente?.comissaoBp,
+    insumo: 'insumo' in d ? insumo : existente?.insumo,
+  }
   if (existente) {
     await ctx.repos.itens.salvar(
       tocar(ctx, {
@@ -76,8 +106,11 @@ export async function salvarItem(
         retornoDias: d.retornoDias,
         campos: { ...existente.campos, ...(d.campos ?? {}) },
         ativo: d.ativo ?? existente.ativo,
+        ...regra,
       }),
     )
+    if (existente.comissaoBp !== regra.comissaoBp || JSON.stringify(existente.insumo) !== JSON.stringify(regra.insumo))
+      await auditar(ctx, 'regraServico', existente.id, `${existente.nome}: comissão ${existente.comissaoBp !== undefined ? existente.comissaoBp / 100 + '%' : 'padrão'} → ${regra.comissaoBp !== undefined ? regra.comissaoBp / 100 + '%' : 'padrão'} · insumos ${existente.insumo?.valor ?? 0} → ${regra.insumo?.valor ?? 0}`)
     return { id: d.id }
   }
   const item = novo<Item>(ctx, {
@@ -95,6 +128,8 @@ export async function salvarItem(
     retornoDias: d.retornoDias,
     origem: { tipo: 'cadastro' },
     campos: d.campos ?? {},
+    ...(regra.comissaoBp !== undefined ? { comissaoBp: regra.comissaoBp } : {}),
+    ...(regra.insumo ? { insumo: regra.insumo } : {}),
   })
   await ctx.repos.itens.salvar(item)
   if (tipo.controlaEstoque && d.saldoInicial) {
@@ -103,6 +138,17 @@ export async function salvarItem(
   }
   await auditar(ctx, 'salvarItem', item.id, item.nome)
   return { id: item.id }
+}
+
+/** Insumo do catálogo: itens com nome e valor somam o total; sem valor = sem insumo. */
+export function normalizarInsumo(i: InsumoServico | undefined): InsumoServico | undefined {
+  if (!i) return undefined
+  const itens = (i.itens ?? []).filter((x) => x.valor).map((x) => ({ nome: x.nome?.trim() || 'Insumos', valor: x.valor }))
+  for (const x of itens) exigirInteiroPositivo(x.valor, `Insumo ${x.nome}`)
+  const valor = itens.length ? itens.reduce((s, x) => s + x.valor, 0) : i.valor
+  if (!valor) return undefined
+  exigirInteiroPositivo(valor, 'Insumos')
+  return { moeda: i.moeda, valor, ...(itens.length ? { itens } : {}) }
 }
 
 /** Define a quantidade contada (ajuste) ou registra uma perda. */
@@ -118,8 +164,15 @@ export async function ajustarEstoque(ctx: Ctx, d: { itemId: Id; novoSaldo: numbe
   return { id: mov.id }
 }
 
-/** Próximo código curto de lote ("L-0007"), sequencial por prefixo. */
+const SEQUENCIAS = { P: 'compra', L: 'lote', T: 'triagem', V: 'venda' } as const
+
+/**
+ * Próximo código INCREMENTAL ("L-0007", "T-0003", "V-0012"): P = compra, L = lote, T = triagem, V = venda, com o
+ * prefixo e as casas de Configurações › Códigos (prefixo vazio dá 1, 2, 3). Lote de compra/separação usa codigoNovoLote.
+ */
 export async function proximoCodigo(ctx: Ctx, prefixo = 'L'): Promise<string> {
+  const seq = SEQUENCIAS[prefixo as keyof typeof SEQUENCIAS]
+  if (seq) return proximoSequencial(ctx, seq)
   const id = `contador-${prefixo}`
   const r = await ctx.repos.config.obter(id)
   const n = ((r?.valor as number) ?? 0) + 1
@@ -132,6 +185,8 @@ export interface SaidaSeparacao {
   quantidade: number
   campos: Campos
   nome?: string
+  /** código digitado para o lote que sai (vazio = o da regra: M1-1a, L-0008…); recusado se já existir */
+  codigo?: string
   /**
    * Valor de mercado por unidade (ex.: fator da tabela). Se todas as partes tiverem, o custo é dividido pelo VALOR
    * (cabelo longo, que vale mais, leva mais custo); senão, pelo peso.
@@ -144,11 +199,22 @@ export interface SaidaSeparacao {
  * Ex.: 40 kg de cabelo bruto → 20 kg preto + 19,5 kg castanho (perda 0,5 kg). O custo usado é dividido pelo peso
  * de cada parte (mais o custo extra, se houver). Cada lote novo guarda de onde veio: rastreio compra → venda.
  */
-export async function separarLote(
-  ctx: Ctx,
-  d: { id: Id; loteId: Id; quantidadeUsada: number; saidas: SaidaSeparacao[]; custoExtraPrincipal?: number; descricao?: string },
-) {
+export type DadosSeparacao = { id: Id; loteId: Id; quantidadeUsada: number; saidas: SaidaSeparacao[]; custoExtraPrincipal?: number; descricao?: string }
+
+/** Identidade de uma TRIAGEM (como compra e venda têm a sua): "T-0003", quem e quando. */
+export type Triagem = NonNullable<Item['triagem']>
+export async function novaTriagem(ctx: Ctx, id: Id): Promise<Omit<Triagem, 'papel'>> {
+  return { id, codigo: await proximoCodigo(ctx, 'T'), em: ctx.relogio.agora(), por: ctx.sessao.nome }
+}
+
+export async function separarLote(ctx: Ctx, d: DadosSeparacao) {
   if (d.saidas?.length && (await ctx.repos.itens.obter(d.saidas[0].id))) return { id: d.id, lotes: d.saidas.map((x) => x.id) }
+  exigir(d.saidas?.length, 'Diga em que lotes ele foi separado.')
+  return separarNaTriagem(ctx, d, await novaTriagem(ctx, d.id))
+}
+
+/** Separação dentro de uma triagem já aberta (a triagem pode ter unificado lotes antes, no mesmo passo). */
+export async function separarNaTriagem(ctx: Ctx, d: DadosSeparacao, tg: Omit<Triagem, 'papel'>) {
   const lote = await ctx.repos.itens.obter(d.loteId)
   exigir(lote, 'Lote não encontrado.')
   exigir(d.saidas?.length, 'Diga em que lotes ele foi separado.')
@@ -165,6 +231,8 @@ export async function separarLote(
   const porValor = d.saidas.every((x) => x.valorReferencia && fatorValido(x.valorReferencia))
   const base = d.saidas.map((x) => (porValor ? multiplicarFator(x.quantidade, x.valorReferencia!, 'BOB') : x.quantidade))
   const somaBase = base.reduce((s, v) => s + v, 0)
+  // códigos digitados: confere tudo ANTES de mexer no estoque (sem repetir entre si e sem existir)
+  const { limpos, reservados } = await exigirCodigosLivres(ctx, 'lote', d.saidas.map((x) => x.codigo))
   await moverEstoque(ctx, {
     itemId: lote.id,
     delta: -d.quantidadeUsada,
@@ -173,6 +241,7 @@ export async function separarLote(
     descricao: d.descricao ?? `Separado em ${d.saidas.length} lote(s)${perda ? ` · perda ${unidadeTexto(lote.unidade, perda)}` : ''}`,
   })
   const criados: Id[] = []
+  const compraIds = comprasDe(lote)
   let custoRestante = custoTotal
   for (const [k, x] of d.saidas.entries()) {
     const custo = k === d.saidas.length - 1 ? custoRestante : proporcao(custoTotal, base[k], somaBase)
@@ -184,7 +253,7 @@ export async function separarLote(
       moduloId: lote.moduloId,
       tipoItem: lote.tipoItem,
       nome,
-      codigo: await proximoCodigo(ctx),
+      codigo: await codigoNovoLote(ctx, { codigo: limpos[k], paiId: lote.id, reservados }),
       unidade: lote.unidade,
       controlaEstoque: true,
       ativo: true,
@@ -192,15 +261,24 @@ export async function separarLote(
       precoSugerido: lote.precoSugerido,
       custoPrincipal: custo,
       quantidadeInicial: x.quantidade,
-      origem: { tipo: 'transformacao', id: lote.id, pessoaId: lote.origem?.pessoaId, compraId: lote.origem?.compraId ?? (lote.origem?.tipo === 'compra' ? lote.origem.id : undefined) },
+      origem: { tipo: 'transformacao', id: lote.id, pessoaId: lote.origem?.pessoaId, compraId: compraIds[0], compraIds: compraIds.length > 1 ? compraIds : undefined },
+      triagem: { ...tg, papel: 'saida' },
       campos,
     })
     await ctx.repos.itens.salvar(filho)
     await moverEstoque(ctx, { itemId: filho.id, delta: x.quantidade, motivo: 'transformacao', origemId: lote.id, descricao: `Veio de ${lote.codigo ?? lote.nome}` })
     criados.push(filho.id)
   }
-  await auditar(ctx, 'separarLote', lote.id, `${lote.codigo ?? lote.nome}: ${d.quantidadeUsada} → ${d.saidas.map((x) => x.quantidade).join(' + ')} (perda ${perda})`)
-  return { id: d.id, lotes: criados }
+  // peso bruto (antes) → peso líquido (soma das partes) e a perda, com quem e quando (o log guarda o usuário)
+  const pct = ((perda * 100) / d.quantidadeUsada).toLocaleString('pt-BR', { maximumFractionDigits: 1 })
+  await auditar(
+    ctx,
+    'separarLote',
+    lote.id,
+    `${tg.codigo} · ${lote.codigo ?? lote.nome}: peso bruto ${unidadeTexto(lote.unidade, d.quantidadeUsada)} → líquido ${unidadeTexto(lote.unidade, soma)} em ${d.saidas.length} lote(s) (${d.saidas.map((x) => x.quantidade).join(' + ')}) · perda ${unidadeTexto(lote.unidade, perda)} (${pct}%)`,
+    [d.id, ...criados],
+  )
+  return { id: d.id, codigo: tg.codigo, lotes: criados }
 }
 
 /** Transformação de uma parte só (ex.: limpar 100 g bruto → 82 g limpo). */
@@ -221,27 +299,78 @@ export async function transformarLote(
 
 // ---------- consultas ----------
 
+/** Situação do lote na lista: bruto (para separar), em preparação (limpeza), disponível, parcial (já saiu parte) ou esgotado. */
+export type StatusLote = 'bruto' | 'preparando' | 'disponivel' | 'parcial' | 'esgotado'
+
+export function statusLote(i: Pick<Item, 'saldo' | 'campos' | 'quantidadeInicial' | 'faseTriagem'>): StatusLote {
+  if (i.saldo <= 0) return 'esgotado'
+  if (i.campos.estado === 'Bruto') return i.faseTriagem && !i.faseTriagem.entrada ? 'preparando' : 'bruto'
+  if (i.quantidadeInicial && i.saldo < i.quantidadeInicial) return 'parcial'
+  return 'disponivel'
+}
+
 export async function estoque(ctx: Ctx, p: { moduloId?: string; somenteComSaldo?: boolean } = {}) {
   const itens = await ctx.repos.itens.listar(p.moduloId ? { moduloId: p.moduloId } : undefined)
+  const porId = new Map(itens.map((i) => [i.id, i]))
+  const compras = new Map((await ctx.repos.transacoes.listar({ tipo: 'compra' })).map((t) => [t.id, t]))
+  const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x.nome]))
+  const L = await leitorCadeia(ctx)
+  const F = await leitorFotos(ctx, { porId: L.porId, compras })
+  const siglas = await siglasPorPessoa(ctx)
+  const vendido = new Map<Id, number>()
+  for (const t of await ctx.repos.transacoes.listar({ tipo: 'venda' }))
+    if (t.etapa === 'concluido') for (const l of t.linhas) if (l.itemId) vendido.set(l.itemId, (vendido.get(l.itemId) ?? 0) + l.quantidade)
   return itens
     .filter((i) => i.controlaEstoque && i.ativo && (!p.somenteComSaldo || i.saldo > 0))
     .map((i) => (ctx.sessao.perfil === 'admin' ? i : { ...i, custoPrincipal: undefined }))
     .map((i) => {
       const ideal = i.estoqueIdeal ?? 0
-      return { ...i, repor: Math.max(0, ideal - i.saldo) }
+      const cs = comprasDe(i).map((id) => compras.get(id)).filter((t): t is Transacao => !!t)
+      const pai = i.origem?.tipo === 'transformacao' && i.origem.id ? porId.get(i.origem.id) : undefined
+      const nomes = [...new Set(cs.map((t) => (t.pessoaId ? pessoas.get(t.pessoaId) : undefined)).filter(Boolean))]
+      return {
+        ...i,
+        repor: Math.max(0, ideal - i.saldo),
+        status: statusLote(i),
+        vendido: vendido.get(i.id) ?? 0,
+        entrada: i.criadoEm.slice(0, 10),
+        compraId: cs[0]?.id,
+        compraCodigo: cs.map((t) => t.codigo).filter(Boolean).join(', ') || undefined,
+        compras: cs.map((t) => ({ id: t.id, codigo: t.codigo, fornecedor: t.pessoaId ? pessoas.get(t.pessoaId) : undefined, fornecedorId: t.pessoaId })),
+        fornecedor: (i.origem?.pessoaId ? pessoas.get(i.origem.pessoaId) : undefined) ?? (nomes.join(', ') || undefined),
+        pai: pai ? { id: pai.id, codigo: pai.codigo, nome: pai.nome } : undefined,
+        unificadoDe: i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).map((id) => porId.get(id)?.codigo ?? id) : undefined,
+        cadeia: L.cadeia(i.id),
+        /** miniatura do lote (a própria mais nova ou a herdada) e quantas fotos próprias ele tem */
+        foto: F.principal(i.id),
+        fotosProprias: F.proprias(i.id),
+        /** texto da busca: códigos atuais e anteriores (lote, compras, lote-mãe), fornecedor/comprador e a sigla */
+        busca: [
+          i.codigo, ...(i.codigosAnteriores ?? []), pai?.codigo, ...(pai?.codigosAnteriores ?? []),
+          ...cs.flatMap((t) => [t.codigo, ...(t.codigosAnteriores ?? []), ...[t.pessoaId, t.compradorId].flatMap((x) => (x ? [pessoas.get(x), siglas.get(x)] : []))]),
+          ...(i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).flatMap((id) => [porId.get(id)?.codigo, ...(porId.get(id)?.codigosAnteriores ?? [])]) : []),
+        ].filter(Boolean).join(' ').toLowerCase(),
+      }
     })
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 }
 
-export async function catalogo(ctx: Ctx, p: { moduloId?: string } = {}) {
+/** Catálogo (serviços e produtos cadastrados). Serviço criado "só para este atendimento" (campos.avulso) fica de fora. */
+export async function catalogo(ctx: Ctx, p: { moduloId?: string; incluirAvulsos?: boolean } = {}) {
   const itens = await ctx.repos.itens.listar(p.moduloId ? { moduloId: p.moduloId } : undefined)
-  return itens.filter((i) => i.origem?.tipo === 'cadastro' || !i.controlaEstoque).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  return itens
+    .filter((i) => i.origem?.tipo === 'cadastro' || !i.controlaEstoque)
+    .filter((i) => p.incluirAvulsos || !i.campos.avulso)
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 }
 
 export async function movimentosDoItem(ctx: Ctx, p: { itemId: Id }) {
   const movs = await ctx.repos.movEstoque.listar({ itemId: p.itemId })
   return movs.sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1))
 }
+
+/** Ações que contam a história da triagem de um lote (o "log da triagem"). */
+const ACOES_TRIAGEM = ['unificarLotes', 'moverFaseTriagem', 'separarLote', 'marcarLotes', 'editarAtributosLote']
 
 /** Ficha do lote: de onde veio, para onde foi cada grama e quanto deu de lucro. */
 export async function fichaItem(ctx: Ctx, p: { id: Id }) {
@@ -260,17 +389,120 @@ export async function fichaItem(ctx: Ctx, p: { id: Id }) {
       .filter((l) => l.itemId === item.id)
       .map((l) => ({
         vendaId: t.id,
+        codigo: t.codigo,
         data: t.data,
+        pessoaId: t.pessoaId,
         cliente: t.pessoaId ? pessoas.get(t.pessoaId)?.nome : undefined,
         quantidade: l.quantidade,
         totalPrincipal: l.totalPrincipal,
         custoPrincipal: l.custoPrincipal ?? 0,
+        lucro: l.totalPrincipal - (l.custoPrincipal ?? 0),
       })),
   )
   const vendido = saidas.reduce((s, x) => s + x.totalPrincipal, 0)
   const custoVendido = saidas.reduce((s, x) => s + x.custoPrincipal, 0)
-  const derivados = (await ctx.repos.itens.listar()).filter((i) => i.origem?.tipo === 'transformacao' && i.origem.id === item.id)
-  return { item, movimentos, anexos: [...anexos, ...anexosCompra], compra, fornecedor, saidas, vendido, custoVendido, lucro: vendido - custoVendido, derivados }
+  const todos = await ctx.repos.itens.listar()
+  const porId = new Map(todos.map((i) => [i.id, i]))
+  const derivados = todos.filter((i) => i.origem?.tipo === 'transformacao' && i.origem.id === item.id)
+  const transCompras = new Map((await ctx.repos.transacoes.listar({ tipo: 'compra' })).map((t) => [t.id, t]))
+  const auditoria = await ctx.repos.auditoria.listar()
+  // ENTRADA: a compra de onde o lote veio (direto ou pelo lote-mãe); compras = todas (lote unificado tem várias)
+  const pesoDe = (t: Transacao) => t.linhas.reduce((s, l) => s + l.quantidade, 0)
+  const compraId = comprasDe(item)[0]
+  const tc = compraId ? (compra?.id === compraId ? compra : await ctx.repos.transacoes.obter(compraId)) : undefined
+  const pesoCompra = tc ? pesoDe(tc) : 0
+  const entrada = tc
+    ? { id: tc.id, codigo: tc.codigo, data: tc.data, obs: tc.obs, total: tc.totalPrincipal, peso: pesoCompra, custoKg: pesoCompra ? Math.round((tc.totalPrincipal * 1000) / pesoCompra) : 0 }
+    : undefined
+  const compras = comprasDe(item)
+    .map((id) => transCompras.get(id))
+    .filter((t): t is Transacao => !!t)
+    .map((t) => {
+      const peso = pesoDe(t)
+      const f = t.pessoaId ? pessoas.get(t.pessoaId) : undefined
+      return { id: t.id, codigo: t.codigo, data: t.data, obs: t.obs, total: t.totalPrincipal, peso, custoKg: peso ? Math.round((t.totalPrincipal * 1000) / peso) : 0, fornecedor: f ? { id: f.id, nome: f.nome } : undefined }
+    })
+  // TRIAGEM: em que lotes este foi separado (peso bruto → líquido, perda, quem e quando), ou de que lote veio (e os irmãos)
+  const parte = (i: Item) => ({ id: i.id, codigo: i.codigo, nome: i.nome, campos: i.campos, quantidade: i.quantidadeInicial ?? 0, saldo: i.saldo, custo: i.custoPrincipal ?? 0, atual: i.id === item.id })
+  const separacoesDe = (lote: Item, ms: MovEstoque[]) =>
+    ms
+      .filter((m) => m.motivo === 'transformacao' && m.delta < 0)
+      .map((m) => {
+        const partes = todos.filter((i) => i.origem?.tipo === 'transformacao' && i.origem.id === lote.id && i.campos.separacaoId === m.origemId).map(parte)
+        const gerado = partes.reduce((s, x) => s + x.quantidade, 0)
+        const usado = -m.delta
+        const log =
+          auditoria.find((a) => a.acao === 'separarLote' && !!m.origemId && !!a.ligados?.includes(m.origemId)) ??
+          auditoria.filter((a) => a.acao === 'separarLote' && a.alvoId === lote.id && a.criadoEm >= m.criadoEm).sort((a, b) => (a.criadoEm < b.criadoEm ? -1 : 1))[0]
+        return { id: m.origemId, data: m.data, em: log?.criadoEm ?? m.criadoEm, por: log?.usuarioNome, logId: log?.id, usado, pesoBruto: usado, pesoLiquido: gerado, partes, perda: usado - gerado, perdaPct: Math.round(((usado - gerado) * 10000) / usado) }
+      })
+  const separacoes = separacoesDe(item, movimentos)
+  const pai = item.origem?.tipo === 'transformacao' && item.origem.id ? porId.get(item.origem.id) : undefined
+  const irmaos = pai ? todos.filter((i) => i.id !== item.id && i.origem?.tipo === 'transformacao' && i.origem.id === pai.id && i.campos.separacaoId === item.campos.separacaoId).map(parte) : []
+  const triagemPai = pai ? separacoesDe(pai, await ctx.repos.movEstoque.listar({ itemId: pai.id })).find((s) => s.id === item.campos.separacaoId) : undefined
+  // DNA: compra(s) → [unificação] → lote bruto → triagem → este lote (e os irmãos) → vendas
+  const bruto = pai ?? item
+  const u = bruto.origem?.tipo === 'unificacao' ? bruto : undefined
+  const movsU = u ? await ctx.repos.movEstoque.listar({ origemId: u.id }) : []
+  const logU = u ? auditoria.find((a) => a.acao === 'unificarLotes' && a.alvoId === u.id) : undefined
+  const unificacao = u
+    ? {
+        id: u.id,
+        codigo: u.codigo,
+        nome: u.nome,
+        em: logU?.criadoEm ?? u.criadoEm,
+        por: logU?.usuarioNome,
+        total: u.quantidadeInicial ?? 0,
+        fontes: (u.origem?.ids ?? []).map((id) => {
+          const f = porId.get(id)
+          return { id, codigo: f?.codigo, nome: f?.nome ?? id, quantidade: -movsU.filter((m) => m.itemId === id && m.delta < 0).reduce((s, m) => s + m.delta, 0), compras: comprasDe(f).map((c) => transCompras.get(c)?.codigo ?? c) }
+        }),
+      }
+    : undefined
+  // este lote foi unificado em outro (destino)
+  const unificadoEm = movimentos
+    .filter((m) => m.motivo === 'unificacao' && m.delta < 0 && m.origemId)
+    .map((m) => ({ id: m.origemId!, codigo: porId.get(m.origemId!)?.codigo, nome: porId.get(m.origemId!)?.nome ?? '', quantidade: -m.delta, em: m.criadoEm }))
+  const dna = { compras, unificacao, bruto: { ...parte(bruto), fase: bruto.faseTriagem?.fase ?? 'aguardando', estado: bruto.campos.estado }, triagens: pai ? (triagemPai ? [triagemPai] : []) : separacoes }
+  // LOG DA TRIAGEM: quem fez o quê (unificar, preparar, separar, marcar), com peso bruto × líquido e perda
+  const ligados = new Set<Id>([item.id, bruto.id, ...(u ? [u.id, ...(u.origem?.ids ?? [])] : []), ...irmaos.map((x) => x.id), ...unificadoEm.map((x) => x.id)])
+  const seps = [...separacoes, ...(triagemPai ? [triagemPai] : [])]
+  const logTriagem = auditoria
+    .filter((a) => ACOES_TRIAGEM.includes(a.acao) && ((a.alvoId && ligados.has(a.alvoId)) || a.ligados?.some((x) => ligados.has(x))))
+    .sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1))
+    .map((a) => {
+      const s = a.acao === 'separarLote' ? seps.find((x) => x.logId === a.id) : undefined
+      const un = a.acao === 'unificarLotes' ? porId.get(a.alvoId ?? '') : undefined
+      const pesos = s
+        ? { pesoBruto: s.pesoBruto, pesoLiquido: s.pesoLiquido, perda: s.perda, perdaPct: s.perdaPct }
+        : un
+          ? { pesoBruto: un.quantidadeInicial ?? 0, pesoLiquido: un.quantidadeInicial ?? 0, perda: 0, perdaPct: 0 }
+          : {}
+      return { id: a.id, em: a.criadoEm, por: a.usuarioNome, acao: a.acao, nome: nomeAcao(a.acao), resumo: a.resumo, ...pesos } as { id: Id; em: string; por?: string; acao: string; nome: string; resumo: string; pesoBruto?: number; pesoLiquido?: number; perda?: number; perdaPct?: number }
+    })
+  // para onde foi cada grama: comprado → vendido → separado → unificado → perda → em estoque
+  const inicial = item.quantidadeInicial ?? movimentos.filter((m) => m.delta > 0 && m.motivo !== 'cancelamento' && m.motivo !== 'correcao').reduce((s, m) => s + m.delta, 0)
+  const gVendido = saidas.reduce((s, x) => s + x.quantidade, 0)
+  const gSeparado = separacoes.reduce((s, x) => s + x.usado - x.perda, 0)
+  const gUnificado = unificadoEm.reduce((s, x) => s + x.quantidade, 0)
+  const perdaSeparacao = separacoes.reduce((s, x) => s + x.perda, 0)
+  const perdaAjuste = -movimentos.filter((m) => (m.motivo === 'perda' || m.motivo === 'ajuste') && m.delta < 0).reduce((s, m) => s + m.delta, 0)
+  // FOTOS: as do lote primeiro, depois as herdadas (lotes de origem e compras), por referência
+  const fotos = (await leitorFotos(ctx, { porId, compras: transCompras })).fotosDe(item.id)
+  return {
+    item, movimentos, anexos: [...anexos, ...anexosCompra], compra, fornecedor, saidas, vendido, custoVendido, lucro: vendido - custoVendido, derivados,
+    fotos,
+    fotoPrincipal: fotos[0],
+    status: statusLote(item),
+    entrada,
+    separacoes,
+    pai: pai ? parte(pai) : undefined,
+    irmaos,
+    dna,
+    unificadoEm,
+    logTriagem,
+    fluxo: { inicial, vendido: gVendido, separado: gSeparado, unificado: gUnificado, perda: perdaSeparacao + perdaAjuste, perdaSeparacao, saldo: item.saldo },
+  }
 }
 
 export interface VendaRastreio {
@@ -290,6 +522,8 @@ export interface NoRastreio {
   entrada: number
   vendido: number
   separado: number
+  /** gramas que foram para um lote unificado */
+  unificado: number
   perdasAjustes: number
   saldo: number
   custo: number
@@ -297,6 +531,10 @@ export interface NoRastreio {
   lucro: number
   vendas: VendaRastreio[]
   filhos: NoRastreio[]
+  /** lote nascido da unificação de vários (mostra de quais) */
+  unificacao?: { fontes: { id: Id; codigo?: string }[] }
+  /** lote unificado que já apareceu em outro galho (não soma de novo) */
+  repetido?: boolean
 }
 
 /**
@@ -306,22 +544,28 @@ export interface NoRastreio {
 export async function rastreio(ctx: Ctx, p: { compraId?: Id; itemId?: Id }) {
   const itens = await ctx.repos.itens.listar()
   const porId = new Map(itens.map((i) => [i.id, i]))
-  let compraId = p.compraId
-  if (!compraId && p.itemId) {
+  let compraIds = p.compraId ? [p.compraId] : []
+  if (!p.compraId && p.itemId) {
     const i = porId.get(p.itemId)
     exigir(i, 'Lote não encontrado.')
-    compraId = i.origem?.tipo === 'compra' ? i.origem.id : i.origem?.compraId
+    compraIds = comprasDe(i)
   }
-  const compra = compraId ? await ctx.repos.transacoes.obter(compraId) : undefined
-  const raizes = compra
-    ? itens.filter((i) => i.origem?.tipo === 'compra' && i.origem.id === compra.id)
+  const compras = (await Promise.all(compraIds.map((id) => ctx.repos.transacoes.obter(id)))).filter((t): t is Transacao => !!t)
+  const compra = compras[0]
+  const ids = new Set(compras.map((t) => t.id))
+  const raizes = compras.length
+    ? itens.filter((i) => i.origem?.tipo === 'compra' && ids.has(i.origem.id ?? ''))
     : p.itemId && porId.get(p.itemId)
       ? [porId.get(p.itemId)!]
       : []
   const movs = await ctx.repos.movEstoque.listar()
   const vendasTodas = (await ctx.repos.transacoes.listar({ tipo: 'venda' })).filter((t) => t.etapa === 'concluido')
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x.nome]))
+  const vistos = new Set<Id>()
   const montar = (item: Item): NoRastreio => {
+    const unificacao = item.origem?.tipo === 'unificacao' ? { fontes: (item.origem.ids ?? []).map((id) => ({ id, codigo: porId.get(id)?.codigo })) } : undefined
+    if (vistos.has(item.id)) return { item, entrada: 0, vendido: 0, separado: 0, unificado: 0, perdasAjustes: 0, saldo: 0, custo: 0, receita: 0, lucro: 0, vendas: [], filhos: [], unificacao, repetido: true }
+    vistos.add(item.id)
     const ms = movs.filter((m) => m.itemId === item.id)
     const soma = (f: (m: MovEstoque) => boolean) => ms.filter(f).reduce((s, m) => s + m.delta, 0)
     const vendas: VendaRastreio[] = vendasTodas.flatMap((t) =>
@@ -339,14 +583,15 @@ export async function rastreio(ctx: Ctx, p: { compraId?: Id; itemId?: Id }) {
           calculo: l.campos?.calculo ? String(l.campos.calculo) : '',
         })),
     )
-    const filhos = itens.filter((i) => i.origem?.tipo === 'transformacao' && i.origem.id === item.id).map(montar)
+    const filhos = itens.filter((i) => lotesDeOrigem(i).includes(item.id)).map(montar)
     const receitaPropria = vendas.reduce((s, v) => s + v.totalPrincipal, 0)
     const custoVendido = vendas.reduce((s, v) => s + v.custo, 0)
     return {
       item,
-      entrada: soma((m) => m.delta > 0 && (m.motivo === 'compra' || m.motivo === 'transformacao' || m.descricao === 'Quantidade inicial do cadastro')),
+      entrada: soma((m) => m.delta > 0 && (m.motivo === 'compra' || m.motivo === 'transformacao' || m.motivo === 'unificacao' || m.descricao === 'Quantidade inicial do cadastro')),
       vendido: vendas.reduce((s, v) => s + v.quantidade, 0),
       separado: -soma((m) => m.motivo === 'transformacao' && m.delta < 0),
+      unificado: -soma((m) => m.motivo === 'unificacao' && m.delta < 0),
       perdasAjustes: soma((m) => m.motivo === 'ajuste' || m.motivo === 'perda') ,
       saldo: item.saldo,
       custo: item.custoPrincipal ?? 0,
@@ -354,6 +599,7 @@ export async function rastreio(ctx: Ctx, p: { compraId?: Id; itemId?: Id }) {
       lucro: receitaPropria - custoVendido + filhos.reduce((s, f) => s + f.lucro, 0),
       vendas,
       filhos,
+      unificacao,
     }
   }
   const arvore = raizes.map(montar)
@@ -362,17 +608,149 @@ export async function rastreio(ctx: Ctx, p: { compraId?: Id; itemId?: Id }) {
   return {
     compra,
     fornecedor: compra?.pessoaId ? pessoas.get(compra.pessoaId) : undefined,
+    compras: compras.map((t) => ({ id: t.id, codigo: t.codigo, data: t.data, fornecedor: t.pessoaId ? pessoas.get(t.pessoaId) : undefined })),
     arvore,
     resumo: {
       comprado: entradas,
-      custoCompra: compra?.totalPrincipal ?? arvore.reduce((s, n) => s + n.custo, 0),
+      custoCompra: compras.length ? compras.reduce((s, t) => s + t.totalPrincipal, 0) : arvore.reduce((s, n) => s + n.custo, 0),
       vendido: somar(arvore, (n) => n.vendido),
       emEstoque: somar(arvore, (n) => n.saldo),
-      perdaNaSeparacao: somar(arvore, (n) => n.separado - n.filhos.reduce((s, f) => s + f.entrada, 0)),
+      perdaNaSeparacao: somar(arvore, (n) => n.separado - n.filhos.filter((f) => !f.unificacao).reduce((s, f) => s + f.entrada, 0)),
       receita: arvore.reduce((s, n) => s + n.receita, 0),
       lucroRealizado: arvore.reduce((s, n) => s + n.lucro, 0),
       vendas: somar(arvore, (n) => n.vendas.length),
       lotes: somar(arvore, () => 1),
     },
   }
+}
+
+// ---------- atributos dos lotes (admin) ----------
+
+const CAMPOS_INTERNOS = ['separacaoId', 'rateio', 'tabelaId', 'colunaId', 'calculo']
+
+function textoValor(v: Campos[string]) {
+  return v === undefined || v === null || v === '' ? '—' : v === true ? 'sim' : v === false ? 'não' : String(v)
+}
+
+/** Aplica atributos num item (valida pelo tipo; recalcula o nome) e devolve o "antes → depois" para o log. */
+export async function aplicarCampos(ctx: Ctx, item: Item, campos: Campos) {
+  const tipo = ctx.modulos.tipoItem(item.moduloId, item.tipoItem)
+  const defs = new Map(tipo.campos.map((c) => [c.id, c]))
+  const novos: Campos = { ...item.campos }
+  const mudou: string[] = []
+  for (const [k, v0] of Object.entries(campos)) {
+    const def = defs.get(k)
+    exigir(def && !CAMPOS_INTERNOS.includes(k), `Atributo desconhecido: ${k}.`)
+    const v = v0 === '' || v0 === null ? undefined : v0
+    if (v !== undefined) {
+      if (def.tipo === 'lista') exigir(!def.opcoes?.length || def.opcoes.includes(String(v)), `${def.nome}: "${v}" não está na lista.`)
+      if (def.tipo === 'numero') exigir(typeof v === 'number' && Number.isFinite(v) && v >= 0, `${def.nome}: número inválido.`)
+      if (def.tipo === 'simNao') exigir(typeof v === 'boolean', `${def.nome}: use sim ou não.`)
+    }
+    if (textoValor(item.campos[k]) === textoValor(v)) continue
+    mudou.push(`${def.nome}: ${textoValor(item.campos[k])} → ${textoValor(v)}`)
+    if (v === undefined) delete novos[k]
+    else novos[k] = v
+  }
+  if (!mudou.length) return undefined
+  // mudou a situação (bruto ⇄ separado): a coluna da triagem volta a ser a calculada
+  const faseTriagem = novos.estado === item.campos.estado ? item.faseTriagem : undefined
+  const nomeAntes = tipo.nomear?.(item.campos)
+  const nomeDepois = tipo.nomear?.(novos)
+  const nome = nomeDepois && nomeDepois !== nomeAntes ? nomeDepois : item.nome
+  if (nome !== item.nome) mudou.push(`Nome: ${item.nome} → ${nome}`)
+  await ctx.repos.itens.salvar(tocar(ctx, { ...item, campos: novos, nome, faseTriagem }))
+  return mudou
+}
+
+/** Muda atributos de vários lotes de uma vez (ex.: marcar 12 lotes como "Separado"). Uma linha no log por lote. */
+export async function marcarLotes(ctx: Ctx, d: { ids: Id[]; campos: Campos }) {
+  exigir(ctx.sessao.perfil === 'admin', 'Só o administrador muda atributos em massa.')
+  exigir(d.ids?.length, 'Escolha pelo menos um lote.')
+  exigir(d.campos && Object.keys(d.campos).length, 'Diga o que mudar.')
+  const alterados: Id[] = []
+  for (const id of new Set(d.ids)) {
+    const item = await ctx.repos.itens.obter(id)
+    exigir(item, 'Lote não encontrado.')
+    const mudou = await aplicarCampos(ctx, item, d.campos)
+    if (!mudou) continue
+    await auditar(ctx, 'marcarLotes', item.id, `${item.codigo ?? item.nome}: ${mudou.join('; ')}`)
+    alterados.push(item.id)
+  }
+  return { alterados }
+}
+
+/** Edita os atributos de um lote (fica no log com antes → depois; muda o nome se a medida/categoria/cor mudar). */
+export async function editarAtributosLote(ctx: Ctx, d: { id: Id; campos: Campos; motivo?: string }) {
+  exigir(ctx.sessao.perfil === 'admin', 'Só o administrador edita atributos.')
+  const item = await ctx.repos.itens.obter(d.id)
+  exigir(item, 'Lote não encontrado.')
+  const mudou = await aplicarCampos(ctx, item, d.campos ?? {})
+  exigir(mudou, 'Nada mudou.')
+  await auditar(ctx, 'editarAtributosLote', item.id, `${item.codigo ?? item.nome}: ${mudou.join('; ')}${d.motivo?.trim() ? ` · ${d.motivo.trim()}` : ''}`)
+  return { id: item.id, nome: (await ctx.repos.itens.obter(item.id))!.nome }
+}
+
+// ---------- cadeia: Compra(s) → Triagem(ns) → Venda(s) ----------
+
+export interface Cadeia {
+  compras: { id: Id; codigo?: string; fornecedor?: string }[]
+  triagens: { id: Id; codigo: string }[]
+  vendas: { id: Id; codigo: string }[]
+}
+
+/**
+ * Lê tudo uma vez e devolve a CADEIA de qualquer lote: de que compra(s) veio, por que triagem(ns) passou (antes e
+ * depois dele) e em que venda(s) terminou (dele e dos lotes que saíram dele). Uma compra não fica junta para sempre:
+ * pode ir para várias triagens, e uma triagem pode misturar várias compras.
+ */
+export async function leitorCadeia(ctx: Ctx) {
+  const itens = await ctx.repos.itens.listar()
+  const porId = new Map(itens.map((i) => [i.id, i]))
+  const filhos = new Map<Id, Id[]>()
+  for (const i of itens) for (const o of lotesDeOrigem(i)) filhos.set(o, [...(filhos.get(o) ?? []), i.id])
+  const compras = new Map((await ctx.repos.transacoes.listar({ tipo: 'compra' })).map((t) => [t.id, t]))
+  const pessoas = new Map((await ctx.repos.pessoas.listar()).map((p) => [p.id, p.nome]))
+  const vendasDe = new Map<Id, Transacao[]>()
+  for (const t of await ctx.repos.transacoes.listar({ tipo: 'venda' }))
+    if (t.etapa === 'concluido')
+      for (const l of t.linhas)
+        if (l.itemId) {
+          const a = vendasDe.get(l.itemId) ?? []
+          if (!a.includes(t)) a.push(t)
+          vendasDe.set(l.itemId, a)
+        }
+  const codigoVenda = (t: Transacao) => t.codigo ?? `V·${t.id.slice(-4).toUpperCase()}`
+  const andar = (id: Id, prox: (id: Id) => Id[], vistos = new Set<Id>()) => {
+    for (const x of prox(id)) if (!vistos.has(x)) (vistos.add(x), andar(x, prox, vistos))
+    return vistos
+  }
+  const descendentes = (id: Id) => andar(id, (x) => filhos.get(x) ?? [])
+  const ancestrais = (id: Id) => andar(id, (x) => lotesDeOrigem(porId.get(x)))
+  const compraCurta = (id: Id) => {
+    const t = compras.get(id)
+    return { id, codigo: t?.codigo, fornecedor: t?.pessoaId ? pessoas.get(t.pessoaId) : undefined }
+  }
+  const vendasDosLotes = (ids: Iterable<Id>) => {
+    const vs = new Map<Id, Transacao>()
+    for (const x of ids) for (const t of vendasDe.get(x) ?? []) vs.set(t.id, t)
+    return [...vs.values()].sort((a, b) => (a.data + a.criadoEm < b.data + b.criadoEm ? -1 : 1)).map((t) => ({ id: t.id, codigo: codigoVenda(t) }))
+  }
+  const cadeia = (id: Id): Cadeia => {
+    const linha = [...ancestrais(id), id, ...descendentes(id)]
+    const ts = new Map<Id, Pick<Triagem, 'id' | 'codigo' | 'em'>>()
+    for (const x of linha) {
+      const i = porId.get(x)
+      // lotes separados antes do número de triagem: a separação vale como triagem
+      const sep = i?.origem?.tipo === 'transformacao' ? (i.campos.separacaoId as string | undefined) : undefined
+      const tg = i?.triagem ?? (sep ? { id: sep, codigo: `T·${sep.slice(-4).toUpperCase()}`, em: i!.criadoEm } : undefined)
+      if (tg) ts.set(tg.id, tg)
+    }
+    return {
+      compras: comprasDe(porId.get(id)).map(compraCurta),
+      triagens: [...ts.values()].sort((a, b) => (a.em < b.em ? -1 : 1)).map((x) => ({ id: x.id, codigo: x.codigo })),
+      vendas: vendasDosLotes([id, ...descendentes(id)]),
+    }
+  }
+  return { cadeia, itens, porId, compras, pessoas, vendasDe, vendasDosLotes, descendentes, compraCurta, codigoVenda }
 }

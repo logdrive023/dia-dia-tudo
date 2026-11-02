@@ -8,6 +8,7 @@ import type { Anexo, CategoriaAnexo, CotacaoRegistro, Id, Local, Papel, Pessoa }
 import { auditar, type Configuracoes, type Ctx, cotacoesAtuais, lerConfig, novo, tocar } from './contexto'
 import { situacaoDe } from './emprestimos'
 import { type ModuloConfig, moduloDeConfig } from '../modulosConfig'
+import { type AtributosConfig, type CampoDef, ETAPA_FINAL, type FluxoCompraConfig } from '../modulos'
 
 export async function salvarPessoa(
   ctx: Ctx,
@@ -191,6 +192,121 @@ export async function salvarConfig(ctx: Ctx, d: Partial<Configuracoes>) {
   const r = await ctx.repos.config.obter('geral')
   await ctx.repos.config.salvar(r ? tocar(ctx, { ...r, valor }) : novo(ctx, { id: 'geral', valor }))
   return { id: 'geral' }
+}
+
+// ---------- atributos do item (campos dinâmicos) ----------
+
+/** Tipos de item com os campos atuais (do código + criados pela tela) e o que foi mudado. */
+export async function atributosItem(ctx: Ctx, _p: object = {}) {
+  const r = await ctx.repos.config.obter('atributosItem')
+  const salvo = (r?.valor as Record<string, AtributosConfig>) ?? {}
+  return ctx.modulos.todos().flatMap((m) =>
+    m.tiposItem
+      .filter((ti) => ti.controlaEstoque)
+      .map((ti) => ({
+        moduloId: m.id,
+        tipoId: ti.id,
+        nome: `${m.icone} ${m.nome} · ${ti.nome}`,
+        padrao: ctx.modulos.camposPadrao(m.id, ti.id),
+        config: salvo[`${m.id}:${ti.id}`] ?? { extras: [], ocultos: [], opcoes: {} },
+      })),
+  )
+}
+
+/**
+ * Atributos sem programar: criar campo (texto, número, lista, sim/não), esconder campo que não usa e mudar as opções
+ * das listas (ex.: nova cor). O que já foi gravado nos itens fica guardado mesmo se o campo for escondido.
+ */
+export async function salvarAtributos(ctx: Ctx, d: { moduloId: string; tipoId: string } & AtributosConfig) {
+  const padrao = ctx.modulos.camposPadrao(d.moduloId, d.tipoId)
+  exigir(padrao.length || ctx.modulos.tem(d.moduloId), 'Tipo de item não encontrado.')
+  const ids = new Set(padrao.map((c) => c.id))
+  const extras: CampoDef[] = []
+  for (const c of d.extras) {
+    exigir(c.nome?.trim(), 'Todo atributo precisa de nome.')
+    const id = c.id || c.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30)
+    exigir(id && !ids.has(id), `Já existe um atributo "${c.nome}".`)
+    ids.add(id)
+    const opcoes = c.tipo === 'lista' ? (c.opcoes ?? []).map((o) => o.trim()).filter(Boolean) : undefined
+    if (c.tipo === 'lista') exigir(opcoes?.length, `Dê as opções de "${c.nome}".`)
+    extras.push({ id, nome: c.nome.trim(), tipo: c.tipo, opcoes, unidade: c.unidade?.trim() || undefined, ajuda: c.ajuda?.trim() || undefined, obrigatorio: !!c.obrigatorio })
+  }
+  for (const id of d.ocultos) exigir(!padrao.find((c) => c.id === id)?.fixo, 'Esse atributo não pode ser escondido (o nome, o preço ou a separação dependem dele).')
+  const opcoes: Record<string, string[]> = {}
+  for (const [k, v] of Object.entries(d.opcoes ?? {})) {
+    const lista = [...new Set(v.map((o) => o.trim()).filter(Boolean))]
+    if (lista.length && padrao.some((c) => c.id === k && c.tipo === 'lista')) opcoes[k] = lista
+  }
+  const r = await ctx.repos.config.obter('atributosItem')
+  const valor = { ...((r?.valor as Record<string, AtributosConfig>) ?? {}), [`${d.moduloId}:${d.tipoId}`]: { extras, ocultos: d.ocultos, opcoes } }
+  await ctx.repos.config.salvar(r ? tocar(ctx, { ...r, valor }) : novo(ctx, { id: 'atributosItem', valor }))
+  ctx.modulos.definirAtributos(valor)
+  await auditar(ctx, 'salvarAtributos', `${d.moduloId}:${d.tipoId}`, [...extras.map((c) => `+ ${c.nome}`), ...d.ocultos.map((c) => `− ${c}`)].join(', ') || 'opções')
+  return { id: `${d.moduloId}:${d.tipoId}` }
+}
+
+// ---------- etapas da compra (personalizáveis) ----------
+
+async function fluxosSalvos(ctx: Ctx) {
+  const r = await ctx.repos.config.obter('fluxosCompra')
+  return { r, valor: { ...((r?.valor as Record<string, FluxoCompraConfig>) ?? {}) } }
+}
+
+/** Etapas atuais de cada módulo que compra, quantos pedidos abertos há em cada etapa e o padrão do sistema. */
+export async function fluxosCompra(ctx: Ctx, _p: object = {}) {
+  const abertas = (await ctx.repos.transacoes.listar({ tipo: 'compra' })).filter((t) => !['concluido', 'recusado', 'cancelado'].includes(t.etapa))
+  return ctx.modulos
+    .todos()
+    .filter((m) => m.compra)
+    .map((m) => ({
+      moduloId: m.id,
+      nome: m.nome,
+      icone: m.icone,
+      personalizado: !!m.compra!.personalizado,
+      fluxo: { etapas: m.compra!.etapas, avisarParadaDias: m.compra!.avisarParadaDias, pedirComprovanteOrigem: !!m.compra!.pedirComprovanteOrigem, pedirFotos: m.compra!.pedirFotos !== false },
+      emUso: Object.fromEntries(m.compra!.etapas.map((e) => [e.id, abertas.filter((t) => t.moduloId === m.id && t.etapa === e.id).length])),
+    }))
+}
+
+/**
+ * Muda as etapas da compra de um módulo: nomes, ordem, explicação, onde paga, o que lembrar e o que conta como "falta".
+ * Regras: 2 a 10 etapas, nomes únicos, a última é sempre "entra no estoque" (id fixo), no máximo uma cobra pagamento,
+ * e não dá para tirar uma etapa onde ainda há pedido parado. fluxo: null = volta ao padrão do sistema.
+ */
+export async function salvarFluxoCompra(ctx: Ctx, d: { moduloId: string; fluxo: FluxoCompraConfig | null }) {
+  const padrao = ctx.modulos.fluxoPadrao(d.moduloId)
+  exigir(padrao, 'Esse módulo não tem compras.')
+  const { r, valor } = await fluxosSalvos(ctx)
+  const atuais = ctx.modulos.obter(d.moduloId).compra!.etapas
+  const novas = d.fluxo?.etapas ?? padrao.etapas
+  const abertas = (await ctx.repos.transacoes.listar({ tipo: 'compra' })).filter((t) => t.moduloId === d.moduloId)
+  for (const e of atuais.filter((e) => !novas.some((n) => n.id === e.id))) {
+    const n = abertas.filter((t) => t.etapa === e.id).length
+    exigir(!n, `${n} pedido(s) estão em "${e.nome}": ande ou recuse esses pedidos antes de tirar a etapa.`)
+  }
+  if (!d.fluxo) delete valor[d.moduloId]
+  else {
+    const f = d.fluxo
+    exigir(f.etapas.length >= 2 && f.etapas.length <= 10, 'Use de 2 a 10 etapas.')
+    exigir(f.etapas.every((e) => e.nome?.trim() && /^[a-z0-9-]{1,30}$/.test(e.id)), 'Toda etapa precisa de nome.')
+    exigir(new Set(f.etapas.map((e) => e.nome.trim().toLowerCase())).size === f.etapas.length, 'Há duas etapas com o mesmo nome.')
+    exigir(new Set(f.etapas.map((e) => e.id)).size === f.etapas.length, 'Etapa repetida.')
+    const ultima = f.etapas[f.etapas.length - 1]
+    exigir(ultima.id === ETAPA_FINAL, 'A última etapa é sempre a que põe no estoque.')
+    exigir(f.etapas.filter((e) => e.faz?.includes('estoque')).length === 1 && ultima.faz?.includes('estoque'), 'Só a última etapa põe no estoque.')
+    exigir(f.etapas.filter((e) => e.faz?.includes('pagamento')).length <= 1, 'Só uma etapa cobra o pagamento.')
+    exigir(Number.isInteger(f.avisarParadaDias) && f.avisarParadaDias >= 1 && f.avisarParadaDias <= 90, 'Avisar parada: de 1 a 90 dias.')
+    valor[d.moduloId] = {
+      etapas: f.etapas.map((e) => ({ id: e.id, nome: e.nome.trim(), ajuda: e.ajuda?.trim() ?? '', faz: e.faz?.length ? e.faz : undefined, lembrar: e.lembrar?.length ? e.lembrar : undefined })),
+      avisarParadaDias: f.avisarParadaDias,
+      pedirComprovanteOrigem: !!f.pedirComprovanteOrigem,
+      pedirFotos: f.pedirFotos !== false,
+    }
+  }
+  await ctx.repos.config.salvar(r ? tocar(ctx, { ...r, valor }) : novo(ctx, { id: 'fluxosCompra', valor }))
+  ctx.modulos.definirFluxos(valor)
+  await auditar(ctx, 'salvarFluxoCompra', d.moduloId, d.fluxo ? novas.map((e) => e.nome).join(' → ') : 'voltou ao padrão')
+  return { id: d.moduloId }
 }
 
 /** Cria ou altera uma modalidade montada pela tela (recursos + campos). */

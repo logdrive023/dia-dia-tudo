@@ -16,7 +16,8 @@ Publicação: `https://logdrive023.github.io/dia-dia-tudo/` (após o primeiro pu
 | Vender cabelo pela tabela (`40 \| 2.000 × 3,5 = Bs 7.000`) | **Vender › É cabelo?** |
 | Atender/agendar no salão (unidade, cliente, serviço, quem atende) | **Vender › É serviço?** ou **Agenda** |
 | Registrar um pedido de compra com fotos/PDF e andar a triagem | **Comprar** |
-| Separar um lote bruto (40 kg → 20 kg preto + 19,5 kg castanho) | **Estoque › Separar** |
+| Triar: juntar lotes/compras e separar (40 kg → 20 kg preto + 19,5 kg castanho), ver o que está pronto para vender | **Triagem** (quadro com colunas personalizáveis) |
+| Ver cada grama: compra → triagem (T-…) → lote → venda | **Rastreio total** no lote, na compra, na venda e na triagem |
 | Saber de onde veio e para onde foi cada grama | **Estoque › lote › Rastrear** ou **Comprar › compra › Rastrear** |
 | Quem me deve / a quem devo, adiantamento, "falta" | **Pessoas e contas** |
 | Caixa do dia por moeda, na mão × banco, encerrar com WhatsApp | **Caixa** |
@@ -50,7 +51,8 @@ Toque no **i** de qualquer item ou número: explicação + **quadro de exemplo**
 | `#/pedidos/novo` | **nova compra** (formulário em 3 passos + resumo ao lado: total, peso, custo/kg, conta do fornecedor) |
 | `#/pedidos/:id` | **o pedido**: etapas, o que falta, itens, andar a triagem, pagamento, conta do fornecedor, lotes gerados, arquivos, linha do tempo, repetir |
 | `#/precos` · `#/precos/:id` | tabelas de preço e a tela de cada uma: Tabela · Editar · **Versões** · **Comparar** |
-| `#/separar?id=…` | separar um lote em vários |
+| `#/triagem` (`?aba=triagens&t=…`) | quadro da triagem e a lista de triagens feitas (T-0001…) |
+| `#/separar?id=…` · `#/separar?ids=a,b` | separar um lote, ou juntar vários e separar (uma triagem com número) |
 | `#/emprestimos/novo` | novo empréstimo com prévia das parcelas |
 | `#/vendas/:id` · `#/pessoas/:id` · `#/lotes/:id` · `#/emprestimos/:id` | detalhe de cada registro |
 
@@ -106,10 +108,46 @@ Toque no **i** de qualquer item ou número: explicação + **quadro de exemplo**
 - Pedido de compra com **fotos, PDF e qualquer arquivo** (pedido, produto, comprovante, comprovante de origem).
 - Etapas (cabelo): **Chegou → Conferido** (ajuste de peso/valor com motivo) → **Pago** (pode ser parte: o resto fica na conta do
   fornecedor) → **No estoque** (vira lote com código `L-0001`). Recusar/cancelar devolvem o dinheiro; nada é apagado.
-- Cada módulo define as próprias etapas. Aviso de compra parada e de compra sem comprovante de origem.
+- **Etapas personalizáveis** (Configurações › Etapas da compra, ou ⚙ no pedido): nome, ordem, explicação, quantas etapas
+  (2 a 10), **onde se cobra o pagamento**, o que lembrar em cada uma (fotos, comprovante) e **o que conta como "falta"**
+  (sem fotos, sem comprovante de origem, parada há N dias). A última é sempre "entra no estoque". Não dá para tirar uma etapa
+  onde ainda há pedido parado. "Voltar ao padrão" devolve as do sistema.
+- **Nova compra = formulário simples** (uma página): fornecedor (busca, recentes, "+ Novo"), o que veio (conta ao vivo
+  "60 | 2.008 × 17,5 = Bs 35.140") e o total; código, quem comprou, estado na chegada, fotos e observação ficam a um toque
+  ("+ …"). O botão diz o que falta. **Configurável** em Configurações › Cabelo e estoque › Formulário de compra: campos,
+  ordem, aberto/fechado, obrigatório, valores que já vêm, medidas favoritas, "uma página" ou "passo a passo".
+  Cada compra pode escolher o tipo de código (Incremental · Por pessoa · Manual).
+- **Atributos dinâmicos** (Configurações › Atributos): criar atributo (texto, número, lista, sim/não; obrigatório ou não),
+  esconder o que não usa e mudar as opções das listas (ex.: nova cor). Medida, categoria e situação são fixos (o nome, o
+  preço e a separação dependem deles). Aparecem na compra, no lote e nos filtros sem mexer em código.
+- **Triagem (o passo mais importante: daqui saem as vendas)**: tela própria (#/triagem). Todo lote bruto que entra pela
+  compra cai na coluna de **entrada**. As **colunas são do negócio** (Configurações › Etapas da triagem: nome, ordem, cor,
+  explicação, "entrada", "pronto para venda", "separar ao entrar", "lembrar fotos"; "Vendido" é sempre a última e é
+  calculada; não dá para tirar coluna com lote). Arrastar o cartão muda de coluna (ou "⋯ › Mover para…"); entrar numa
+  coluna "pronto para venda" marca o lote como Separado. Cada **triagem** (juntar e/ou separar, num passo só) ganha um
+  número **T-0001** com quem, quando, peso bruto → líquido e perda; uma compra pode ir para várias triagens e uma triagem
+  pode misturar várias compras. "Pronto para vender" mostra lote a lote a origem, o preço pela tabela, a margem e Vender.
+- **Rastreio total** (`genealogia`): a partir de qualquer compra, lote, triagem ou venda mostra o grafo inteiro
+  (compras → triagens → lotes → vendas) com as gramas de cada ligação e a conta "entrou = vendido + estoque + perda" ✓.
+  A barra **Caminho** ("você está aqui") e o menu **⋯** levam a compra, fornecedor, lote de origem, rastreio e venda.
 - **Separação**: um lote vira N lotes; a diferença é **perda**. O custo é dividido **pelo valor de mercado** (gramas × fator de
   referência da tabela) — cabelo longo leva mais custo. Dividir por peso faria o curto parecer prejuízo e o longo lucro demais.
 - Estoque = soma dos movimentos (conferido pelo diagnóstico). Ajuste e perda com motivo.
+- **Lista do estoque**: situação colorida (Disponível, Bruto, Parcial, Esgotado), filtros por situação, faixa de medida,
+  qualquer atributo, lote de origem/compra e período; filtros favoritos; busca por código ou leitura pela câmera (quando o
+  aparelho tem); tabela ou cartões; colunas à escolha; selecionar vários para **exportar CSV** ou **mudar um atributo de
+  todos** (admin, cada lote fica com antes → depois no histórico).
+- **Prontuário do lote** (#/lotes/:id): barra "cada grama" (vendido · separado · perda · em estoque) e três etapas ligadas:
+  **Entrada** (fornecedor, pedido, peso bruto, custo, custo/kg, estado na chegada) → **Triagem** (em que lotes virou e a
+  perda, ou de qual lote veio e os irmãos) → **Para onde foi** (cada venda com cliente, gramas, valor e lucro). Editar
+  atributos (admin) refaz o nome do lote e fica no histórico.
+
+### 2.3.1 Códigos (Configurações › Cabelo e estoque › Códigos)
+- **Compra**: incremental (com prefixo, P-0001, ou sem, 1, 2, 3), **por pessoa** (sigla + sequência dela: Maria M1, M2;
+  Celso C1 — sigla do fornecedor ou de quem da equipe comprou) ou **manual** (digitado; sugere o próximo).
+- **Lote**: incremental, **da compra** (M1-1, M1-2; separado M1-1a, M1-1b; juntado M1+C3-1) ou manual.
+- Todo código é **único**: digitar um que já existe é recusado dizendo qual registro usa ("Já existe: L-0006 · …").
+- **Trocar código** depois (admin), com antes → depois no histórico; o código antigo continua achando o registro.
 
 ### 2.4 Venda
 - Linhas de cabelo escolhem sozinhas o **lote mais antigo** daquela medida/categoria (dá para escolher) e **dividem entre lotes**
@@ -127,12 +165,33 @@ Toque no **i** de qualquer item ou número: explicação + **quadro de exemplo**
 - **Nada é apagado**: cada correção fica no histórico com antes → depois, quem corrigiu, quando e o motivo
   (quadro "Correções" e linha do tempo).
 
+### 2.4.1.1 Período fechado
+- O dinheiro de um dia **encerrado** não muda: a diferença de uma correção/cancelamento entra no caixa **do dia em que se
+  corrigiu**. Mas o resultado daquele dia muda, então **só o administrador** corrige/cancela venda de dia encerrado, e o
+  Caixa daquele dia mostra o aviso "Alterado depois de encerrado" com cada venda, motivo, data e quem fez.
+
 ### 2.4.2 Comissões: histórico do ganho × pagamento lançado
 - **Ganho (histórico)**: nasce em cada venda/atendimento (valor da linha × % da profissional) e muda junto se a venda for
   corrigida ou cancelada. Já entra como custo no lucro da venda.
 - **Pago (lançamento)**: Equipe › Comissões › **Pagar** (tudo ou parte) sai do caixa como categoria "Comissões".
 - **A pagar = ganho − pago**. No resultado (DRE) o pagamento **não** vira despesa de novo (seria contar duas vezes).
 - Extrato por profissional: cada ganho (venda, cliente, base × %) e cada pagamento, com filtro de período.
+
+### 2.4.2.1 Salão: divisão 50/50 e insumos antes da comissão
+- **% que vale** (precedência): ajuste na linha do atendimento (admin, ou funcionária se Configurações deixar) › % própria
+  do serviço (Catálogo) › % da profissional (cadastro) › **padrão do salão (50%)**. A linha guarda qual regra valeu.
+- **Insumos** (tinta, água oxigenada, descolorante…): custo fixo no catálogo (valor + itens com nome) e saem **antes** da
+  divisão: base = valor − insumos; profissional = base × %; salão = base − profissional.
+  Ex.: Tintura Bs 300 − insumos Bs 20 (Tinta 15 + Água oxigenada 5) = base 280 → salão 140 · profissional 140 (50%).
+- No atendimento (Vender › serviço e Agenda › Atender): muda preço (abaixo do catálogo: funcionária diz o motivo; vai pro
+  log), insumos (produto especial/quantidade extra, com motivo; **abaixo do catálogo só o admin**) e % (admin).
+- **+ Serviço novo** na hora: nome e preço (duração, insumos, tipo, % opcionais); guarda no catálogo ("criado por", para
+  o admin revisar) ou só para este atendimento. Nome repetido é recusado sugerindo o existente.
+- Biblioteca padrão (Corte, Escova, Tintura, Mechas/Luzes, Descoloração, Hidratação, Depilação, Unhas, Maquiagem,
+  Penteado, Barba): Catálogo › **Restaurar biblioteca padrão** (só cria o que falta).
+- A linha guarda insumos, base, %, comissão e parte do salão: mudar o catálogo depois **não muda o passado**; corrigir a
+  venda recalcula com o % guardado. Insumos são custo no DRE ("(−) Insumos dos serviços"), no lucro da venda e na
+  margem da unidade. Relatórios › **Serviços: receita × insumos**. O recibo da cliente **não** mostra a divisão.
 
 ### 2.4.3 Agenda: horário ocupado
 - Ao agendar, se a mesma profissional já tem atendimento que se sobrepõe (duração = soma dos serviços; sem duração, 60 min),
@@ -191,7 +250,7 @@ telas (screens/, ui/) ──► porta Backend (comando / consulta / anexar)
                               │
            ┌──────────────────┼────────────────────┐
    adapters/noAparelho.ts                 adapters/api/backendApi.ts
-   (fila → transação → outbox → aviso)    (POST /v1/comandos/{nome}, GET /v1/consultas/{nome})
+   (fila → transação → outbox → aviso)    (POST /v1/k (handshake) e POST /v1/r (tudo criptografado; ver 'Segurança das requisições'))
       │                │
  adapters/memory   adapters/local (IndexedDB/Dexie — ÚNICO lugar que conhece o banco)
                               │
@@ -219,10 +278,35 @@ src/ui               peças de tela, gráficos SVG, contexto, idioma (i18n.ts + 
 src/screens          uma tela por área
 ```
 
+### Segurança das requisições
+Com a API ligada, **nada legível passa na rede**: só dois endereços, ambos `POST` com corpo binário cifrado.
+- `POST /v1/k` — aperto de mão: chaves ECDH P-256 novas a cada sessão → HKDF-SHA-256 → duas chaves AES-GCM-256
+  (uma por sentido). Com `VITE_API_CHAVE_PUBLICA` o app só aceita o servidor que assina o aperto de mão com a chave
+  fixa (barra alguém no meio). `POST /v1/r` — **todo** o resto (comandos, consultas, login, backup, arquivos).
+- Envelope `{ tipo, nome, dados, id, ts, token?, chave? }`, IV novo de 96 bits por mensagem, texto preenchido em
+  degraus de 1 KB. Sem nome de comando ou parâmetro no endereço, sem query string, sem cookie, sem `Authorization`:
+  o token vai **dentro** do envelope. Resposta e erros de regra também voltam cifrados (HTTP 200); falha de
+  transporte é só um status sem corpo, e a tela mostra "Sem conexão…" ou "Erro no servidor…", sem detalhe técnico.
+- Repetição: o servidor recusa `id` já visto e `ts` fora de ±5 min (o app acerta o relógio pelo servidor).
+  Conteúdo alterado ou chave errada → recusa genérica. Código: `src/core/seguranca/envelope.ts`,
+  `src/adapters/api/canalSeguro.ts`; lado do servidor (modelo): `src/adapters/api/apiSimulada.ts`;
+  protocolo em `api-contract/openapi.yaml`; testes em `src/__tests__/seguranca.test.ts`.
+- Build de produção: sem sourcemap, sem `console`/`debugger`, CSP estrito colocado no `index.html` pelo build (`vite.config.ts`; só scripts do próprio
+  site, rede só para o site, o câmbio e a `VITE_API_URL`), `Referrer-Policy: no-referrer`. O câmbio só busca a
+  cotação pública, sem dado do usuário, sem referrer e sem cookie. (No `npm run dev` o CSP fica desligado.)
+
+**O que isso protege**: quem olha a rede (Wi-Fi, proxy, operadora), quem abre a aba Rede por curiosidade, endereços
+no histórico e em registros de servidores intermediários. **O que não protege**: quem controla o aparelho e sabe
+mexer no navegador ainda consegue ler a memória do app (as chaves e os dados abertos estão lá enquanto ele roda) —
+a proteção de verdade é o servidor conferir as **permissões** de cada pedido pelo token. Também não substitui o
+HTTPS (use os dois) e, sem `VITE_API_CHAVE_PUBLICA`, alguém no meio com um certificado falso poderia trocar as chaves.
+**Próximo passo (opcional)**: cifrar o banco local (IndexedDB) em repouso com uma chave derivada da senha do login
+(PBKDF2/Argon2 → AES-GCM), para que dados no aparelho não fiquem legíveis com o app fechado.
+
 ---
 
 ## 5. Idioma e aparência
-- **Português ⇄ Español** em Configurações › Geral. O texto em português é a chave; o espanhol está em `src/ui/es.ts`
+- **Português ⇄ Español** em Configurações › Negócio › Geral. O texto em português é a chave; o espanhol está em `src/ui/es.ts`
   (falta tradução → aparece em português). Novo idioma = novo dicionário.
 - Cores básicas com função (marca, bom, alerta, ruim) em variáveis CSS; tema escuro automático.
 - Mobile first (320 px, barra inferior + "Mais"), desktop com menu lateral e tabelas; botão 💱 de conversão sempre à mão.
@@ -231,7 +315,7 @@ src/screens          uma tela por área
 
 ## 6. Testes
 ```bash
-npm test          # 29 testes: regras, contrato (memória × IndexedDB × API simulada), dados de exemplo, telas
+npm test          # 46 testes: regras, contrato (memória × IndexedDB × API simulada), dados de exemplo, telas
 npm run build     # tipos + build de produção (PWA)
 npm run dev       # http://localhost:5173
 ```
@@ -273,12 +357,23 @@ Lendo os pedidos e o caderno real (PDF de contas), apareceram coisas que nenhum 
   **login e usuários** com perfis; **menu dinâmico**; **tooltips com exemplo** (pt/es); dados de exemplo **fictícios** e
   pré-carregados.
 
+### Revisão de lógica e usabilidade (nov/2026)
+- Permissões da funcionária fechadas: câmbio só pela busca da internet e dentro de ±20%; não muda comissão, salário, acesso
+  nem cadastra funcionário; não vê salários, custos nem o resumo de colegas.
+- Contas: estorno herda categoria/unidade/pessoa; produto comprado entra com custo médio; comissão paga guarda o valor do
+  dia; acerto não duplica; moeda principal não troca com movimento; diagnóstico confere a conta corrente.
+- Telas: filtros e abas no endereço (voltar reencontra a lista), aviso "Sair sem salvar?", confirmação antes de desfazer,
+  números e itens levam à origem, alvos de toque ≥ 40 px, linhas clicáveis pelo teclado, sem rolagem lateral em 320 px,
+  moeda principal no lugar do "Bs" fixo, datas no formato do idioma e textos em espanhol.
+- **Linha do tempo como lista**: agrupada por dia, mais recente primeiro; cada evento diz o quê, quem e quando; itens com
+  quantidade e valor; motivo e ajustes destacados; lotes que entram juntos viram um evento só.
+
 ### Ainda não feito (decisões / próximos passos)
 - **Segurança no servidor**: hoje o login protege o uso no aparelho; quem tem acesso ao navegador ainda acha os dados.
   A proteção completa vem com a API (o contrato e o adaptador já estão prontos).
 - **Sincronizar aparelhos**: a fila de saída já existe; falta o servidor/sincronizador.
 - **Devolução parcial** de produto (hoje: corrigir a quantidade ou cancelar).
-- **Etiqueta do lote** (o código `L-0001` existe; falta imprimir etiqueta/QR).
+- ~~Etiqueta do lote~~: feito (foto + código + QR, 50×30 mm ou folha A4).
 - **Fiscal/legal**: só registra comprovante de origem; nota fiscal e impostos fora do escopo.
 - Testes "macaco" e backtest de longa duração (como no Dia a Dia) para o novo núcleo.
 

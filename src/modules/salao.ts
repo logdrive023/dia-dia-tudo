@@ -26,6 +26,17 @@ function painelSalao(d: DadosPainel): Secao[] {
   const atendimentos = new Set(linhas.map((x) => x.t.id)).size
   const faturamento = linhas.reduce((s, x) => s + x.l.totalPrincipal, 0)
   const comissoes = linhas.reduce((s, x) => s + (x.l.comissaoPrincipal ?? 0), 0)
+  const insumos = linhas.reduce((s, x) => s + (x.l.insumoPrincipal ?? 0), 0)
+  // receita × insumos por serviço: o que sobra para o salão depois dos insumos e da comissão
+  const porServicoIns = new Map<string, { n: number; r: number; i: number; c: number }>()
+  for (const { l } of linhas) {
+    const a = porServicoIns.get(l.descricao) ?? { n: 0, r: 0, i: 0, c: 0 }
+    a.n++
+    a.r += l.totalPrincipal
+    a.i += l.insumoPrincipal ?? 0
+    a.c += l.comissaoPrincipal ?? 0
+    porServicoIns.set(l.descricao, a)
+  }
   const agendados = d.todasTransacoes.filter((t) => t.tipo === 'venda' && t.etapa === 'agendado' && t.data >= d.hoje).length
   const clientesPeriodo = new Set(linhas.map((x) => x.t.pessoaId).filter(Boolean))
   const antes = new Set(
@@ -67,7 +78,9 @@ function painelSalao(d: DadosPainel): Secao[] {
         { id: 'sal.atend', nome: 'Atendimentos', valor: atendimentos, formato: 'numero', ajuda: 'Atendimentos concluídos.', detalhe: { tela: 'vendas', filtro: { de: d.de, ate: d.ate, moduloId: 'salao' } } },
         { id: 'sal.fat', nome: 'Faturamento', valor: faturamento, formato: 'dinheiro', moeda: d.moedaPrincipal, ajuda: 'Soma dos serviços feitos.', detalhe: { tela: 'vendas', filtro: { de: d.de, ate: d.ate, moduloId: 'salao' } } },
         { id: 'sal.ticket', nome: 'Ticket médio', valor: atendimentos ? Math.round(faturamento / atendimentos) : 0, formato: 'dinheiro', moeda: d.moedaPrincipal, ajuda: 'Faturamento ÷ atendimentos.' },
-        { id: 'sal.comissao', nome: 'Comissões a pagar', valor: comissoes, formato: 'dinheiro', moeda: d.moedaPrincipal, ajuda: 'Parte de cada profissional. Ex.: serviço de Bs 300 com 40% = Bs 120.' },
+        { id: 'sal.comissao', nome: 'Comissões a pagar', valor: comissoes, formato: 'dinheiro', moeda: d.moedaPrincipal, ajuda: 'Parte de cada profissional sobre a base (valor − insumos). Ex.: Tintura Bs 300 − insumos Bs 20 = 280 × 50% = Bs 140.' },
+        { id: 'sal.insumos', nome: 'Insumos dos serviços', valor: insumos, formato: 'dinheiro', moeda: d.moedaPrincipal, ajuda: 'Tinta, água oxigenada, descolorante… usados nos serviços: custo do salão, descontado antes da comissão.' },
+        { id: 'sal.margem', nome: 'Margem do salão', valor: faturamento - insumos - comissoes, formato: 'dinheiro', moeda: d.moedaPrincipal, ajuda: 'Faturamento − insumos − comissões.' },
         { id: 'sal.agendados', nome: 'Agendados', valor: agendados, formato: 'numero', ajuda: 'Atendimentos marcados de hoje em diante.', detalhe: { tela: 'agenda' } },
         { id: 'sal.novos', nome: 'Clientes novas', valor: novos, formato: 'numero', ajuda: 'Clientes que vieram pela primeira vez no período.' },
         { id: 'sal.cabelo', nome: 'Cabelo usado', valor: cabeloUsado, formato: 'gramas', ajuda: 'Gramas de cabelo do estoque usadas em serviços (mega hair).' },
@@ -84,6 +97,20 @@ function painelSalao(d: DadosPainel): Secao[] {
         { id: 'c', nome: 'Comissão', formato: 'dinheiro' },
       ],
       linhas: [...porProf].sort((a, b) => b[1].v - a[1].v).map(([nome, a]) => ({ valores: { nome, n: a.n, v: a.v, c: a.c } })),
+    },
+    {
+      tipo: 'tabela',
+      titulo: 'Serviços: receita × insumos',
+      ajuda: 'Por serviço: receita, insumos do salão, comissão das profissionais e o que sobra para o salão.',
+      colunas: [
+        { id: 'nome', nome: 'Serviço' },
+        { id: 'n', nome: 'Feitos', formato: 'numero' },
+        { id: 'r', nome: 'Receita', formato: 'dinheiro' },
+        { id: 'i', nome: 'Insumos', formato: 'dinheiro' },
+        { id: 'c', nome: 'Comissão', formato: 'dinheiro' },
+        { id: 'm', nome: 'Margem do salão', formato: 'dinheiro' },
+      ],
+      linhas: [...porServicoIns].sort((a, b) => b[1].r - a[1].r).map(([nome, a]) => ({ valores: { nome, n: a.n, r: a.r, i: a.i, c: a.c, m: a.r - a.i - a.c } })),
     },
     { tipo: 'barras', titulo: 'Faturamento por serviço', formato: 'dinheiro', itens: [...porServico].sort((a, b) => b[1] - a[1]).map(([rotulo, valor]) => ({ rotulo, valor })) },
     { tipo: 'mapa', titulo: 'Movimento: hora × dia da semana', ajuda: 'Atendimentos agendados por horário (para montar escala).', formato: 'numero', linhas: horas, colunas: dias, valores: mapa },
@@ -112,7 +139,7 @@ export const moduloSalao: ModuloDef = {
       nome: 'Serviço',
       unidade: 'servico',
       controlaEstoque: false,
-      campos: [{ id: 'categoria', nome: 'Tipo', tipo: 'lista', opcoes: ['Corte', 'Cor', 'Tratamento', 'Mega hair', 'Escova', 'Outro'] }],
+      campos: [{ id: 'categoria', nome: 'Tipo', tipo: 'lista', opcoes: ['Corte', 'Cor', 'Tratamento', 'Mega hair', 'Escova', 'Estética', 'Unhas', 'Maquiagem', 'Penteado', 'Barba', 'Outro'] }],
     },
   ],
   venda: {

@@ -51,6 +51,9 @@ export interface Local extends Base {
 
 export type Unidade = 'grama' | 'peca' | 'servico'
 
+/** id da coluna da triagem (as colunas são configuráveis) */
+export type FaseTriagem = string
+
 export interface Item extends Base {
   moduloId: string
   tipoItem: string
@@ -66,15 +69,41 @@ export interface Item extends Base {
   /** serviço: minutos e retorno (ex.: manutenção do mega hair em 45 dias) */
   duracaoMin?: number
   retornoDias?: number
+  /** serviço: comissão própria em pontos-base (5000 = 50%); sem = vale a da profissional ou a padrão (Configurações) */
+  comissaoBp?: number
+  /**
+   * serviço: custo fixo dos insumos do salão (tinta, água oxigenada, descolorante…), descontado ANTES da comissão.
+   * itens (opcional) somam o valor. Ex.: Tinta 15 + Água oxigenada 5 = 20.
+   */
+  insumo?: InsumoServico
   /** lote: custo total na moeda principal e quantidade com que nasceu */
   custoPrincipal?: number
   quantidadeInicial?: number
-  /** de onde veio: compra, separação/transformação de outro lote ou cadastro */
-  origem?: { tipo: 'compra' | 'transformacao' | 'cadastro'; id?: Id; pessoaId?: Id; compraId?: Id }
-  /** código curto para etiqueta e busca: "L-0007" */
+  /**
+   * de onde veio: compra, separação/transformação de outro lote, unificação de vários lotes (ids) ou cadastro.
+   * compraIds = TODAS as compras de onde vem o cabelo (lote unificado e seus filhos conhecem todas).
+   */
+  origem?: { tipo: 'compra' | 'transformacao' | 'cadastro' | 'unificacao'; id?: Id; ids?: Id[]; pessoaId?: Id; compraId?: Id; compraIds?: Id[] }
+  /** triagem: coluna do quadro onde o lote está, desde quando, observação e se é a coluna de entrada */
+  faseTriagem?: { fase: FaseTriagem; desde: string; obs?: string; entrada?: boolean }
+  /** TRIAGEM que criou este lote ("T-0003"): a mesma operação junta e/ou separa; 'intermediario' = lote unificado que foi separado na hora */
+  triagem?: { id: Id; codigo: string; em: string; por?: string; papel: 'saida' | 'intermediario' }
+  /** código curto para etiqueta e busca: "L-0007", "M1-1a" (regra em Configurações › Códigos; único entre os lotes) */
   codigo?: string
+  /** códigos que o lote já teve (trocados pelo admin): continuam achando o lote na busca */
+  codigosAnteriores?: string[]
   campos: Campos
 }
+
+/** insumos de um serviço (catálogo) ou de uma linha de venda: valor total e, se quiser, os nomes */
+export interface InsumoServico {
+  moeda: string
+  valor: number
+  itens?: { nome: string; valor: number }[]
+}
+
+/** de onde veio o % da comissão (precedência: linha > serviço > profissional > padrão) */
+export type RegraComissao = 'linha' | 'servico' | 'profissional' | 'padrao'
 
 export interface Pagamento {
   id: Id
@@ -100,6 +129,21 @@ export interface Linha {
   profissionalId?: Id
   comissaoBp?: number
   comissaoPrincipal?: number
+  /**
+   * SALÃO (guardado na hora: mudar o catálogo depois não mexe no passado):
+   * insumos (moeda principal) são custo da venda e saem ANTES da divisão: base = total − insumos;
+   * comissão = base × %; parte do salão = base − comissão.
+   */
+  insumoPrincipal?: number
+  insumos?: { nome: string; valorPrincipal: number }[]
+  /** motivo quando o insumo da linha difere do catálogo (produto especial, quantidade extra…) */
+  insumoMotivo?: string
+  baseComissao?: number
+  parteSalao?: number
+  comissaoRegra?: RegraComissao
+  /** preço do catálogo na hora (mesma moeda da linha) e motivo quando cobrou menos */
+  precoCatalogo?: number
+  motivoPreco?: string
   campos: Campos
 }
 
@@ -123,8 +167,12 @@ export type TipoTransacao = 'compra' | 'venda'
 
 export interface Transacao extends Base {
   tipo: TipoTransacao
-  /** número curto para falar e buscar: "P-0007" (pedido de compra) */
+  /** número curto para falar e buscar: "P-0007" ou "M3" (pedido de compra; único entre as compras) */
   codigo?: string
+  /** códigos que a compra já teve (trocados pelo admin): continuam achando a compra na busca */
+  codigosAnteriores?: string[]
+  /** compra: quem da equipe comprou (base do código "por pessoa" quando a base é quem comprou) */
+  compradorId?: Id
   moduloId: string
   /** dia do caixa (AAAA-MM-DD) */
   data: string
@@ -140,9 +188,13 @@ export interface Transacao extends Base {
   historico: EventoEtapa[]
   obs?: string
   campos: Campos
+  /** compra: VIAGEM de compra a que pertence (o rateio dos gastos da viagem e o resultado da viagem contam com ela) */
+  viagemId?: Id
+  /** compra: entrega de cabelo que abate um ADIANTAMENTO a parceiro (AD-0001); não sai do caixa, abate da dívida */
+  financiamentoId?: Id
 }
 
-export type MotivoEstoque = 'compra' | 'venda' | 'uso' | 'ajuste' | 'perda' | 'cancelamento' | 'transformacao' | 'correcao'
+export type MotivoEstoque = 'compra' | 'venda' | 'uso' | 'ajuste' | 'perda' | 'cancelamento' | 'transformacao' | 'correcao' | 'unificacao'
 
 export interface MovEstoque extends Base {
   itemId: Id
@@ -161,6 +213,8 @@ export interface Dia extends Base {
   status: 'aberto' | 'encerrado'
   /** dinheiro vivo contado no encerramento, por moeda */
   contado: Record<CodigoMoeda, number>
+  /** vendas deste dia corrigidas/canceladas depois de encerrado (o dinheiro da diferença entra no dia em que corrigiu) */
+  alteracoesDepois?: { origemId: Id; codigo?: string; descricao: string; em: string; porNome: string }[]
 }
 
 export type TipoCaixa =
@@ -196,6 +250,8 @@ export interface MovCaixa extends Base {
   /** lançamento desfeito por este outro (o original nunca some) */
   estornadoPor?: Id
   estornaId?: Id
+  /** dinheiro de uma VIAGEM de compra (adiantamento, devolução da sobra, reembolso) */
+  viagemId?: Id
 }
 
 /**
@@ -207,7 +263,8 @@ export interface MovConta extends Base {
   data: string
   moeda: string
   delta: number
-  tipo: 'venda' | 'compra' | 'recebimento' | 'pagamento' | 'adiantamento' | 'ajuste' | 'estorno'
+  /** 'comissao' = comissão a pagar abatida da dívida (conta como comissão paga, sem passar pelo caixa) */
+  tipo: 'venda' | 'compra' | 'recebimento' | 'pagamento' | 'adiantamento' | 'ajuste' | 'estorno' | 'comissao'
   origemId?: Id
   forma?: string
   descricao: string
@@ -280,6 +337,8 @@ export interface Anexo extends Base {
   nome: string
   mime: string
   tamanho: number
+  /** foto: miniatura (~240 px) em data URL, para as listas mostrarem sem buscar o arquivo (comando definirMiniatura) */
+  miniatura?: string
 }
 
 export interface ConfigRegistro extends Base {
@@ -307,6 +366,115 @@ export interface Usuario extends Base {
   sal: string
   ativo: boolean
   ultimoAcesso?: string
+}
+
+/**
+ * GASTO OPERACIONAL de uma viagem (combustível, hospedagem, comida…): sai da carteira da viagem, não do caixa.
+ * Nunca é apagado: anular guarda quem, quando e o motivo.
+ */
+export interface DespesaViagem {
+  id: Id
+  /** dia do gasto (AAAA-MM-DD) e instante do registro */
+  data: string
+  em: string
+  categoria: string
+  moeda: CodigoMoeda
+  valor: number
+  /** valor na moeda principal pela cotação do momento (guardada: o passado não muda) */
+  valorPrincipal: number
+  cotacao?: Cotacao
+  nota?: string
+  por: Id
+  porNome: string
+  anulada?: { em: string; porNome: string; motivo: string }
+}
+
+/** Movimento da CARTEIRA da viagem (por moeda): + entra na carteira; − sai. A despesa também mexe nela. */
+export interface MovCarteiraViagem {
+  id: Id
+  tipo: 'adiantamento' | 'devolucao' | 'reembolso' | 'diferenca'
+  data: string
+  em: string
+  moeda: CodigoMoeda
+  delta: number
+  forma?: string
+  /** lançamento do caixa ligado (adiantamento sai do caixa; devolução volta; reembolso sai) */
+  movCaixaId?: Id
+  porNome: string
+  obs?: string
+  /** diferença anulada ao reabrir a viagem (nada é apagado) */
+  anulada?: boolean
+}
+
+/**
+ * VIAGEM DE COMPRA: quem viajou, quando, orçamento, carteira (adiantamento por moeda), gastos operacionais e as compras
+ * ligadas (Transacao.viagemId). Pode não ter compra nenhuma (viagem de prospecção). Ao encerrar: prestação de contas
+ * (sobra volta ao caixa, diferença fica registrada) e, se quiser, o gasto entra no custo dos lotes (reversível).
+ */
+export interface Viagem extends Base {
+  /** "VG-0001" */
+  codigo: string
+  nome: string
+  destino?: string
+  /** pessoas (funcionárias/sócias) que viajaram */
+  viajantes: Id[]
+  inicio: string
+  fim?: string
+  status: 'aberta' | 'encerrada'
+  /** orçamento dos gastos operacionais e do capital de compra (moeda principal) */
+  orcamento?: number
+  orcamentoCompra?: number
+  /** como o gasto da viagem é dividido entre as compras: pelas gramas ou pelo valor */
+  rateio: 'grama' | 'valor'
+  despesas: DespesaViagem[]
+  carteira: MovCarteiraViagem[]
+  encerramento?: { em: string; data: string; porNome: string; obs?: string }
+  /** gasto da viagem somado ao custo dos lotes que ainda estavam em estoque (antes → depois de cada lote) */
+  incorporacao?: { em: string; porNome: string; total: number; lotes: { itemId: Id; codigo?: string; gramas: number; inicial: number; extra: number; antes: number; depois: number }[] }
+  /** incorporações desfeitas (ao reabrir): ficam para o histórico */
+  incorporacoesDesfeitas?: NonNullable<Viagem['incorporacao']>[]
+  obs?: string
+}
+
+/** Acontecimento de um ADIANTAMENTO a parceiro (o efeito na dívida vem da conta corrente, pela origem). */
+export interface EventoFinanciamento {
+  /** entrega: o id é o da compra criada; os outros: o id da operação (origem na conta corrente) */
+  id: Id
+  tipo: 'entrega' | 'recebimento' | 'comissao' | 'diferenca' | 'baixa'
+  data: string
+  em: string
+  porNome: string
+  compraId?: Id
+  moeda?: CodigoMoeda
+  valor?: number
+  forma?: string
+  obs?: string
+  /** comissão retida sozinha ao pagar comissão (id do pagamento) */
+  pagamentoComissaoId?: Id
+}
+
+/**
+ * FINANCIAMENTO / ADIANTAMENTO A PARCEIRO ("AD-0001"): dinheiro dado a uma pessoa (intermediária, parceira, funcionária)
+ * para comprar cabelo em nome da loja. Sai do caixa como empréstimo operacional (não é despesa nem compra) e a pessoa
+ * passa a dever na conta corrente; cada entrega de cabelo é uma compra normal que abate a dívida (sem sair do caixa).
+ * Saldo = soma dos movimentos da conta corrente ligados a ele (+ = a pessoa me deve; − = devo a ela).
+ */
+export interface Financiamento extends Base {
+  codigo: string
+  pessoaId: Id
+  data: string
+  moeda: CodigoMoeda
+  valor: number
+  valorPrincipal: number
+  cotacao?: Cotacao
+  forma: string
+  viagemId?: Id
+  /** abater sozinho das próximas comissões pagas à pessoa */
+  abaterComissoes?: boolean
+  obs?: string
+  eventos: EventoFinanciamento[]
+  /** encerrado à mão (com motivo): a diferença que sobrou vira baixa na conta */
+  encerramento?: { em: string; data: string; porNome: string; motivo: string; saldo: number }
 }
 
 export interface Outbox extends Base {

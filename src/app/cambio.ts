@@ -7,6 +7,7 @@ import { MOEDAS } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Backend } from '../core/ports/backend'
 
+// Segurança: o pedido não leva nada do usuário (nem referrer/cookie); este host está liberado no CSP (vite.config.ts).
 export const FONTE_CAMBIO = 'https://open.er-api.com/v6/latest/BRL'
 const CHAVE = 'tudo.cambio.ultimaBusca'
 
@@ -33,7 +34,8 @@ export async function atualizarCambio(backend: Backend, opcoes: { forcar?: boole
   const registrar = (ok: boolean, mensagem: string) => backend.comando('registrarBuscaCambio', { ok, mensagem, fonte: FONTE_CAMBIO }).catch(() => undefined)
   try {
     const f = opcoes.fetch ?? fetch
-    const res = await f(FONTE_CAMBIO)
+    // só a cotação pública: nenhum dado do usuário, sem endereço de origem (referrer), sem cookie, sem cache
+    const res = await f(FONTE_CAMBIO, { method: 'GET', credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store', mode: 'cors' })
     const json = (await res.json()) as { result?: string; rates?: Record<string, number> }
     if (json.result !== 'success' || !json.rates) throw new Error('resposta inesperada')
     // guarda a base de TODAS as moedas conhecidas (mesmo as desligadas): a base local fica completa

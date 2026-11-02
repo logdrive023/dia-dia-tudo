@@ -32,6 +32,10 @@ export function abrirBanco(nome = 'tudo'): BancoLocal {
   db.version(1).stores(ESQUEMA_V1)
   // v2: usuários (login). Mudar índice = nova versão; o Dexie migra sozinho.
   db.version(2).stores({ ...ESQUEMA_V1, usuarios: 'id, &login' })
+  // v3: viagens de compra (tabela nova; as outras ficam como estão)
+  db.version(3).stores({ ...ESQUEMA_V1, usuarios: 'id, &login', viagens: 'id, status, inicio' })
+  // v4: adiantamentos a parceiros (financiamentos AD-0001; tabela nova)
+  db.version(4).stores({ ...ESQUEMA_V1, usuarios: 'id, &login', viagens: 'id, status, inicio', financiamentos: 'id, pessoaId' })
   return db
 }
 

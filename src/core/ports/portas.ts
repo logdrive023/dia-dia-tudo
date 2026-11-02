@@ -9,6 +9,7 @@ import type {
   CotacaoRegistro,
   Dia,
   Emprestimo,
+  Financiamento,
   Id,
   Item,
   Local,
@@ -21,6 +22,7 @@ import type {
   TabelaPreco,
   Transacao,
   Usuario,
+  Viagem,
 } from '../domain/tipos'
 
 /** Filtro simples por igualdade (vira query string numa API: ?moduloId=cabelo). */
@@ -52,6 +54,8 @@ export interface Repos {
   config: Colecao<ConfigRegistro>
   auditoria: Colecao<Auditoria>
   usuarios: Colecao<Usuario>
+  viagens: Colecao<Viagem>
+  financiamentos: Colecao<Financiamento>
   outbox: Colecao<Outbox>
 }
 
@@ -72,6 +76,8 @@ export const NOMES_COLECOES: (keyof Repos)[] = [
   'config',
   'auditoria',
   'usuarios',
+  'viagens',
+  'financiamentos',
   'outbox',
 ]
 

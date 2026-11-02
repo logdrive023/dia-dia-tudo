@@ -9,6 +9,8 @@ import { type Ctx, cotacoesAtuais, lerConfig } from './contexto'
 import { situacaoDe } from './emprestimos'
 import { filaTriagem } from './compras'
 import { recortarVenda, valorEm, vendas } from './vendas'
+import { viagensAbertas } from './viagens'
+import { conferirFinanciamentos, resumoFinanciamentos } from './financiamentos'
 
 export interface FiltrosPainel {
   de: string
@@ -61,7 +63,7 @@ export async function carregarDados(ctx: Ctx, f: FiltrosPainel): Promise<DadosPa
 }
 
 function lucroDe(t: Transacao) {
-  return t.linhas.reduce((s, l) => s + l.totalPrincipal - (l.custoPrincipal ?? 0) - (l.comissaoPrincipal ?? 0), 0)
+  return t.linhas.reduce((s, l) => s + l.totalPrincipal - (l.custoPrincipal ?? 0) - (l.insumoPrincipal ?? 0) - (l.comissaoPrincipal ?? 0), 0)
 }
 
 function resumo(d: DadosPainel, moeda?: string) {
@@ -178,7 +180,7 @@ export async function painel(ctx: Ctx, f: FiltrosPainel) {
   // alertas dos módulos (formato antigo) entram no mesmo formato
   for (const m of modulosAtivos)
     for (const a of m.alertas?.(d) ?? [])
-      alertas.push({ id: a.id, titulo: a.texto.charAt(0).toUpperCase() + a.texto.slice(1), acao: '', quantidade: a.quantidade, nivel: a.nivel === 'ruim' ? 'urgente' : a.nivel === 'alerta' ? 'atencao' : 'info', itens: [], detalhe: a.detalhe })
+      alertas.push({ id: a.id, titulo: a.texto.charAt(0).toUpperCase() + a.texto.slice(1), acao: a.acao ?? '', quantidade: a.quantidade, nivel: a.nivel === 'ruim' ? 'urgente' : a.nivel === 'alerta' ? 'atencao' : 'info', itens: a.itens ?? [], detalhe: a.detalhe })
   const ordem = { urgente: 0, atencao: 1, info: 2 }
   alertas.sort((a, b) => ordem[a.nivel] - ordem[b.nivel] || b.quantidade - a.quantidade)
 
@@ -255,6 +257,10 @@ async function alertasGerais(ctx: Ctx, d: DadosPainel): Promise<Alerta[]> {
   // só a última semana: dia antigo esquecido aberto não vira alarme eterno
   const abertosAntigos = dias.filter((x) => x.status === 'aberto' && x.data < d.hoje && x.data >= somarDias(d.hoje, -7)).sort((a, b) => (a.data < b.data ? 1 : -1))
   const soma = (xs: { valor?: number }[]) => xs.reduce((s, x) => s + (x.valor ?? 0), 0)
+  // viagens de compra abertas que passaram do orçamento (gasto da viagem ou capital de compra)
+  const viagensEstouradas = (await viagensAbertas(ctx)).filter((v) => v.acimaOrcamento)
+  // adiantamentos em que o parceiro entregou mais cabelo do que recebeu: a loja deve a diferença
+  const adiantamentosAPagar = (await resumoFinanciamentos(ctx)).linhas.filter((x) => x.status === 'aPagar')
 
   const lista: Alerta[] = [
     { id: 'faltaReceber', nivel: 'urgente', titulo: 'Vendas com valor a receber', acao: 'Cobre ou registre o pagamento (Pessoas e contas › Recebi).', quantidade: faltaReceber.length, itens: faltaReceber.map((v) => itemVenda(v, 'faltaReceber')), detalhe: { tela: 'vendas', filtro: { pendencia: 'faltaReceber' } } },
@@ -267,6 +273,29 @@ async function alertasGerais(ctx: Ctx, d: DadosPainel): Promise<Alerta[]> {
     { id: 'vencendo', nivel: 'info', titulo: 'Parcelas vencendo em 7 dias', acao: 'Lembre a pessoa antes do vencimento.', quantidade: vencendo.length, itens: vencendo, detalhe: { tela: 'emprestimos', filtro: { status: 'vencendo' } } },
     { id: 'estoqueBaixo', nivel: 'info', titulo: 'Itens abaixo do estoque ideal', acao: 'Reponha ou ajuste o estoque ideal.', quantidade: baixos.length, itens: baixos.map((i) => ({ texto: i.nome, sub: `tem ${i.saldo} · ideal ${i.estoqueIdeal}`, detalhe: { tela: 'lote', filtro: { id: i.id } } })), detalhe: { tela: 'estoque', filtro: { repor: true, modulo: baixos[0]?.moduloId } } },
     { id: 'diaAberto', nivel: 'info', titulo: 'Dias anteriores sem encerrar no caixa', acao: 'Confira o dinheiro e encerre o dia.', quantidade: abertosAntigos.length, itens: abertosAntigos.map((x) => ({ texto: brData(x.data), detalhe: { tela: 'caixa', filtro: { data: x.data } } })), detalhe: { tela: 'caixa', filtro: { data: abertosAntigos[0]?.data } } },
+    {
+      id: 'viagemOrcamento',
+      nivel: 'atencao',
+      titulo: 'Viagens de compra acima do orçamento',
+      acao: 'Veja os gastos com quem viajou e ajuste o orçamento ou o plano.',
+      quantidade: viagensEstouradas.length,
+      itens: viagensEstouradas.map((v) => ({
+        texto: `${v.codigo} · ${v.nome}`,
+        sub: `${v.nomes}${v.orcamento && v.gasto > v.orcamento ? ` · gastos ${Math.round((v.gasto * 100) / v.orcamento)}% do orçamento` : ''}${v.orcamentoCompra && v.valorCompras > v.orcamentoCompra ? ` · compras ${Math.round((v.valorCompras * 100) / v.orcamentoCompra)}% do orçamento` : ''}`,
+        valor: v.gasto + v.valorCompras,
+        detalhe: { tela: 'viagem', filtro: { id: v.id } },
+      })),
+      detalhe: { tela: 'viagens', filtro: { status: 'aberta' } },
+    },
+    {
+      id: 'adiantamentoAPagar',
+      nivel: 'atencao',
+      titulo: 'Adiantamentos: diferença a pagar ao parceiro',
+      acao: 'O cabelo entregue passou do adiantado: pague a diferença.',
+      quantidade: adiantamentosAPagar.length,
+      itens: adiantamentosAPagar.map((x) => ({ texto: `${x.codigo} · ${x.pessoa}`, sub: brData(x.ultimo), valor: x.aPagarParceiro, detalhe: { tela: 'financiamento', filtro: { id: x.id } } })),
+      detalhe: { tela: 'adiantamentos', filtro: { status: 'aPagar' } },
+    },
     { id: 'cotacao', nivel: 'atencao', titulo: 'Câmbio sem atualizar', acao: `Busque a cotação (mais de ${cfg.diasCotacaoVelha} dias).`, quantidade: velhas.length, itens: velhas.map((m) => ({ texto: m, sub: cot[m] ? `última ${brData(cot[m]!.data)}` : 'sem cotação', detalhe: { tela: 'config', filtro: { aba: 'moedas' } } })), detalhe: { tela: 'config', filtro: { aba: 'moedas' } } },
   ]
   return lista.map((a) => ({ ...a, valor: a.itens.some((i) => i.valor !== undefined) && a.nivel === 'urgente' ? soma(a.itens) : undefined }))
@@ -317,5 +346,7 @@ export async function diagnostico(ctx: Ctx, _p: object = {}) {
     if (s.saldo !== total - s.recebido) problemas.push(`Empréstimo ${e.id}: saldo ${s.saldo} ≠ parcelas ${total} − recebido ${s.recebido}`)
     if (s.saldo < 0) problemas.push(`Empréstimo ${e.id} com saldo negativo`)
   }
+  // adiantamentos a parceiros: saiu do caixa uma vez, entregas sem caixa, conta bate
+  problemas.push(...(await conferirFinanciamentos(ctx)))
   return { ok: problemas.length === 0, problemas }
 }

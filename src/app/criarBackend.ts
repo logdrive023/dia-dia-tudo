@@ -24,7 +24,9 @@ export function criarBackend(opcoes: { tipo?: TipoArmazenamento; relogio?: Relog
   if (tipo === 'api') {
     const url = opcoes.apiUrl ?? (import.meta.env.VITE_API_URL as string | undefined)
     if (!url) throw new Error('Defina VITE_API_URL para usar a API.')
-    return { backend: new BackendApi({ url, fetch: opcoes.fetch }), sessao }
+    // canal cifrado; com VITE_API_CHAVE_PUBLICA o app só aceita o servidor que assina com essa chave
+    const chavePublica = (import.meta.env.VITE_API_CHAVE_PUBLICA as string | undefined) || undefined
+    return { backend: new BackendApi({ url, fetch: opcoes.fetch, chavePublica }), sessao }
   }
   if (tipo === 'memory') {
     const { repos, transacao } = criarReposMemoria()

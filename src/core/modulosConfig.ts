@@ -32,7 +32,7 @@ function painelGenerico(m: ModuloConfig) {
     const itens = d.itens.filter((i) => i.moduloId === m.id)
     const linhas = d.vendas.flatMap((t) => t.linhas.filter((l) => d.moduloDoItem(l.itemId) === m.id))
     const receita = linhas.reduce((s, l) => s + l.totalPrincipal, 0)
-    const lucro = linhas.reduce((s, l) => s + l.totalPrincipal - (l.custoPrincipal ?? 0) - (l.comissaoPrincipal ?? 0), 0)
+    const lucro = linhas.reduce((s, l) => s + l.totalPrincipal - (l.custoPrincipal ?? 0) - (l.insumoPrincipal ?? 0) - (l.comissaoPrincipal ?? 0), 0)
     const fmtQtd = m.recursos.estoque === 'grama' ? 'gramas' : 'numero'
     const porItem = new Map<string, number>()
     for (const l of linhas) porItem.set(l.descricao, (porItem.get(l.descricao) ?? 0) + l.totalPrincipal)

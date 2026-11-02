@@ -12,23 +12,33 @@ export function cx(...c: (string | false | undefined | null)[]) {
 
 // ---------- números ----------
 
+// formato do idioma escolhido e moeda principal (ComIdioma ajusta ao ler as configurações)
+const padroes = { locale: 'pt-BR', moeda: 'BOB' }
+export function definirPadroes(p: Partial<typeof padroes>) {
+  Object.assign(padroes, p)
+}
+/** 'pt-BR' ou 'es-BO' (datas e números) */
+export const loc = () => padroes.locale
+/** moeda principal das configurações (para valores sem moeda própria) */
+export const moedaPadrao = () => padroes.moeda
+
 export function gramasTexto(g: number): string {
-  if (Math.abs(g) >= 1000) return `${(g / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg`
-  return `${g.toLocaleString('pt-BR')} g`
+  if (Math.abs(g) >= 1000) return `${(g / 1000).toLocaleString(loc(), { maximumFractionDigits: 3 })} kg`
+  return `${g.toLocaleString(loc())} g`
 }
 
-export function fmt(valor: number, formato: Formato['tipo'] | undefined, moeda = 'BOB'): string {
+export function fmt(valor: number, formato: Formato['tipo'] | undefined, moeda = moedaPadrao()): string {
   switch (formato) {
     case 'dinheiro':
       return formatar(valor, moeda)
     case 'gramas':
       return gramasTexto(valor)
     case 'percentual':
-      return `${(valor / 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+      return `${(valor / 100).toLocaleString(loc(), { maximumFractionDigits: 1 })}%`
     case 'dias':
       return `${valor} d`
     default:
-      return valor.toLocaleString('pt-BR')
+      return valor.toLocaleString(loc())
   }
 }
 
@@ -103,7 +113,7 @@ export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
   const ex = exemplo ? t(exemplo) : corte > 0 ? traduzido.slice(corte).replace(/^(Ex\.|Ej\.):?\s*/, '') : undefined
   return (
     <span className="relative inline-flex">
-      <button type="button" aria-label={t('Explicação')} aria-expanded={aberto} onClick={(e) => (e.stopPropagation(), setAberto(!aberto))} className={cx('ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition', aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
+      <button type="button" aria-label={t('Explicação')} aria-expanded={aberto} onClick={(e) => (e.stopPropagation(), setAberto(!aberto))} className={cx('relative ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition after:absolute after:-inset-2 after:content-[\'\']', aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
         i
       </button>
       {aberto && (
@@ -175,8 +185,18 @@ export function Titulo({ children, acao, subtitulo }: { children: ReactNode; aca
   )
 }
 
-export function Abas({ abas, atual, onChange }: { abas: { id: string; nome: string; extra?: ReactNode }[]; atual: string; onChange(id: string): void }) {
+export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { id: string; nome: string; extra?: ReactNode }[]; atual: string; onChange(id: string): void; variante?: 'pilula' | 'sublinhado' }) {
   const t = useT()
+  if (variante === 'sublinhado')
+    return (
+      <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto border-b border-[var(--borda)]">
+        {abas.map((a) => (
+          <button key={a.id} role="tab" aria-selected={a.id === atual} type="button" onClick={() => onChange(a.id)} className={cx('-mb-px min-h-11 shrink-0 border-b-2 px-3 text-sm font-semibold', a.id === atual ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}>
+            {t(a.nome)} {a.extra}
+          </button>
+        ))}
+      </div>
+    )
   return (
     <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto rounded-xl bg-[var(--marca-suave)] p-1">
       {abas.map((a) => (
@@ -195,18 +215,34 @@ export function Abas({ abas, atual, onChange }: { abas: { id: string; nome: stri
   )
 }
 
-// ---------- campos ----------
-
-export function Campo({ rotulo, ajuda, children, className }: { rotulo: string; ajuda?: string; children: ReactNode; className?: string }) {
+/** Escolha de formulário (uma opção entre poucas): botões segmentados, não abas. */
+export function Escolha<T extends string>({ opcoes, valor, onChange, rotulo }: { opcoes: { id: T; nome: string }[]; valor: T; onChange(v: T): void; rotulo?: string }) {
   const t = useT()
   return (
-    <label className={cx('block', className)}>
+    <div role="radiogroup" aria-label={rotulo ? t(rotulo) : undefined} className="flex flex-wrap gap-1 rounded-xl bg-[var(--marca-suave)] p-1">
+      {opcoes.map((o) => (
+        <button key={o.id} type="button" role="radio" aria-checked={o.id === valor} onClick={() => onChange(o.id)} className={cx('min-h-10 flex-1 rounded-lg px-3 text-sm font-semibold', o.id === valor ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
+          {t(o.nome)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ---------- campos ----------
+
+/** comoDiv: quando dentro há botões ou janela (rótulo não pode envolver outros controles) */
+export function Campo({ rotulo, ajuda, children, className, comoDiv }: { rotulo: string; ajuda?: string; children: ReactNode; className?: string; comoDiv?: boolean }) {
+  const t = useT()
+  const Tag = comoDiv ? 'div' : 'label'
+  return (
+    <Tag className={cx('block', className)}>
       <span className="mb-1 flex items-center text-sm font-semibold text-[var(--suave)]">
         {t(rotulo)}
         {ajuda && <Info texto={ajuda} />}
       </span>
       {children}
-    </label>
+    </Tag>
   )
 }
 
@@ -228,7 +264,7 @@ export function Selecao({ opcoes, valor, onChange, vazio, className }: { opcoes:
       {vazio !== undefined && <option value="">{t(vazio)}</option>}
       {opcoes.map((o) => (
         <option key={o.id} value={o.id}>
-          {o.nome}
+          {t(o.nome)}
         </option>
       ))}
     </select>
@@ -373,7 +409,7 @@ export function CartaoNumero({ c, onClick }: { c: CartaoDados; onClick?: () => v
       role={clicavel ? 'button' : undefined}
       tabIndex={clicavel ? 0 : undefined}
       onClick={onClick ?? (c.detalhe ? () => ir(c.detalhe!.tela, c.detalhe!.filtro) : undefined)}
-      onKeyDown={(e) => e.key === 'Enter' && (onClick ?? (c.detalhe ? () => ir(c.detalhe!.tela, c.detalhe!.filtro) : undefined))?.()}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), (onClick ?? (c.detalhe ? () => ir(c.detalhe!.tela, c.detalhe!.filtro) : undefined))?.())}
       className={cx('rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left', clicavel && 'cursor-pointer hover:border-[var(--marca)]')}
     >
       <div className="flex items-start justify-between text-xs font-semibold text-[var(--suave)]">

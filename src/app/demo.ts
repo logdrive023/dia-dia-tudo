@@ -156,6 +156,8 @@ async function montar(b: BackendNoAparelho) {
   const mega = await S('s-mega', 'Aplicação de mega hair', 600, 180, 60, 'Mega hair')
   const manut = await S('s-manut', 'Manutenção do mega hair', 250, 90, 45, 'Mega hair')
   const escova = await S('s-escova', 'Escova', 60, 40, undefined, 'Escova')
+  // biblioteca padrão de serviços (Tintura, Mechas, Unha, Depilação… com insumos)
+  await c(45, 'restaurarBibliotecaServicos', {})
   // produtos (módulo de exemplo)
   await c(45, 'salvarItem', { id: 'pr-presilha', moduloId: 'produtos', tipoItem: 'peca', nome: 'Presilha · Dourada', precoSugerido: { moeda: 'BOB', valor: bs(25) }, estoqueIdeal: 20, saldoInicial: 14, campos: { grupo: 'Presilha', cor: 'Dourada' } })
 
@@ -222,6 +224,19 @@ async function montar(b: BackendNoAparelho) {
   await c(28, 'avancarTriagem', { compraId: compraElena, para: 'conferido' })
   await c(28, 'avancarTriagem', { compraId: compraElena, para: 'pago', pagamentos: [{ id: id(), forma: 'qr', moeda: 'BOB', valor: totalElena }] })
   await c(28, 'avancarTriagem', { compraId: compraElena, para: 'concluido' })
+  // ---------- viagem de compra (Paula foi a Oruro: adiantamento, gastos, 2 compras, prestação de contas) ----------
+  await c(32, 'salvarViagem', { id: 'vg-oruro', nome: 'Feira de cabelo · Oruro', destino: 'Oruro', viajantes: [mariana], inicio: somarDias(hoje, -32), fim: somarDias(hoje, -27), orcamento: bs(1500), orcamentoCompra: bs(70000) })
+  await c(32, 'adiantarViagem', { id: id(), viagemId: 'vg-oruro', moeda: 'BOB', forma: 'dinheiro', valor: bs(2000) })
+  await c(32, 'adiantarViagem', { id: id(), viagemId: 'vg-oruro', moeda: 'USD', forma: 'dinheiro', valor: 10000 })
+  await c(32, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-oruro', categoria: 'combustivel', moeda: 'BOB', valor: bs(450), nota: 'Ida' }, 9)
+  await c(31, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-oruro', categoria: 'hospedagem', moeda: 'BOB', valor: bs(600), nota: '3 noites' }, 20)
+  await c(30, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-oruro', categoria: 'comida', moeda: 'BOB', valor: bs(280) }, 13)
+  await c(29, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-oruro', categoria: 'transporte', moeda: 'USD', valor: 2500, nota: 'Táxi para a feira' }, 11)
+  await c(28, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-oruro', categoria: 'imprevisto', moeda: 'BOB', valor: bs(120), nota: 'Pneu furado' }, 18)
+  await c(28, 'vincularCompras', { viagemId: 'vg-oruro', compraIds: [compraCirila, compraElena] }, 19)
+  // voltou com Bs 500 (esperado 550: faltaram 50) e US$ 75; o gasto entra no custo dos lotes
+  await c(27, 'encerrarViagem', { viagemId: 'vg-oruro', contado: { BOB: bs(500), USD: 7500 }, incorporar: true, obs: 'Faltaram Bs 50 sem recibo' })
+
   const loteDe = async (compraId: Id, medida: number) => (await b.consulta('estoque', { moduloId: 'cabelo' })).find((i) => i.origem?.id === compraId && Number(i.campos.comprimento) === medida)!.id
 
   // ---------- vendas de cabelo (vendas parciais da mesma compra) ----------
@@ -317,9 +332,20 @@ async function montar(b: BackendNoAparelho) {
   await c(35, 'criarEmprestimo', { id: 'e-papa', direcao: 'tomado', pessoaId: papa, moeda: 'BOB', principal: bs(50000), juros: { tipo: 'nenhum' }, parcelas: 10, primeiroVencimento: somarDias(hoje, -25), forma: 'qr' })
   await c(25, 'pagarEmprestimo', { id: id(), emprestimoId: 'e-papa', valor: bs(5000), forma: 'qr' })
 
+  // ---------- adiantamento a parceiro (dinheiro para comprar cabelo; a dívida é paga com o cabelo entregue) ----------
+  await c(20, 'salvarPessoa', { id: 'p-parceiro', nome: 'Parceiro do interior (fictício)', papeis: ['fornecedor'] })
+  await c(20, 'criarFinanciamento', { id: 'ad-parceiro', pessoaId: 'p-parceiro', moeda: 'BOB', valor: bs(5000), forma: 'dinheiro', obs: 'Comprar cabelo nas feiras do interior' })
+  await c(12, 'registrarEntregaFinanciamento', { id: 'c-ad-parceiro', financiamentoId: 'ad-parceiro', linhas: [{ id: id(), quantidade: 1200, moeda: 'BOB', total: bs(3000), campos: { estado: 'Bruto', categoria: 'Normal', cor: 'Castanho', origem: 'Bolívia' } }] })
+
   // ---------- comissão paga (parte do que a Sofia ganhou) e uma venda corrigida ----------
   await c(1, 'pagarComissao', { id: id(), pessoaId: vero, valor: bs(200), moeda: 'BOB', forma: 'dinheiro', referencia: 'Adiantamento de comissão' })
   await c(4, 'corrigirVenda', { id: 'v-wilson', linhas: [{ linhaId: (await b.consulta('venda', { id: 'v-wilson' })).venda.linhas[0].id, quantidade: 1180 }], motivo: 'Na balança deu 1.180 g', diferenca: 'conta' })
+
+  // ---------- viagem aberta (prospecção, já passou do orçamento: alerta no painel) ----------
+  await c(2, 'salvarViagem', { id: 'vg-cocha', nome: 'Prospecção · Cochabamba', destino: 'Cochabamba', viajantes: [mariana], inicio: somarDias(hoje, -2), fim: somarDias(hoje, 1), orcamento: bs(400) })
+  await c(2, 'adiantarViagem', { id: id(), viagemId: 'vg-cocha', moeda: 'BOB', forma: 'dinheiro', valor: bs(800) })
+  await c(2, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-cocha', categoria: 'combustivel', moeda: 'BOB', valor: bs(300) }, 12)
+  await c(1, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-cocha', categoria: 'hospedagem', moeda: 'BOB', valor: bs(250) }, 21)
 
   // ---------- usuários (senha 1234) ----------
   const U = (login: string, nome: string, perfil: 'admin' | 'funcionario', pessoaId?: string, localId?: string) =>

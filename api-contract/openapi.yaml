@@ -1,194 +1,254 @@
 # Contrato da API (rascunho gerado a partir de src/core/services/index.ts).
-# O app já fala este contrato pelo adaptador src/adapters/api/backendApi.ts e é testado contra uma API simulada
-# (src/adapters/api/apiSimulada.ts). O servidor de verdade só precisa responder igual.
+# O app já fala este contrato pelo adaptador src/adapters/api/backendApi.ts (canal cifrado: canalSeguro.ts) e é
+# testado contra uma API simulada (src/adapters/api/apiSimulada.ts), que também faz o lado do servidor do envelope.
+# O servidor de verdade só precisa responder igual. Protocolo do envelope: src/core/seguranca/envelope.ts.
 openapi: 3.1.0
 info:
   title: Tudo · API
-  version: 1.0.0
+  version: 2.0.0
   description: |
-    Um endpoint por COMANDO (muda dados) e um por CONSULTA (só lê). Os corpos são os mesmos tipos do app
-    (src/core/domain/tipos.ts e as assinaturas em src/core/services/*). Dinheiro sempre inteiro na menor unidade
-    da moeda; datas "AAAA-MM-DD"; instantes ISO 8601 UTC; ids ULID gerados no aparelho.
+    TODO o tráfego passa por um ENVELOPE CIFRADO: na rede (e na aba Rede do navegador) não aparece nome de comando,
+    parâmetro, token, valor nem mensagem de erro. Só existem dois endereços, ambos POST com corpo binário
+    (application/octet-stream), sem query string, sem cookie e sem cabeçalho Authorization.
+
+    1) Aperto de mão — POST /v1/k
+       pedido   : chavePublicaApp(65) ‖ nonceApp(16)
+       resposta : chavePublicaServ(65) ‖ nonceServ(16) ‖ sessao(16) ‖ [assinatura(64)]
+       - chaves públicas: ECDH P-256 efêmeras, formato "raw" (não comprimido, 65 bytes).
+       - assinatura: ECDSA P-256 / SHA-256 (formato IEEE P1363, r‖s) com a chave FIXA do servidor sobre
+         "tudo/v1/k" ‖ chavePublicaApp ‖ nonceApp ‖ chavePublicaServ ‖ nonceServ ‖ sessao.
+         Se o app foi gerado com VITE_API_CHAVE_PUBLICA (chave pública fixa em base64), a assinatura é obrigatória
+         e conferida: sem ela, ou inválida, o app não conversa (proteção contra alguém no meio).
+       - chaves de sessão: segredo ECDH (256 bits) → HKDF-SHA-256, sal = nonceApp ‖ nonceServ,
+         info "tudo/v1/app→serv" (chave de ida) e "tudo/v1/serv→app" (chave de volta) → AES-GCM-256.
+
+    2) Pedido — POST /v1/r
+       pedido   : sessao(16) ‖ iv(12) ‖ AES-GCM(ida, texto)      AAD = "tudo/v1/app→serv" ‖ sessao
+       resposta : iv(12) ‖ AES-GCM(volta, texto)                 AAD = "tudo/v1/serv→app" ‖ sessao
+       - IV aleatório de 96 bits a cada mensagem; etiqueta de 128 bits.
+       - texto = comprimento (uint32 big-endian) ‖ JSON UTF-8 ‖ zeros até múltiplo de 1024 bytes (o tamanho vaza menos).
+       - JSON do pedido = Mensagem; JSON da resposta = Resposta (ver components.schemas).
+
+    Repetição: o servidor guarda os ids vistos por sessão (por 2 × janela) e recusa id repetido (400 sem corpo);
+    ts fora de ±5 min → Resposta { ok: false, falha: "relogio", ts } e NADA é executado (o app ajusta o relógio
+    pelo ts do servidor e manda uma mensagem nova). Idempotência de comandos: campo "chave" (nome:id da operação).
+
+    Erros: erro de regra = HTTP 200 com { ok: false, erro: { mensagem, campo } } DENTRO do envelope.
+    Falha de transporte = status sem corpo e sem detalhe: 400 (envelope inválido, alterado ou repetido),
+    401 (sessão desconhecida ou vencida → o app refaz o aperto de mão), 404, 500.
+
+    Dentro do envelope os corpos são os mesmos tipos do app (src/core/domain/tipos.ts e as assinaturas em
+    src/core/services/*). Dinheiro sempre inteiro na menor unidade da moeda; datas "AAAA-MM-DD"; instantes ISO 8601 UTC;
+    ids ULID gerados no aparelho.
+
+    Recomendado no servidor de verdade: TLS (HTTPS) sempre; cabeçalhos Cache-Control: no-store,
+    Referrer-Policy: no-referrer e Content-Security-Policy com frame-ancestors 'none'; CORS só para a origem do app;
+    e as PERMISSÕES conferidas no servidor pelo token (o envelope esconde o conteúdo, não substitui a autorização).
 servers:
   - url: https://api.exemplo.com
-security:
-  - bearer: []
+security: []
 paths:
-  /v1/comandos/{nome}:
+  /v1/k:
     post:
-      summary: Executa um comando de negócio (tudo ou nada, numa transação)
-      parameters:
-        - name: nome
-          in: path
-          required: true
-          schema:
-            type: string
-            enum:
-            - lancarCaixa
-            - estornarLancamento
-            - encerrarDia
-            - reabrirDia
-            - salvarItem
-            - ajustarEstoque
-            - transformarLote
-            - separarLote
-            - salvarTabelaPreco
-            - registrarAcerto
-            - ajustarConta
-            - criarCompra
-            - avancarTriagem
-            - cancelarCompra
-            - concluirVenda
-            - atenderAgendamento
-            - cancelarVenda
-            - corrigirVenda
-            - pagarComissao
-            - salvarUsuario
-            - trocarMinhaSenha
-            - criarEmprestimo
-            - pagarEmprestimo
-            - salvarPessoa
-            - salvarLocal
-            - salvarCotacao
-            - salvarConfig
-            - salvarModulo
-            - pagarSalario
-            - registrarAnexo
-            - removerAnexo
-        - name: Idempotency-Key
-          in: header
-          required: false
-          description: "nome:id da operação. Repetir a mesma chave devolve o mesmo resultado (toque duplo não duplica)."
-          schema: { type: string }
+      summary: Aperto de mão (ECDH P-256 efêmero, opcionalmente assinado pela chave fixa do servidor)
       requestBody:
         required: true
         content:
-          application/json:
-            schema: { type: object, description: 'Mesmo formato de DadosComando<nome> no app.' }
+          application/octet-stream:
+            schema: { type: string, format: binary, description: 'chavePublicaApp(65) ‖ nonceApp(16) = 81 bytes' }
       responses:
         '200':
-          description: OK
+          description: 'chavePublicaServ(65) ‖ nonceServ(16) ‖ sessao(16) ‖ [assinatura(64)] = 97 ou 161 bytes'
           content:
-            application/json:
-              schema: { type: object }
-        '422':
-          description: Regra recusou (mensagem amigável para mostrar como está)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Erro' }
-  /v1/consultas/{nome}:
-    get:
-      summary: Executa uma consulta (só leitura)
-      parameters:
-        - name: nome
-          in: path
-          required: true
-          schema:
-            type: string
-            enum:
-            - painel
-            - resumoMenu
-            - diagnostico
-            - caixaDoDia
-            - diasDoCaixa
-            - estoque
-            - catalogo
-            - movimentosDoItem
-            - fichaItem
-            - rastreio
-            - tabelasPreco
-            - tabelaVigente
-            - historicoTabela
-            - calcularPreco
-            - contas
-            - contaPessoa
-            - organograma
-            - resumoFuncionario
-            - unidades
-            - sugestaoSalario
-            - ultimoLancamento
-            - linhaDoTempo
-            - logDetalhado
-            - dre
-            - livroCaixa
-            - inventario
-            - balanco
-            - vendasDetalhadas
-            - comprasDetalhadas
-            - filaTriagem
-            - compra
-            - vendas
-            - venda
-            - agenda
-            - conflitosAgenda
-            - comissoes
-            - usuarios
-            - usuariosDemo
-            - emprestimos
-            - emprestimo
-            - pessoas
-            - fichaPessoa
-            - locais
-            - configuracoes
-            - anexosDe
-        - name: p
-          in: query
-          required: false
-          description: Parâmetros da consulta em JSON (mesmo formato de ParamsConsulta<nome>).
-          schema: { type: string }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { type: object }
-  /v1/auth/entrar:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '400': { description: Corpo inválido (resposta sem corpo) }
+  /v1/r:
     post:
-      summary: Entrar (devolve token e sessão; o token vai no Authorization de todo pedido)
-      security: []
-      responses:
-        '200': { description: "{ token, sessao }" }
-        '422': { description: Usuário ou senha não conferem }
-  /v1/arquivos:
-    post:
-      summary: Envia foto/PDF/arquivo (depois o app chama o comando registrarAnexo)
+      summary: Único endereço de pedidos (comandos, consultas, login, backup e arquivos), sempre cifrado
       requestBody:
+        required: true
         content:
-          multipart/form-data:
+          application/octet-stream:
             schema:
-              type: object
-              properties:
-                id: { type: string }
-                arquivo: { type: string, format: binary }
+              type: string
+              format: binary
+              description: 'sessao(16) ‖ iv(12) ‖ AES-GCM(Mensagem preenchida até múltiplo de 1 KB)'
       responses:
-        '200': { description: OK }
-  /v1/arquivos/{id}:
-    get:
-      summary: Baixa um arquivo
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-      responses:
-        '200': { description: O arquivo }
-  /v1/backup:
-    get:
-      summary: Exporta tudo (mesmo formato do backup do app)
-      responses:
-        '200': { description: OK }
-    post:
-      summary: Importa um backup (migração da demonstração para o servidor)
-      responses:
-        '200': { description: OK }
+        '200':
+          description: 'iv(12) ‖ AES-GCM(Resposta preenchida até múltiplo de 1 KB). Erros de regra também vêm aqui.'
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '400': { description: 'Envelope alterado, chave errada ou id repetido (sem corpo)' }
+        '401': { description: 'Sessão desconhecida ou vencida: refazer o aperto de mão (sem corpo)' }
+        '500': { description: 'Erro interno (sem corpo, sem detalhe)' }
 components:
-  securitySchemes:
-    bearer:
-      type: http
-      scheme: bearer
   schemas:
+    Mensagem:
+      description: JSON dentro do envelope de ida
+      type: object
+      required: [tipo, nome, dados, id, ts]
+      properties:
+        tipo: { type: string, enum: [comando, consulta, auth, backup, arquivo] }
+        nome:
+          type: string
+          description: |
+            comando → NomeComando; consulta → NomeConsulta; auth → "entrar" ({ login, senha } → { token, sessao });
+            backup → "exportar" | "importar"; arquivo → "enviar" ({ id, nome, mime, conteudo em base64 })
+            | "baixar" ({ id } → { mime, conteudo } ou null)
+        dados: { description: 'DadosComando<nome>, ParamsConsulta<nome>, { login, senha }, Backup ou arquivo' }
+        id: { type: string, description: '128 bits aleatórios em base64; único (proteção contra repetição)' }
+        ts: { type: integer, description: 'instante do app em ms, corrigido pelo relógio do servidor' }
+        token: { type: string, description: 'token do login: só aqui dentro (nunca em cabeçalho, cookie ou endereço)' }
+        chave: { type: string, description: 'idempotência "nome:id": repetir devolve o mesmo resultado (toque duplo não duplica)' }
+    Resposta:
+      description: JSON dentro do envelope de volta
+      type: object
+      required: [re, ok, ts]
+      properties:
+        re: { type: string, description: 'id da Mensagem respondida (o app confere)' }
+        ok: { type: boolean }
+        r: { description: 'resultado: ResultadoComando, ResultadoConsulta, { token, sessao }, Backup…' }
+        erro: { $ref: '#/components/schemas/Erro' }
+        falha: { type: string, enum: [relogio], description: 'ts fora da janela: nada executado; ajustar o relógio e mandar de novo' }
+        ts: { type: integer, description: 'relógio do servidor (ms)' }
     Erro:
       type: object
       properties:
-        erro:
-          type: object
-          properties:
-            mensagem: { type: string }
-            campo: { type: string }
+        mensagem: { type: string, description: mensagem amigável para mostrar como está }
+        campo: { type: string }
+    NomeComando:
+      description: 'Comandos (mudam dados; tudo ou nada, numa transação). Fonte da verdade: src/core/services/index.ts'
+      type: string
+      enum:
+        - lancarCaixa
+        - estornarLancamento
+        - encerrarDia
+        - reabrirDia
+        - salvarItem
+        - ajustarEstoque
+        - transformarLote
+        - separarLote
+        - marcarLotes
+        - editarAtributosLote
+        - salvarCodigos
+        - salvarSigla
+        - trocarCodigoCompra
+        - trocarCodigoLote
+        - unificarLotes
+        - moverFaseTriagem
+        - salvarFluxoTriagem
+        - triarLotes
+        - salvarTabelaPreco
+        - registrarAcerto
+        - ajustarConta
+        - criarCompra
+        - avancarTriagem
+        - cancelarCompra
+        - salvarFormCompra
+        - concluirVenda
+        - atenderAgendamento
+        - cancelarVenda
+        - corrigirVenda
+        - pagarComissao
+        - criarServicoRapido
+        - revisarServico
+        - restaurarBibliotecaServicos
+        - salvarUsuario
+        - trocarMinhaSenha
+        - criarEmprestimo
+        - pagarEmprestimo
+        - salvarPessoa
+        - salvarLocal
+        - salvarCotacao
+        - salvarCambio
+        - registrarBuscaCambio
+        - salvarConfig
+        - salvarModulo
+        - salvarFluxoCompra
+        - salvarAtributos
+        - pagarSalario
+        - registrarAnexo
+        - removerAnexo
+        - definirMiniatura
+        - salvarViagem
+        - adiantarViagem
+        - registrarDespesaViagem
+        - anularDespesaViagem
+        - vincularCompras
+        - desvincularCompra
+        - encerrarViagem
+        - incorporarCustoViagem
+        - reabrirViagem
+        - salvarCategoriasViagem
+    NomeConsulta:
+      description: 'Consultas (só leitura). Fonte da verdade: src/core/services/index.ts'
+      type: string
+      enum:
+        - fluxosCompra
+        - atributosItem
+        - painel
+        - resumoMenu
+        - diagnostico
+        - caixaDoDia
+        - diasDoCaixa
+        - estoque
+        - catalogo
+        - movimentosDoItem
+        - fichaItem
+        - codigos
+        - codigoDisponivel
+        - rastreio
+        - triagem
+        - fluxosTriagem
+        - genealogia
+        - triagens
+        - tabelasPreco
+        - tabelaVigente
+        - historicoTabela
+        - versoesTabela
+        - compararVersoes
+        - tabelaPreco
+        - calcularPreco
+        - contas
+        - contaPessoa
+        - organograma
+        - resumoFuncionario
+        - unidades
+        - sugestaoSalario
+        - ultimoLancamento
+        - linhaDoTempo
+        - logDetalhado
+        - dre
+        - livroCaixa
+        - inventario
+        - balanco
+        - vendasDetalhadas
+        - comprasDetalhadas
+        - filaTriagem
+        - compra
+        - pedido
+        - formCompra
+        - vendas
+        - venda
+        - agenda
+        - conflitosAgenda
+        - comissoes
+        - servicosReceitaInsumos
+        - usuarios
+        - usuariosDemo
+        - emprestimos
+        - emprestimo
+        - pessoas
+        - fichaPessoa
+        - locais
+        - configuracoes
+        - cambio
+        - anexosDe
+        - fotosDoLote
+        - etiquetas
+        - viagens
+        - viagem
+        - painelViajante
+        - categoriasViagem

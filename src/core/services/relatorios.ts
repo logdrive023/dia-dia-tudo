@@ -22,7 +22,7 @@ async function conversor(ctx: Ctx) {
 
 /**
  * DRE simplificado (resultado do período) + divisão entre sócios.
- * Receita − custo do que foi vendido − comissões = lucro bruto; − despesas = resultado; resultado × parte de cada sócio
+ * Receita − custo do que foi vendido − insumos dos serviços − comissões = lucro bruto; − despesas = resultado; resultado × parte de cada sócio
  * − retiradas já feitas = quanto falta acertar com cada um.
  */
 export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
@@ -32,6 +32,8 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
   const receita = vendas.reduce((s, t) => s + t.totalPrincipal, 0)
   const cmv = vendas.reduce((s, t) => s + t.linhas.reduce((x, l) => x + (l.custoPrincipal ?? 0), 0), 0)
   const comissoes = vendas.reduce((s, t) => s + t.linhas.reduce((x, l) => x + (l.comissaoPrincipal ?? 0), 0), 0)
+  // insumos do salão (tinta, água oxigenada…) usados nos serviços: custo da venda, guardado em cada linha
+  const insumos = vendas.reduce((s, t) => s + t.linhas.reduce((x, l) => x + (l.insumoPrincipal ?? 0), 0), 0)
   const todoCaixa = await ctx.repos.movCaixa.listar()
   const porId = new Map(todoCaixa.map((m) => [m.id, m]))
   const caixa = todoCaixa.filter((m) => m.data >= p.de && m.data <= p.ate)
@@ -41,8 +43,14 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
     const cat = m.categoria || 'Outras despesas'
     despesasPorCategoria.set(cat, (despesasPorCategoria.get(cat) ?? 0) - conv(m.delta, m.moeda))
   }
+  // gasto de viagem incorporado ao custo dos lotes vira estoque (entra no custo quando vender): não conta duas vezes
+  for (const v of await ctx.repos.viagens.listar()) {
+    const inc = v.incorporacao
+    if (inc && inc.em.slice(0, 10) >= p.de && inc.em.slice(0, 10) <= p.ate && despesasPorCategoria.has('Viagens'))
+      despesasPorCategoria.set('Viagens', (despesasPorCategoria.get('Viagens') ?? 0) - inc.total)
+  }
   const despesas = [...despesasPorCategoria.values()].reduce((s, v) => s + v, 0)
-  const lucroBruto = receita - cmv - comissoes
+  const lucroBruto = receita - cmv - insumos - comissoes
   const resultado = lucroBruto - despesas
   const retiradas = caixa.filter((m) => m.tipo === 'retirada' && m.socioId && !m.estornadoPor)
   const socios = cfg.socios.map((s) => {
@@ -57,6 +65,7 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
     linhas: [
       { conta: 'Receita de vendas', valor: receita, nivel: 0 },
       { conta: '(−) Custo do que foi vendido', valor: -cmv, nivel: 1 },
+      ...(insumos ? [{ conta: '(−) Insumos dos serviços', valor: -insumos, nivel: 1 }] : []),
       { conta: '(−) Comissões', valor: -comissoes, nivel: 1 },
       { conta: '= Lucro bruto', valor: lucroBruto, nivel: 0 },
       ...[...despesasPorCategoria].map(([c, v]) => ({ conta: `(−) ${c}`, valor: -v, nivel: 1 })),
@@ -64,6 +73,7 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
     ],
     receita,
     cmv,
+    insumos,
     comissoes,
     lucroBruto,
     despesas,
@@ -172,7 +182,9 @@ export async function vendasDetalhadas(ctx: Ctx, p: { de: string; ate: string; p
           moeda: l.moeda,
           totalPrincipal: l.totalPrincipal,
           custo: l.custoPrincipal ?? 0,
-          lucro: l.totalPrincipal - (l.custoPrincipal ?? 0) - (l.comissaoPrincipal ?? 0),
+          insumos: l.insumoPrincipal ?? 0,
+          comissao: l.comissaoPrincipal ?? 0,
+          lucro: l.totalPrincipal - (l.custoPrincipal ?? 0) - (l.insumoPrincipal ?? 0) - (l.comissaoPrincipal ?? 0),
         })),
     )
     .sort((a, b) => (a.data < b.data ? -1 : 1))

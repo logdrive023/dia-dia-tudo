@@ -1,7 +1,9 @@
 // ENDEREÇOS (hash): cada tela tem um endereço que dá para copiar, abrir de novo e usar o "voltar" do navegador.
 //   #/pedidos           → comprar          #/pedidos/novo → novaCompra      #/pedidos/P123 → pedido {id}
 //   #/vendas/V1         → venda {id}       #/pessoas/X    → pessoa {id}     #/lotes/L1     → lote {id}
-//   #/emprestimos/E1    → emprestimo {id}  outros: #/<tela>?chave=valor
+//   #/emprestimos/E1    → emprestimo {id}  #/config        → config (índice) #/config/triagem → configSecao {id}
+//   #/viagens           → viagens          #/viagens/VG1  → viagem {id}   #/viagens/nova → novaViagem
+//   outros: #/<tela>?chave=valor
 // Hash (e não caminho) porque o app é publicado como site estático (GitHub Pages) e funciona sem servidor.
 
 import type { Navegacao, Params } from '../ui/contexto'
@@ -19,6 +21,11 @@ export const PAI: Record<string, string> = {
   novoEmprestimo: 'emprestimos',
   venda: 'vendas',
   vendas: 'painel',
+  configSecao: 'config',
+  viagem: 'viagens',
+  novaViagem: 'viagens',
+  financiamento: 'adiantamentos',
+  novoFinanciamento: 'adiantamentos',
 }
 
 const COLECOES: Record<string, { lista: string; item: string; novo?: string }> = {
@@ -28,6 +35,19 @@ const COLECOES: Record<string, { lista: string; item: string; novo?: string }> =
   lotes: { lista: 'estoque', item: 'lote' },
   emprestimos: { lista: 'emprestimos', item: 'emprestimo', novo: 'novoEmprestimo' },
   precos: { lista: 'precos', item: 'tabelaPreco' },
+  config: { lista: 'config', item: 'configSecao' },
+  viagens: { lista: 'viagens', item: 'viagem', novo: 'novaViagem' },
+  // adiantamentos a parceiros: #/adiantamentos, #/adiantamentos/novo, #/adiantamentos/<id>
+  adiantamentos: { lista: 'adiantamentos', item: 'financiamento', novo: 'novoFinanciamento' },
+}
+
+/** Configurações antigas por aba (ir('config', { aba: 'triagem' }), #/config?aba=moedas) viram a seção: #/config/triagem. */
+const ABA_ANTIGA: Record<string, string> = { cambio: 'moedas', socios: 'socias', formas: 'pagamentos' }
+
+export function normalizarNav(n: Navegacao): Navegacao {
+  if (n.tela !== 'config' || !n.params.aba) return n
+  const { aba, ...params } = n.params
+  return { tela: 'configSecao', params: { ...params, id: ABA_ANTIGA[String(aba)] ?? String(aba) } }
 }
 
 function query(params: Params, sem: string[] = []) {
@@ -56,7 +76,7 @@ export function hashParaNav(hash: string): Navegacao | undefined {
   const [a, b] = caminho.split('/').map(decodeURIComponent)
   const col = COLECOES[a]
   if (col) {
-    if (!b) return { tela: col.lista, params }
+    if (!b) return normalizarNav({ tela: col.lista, params })
     if (b === 'novo' && col.novo) return { tela: col.novo, params }
     return { tela: col.item, params: { ...params, id: b } }
   }

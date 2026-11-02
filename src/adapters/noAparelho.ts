@@ -9,6 +9,7 @@ import { type ArquivosStore, type ExecutarEmTransacao, NOMES_COLECOES, type Relo
 import { comandos, consultas, type DadosComando, type NomeComando, type NomeConsulta, type ParamsConsulta, type ResultadoComando, type ResultadoConsulta } from '../core/services'
 import { type Ctx, novo } from '../core/services/contexto'
 import { type ModuloConfig, moduloDeConfig } from '../core/modulosConfig'
+import type { AtributosConfig, FluxoCompraConfig } from '../core/modulos'
 import { SEM_LOGIN, podeComando, podeConsulta } from '../core/services/permissoes'
 import { entrar, hashSenha, prepararSenhas } from '../core/services/usuarios'
 
@@ -34,6 +35,10 @@ export class BackendNoAparelho implements Backend {
   private async carregarModulos() {
     const r = await this.repos.config.obter('modulosPersonalizados')
     this.modulos.definirPersonalizados(((r?.valor as ModuloConfig[]) ?? []).map(moduloDeConfig))
+    const f = await this.repos.config.obter('fluxosCompra')
+    this.modulos.definirFluxos((f?.valor as Record<string, FluxoCompraConfig>) ?? {})
+    const a = await this.repos.config.obter('atributosItem')
+    this.modulos.definirAtributos((a?.valor as Record<string, AtributosConfig>) ?? {})
   }
 
   private enfileirar<R>(fn: () => Promise<R>): Promise<R> {

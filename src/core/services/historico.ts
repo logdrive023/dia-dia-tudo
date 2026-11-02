@@ -2,7 +2,7 @@
 // "Pedido entrou dia X com Y, Z · fulana conferiu · ciclana pagou · entrou no estoque · vendido para…"
 
 import type { Id } from '../domain/tipos'
-import type { Ctx } from './contexto'
+import { type Ctx, lerConfig } from './contexto'
 
 export interface EventoTempo {
   em: string
@@ -11,6 +11,15 @@ export interface EventoTempo {
   por?: string
   tipo: 'etapa' | 'acao' | 'anexo' | 'estoque' | 'caixa' | 'conta'
   ref?: { tela: string; id: Id }
+  /** etapa: de onde para onde (a tela mostra "Chegou → Conferido") */
+  de?: string
+  para?: string
+  /** o que entrou/saiu, uma linha por item (a tela mostra como lista) */
+  itens?: { texto: string; quantidade?: number; unidade?: 'grama' | 'peca' | 'servico'; valor?: number; moeda?: string }[]
+  /** dinheiro do evento (sinal = entrou/saiu) */
+  valor?: { valor: number; moeda: string; forma?: string }
+  motivo?: string
+  ajustes?: string[]
 }
 
 const NOMES_ACAO: Record<string, string> = {
@@ -28,8 +37,23 @@ const NOMES_ACAO: Record<string, string> = {
   trocarSenha: 'Senha trocada',
   entrar: 'Entrou no sistema',
   separarLote: 'Lote separado',
+  unificarLotes: 'Lotes unificados',
+  triarLotes: 'Triagem feita',
+  moverFaseTriagem: 'Lote mudou de coluna na triagem',
+  salvarFluxoTriagem: 'Etapas da triagem mudadas',
   ajustarEstoque: 'Estoque ajustado',
+  marcarLotes: 'Lotes alterados em massa',
+  editarAtributosLote: 'Atributos do lote editados',
+  salvarCodigos: 'Regra dos códigos mudada',
+  salvarSigla: 'Sigla da pessoa mudada',
+  trocarCodigoCompra: 'Código da compra trocado',
+  trocarCodigoLote: 'Código do lote trocado',
   salvarItem: 'Item salvo',
+  regraServico: 'Comissão/insumos do serviço mudados',
+  precoAlterado: 'Preço mudado no atendimento',
+  insumoAjustado: 'Insumos ajustados no atendimento',
+  criarServicoRapido: 'Serviço criado no atendimento',
+  restaurarBibliotecaServicos: 'Biblioteca de serviços restaurada',
   lancarCaixa: 'Lançamento no caixa',
   estornarLancamento: 'Lançamento desfeito',
   encerrarDia: 'Dia encerrado',
@@ -48,6 +72,26 @@ const NOMES_ACAO: Record<string, string> = {
   anexar: 'Arquivo anexado',
   removerAnexo: 'Anexo removido',
   salvarModulo: 'Modalidade salva',
+  salvarFluxoCompra: 'Etapas da compra mudadas',
+  salvarFormCompra: 'Formulário de compra mudado',
+  salvarAtributos: 'Atributos do item mudados',
+  salvarViagem: 'Viagem de compra salva',
+  adiantarViagem: 'Adiantamento para a viagem',
+  registrarDespesaViagem: 'Gasto da viagem',
+  anularDespesaViagem: 'Gasto da viagem anulado',
+  vincularCompras: 'Compras ligadas à viagem',
+  desvincularCompra: 'Compra tirada da viagem',
+  encerrarViagem: 'Viagem encerrada (prestação de contas)',
+  incorporarCustoViagem: 'Gasto da viagem somado ao custo dos lotes',
+  reabrirViagem: 'Viagem reaberta',
+  salvarCategoriasViagem: 'Categorias de gasto de viagem mudadas',
+  criarFinanciamento: 'Adiantamento a parceiro (dinheiro para comprar cabelo)',
+  registrarEntregaFinanciamento: 'Entrega de cabelo abatendo o adiantamento',
+  receberFinanciamento: 'Adiantamento: recebi em dinheiro',
+  pagarDiferencaFinanciamento: 'Adiantamento: paguei a diferença ao parceiro',
+  abaterComissaoFinanciamento: 'Adiantamento: abatido da comissão',
+  encerrarFinanciamento: 'Adiantamento encerrado',
+  ajustarFinanciamento: 'Adiantamento alterado',
 }
 
 export function nomeAcao(a: string) {
@@ -64,34 +108,57 @@ export async function linhaDoTempo(ctx: Ctx, p: { id: Id }) {
     if (ctx.modulos.tem(t.moduloId)) for (const e of ctx.modulos.obter(t.moduloId).compra?.etapas ?? []) nomesEtapa.set(e.id, e.nome)
     const nomeEtapa = (id: string) =>
       nomesEtapa.get(id) ?? ({ agendado: 'Agendado', concluido: 'Concluído', cancelado: 'Cancelado', recusado: 'Recusado' } as Record<string, string>)[id] ?? id
-    for (const h of t.historico)
+    const unidadeDe = async (itemId?: Id) => (itemId ? (await ctx.repos.itens.obter(itemId))?.unidade : undefined)
+    for (const h of t.historico) {
+      const correcao = h.tipo === 'correcao'
+      const entrada = !h.de && !correcao
       eventos.push({
         em: h.em,
         tipo: 'etapa',
         por: h.porNome,
-        titulo:
-          h.tipo === 'correcao'
-            ? `Venda corrigida${h.totalAntes !== undefined ? `: ${(h.totalAntes / 100).toLocaleString('pt-BR')} → ${(h.totalDepois! / 100).toLocaleString('pt-BR')}` : ''}`
-            : h.de
-              ? `${nomeEtapa(h.de)} → ${nomeEtapa(h.para)}`
-              : `${t.tipo === 'compra' ? 'Pedido entrou' : 'Venda registrada'}: ${nomeEtapa(h.para)}`,
-        detalhe: [h.de ? '' : t.linhas.map((l) => `${l.descricao} · ${l.quantidade.toLocaleString('pt-BR')}`).join(' + '), h.motivo, ...(h.ajustes ?? [])].filter(Boolean).join(' · '),
+        titulo: correcao ? 'Venda corrigida' : entrada ? (t.tipo === 'compra' ? 'Pedido registrado' : 'Venda registrada') : 'Mudou de etapa',
+        de: correcao || entrada ? undefined : nomeEtapa(h.de),
+        para: correcao ? undefined : nomeEtapa(h.para),
+        itens: entrada ? await Promise.all(t.linhas.map(async (l) => ({ texto: l.descricao, quantidade: l.quantidade, unidade: await unidadeDe(l.itemId), valor: l.total, moeda: l.moeda }))) : undefined,
+        valor: entrada ? { valor: t.totalPrincipal, moeda: t.moedaPrincipal } : correcao && h.totalDepois !== undefined ? { valor: h.totalDepois, moeda: t.moedaPrincipal } : undefined,
+        detalhe: correcao && h.totalAntes !== undefined ? `antes:${h.totalAntes}` : undefined,
+        motivo: h.motivo,
+        ajustes: h.ajustes,
       })
+    }
+    const cfg = await lerConfig(ctx)
+    const nomeForma = new Map(cfg.formas.map((f) => [f.id, f.nome]))
     for (const m of await ctx.repos.movCaixa.listar({ origemId: t.id }))
-      eventos.push({ em: m.criadoEm, tipo: 'caixa', titulo: m.descricao, detalhe: `${m.delta > 0 ? '+' : ''}${m.delta / 100} ${m.moeda} · ${m.forma}` })
+      eventos.push({ em: m.criadoEm, tipo: 'caixa', titulo: m.delta > 0 ? 'Dinheiro entrou' : 'Dinheiro saiu', detalhe: m.descricao, valor: { valor: m.delta, moeda: m.moeda, forma: nomeForma.get(m.forma) ?? m.forma } })
     for (const m of await ctx.repos.movEstoque.listar({ origemId: t.id })) {
       const item = await ctx.repos.itens.obter(m.itemId)
-      eventos.push({ em: m.criadoEm, tipo: 'estoque', titulo: `${m.delta > 0 ? 'Entrou no estoque' : 'Saiu do estoque'}: ${item?.codigo ?? ''} ${item?.nome ?? ''}`, detalhe: `${m.delta > 0 ? '+' : ''}${m.delta.toLocaleString('pt-BR')} (${m.saldoAntes} → ${m.saldoDepois})`, ref: { tela: 'lote', id: m.itemId } })
+      eventos.push({
+        em: m.criadoEm,
+        tipo: 'estoque',
+        titulo: m.delta > 0 ? 'Entrou no estoque' : 'Saiu do estoque',
+        itens: [{ texto: `${item?.codigo ?? ''} · ${item?.nome ?? ''}`, quantidade: m.delta, unidade: item?.unidade }],
+        detalhe: `saldo:${m.saldoAntes}:${m.saldoDepois}`,
+        ref: { tela: 'lote', id: m.itemId },
+      })
     }
     // vendas que saíram dos lotes desta compra (destino)
-    const lotes = (await ctx.repos.itens.listar()).filter((i) => i.origem?.id === t.id || i.origem?.compraId === t.id)
+    const lotes = (await ctx.repos.itens.listar()).filter((i) => i.origem?.id === t.id || i.origem?.compraId === t.id || !!i.origem?.compraIds?.includes(t.id))
     if (lotes.length) {
       const ids = new Set(lotes.map((l) => l.id))
       for (const v of (await ctx.repos.transacoes.listar({ tipo: 'venda' })).filter((v) => v.etapa === 'concluido' && v.linhas.some((l) => ids.has(l.itemId!)))) {
         const pessoa = v.pessoaId ? await ctx.repos.pessoas.obter(v.pessoaId) : undefined
-        const gramas = v.linhas.filter((l) => ids.has(l.itemId!)).reduce((s, l) => s + l.quantidade, 0)
         const quem = v.historico.find((h) => h.para === 'concluido')?.porNome
-        eventos.push({ em: v.criadoEm, tipo: 'acao', titulo: `Vendido para ${pessoa?.nome ?? 'cliente'} (${v.data.split('-').reverse().join('/')})`, detalhe: `${gramas.toLocaleString('pt-BR')} desta compra`, por: quem, ref: { tela: 'venda', id: v.id } })
+        const daqui = v.linhas.filter((l) => ids.has(l.itemId!))
+        eventos.push({
+          em: v.criadoEm,
+          tipo: 'acao',
+          titulo: `Vendido para ${pessoa?.nome ?? 'cliente'}`,
+          itens: daqui.map((l) => ({ texto: l.descricao, quantidade: l.quantidade, unidade: 'grama' as const, valor: l.total, moeda: l.moeda })),
+          valor: { valor: daqui.reduce((s, l) => s + l.totalPrincipal, 0), moeda: v.moedaPrincipal },
+          detalhe: v.codigo ? `Venda ${v.codigo}` : undefined,
+          por: quem,
+          ref: { tela: 'venda', id: v.id },
+        })
       }
     }
   }

@@ -125,9 +125,11 @@ export async function unidades(ctx: Ctx, p: { de: string; ate: string }) {
     const entradas = concluidas.reduce((s, t) => s + t.totalPrincipal, 0)
     const comissoes = concluidas.reduce((s, t) => s + t.linhas.reduce((x, li) => x + (li.comissaoPrincipal ?? 0), 0), 0)
     const custoCabelo = concluidas.reduce((s, t) => s + t.linhas.reduce((x, li) => x + (li.custoPrincipal ?? 0), 0), 0)
+    // insumos dos serviços (tinta, água oxigenada…): custo da unidade
+    const insumos = concluidas.reduce((s, t) => s + t.linhas.reduce((x, li) => x + (li.insumoPrincipal ?? 0), 0), 0)
     // despesas da unidade, sem os salários (esses entram pela estimativa acima)
     const despesas = -caixa.filter((m) => m.localId === l.id && !m.pessoaId && (m.tipo === 'despesa' || (m.tipo === 'estorno' && m.categoria !== undefined))).reduce((s, m) => s + conv(m.delta, m.moeda), 0)
-    const saidas = salarios + comissoes + custoCabelo + despesas
+    const saidas = salarios + comissoes + custoCabelo + insumos + despesas
     return {
       local: l,
       funcionarios: equipe.length,
@@ -137,6 +139,7 @@ export async function unidades(ctx: Ctx, p: { de: string; ate: string }) {
       entradas,
       comissoes,
       custoCabelo,
+      insumos,
       despesas,
       saidas,
       margem: entradas - saidas,

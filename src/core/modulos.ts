@@ -14,6 +14,17 @@ export interface CampoDef {
   unidade?: string
   ajuda?: string
   obrigatorio?: boolean
+  /** não pode ser escondido (o nome do item, o preço ou a separação dependem dele) */
+  fixo?: boolean
+  /** criado pela tela (Configurações › Atributos) */
+  extra?: boolean
+}
+
+/** Atributos de um tipo de item mudados pela tela: campos novos, campos escondidos e opções das listas. */
+export interface AtributosConfig {
+  extras: CampoDef[]
+  ocultos: string[]
+  opcoes: Record<string, string[]>
 }
 
 export interface TipoItemDef {
@@ -37,6 +48,24 @@ export interface EtapaDef {
   /** só lembretes (não bloqueiam) */
   lembrar?: string[]
 }
+
+/** Como a compra anda: etapas, o que cobra em cada uma e o que conta como "falta". O administrador muda pela tela. */
+export interface FluxoCompraDef {
+  tipoItem: string
+  etapas: EtapaDef[]
+  avisarParadaDias: number
+  pedirComprovanteOrigem?: boolean
+  /** cobra foto do pedido/cabelo (padrão: sim) */
+  pedirFotos?: boolean
+  /** mudado pela tela (Configurações › Etapas da compra) */
+  personalizado?: boolean
+}
+
+/** O que a tela guarda por módulo (o tipo de item continua o do módulo). */
+export type FluxoCompraConfig = Omit<FluxoCompraDef, 'tipoItem' | 'personalizado'>
+
+/** a última etapa é sempre esta (é onde a compra termina e entra no estoque) */
+export const ETAPA_FINAL = 'concluido'
 
 export interface Formato {
   tipo: 'dinheiro' | 'gramas' | 'numero' | 'percentual' | 'dias'
@@ -134,7 +163,7 @@ export interface ModuloDef {
   icone: string
   descricao: string
   tiposItem: TipoItemDef[]
-  compra?: { tipoItem: string; etapas: EtapaDef[]; avisarParadaDias: number; pedirComprovanteOrigem?: boolean }
+  compra?: FluxoCompraDef
   venda?: PerguntaVenda
   /** área própria (ex.: empréstimos não é compra nem venda) */
   telaPropria?: string
@@ -145,7 +174,7 @@ export interface ModuloDef {
   /** criado pela tela (pode ser editado/removido) */
   personalizado?: boolean
   /** alertas deste módulo para "Atenção agora" */
-  alertas?: (dados: DadosPainel) => { id: string; texto: string; quantidade: number; nivel: 'info' | 'alerta' | 'ruim'; detalhe?: Detalhe }[]
+  alertas?: (dados: DadosPainel) => { id: string; texto: string; acao?: string; quantidade: number; nivel: 'info' | 'alerta' | 'ruim'; detalhe?: Detalhe; itens?: { texto: string; sub?: string; detalhe: Detalhe }[] }[]
 }
 
 export class RegistroModulos {
@@ -160,6 +189,44 @@ export class RegistroModulos {
     this.mapa.set(m.id, m)
   }
 
+  private fluxos = new Map<string, FluxoCompraConfig>()
+  private atributos = new Map<string, AtributosConfig>()
+
+  /** Atributos mudados pela tela, por "modulo:tipo". */
+  definirAtributos(a: Record<string, AtributosConfig>) {
+    this.atributos = new Map(Object.entries(a))
+  }
+
+  /** campos como vieram do código (para a tela de atributos) */
+  camposPadrao(moduloId: string, tipoId: string): CampoDef[] {
+    return this.mapa.get(moduloId)?.tiposItem.find((x) => x.id === tipoId)?.campos ?? []
+  }
+
+  private comAtributos(m: ModuloDef): ModuloDef {
+    if (!this.atributos.size) return m
+    return {
+      ...m,
+      tiposItem: m.tiposItem.map((ti) => {
+        const a = this.atributos.get(`${m.id}:${ti.id}`)
+        if (!a) return ti
+        const campos = ti.campos
+          .filter((c) => c.fixo || !a.ocultos.includes(c.id))
+          .map((c) => (c.tipo === 'lista' && a.opcoes[c.id]?.length ? { ...c, opcoes: a.opcoes[c.id] } : c))
+        return { ...ti, campos: [...campos, ...a.extras.map((c) => ({ ...c, extra: true }))] }
+      }),
+    }
+  }
+
+  /** Etapas da compra mudadas pela tela, por módulo (sem = as do código). */
+  definirFluxos(f: Record<string, FluxoCompraConfig>) {
+    this.fluxos = new Map(Object.entries(f))
+  }
+
+  /** etapas como vieram do código (para "voltar ao padrão") */
+  fluxoPadrao(id: string): FluxoCompraDef | undefined {
+    return this.mapa.get(id)?.compra
+  }
+
   /** Troca as modalidades criadas pela tela (as de código ficam). */
   definirPersonalizados(ms: ModuloDef[]) {
     for (const [id, m] of this.mapa) if (m.personalizado) this.mapa.delete(id)
@@ -167,13 +234,14 @@ export class RegistroModulos {
   }
 
   todos(): ModuloDef[] {
-    return [...this.mapa.values()]
+    return [...this.mapa.keys()].map((id) => this.obter(id))
   }
 
   obter(id: string): ModuloDef {
     const m = this.mapa.get(id)
     if (!m) throw new Error(`Módulo não registrado: ${id}`)
-    return m
+    const f = this.fluxos.get(id)
+    return this.comAtributos(f && m.compra ? { ...m, compra: { ...m.compra, ...f, personalizado: true } } : m)
   }
 
   tem(id: string) {

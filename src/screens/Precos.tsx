@@ -4,20 +4,35 @@
 //  #/precos/novo   nova tabela
 // Toda alteração publica uma versão nova; as anteriores ficam guardadas e dá para comparar quaisquer duas.
 
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
 import { fatorValido, formatar } from '../core/domain/dinheiro'
 import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { TabelaPreco } from '../core/domain/tipos'
 import type { DiferencaCelula } from '../core/services/precos'
-import { Botao, Campo, Carregando, Cartao, Entrada, Erro, Pilula, Selecao, Vazio, cx, dataBR } from '../ui/base'
-import { useApp, useComando, useConsulta } from '../ui/contexto'
+import { Abas, Botao, Campo, Carregando, Cartao, Entrada, ErroTela, Pilula, Selecao, Titulo, Vazio, cx, dataBR, loc, moedaPadrao } from '../ui/base'
+import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 
 type Rascunho = Pick<TabelaPreco, 'id' | 'moduloId' | 'nome' | 'categoria' | 'validaDesde' | 'moeda' | 'unidadeMedida' | 'fatorPor' | 'linhas' | 'colunas' | 'valores'>
 type GradeDados = Pick<TabelaPreco, 'linhas' | 'colunas' | 'valores'>
-const quando = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+const quando = (iso: string) => new Date(iso).toLocaleString(loc(), { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 const n = (x?: string) => (x ? Number(x.replace(',', '.')) : undefined)
+type T = ReturnType<typeof useT>
+
+function rascunhoDe(tb: TabelaPreco | undefined, t: T): Rascunho {
+  return tb
+    ? { ...tb, valores: { ...tb.valores }, colunas: tb.colunas.map((c) => ({ ...c })), linhas: [...tb.linhas] }
+    : { id: novoId(), moduloId: 'cabelo', nome: t('Nova tabela'), moeda: moedaPadrao(), unidadeMedida: 'cm', fatorPor: 'grama', validaDesde: dataLocal(), linhas: [40, 50, 55, 60, 70, 80, 90, 100], colunas: [{ id: 'c1', nome: t('Comprador {n}', { n: 1 }) }], valores: {} }
+}
+
+/** quantos preços mudaram e se mudou a estrutura (nome, categoria, medidas, compradores) */
+function mudancasDe(tb: TabelaPreco | undefined, r: Rascunho) {
+  if (!tb) return { mudancas: 0, mudouEstrutura: true }
+  const mudancas = Object.keys({ ...tb.valores, ...r.valores }).filter((k) => (tb.valores[k] ?? '') !== (r.valores[k] ?? '').trim()).length
+  const mudouEstrutura = JSON.stringify([tb.linhas, tb.colunas, tb.nome, tb.categoria, tb.validaDesde]) !== JSON.stringify([r.linhas, r.colunas, r.nome, r.categoria, r.validaDesde])
+  return { mudancas, mudouEstrutura }
+}
 
 // ---------- lista ----------
 
@@ -28,13 +43,7 @@ export function Precos() {
   if (nav.params.id || nav.tela === 'tabelaPreco') return <TabelaTela />
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">{t('Tabelas de preço')}</h1>
-          <p className="text-sm text-[var(--suave)]">{t('Valor = gramas × fator. Ex.: 40 cm, 2.000 g × 3,5 = Bs 7.000.')}</p>
-        </div>
-        <Botao grande onClick={() => ir('tabelaPreco', { id: 'novo' })}>+ {t('Tabela')}</Botao>
-      </div>
+      <Titulo subtitulo={t('Valor = gramas × fator. Ex.: 40 cm, 2.000 g × 3,5 = Bs 7.000.')} acao={<Botao grande onClick={() => ir('tabelaPreco', { id: 'novo' })}>+ {t('Tabela')}</Botao>}>{t('Tabelas de preço')}</Titulo>
       {!dados ? <Carregando /> : !dados.length ? <Vazio texto="Nenhuma tabela ainda." /> : (
         <div className="grid gap-3 md:grid-cols-2">
           {dados.map((tb) => <CartaoTabela key={tb.id} tb={tb} />)}
@@ -55,7 +64,7 @@ function CartaoTabela({ tb }: { tb: TabelaPreco }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-bold">{tb.nome}</div>
-          <div className="text-sm text-[var(--suave)]">{tb.categoria ?? t('Normal')} · {tb.moeda} {t('por grama')}</div>
+          <div className="text-sm text-[var(--suave)]">{t(tb.categoria ?? 'Normal')} · {tb.moeda} {t('por grama')}</div>
         </div>
         {v && <Pilula tom="marca">v{v.numero}</Pilula>}
       </div>
@@ -126,40 +135,41 @@ function Grade({ tb, editar, diferencas, base }: { tb: GradeDados; editar?: (k: 
 
 function TabelaTela() {
   const t = useT()
-  const { nav, ir, voltar } = useApp()
+  const { nav, ir, voltar, marcarSujo } = useApp()
   const id = nav.params.id as string
   const novo = id === 'novo'
   const { dados, erro } = useConsulta('tabelaPreco', { id }, !novo)
-  const [aba, setAba] = useState<'tabela' | 'editar' | 'versoes' | 'comparar'>(novo ? 'editar' : ((nav.params.aba as 'tabela') ?? 'tabela'))
+  const [abaUrl, setAba] = useParamTela<'tabela' | 'editar' | 'versoes' | 'comparar'>('aba', 'tabela')
+  const aba = novo ? 'editar' : abaUrl
   const [comparar, setComparar] = useState<{ de?: number; para?: number }>({})
-  if (erro) return <Erro texto={erro} />
-  if (!novo && !dados) return <Carregando />
+  // rascunho fica aqui (acima das abas): trocar de aba não perde o que foi digitado
+  const [rascunho, setRascunho] = useState<Rascunho>()
+  const [nota, setNota] = useState('')
   const tb = dados?.tabela
+  const m = rascunho ? mudancasDe(tb, rascunho) : undefined
+  const sujo = !!rascunho && (novo || !!m?.mudancas || !!m?.mudouEstrutura)
+  useAvisoSaida(sujo)
+  if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
+  if (!novo && !dados) return <Carregando />
   const versoes = dados?.versoes ?? []
-  const abas: [typeof aba, string, ReactNode?][] = novo
-    ? [['editar', 'Nova tabela']]
-    : [['tabela', 'Tabela'], ['editar', 'Editar'], ['versoes', 'Versões', <Pilula key="v">{versoes.length}</Pilula>], ['comparar', 'Comparar']]
+  const abas = novo
+    ? [{ id: 'editar', nome: 'Nova tabela' }]
+    : [{ id: 'tabela', nome: 'Tabela' }, { id: 'editar', nome: 'Editar', extra: sujo ? <Pilula key="r" tom="alerta">{t('não publicado')}</Pilula> : undefined }, { id: 'versoes', nome: 'Versões', extra: <Pilula key="v">{versoes.length}</Pilula> }, { id: 'comparar', nome: 'Comparar' }]
   const de = comparar.de ?? versoes[1]?.numero ?? versoes[0]?.numero
   const para = comparar.para ?? versoes[0]?.numero
   return (
     <div>
-      <Botao variante="leve" className="mb-3" onClick={voltar}>← {t('Tabelas de preço')}</Botao>
+      <Botao variante="leve" className="mb-3" onClick={voltar}>← {t('Voltar')}</Botao>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">{tb?.nome ?? t('Nova tabela')}</h1>
+            <h1 className="text-2xl font-bold">{tb?.nome ?? rascunho?.nome ?? t('Nova tabela')}</h1>
             {!novo && <Pilula tom="marca">v{dados!.atual}</Pilula>}
           </div>
-          {tb && <p className="text-sm text-[var(--suave)]">{tb.categoria ?? t('Normal')} · {tb.moeda} {t('por grama')} · {t('vale desde')} {dataBR(tb.validaDesde)} · {versoes[0]?.por ? `${t('última versão por')} ${versoes[0].por}, ${quando(versoes[0].em)}` : ''}</p>}
+          {tb && <p className="text-sm text-[var(--suave)]">{t(tb.categoria ?? 'Normal')} · {tb.moeda} {t('por grama')} · {t('vale desde')} {dataBR(tb.validaDesde)} · {versoes[0]?.por ? `${t('última versão por')} ${versoes[0].por}, ${quando(versoes[0].em)}` : ''}</p>}
         </div>
       </div>
-      <div role="tablist" className="sem-barra mb-4 flex gap-1 overflow-x-auto border-b border-[var(--borda)]">
-        {abas.map(([a, nome, extra]) => (
-          <button key={a} type="button" role="tab" aria-selected={aba === a} onClick={() => setAba(a)} className={cx('-mb-px min-h-10 shrink-0 border-b-2 px-3 text-sm', aba === a ? 'border-[var(--marca)] font-semibold text-[var(--marca)]' : 'border-transparent text-[var(--suave)]')}>
-            {t(nome)} {extra}
-          </button>
-        ))}
-      </div>
+      <Abas variante="sublinhado" atual={aba} onChange={(a) => setAba(a as typeof aba)} abas={abas} />
 
       {aba === 'tabela' && tb && (
         <div className="space-y-4">
@@ -181,7 +191,23 @@ function TabelaTela() {
         </div>
       )}
 
-      {aba === 'editar' && <Editar tb={tb} versao={dados?.atual} onPublicada={(nid) => (novo ? ir('tabelaPreco', { id: nid }) : setAba('versoes'))} />}
+      {aba === 'editar' && (
+        <Editar
+          tb={tb}
+          versao={dados?.atual}
+          r={rascunho ?? rascunhoDe(tb, t)}
+          setR={setRascunho}
+          nota={nota}
+          setNota={setNota}
+          onPublicada={(nid) => {
+            marcarSujo(false)
+            setRascunho(undefined)
+            setNota('')
+            if (novo) ir('tabelaPreco', { id: nid })
+            else setAba('versoes')
+          }}
+        />
+      )}
 
       {aba === 'versoes' && (
         <ol className="relative ml-3 border-l-2 border-[var(--borda)]">
@@ -195,7 +221,7 @@ function TabelaTela() {
               </div>
               {v.nota && <p className="text-sm">“{v.nota}”</p>}
               {versoes[i + 1] && (
-                <button type="button" onClick={() => (setComparar({ de: versoes[i + 1].numero, para: v.numero }), setAba('comparar'))} className="mt-1 text-sm font-semibold text-[var(--marca)]">
+                <button type="button" onClick={() => (setComparar({ de: versoes[i + 1].numero, para: v.numero }), setAba('comparar'))} className="mt-1 min-h-10 text-sm font-semibold text-[var(--marca)]">
                   {t('O que mudou em relação à v{n} →', { n: versoes[i + 1].numero })}
                 </button>
               )}
@@ -276,7 +302,7 @@ function Comparacao({ id, de, para }: { id: string; de: number; para: number }) 
                     <td className="num py-1.5 text-right text-[var(--suave)]">{c.antes ?? '—'}</td>
                     <td className="num py-1.5 text-right font-bold">{c.depois ?? '—'}</td>
                     <td className={cx('num py-1.5 text-right', (c.pct ?? 0) > 0 ? 'text-[var(--bom)]' : (c.pct ?? 0) < 0 ? 'text-[var(--ruim)]' : 'text-[var(--suave)]')}>
-                      {c.pct !== undefined ? `${c.pct > 0 ? '+' : ''}${c.pct.toLocaleString('pt-BR')}%` : !c.antes ? t('novo') : t('removido')}
+                      {c.pct !== undefined ? `${c.pct > 0 ? '+' : ''}${c.pct.toLocaleString(loc())}%` : !c.antes ? t('novo') : t('removido')}
                     </td>
                   </tr>
                 ))}
@@ -291,24 +317,23 @@ function Comparacao({ id, de, para }: { id: string; de: number; para: number }) 
 
 // ---------- editar e publicar ----------
 
-function Editar({ tb, versao, onPublicada }: { tb?: TabelaPreco; versao?: number; onPublicada(id: string): void }) {
+function Editar({ tb, versao, r, setR, nota, setNota, onPublicada }: { tb?: TabelaPreco; versao?: number; r: Rascunho; setR(r: Rascunho): void; nota: string; setNota(n: string): void; onPublicada(id: string): void }) {
   const t = useT()
   const { executar, ocupado } = useComando()
   const { dados: pessoas } = useConsulta('pessoas', {})
-  const inicial: Rascunho = tb
-    ? { ...tb, valores: { ...tb.valores }, colunas: tb.colunas.map((c) => ({ ...c })), linhas: [...tb.linhas] }
-    : { id: novoId(), moduloId: 'cabelo', nome: t('Nova tabela'), moeda: 'BOB', unidadeMedida: 'cm', fatorPor: 'grama', validaDesde: dataLocal(), linhas: [40, 50, 55, 60, 70, 80, 90, 100], colunas: [{ id: 'c1', nome: 'Comprador 1' }], valores: {} }
-  const [r, setR] = useState<Rascunho>(inicial)
-  const [nota, setNota] = useState('')
   const [novaLinha, setNovaLinha] = useState('')
-  const mudancas = tb ? Object.keys({ ...tb.valores, ...r.valores }).filter((k) => (tb.valores[k] ?? '') !== (r.valores[k] ?? '').trim()).length : 0
-  const mudouEstrutura = tb ? JSON.stringify([tb.linhas, tb.colunas, tb.nome, tb.categoria]) !== JSON.stringify([r.linhas, r.colunas, r.nome, r.categoria]) : true
+  const { mudancas, mudouEstrutura } = mudancasDe(tb, r)
+  const addLinha = () => {
+    const x = Number(novaLinha)
+    if (x > 0) setR({ ...r, linhas: [...new Set([...r.linhas, x])].sort((a, b) => a - b) })
+    setNovaLinha('')
+  }
   return (
     <div className="space-y-4">
       <Cartao>
         <div className="grid gap-3 sm:grid-cols-4">
           <Campo rotulo="Nome" className="sm:col-span-2"><Entrada value={r.nome} onChange={(e) => setR({ ...r, nome: e.target.value })} /></Campo>
-          <Campo rotulo="Categoria" ajuda="Vazio = tabela geral (Normal). Tinte, CH… usam a própria tabela."><Entrada list="cats-t" value={r.categoria ?? ''} onChange={(e) => setR({ ...r, categoria: e.target.value || undefined })} /><datalist id="cats-t">{['Tinte', 'CH', 'CH+', 'Rojo', 'Quemado', 'Menudo'].map((c) => <option key={c} value={c} />)}</datalist></Campo>
+          <Campo rotulo="Categoria" ajuda="Vazio = tabela geral (Normal). Tinte, CH… usam a própria tabela."><Entrada list="cats-t" value={r.categoria ?? ''} onChange={(e) => setR({ ...r, categoria: e.target.value || undefined })} /><datalist id="cats-t">{['Tinte', 'CH', 'CH+', 'Rojo', 'Quemado', 'Menudo'].map((c) => <option key={c} value={c}>{t(c)}</option>)}</datalist></Campo>
           <Campo rotulo="Vale desde"><Entrada type="date" value={r.validaDesde ?? ''} onChange={(e) => setR({ ...r, validaDesde: e.target.value })} /></Campo>
         </div>
       </Cartao>
@@ -319,17 +344,17 @@ function Editar({ tb, versao, onPublicada }: { tb?: TabelaPreco; versao?: number
           <ul className="space-y-2">
             {r.colunas.map((c, i) => (
               <li key={c.id} className="grid grid-cols-[1fr_1fr_auto] gap-1">
-                <Entrada value={c.nome} onChange={(e) => setR({ ...r, colunas: r.colunas.map((x, k) => (k === i ? { ...x, nome: e.target.value } : x)) })} />
+                <Entrada aria-label={t('Nome do comprador')} value={c.nome} onChange={(e) => setR({ ...r, colunas: r.colunas.map((x, k) => (k === i ? { ...x, nome: e.target.value } : x)) })} />
                 <Selecao valor={c.pessoaId} vazio="Ligar a pessoa…" onChange={(v) => setR({ ...r, colunas: r.colunas.map((x, k) => (k === i ? { ...x, pessoaId: v || undefined } : x)) })} opcoes={(pessoas ?? []).map((p) => ({ id: p.id, nome: p.nome }))} />
-                <button type="button" aria-label={t('Tirar')} className="px-2 text-xl" onClick={() => setR({ ...r, colunas: r.colunas.filter((_, k) => k !== i) })}>×</button>
+                <button type="button" aria-label={t('Tirar')} className="min-h-10 min-w-10 rounded-full text-xl hover:bg-[var(--marca-suave)]" onClick={() => setR({ ...r, colunas: r.colunas.filter((_, k) => k !== i) })}>×</button>
               </li>
             ))}
           </ul>
-          <Botao className="mt-2" variante="secundario" onClick={() => setR({ ...r, colunas: [...r.colunas, { id: novoId().slice(-6).toLowerCase(), nome: `Coluna ${r.colunas.length + 1}` }] })}>+ {t('Coluna')}</Botao>
+          <Botao className="mt-2" variante="secundario" onClick={() => setR({ ...r, colunas: [...r.colunas, { id: novoId().slice(-6).toLowerCase(), nome: t('Coluna {n}', { n: r.colunas.length + 1 }) }] })}>+ {t('Coluna')}</Botao>
         </Cartao>
         <Cartao titulo={t('Linhas (medidas)')}>
-          <div className="flex flex-wrap gap-1">{r.linhas.map((l) => <button key={l} type="button" className="rounded-full bg-[var(--marca-suave)] px-3 py-1 text-sm" onClick={() => setR({ ...r, linhas: r.linhas.filter((x) => x !== l) })}>{l} ×</button>)}</div>
-          <div className="mt-2 flex gap-2"><Entrada inputMode="numeric" placeholder="65" value={novaLinha} onChange={(e) => setNovaLinha(e.target.value)} /><Botao variante="secundario" onClick={() => { const x = Number(novaLinha); if (x > 0) setR({ ...r, linhas: [...new Set([...r.linhas, x])].sort((a, b) => a - b) }); setNovaLinha('') }}>+</Botao></div>
+          <div className="flex flex-wrap gap-1">{r.linhas.map((l) => <button key={l} type="button" aria-label={t('Tirar a medida {n}', { n: l })} className="min-h-10 min-w-10 rounded-full bg-[var(--marca-suave)] px-3 text-sm" onClick={() => setR({ ...r, linhas: r.linhas.filter((x) => x !== l) })}>{l} ×</button>)}</div>
+          <div className="mt-2 flex gap-2"><Entrada inputMode="numeric" aria-label={t('Nova medida (cm)')} placeholder="65" value={novaLinha} onChange={(e) => setNovaLinha(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addLinha()} /><Botao variante="secundario" aria-label={t('Adicionar medida')} onClick={addLinha}>+</Botao></div>
         </Cartao>
       </div>
       {/* barra de publicação fixa embaixo */}

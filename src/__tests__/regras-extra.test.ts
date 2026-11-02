@@ -241,6 +241,63 @@ describe('funcionária: agenda e vendas no nome da pessoa dela', () => {
   })
 })
 
+describe('compra personalizável e período fechado', () => {
+  it('etapas da compra mudam pela tela; pedido parado impede tirar a etapa; regras do "falta" seguem a configuração', async () => {
+    const { b } = await novoBackend('2026-11-01')
+    const fluxo = {
+      etapas: [
+        { id: 'recebido', nome: 'Recebido', ajuda: '' },
+        { id: 'lavado', nome: 'Lavado', ajuda: '' },
+        { id: 'pago', nome: 'Pago', ajuda: '', faz: ['pagamento' as const] },
+        { id: 'concluido', nome: 'Estoque', ajuda: '', faz: ['estoque' as const] },
+      ],
+      avisarParadaDias: 10,
+      pedirComprovanteOrigem: false,
+      pedirFotos: false,
+    }
+    await expect(b.comando('salvarFluxoCompra', { moduloId: 'cabelo', fluxo: { ...fluxo, etapas: fluxo.etapas.slice(0, 3) } })).rejects.toThrow(/última/)
+    await b.comando('criarCompra', { id: 'c', moduloId: 'cabelo', linhas: [{ id: 'l', quantidade: 1000, moeda: 'BOB', total: bs(1000), campos: { estado: 'Bruto' } }] })
+    await b.comando('avancarTriagem', { compraId: 'c', para: 'conferido' })
+    // há pedido em "Conferido": não dá para tirar essa etapa
+    await expect(b.comando('salvarFluxoCompra', { moduloId: 'cabelo', fluxo })).rejects.toThrow(/Conferido/)
+    await b.comando('salvarFluxoCompra', { moduloId: 'cabelo', fluxo: { ...fluxo, etapas: [fluxo.etapas[0], { id: 'conferido', nome: 'Conferido', ajuda: '' }, ...fluxo.etapas.slice(1)] } })
+    const [f] = (await b.consulta('fluxosCompra', {})).filter((x) => x.moduloId === 'cabelo')
+    expect(f.fluxo.etapas.map((e) => e.nome)).toEqual(['Recebido', 'Conferido', 'Lavado', 'Pago', 'Estoque'])
+    await b.comando('avancarTriagem', { compraId: 'c', para: 'lavado' })
+    const [c] = await b.consulta('filaTriagem', {})
+    expect(c.nomeEtapa).toBe('Lavado')
+    expect(c.pendencias.map((p) => p.id)).toEqual([]) // fotos e origem desligados
+    await expect(b.comando('salvarFluxoCompra', { moduloId: 'cabelo', fluxo: null })).rejects.toThrow(/Lavado/)
+  })
+
+  it('atributos criados pela tela aparecem no tipo de item; os fixos não somem', async () => {
+    const { b } = await novoBackend('2026-11-01')
+    await expect(b.comando('salvarAtributos', { moduloId: 'cabelo', tipoId: 'lote', extras: [], ocultos: ['comprimento'], opcoes: {} })).rejects.toThrow(/não pode ser escondido/)
+    await b.comando('salvarAtributos', { moduloId: 'cabelo', tipoId: 'lote', extras: [{ id: '', nome: 'Química', tipo: 'simNao' }, { id: '', nome: 'Espessura do fio', tipo: 'lista', opcoes: ['fino', 'médio', 'grosso'] }], ocultos: ['textura'], opcoes: { cor: ['Preto', 'Castanho', 'Ruivo'] } })
+    const cfg = await b.consulta('configuracoes', {})
+    const campos = cfg.modulos.find((m) => m.id === 'cabelo')!.tiposItem[0].campos
+    expect(campos.map((c) => c.id)).toEqual(expect.arrayContaining(['comprimento', 'quimica', 'espessura_do_fio']))
+    expect(campos.some((c) => c.id === 'textura')).toBe(false)
+    expect(campos.find((c) => c.id === 'cor')!.opcoes).toEqual(['Preto', 'Castanho', 'Ruivo'])
+  })
+
+  it('venda de dia encerrado: só o administrador corrige, e o dia guarda o aviso', async () => {
+    const { b, r, sessao } = await novoBackend('2026-11-01')
+    await b.comando('salvarItem', { id: 's', moduloId: 'salao', tipoItem: 'servico', nome: 'Corte' })
+    await b.comando('concluirVenda', { id: 'v', linhas: [{ id: 'vl', itemId: 's', quantidade: 1, moeda: 'BOB', total: bs(100) }], pagamentos: [{ id: 'p', forma: 'dinheiro', moeda: 'BOB', valor: bs(100) }] })
+    await b.comando('encerrarDia', { data: '2026-11-01', contado: { BOB: bs(100) } as never })
+    r.avancar(1)
+    await b.comando('salvarUsuario', { id: 'u', login: 'fun', nome: 'F', perfil: 'funcionario', senha: '1234' })
+    Object.assign(sessao, await b.entrar('fun', '1234'))
+    await expect(b.comando('cancelarVenda', { id: 'v', motivo: 'x' })).rejects.toThrow()
+    Object.assign(sessao, { usuarioId: 'sistema', perfil: 'admin', nome: 'Admin' })
+    await b.comando('corrigirVenda', { id: 'v', motivo: 'preço errado', linhas: [{ linhaId: 'vl', total: bs(80) }], diferenca: { forma: 'dinheiro', moeda: 'BOB' } })
+    const dia = await b.consulta('caixaDoDia', { data: '2026-11-01' })
+    expect(dia.alteracoesDepois.length).toBe(1)
+    expect(dia.alteracoesDepois[0].descricao).toMatch(/preço errado/)
+  })
+})
+
 describe('fronteira da arquitetura', () => {
   it('só o adaptador local conhece o banco (Dexie): trocar pela API não mexe em telas e regras', () => {
     const raiz = join(__dirname, '..')

@@ -62,6 +62,8 @@ describe('telas (com os dados de exemplo)', () => {
     fireEvent.change(await screen.findByPlaceholderText('2008'), { target: { value: '2008' } })
     fireEvent.change(screen.getByPlaceholderText('15'), { target: { value: '17,5' } })
     await screen.findByText(/60 \| 2\.008 × 17,5 = Bs 35\.140,00/)
+    // o botão só liga quando o estoque do lote carregou
+    await waitFor(() => expect((screen.getByText('+ Adicionar') as HTMLButtonElement).disabled).toBe(false), { timeout: 10000 })
     fireEvent.click(screen.getByText('+ Adicionar'))
     fireEvent.click(screen.getByText('Continuar para pagamento'))
     fireEvent.click(await screen.findByText('+ Forma de pagamento'))
