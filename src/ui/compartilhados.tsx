@@ -202,8 +202,8 @@ export function EditorPagamentos({ total, moedaTotal, pagamentos, onChange, perm
   )
 }
 
-/** "1 US$ = [6,96] Bs" (cotação de um pagamento; borda vermelha quando inválida) */
-function CampoCotacao({ moeda, principal, texto, onChange }: { moeda: string; principal: string; texto: string; onChange(t: string): void }) {
+/** "1 US$ = [6,96] Bs" (cotação de um pagamento ou da visão do Caixa; borda vermelha quando inválida) */
+export function CampoCotacao({ moeda, principal, texto, onChange }: { moeda: string; principal: string; texto: string; onChange(t: string): void }) {
   const t = useT()
   const sm = moedaDe(moeda).simbolo
   return (

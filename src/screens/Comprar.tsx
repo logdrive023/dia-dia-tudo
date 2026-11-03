@@ -14,7 +14,7 @@ import type { ModoCompra } from '../core/services/codigos'
 import { CAMPOS_FORM, type CampoFormId, FORM_COMPRA_PADRAO, type FormCompraConfig } from '../core/services/formCompra'
 import { fatorDaTabela } from '../core/services/precos'
 import { CATEGORIAS_CABELO } from '../modules/cabelo'
-import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Erro, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Erro, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, ehToque } from '../ui/base'
 import { useApp, useAvisoSaida, useParamTela, useComando, useConsulta } from '../ui/contexto'
 import { EditorPagamentos, type PagamentoTela, SeletorPessoa } from '../ui/compartilhados'
 import { AbaAnexos, AnexosCurtos } from '../ui/anexos'
@@ -391,7 +391,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   const caixa = useRef<HTMLDivElement>(null)
   // começa no primeiro campo (e no primeiro de cada passo)
   useEffect(() => {
-    caixa.current?.querySelector<HTMLElement>(SELETOR_CAMPO)?.focus()
+    if (!ehToque()) caixa.current?.querySelector<HTMLElement>(SELETOR_CAMPO)?.focus()
   }, [passo])
   // campo aberto pelo "+": o cursor vai para ele
   useEffect(() => {

@@ -8,7 +8,7 @@ import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { Id, Item, TabelaPreco } from '../core/domain/tipos'
 import { fatorDaTabela } from '../core/services/precos'
-import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, GramasInput, Info, Selecao, Titulo, ValorInput, Vazio, cx, gramasTexto, loc, moedaPadrao } from '../ui/base'
+import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, GramasInput, Info, Selecao, Titulo, ValorInput, Vazio, cx, gramasTexto, loc, moedaPadrao, ehToque } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { Anexos, EditorPagamentos, type PagamentoTela, SeletorPessoa, ValoresConvertidos, linkWhatsApp, useCotacoes, conv } from '../ui/compartilhados'
 import { useT } from '../ui/i18n'
@@ -445,7 +445,7 @@ function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: { modulo
   const [focarGramas, setFocarGramas] = useState(0)
   const caixaGramas = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (focarGramas) caixaGramas.current?.querySelector('input')?.focus()
+    if (focarGramas && !ehToque()) caixaGramas.current?.querySelector('input')?.focus()
   }, [focarGramas])
   // categorias: da configuração de atributos do módulo (Configurações › Atributos), não fixas na tela
   const categorias = useMemo(() => {

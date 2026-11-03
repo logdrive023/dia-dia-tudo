@@ -1,6 +1,7 @@
 // Peças de tela reaproveitadas em tudo: botões, cartões, campos, janelas, "ⓘ" com exemplo e números formatados.
 
-import { type ReactNode, useEffect, useId, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { type ReactNode, useEffect, useId, useState, useLayoutEffect, useRef } from 'react'
 import { formatar, lerValor, moeda as moedaDe } from '../core/domain/dinheiro'
 import type { Cartao as CartaoDados, Formato } from '../core/modulos'
 import { useApp } from './contexto'
@@ -93,8 +94,22 @@ export function Cartao({ titulo, acao, children, className, ajuda }: { titulo?: 
  * "ⓘ" com explicação e EXEMPLO destacado (como no Dia a Dia). O texto pode ter "Ex.: …": a parte do exemplo vira
  * um quadro. Abre no toque, fecha no toque fora ou no Esc. Tudo traduzido (pt/es).
  */
+/** Onde o balão cabe: abaixo do ⓘ (ou acima, se não couber), sempre dentro da tela, com 8 px de folga das bordas. */
+function posicaoBalao(botao: DOMRect, alturaBalao: number) {
+  const margem = 8
+  const largura = Math.min(288, window.innerWidth - margem * 2)
+  const centro = botao.left + botao.width / 2
+  const left = Math.min(Math.max(centro - largura / 2, margem), window.innerWidth - largura - margem)
+  const cabeAbaixo = botao.bottom + 8 + alturaBalao <= window.innerHeight - margem
+  const top = cabeAbaixo || botao.top - 8 - alturaBalao < margem ? botao.bottom + 8 : botao.top - 8 - alturaBalao
+  return { left, top, width: largura }
+}
+
 export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
   const [aberto, setAberto] = useState(false)
+  const [pos, setPos] = useState<{ left: number; top: number; width: number }>()
+  const botao = useRef<HTMLButtonElement>(null)
+  const balao = useRef<HTMLSpanElement>(null)
   const t = useT()
   useEffect(() => {
     if (!aberto) return
@@ -102,10 +117,20 @@ export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && setAberto(false)
     setTimeout(() => window.addEventListener('click', fechar), 0)
     window.addEventListener('keydown', esc)
+    // rolou a tela ou girou o celular: o balão fecha (não fica solto fora do lugar)
+    window.addEventListener('scroll', fechar, true)
+    window.addEventListener('resize', fechar)
     return () => {
       window.removeEventListener('click', fechar)
       window.removeEventListener('keydown', esc)
+      window.removeEventListener('scroll', fechar, true)
+      window.removeEventListener('resize', fechar)
     }
+  }, [aberto])
+  // mede depois de desenhar: encaixa na tela (celular estreito, ⓘ encostado na borda)
+  useLayoutEffect(() => {
+    if (!aberto || !botao.current) return setPos(undefined)
+    setPos(posicaoBalao(botao.current.getBoundingClientRect(), balao.current?.offsetHeight ?? 120))
   }, [aberto])
   const traduzido = t(texto)
   const corte = traduzido.search(/\b(Ex\.|Ej\.):?\s/)
@@ -113,11 +138,18 @@ export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
   const ex = exemplo ? t(exemplo) : corte > 0 ? traduzido.slice(corte).replace(/^(Ex\.|Ej\.):?\s*/, '') : undefined
   return (
     <span className="relative inline-flex">
-      <button type="button" aria-label={t('Explicação')} aria-expanded={aberto} onClick={(e) => (e.stopPropagation(), setAberto(!aberto))} className={cx('relative ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition after:absolute after:-inset-2 after:content-[\'\']', aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
+      <button ref={botao} type="button" aria-label={t('Explicação')} aria-expanded={aberto} onClick={(e) => (e.stopPropagation(), setAberto(!aberto))} className={cx('relative ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition after:absolute after:-inset-2 after:content-[\'\']', aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
         i
       </button>
-      {aberto && (
-        <span role="tooltip" onClick={(e) => e.stopPropagation()} className="absolute left-1/2 top-8 z-40 w-72 max-w-[80vw] -translate-x-1/2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left text-sm font-normal normal-case leading-snug text-[var(--texto)] shadow-xl">
+      {aberto &&
+        createPortal(
+        <span
+          ref={balao}
+          role="tooltip"
+          onClick={(e) => e.stopPropagation()}
+          style={pos ? { position: 'fixed', left: pos.left, top: pos.top, width: pos.width } : { position: 'fixed', left: -9999, top: 0, width: 288 }}
+          className="z-50 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left text-sm font-normal normal-case leading-snug text-[var(--texto)] shadow-xl"
+        >
           <span className="block">{explicacao}</span>
           {ex && (
             <span className="mt-2 block rounded-xl bg-[var(--marca-suave)] p-2 text-[var(--marca)]">
@@ -126,7 +158,7 @@ export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
             </span>
           )}
         </span>
-      )}
+        , document.body)}
     </span>
   )
 }
@@ -253,8 +285,17 @@ function classeEntrada(extra?: string) {
   return cx(classeEntradaBase, !/(^|\s)w-/.test(extra ?? '') && 'w-full', extra)
 }
 
-export function Entrada(p: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...p} className={classeEntrada(p.className)} />
+/**
+ * Aparelho de toque (celular/tablet): focar um campo sozinho abre o teclado e cobre a tela. Regra do app: no toque,
+ * o cursor só vai para um campo quando a pessoa pediu (tocou no campo, num lápis, numa célula, na lupa).
+ */
+export function ehToque() {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches
+}
+
+/** autoFocus só vale no computador; `focoSempre` = o campo abriu porque a pessoa tocou para escrever */
+export function Entrada({ focoSempre, autoFocus, ...p }: React.InputHTMLAttributes<HTMLInputElement> & { focoSempre?: boolean }) {
+  return <input {...p} autoFocus={autoFocus && (focoSempre || !ehToque())} className={classeEntrada(p.className)} />
 }
 
 export function Selecao({ opcoes, valor, onChange, vazio, className }: { opcoes: { id: string; nome: string }[]; valor?: string; onChange(v: string): void; vazio?: string; className?: string }) {

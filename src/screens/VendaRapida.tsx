@@ -10,7 +10,7 @@ import { novoId } from '../core/domain/ids'
 import type { Id, TabelaPreco } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { fatorDaTabela } from '../core/services/precos'
-import { Botao, Campo, Entrada, Escolha, Info, Janela, Selecao, ValorInput, cx, gramasTexto, loc, moedaPadrao } from '../ui/base'
+import { Botao, Campo, Entrada, Escolha, Info, Janela, Selecao, ValorInput, cx, gramasTexto, loc, moedaPadrao, ehToque } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta } from '../ui/contexto'
 import { EditorPagamentos, type PagamentoTela, SeletorPessoa, conv, cotacaoDigitada, cotacaoTexto, lerCotacaoTexto, linkWhatsApp, textoCotacaoPagamento, useCotacoes } from '../ui/compartilhados'
 import { LeitorCodigo, StatusBadge } from '../ui/estoqueUi'
@@ -714,6 +714,8 @@ export function VendaRapida() {
             <h2 className="mb-2 text-base font-bold">{t('Nesta venda')} {vistas.length > 0 && <span className="text-[var(--suave)]">({vistas.length})</span>}</h2>
             {lista}
           </section>
+          {/* celular: "Cobrar em" fica no conteúdo; a barra fixa leva só total + FECHAR (não cobre o "+ mais") */}
+          {!tablet && <section className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm">{cobrarEm}</section>}
           {!tablet && <section className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm">{painelMais}</section>}
         </div>
 
@@ -735,8 +737,7 @@ export function VendaRapida() {
       </div>
 
       {!tablet && (
-        <div className="sticky bottom-20 z-20 mt-3 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-3 shadow-lg md:bottom-4">
-          <div className="mb-2">{cobrarEm}</div>
+        <div className="sticky bottom-20 z-20 mt-3 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] px-3 py-2 shadow-lg md:bottom-4">
           <div className="flex items-center gap-3">
             <div className="min-w-0">
               <div className="text-xs text-[var(--suave)]">{t('Total')} · {vistas.length}</div>
@@ -876,7 +877,7 @@ function Pagamento({ total, moeda, cotacoes, comCliente, ocupado, onPagar, onFec
     if (f.vivo) {
       setDinheiro(f.id)
       setRecebido(undefined)
-      setTimeout(() => caixaRecebido.current?.querySelector('input')?.focus(), 0)
+      if (!ehToque()) setTimeout(() => caixaRecebido.current?.querySelector('input')?.focus(), 0)
       return
     }
     onPagar([{ id: novoId(), forma: f.id, moeda, valor: total }])

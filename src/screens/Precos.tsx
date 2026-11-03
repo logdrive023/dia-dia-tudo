@@ -224,6 +224,7 @@ function TabelaTela() {
       {editandoNome !== undefined ? (
         <Entrada
           autoFocus
+          focoSempre
           aria-label={t('Nome')}
           className="max-w-md text-xl font-bold"
           value={editandoNome}
