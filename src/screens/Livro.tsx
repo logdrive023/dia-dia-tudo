@@ -7,12 +7,15 @@
 import { useState } from 'react'
 import { dataLocal, somarDias } from '../core/domain/datas'
 import type { LinhaLivro, TipoLivro } from '../core/services/livro'
+import type { ResultadoConsulta } from '../core/services'
 import { Botao, Campo, Carregando, Cartao, Entrada, ErroTela, Info, Selecao, Titulo, cx, dataBR, gramasTexto, loc } from '../ui/base'
 import { clicavel } from '../ui/compartilhados'
 import { useApp, useConsulta, useParamTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 import { useLembrado } from '../ui/filtros'
 import { baixarCSV } from './Relatorios'
+import { BarraFiltros, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
+import { NumeroGrande } from '../ui/numeroGrande'
 
 const DICA_CONFERE = 'Comprado = em pacotes + vendido + perda. Ex.: 10 kg = 4 + 5,4 + 0,6.'
 const MAX = 200
@@ -51,6 +54,11 @@ export function Livro() {
   const [grupo] = useParamTela<'' | Grupo>('grupo', '')
   const [de, setDe] = useParamTela('de', '')
   const [ate, setAte] = useParamTela('ate', '')
+  const [busca, setBusca] = useParamTela('b', '')
+  const [quem, setQuem] = useParamTela('quem', '')
+  const [sentido, setSentido] = useParamTela<'' | 'entrou' | 'saiu'>('sentido', '')
+  const [gMin, setGMin] = useParamTela('gmin', '')
+  const [gMax, setGMax] = useParamTela('gmax', '')
   const [tudo, setTudo] = useState(false)
   const [verFiltros, setVerFiltros] = useState(false)
   // minimizar: dias fechados (só a linha do dia com o subtotal), "compacto" (uma linha por lançamento) e o fechamento
@@ -60,12 +68,20 @@ export function Livro() {
   if (erro) return <ErroTela texto={erro} onVoltar={() => ir('estoque')} />
   if (!dados) return <Carregando />
   const p = pacote.trim().toLowerCase()
+  const b = busca.trim().toLowerCase()
+  const gmin = Number(gMin) || 0
+  const gmax = Number(gMax) || 0
   // filtros (menos o tipo): base para os atalhos com contagem
   const base = dados.linhas.filter(
     (l) =>
       (!compra || l.compras.some((c) => c.id === compra)) &&
       (!p || [l.lote.codigo, l.lote.nome].some((x) => x?.toLowerCase().includes(p))) &&
+      (!b || [l.titulo, l.lote.codigo, l.lote.nome, l.descricao, l.por, ...l.compras.map((c) => `${c.codigo ?? ''} ${c.fornecedor ?? ''}`), ...l.pessoas.map((x) => x.nome)].filter(Boolean).join(' ').toLowerCase().includes(b)) &&
       (!pessoa || l.pessoas.some((x) => x.id === pessoa)) &&
+      (!quem || l.por === quem) &&
+      (!sentido || (sentido === 'entrou' ? l.delta > 0 : l.delta < 0)) &&
+      (!gmin || Math.abs(l.delta) >= gmin) &&
+      (!gmax || Math.abs(l.delta) <= gmax) &&
       (!de || l.data >= de) &&
       (!ate || l.data <= ate),
   )
@@ -73,13 +89,35 @@ export function Livro() {
   const visiveis = tudo ? linhas : linhas.slice(0, MAX)
   const pessoas = [...new Map(dados.linhas.flatMap((l) => l.pessoas).map((x) => [x.id, x.nome ?? x.id])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))
   const compras = dados.porCompra.filter((c) => !compra || c.compraId === compra)
-  const nFiltros = [compra, pacote, pessoa, tipo, de || ate].filter(Boolean).length
+  const nFiltros = [compra, pacote, pessoa, quem, sentido, gMin || gMax, tipo, de || ate].filter(Boolean).length
+  const quemFez = [...new Set(dados.linhas.map((l) => l.por).filter((x): x is string => !!x))].sort((a, c) => a.localeCompare(c, 'pt-BR'))
+  const nomeCompra = (id: string) => { const c = dados.porCompra.find((x) => x.compraId === id); return c ? [c.codigo, c.fornecedor].filter(Boolean).join(' · ') : id }
+  // o que está ligado, em chips com ✕ (padrão)
+  const ativos = [
+    ...(compra ? [{ k: 'compra', rotulo: `🛒 ${nomeCompra(compra)}` }] : []),
+    ...(pacote ? [{ k: 'pacote', rotulo: `📦 ${pacote}` }] : []),
+    ...(pessoa ? [{ k: 'pessoa', rotulo: `👤 ${pessoas.find(([id]) => id === pessoa)?.[1] ?? pessoa}` }] : []),
+    ...(quem ? [{ k: 'quem', rotulo: `${t('fez')}: ${quem}` }] : []),
+    ...(sentido ? [{ k: 'sentido', rotulo: sentido === 'entrou' ? `▲ ${t('Só o que entrou')}` : `▼ ${t('Só o que saiu')}` }] : []),
+    ...(gMin || gMax ? [{ k: 'gmin,gmax', rotulo: `⚖ ${gMin ? gramasTexto(gmin) : '0'} – ${gMax ? gramasTexto(gmax) : '∞'}` }] : []),
+    ...(tipo ? [{ k: 'tipo', rotulo: t(dados.tipos.find((x) => x.id === tipo)?.nome ?? tipo) }] : []),
+    ...(de || ate ? [{ k: 'de,ate', rotulo: `📅 ${de ? dataBR(de) : '…'} – ${ate ? dataBR(ate) : '…'}` }] : []),
+  ]
+  const tirarFiltro = (k: string) => ajustarParams(Object.fromEntries(k.split(',').map((x) => [x, undefined])))
+  // atalhos de período (no início, fora do painel): um toque e a lista fica só daquele tempo
+  const PERIODOS: { id: string; nome: string; de?: string }[] = [
+    { id: 'hoje', nome: 'Hoje', de: dataLocal() },
+    { id: '7', nome: '7 dias', de: somarDias(dataLocal(), -6) },
+    { id: '30', nome: '30 dias', de: somarDias(dataLocal(), -29) },
+    { id: 'mes', nome: 'Este mês', de: `${dataLocal().slice(0, 7)}-01` },
+  ]
+  const periodoAtual = !ate ? PERIODOS.find((x) => x.de === de)?.id : undefined
   const soma = (ls: LinhaLivro[], f: (l: LinhaLivro) => boolean = () => true) => ls.filter(f).reduce((s, l) => s + l.delta, 0)
   const entrou = soma(linhas, (l) => l.delta > 0)
   const saiu = -soma(linhas, (l) => l.delta < 0)
   const ajustes = linhas.filter((l) => GRUPO[l.tipo] === 'ajustes')
   const abrir = (l: LinhaLivro) => (l.ref ? ir(l.ref.tela, l.ref.params) : ir('lote', { id: l.lote.id }))
-  const limpar = () => ajustarParams({ compra: undefined, pacote: undefined, pessoa: undefined, tipo: undefined, de: undefined, ate: undefined })
+  const limpar = () => ajustarParams({ compra: undefined, pacote: undefined, pessoa: undefined, quem: undefined, sentido: undefined, gmin: undefined, gmax: undefined, tipo: undefined, de: undefined, ate: undefined })
   const exportar = () =>
     baixarCSV(`livro-do-cabelo-${new Date().toISOString().slice(0, 10)}`, linhas.map((l) => ({
       [t('Data')]: l.data, [t('Hora')]: hora(l.em), [t('Tipo')]: t(l.nomeTipo), [t('Lançamento')]: l.titulo, [t('Pacote')]: l.lote.codigo ?? l.lote.nome,
@@ -112,7 +150,7 @@ export function Livro() {
     <div className="space-y-4">
       <Titulo
         subtitulo={t('Como o livro caixa, mas em gramas: tudo o que entrou e saiu, e de quais compras.')}
-        acao={<Botao variante="secundario" disabled={!linhas.length} onClick={exportar}>⬇ {t('Exportar CSV')}</Botao>}
+        acao={<Botao variante="secundario" disabled title={t('Em breve')} onClick={exportar}>⬇ {t('Exportar CSV')}</Botao>}
       >
         {t('Livro do cabelo')}
       </Titulo>
@@ -125,8 +163,20 @@ export function Livro() {
         <Resumo rotulo="Perdas e ajustes" valor={sinal(soma(ajustes))} cor="var(--alerta)" extra={t(ajustes.length === 1 ? '1 lançamento' : '{n} lançamentos', { n: ajustes.length })} ajuda="Perda, lavagem, diferença de peso na conferência e ajuste de contagem. Ex.: lavagem −300 g + contagem −20 g = −320 g." />
       </div>
 
-      {/* atalhos por tipo + filtros */}
+      {/* FILTRO PADRÃO: período (atalhos) · tipo (atalhos) · busca + ⚙ Filtros → chips ✕ → painel em grupos */}
       <div className="space-y-2">
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap" role="group" aria-label={t('Período')}>
+          <span className="inline-flex min-h-10 shrink-0 items-center text-xs font-semibold text-[var(--suave)]">📅</span>
+          {[{ id: '', nome: 'Tudo', de: undefined }, ...PERIODOS].map((x) => {
+            const on = x.id ? periodoAtual === x.id : !de && !ate
+            return (
+              <button key={x.id || 'tudo'} type="button" aria-pressed={on} onClick={() => ajustarParams({ de: x.de, ate: undefined })}
+                className={cx('min-h-10 shrink-0 rounded-full border px-3 text-sm font-semibold', on ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] hover:border-[var(--marca)]')}>
+                {t(x.nome)}
+              </button>
+            )
+          })}
+        </div>
         <div className="flex items-start gap-2">
           <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap" role="group" aria-label={t('Tipo')}>
             {GRUPOS.map((g) => {
@@ -140,27 +190,35 @@ export function Livro() {
               )
             })}
           </div>
-          <button type="button" aria-expanded={verFiltros} aria-label={t('Filtros')} onClick={() => setVerFiltros(!verFiltros)}
-            className={cx('inline-flex min-h-10 shrink-0 items-center gap-1 rounded-full border px-3 text-sm font-semibold lg:hidden', nFiltros ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)]')}>
-            ⚙ <span className="hidden sm:inline">{t('Filtros')}</span>{nFiltros ? ` ${nFiltros}` : ''} {verFiltros ? '▴' : '▾'}
-          </button>
         </div>
-
-        <div className={cx('gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 grid-cols-2 lg:grid lg:grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,1.4fr)_auto] lg:items-end', verFiltros ? 'grid' : 'hidden')}>
-          <Campo rotulo="Compra"><Selecao valor={compra} onChange={setCompra} vazio="Todas" opcoes={dados.porCompra.map((c) => ({ id: c.compraId, nome: [c.codigo, c.fornecedor].filter(Boolean).join(' · ') }))} /></Campo>
-          <Campo rotulo="Pacote"><Entrada type="search" value={pacote} placeholder={t('Código ou nome')} onChange={(e) => setPacote(e.target.value)} /></Campo>
-          <Campo rotulo="Pessoa"><Selecao valor={pessoa} onChange={setPessoa} vazio="Todas" opcoes={pessoas.map(([id, nome]) => ({ id, nome }))} /></Campo>
-          <Campo rotulo="Tipo"><Selecao valor={tipo} onChange={(v) => ajustarParams({ tipo: v || undefined, grupo: undefined })} vazio="Todos" opcoes={dados.tipos.map((x) => ({ id: x.id, nome: t(x.nome) }))} /></Campo>
-          <Campo comoDiv rotulo="Período" className="col-span-2 lg:col-span-1">
-            <div className="flex items-center gap-1">
-              <Entrada type="date" aria-label={t('De')} value={de} onChange={(e) => setDe(e.target.value)} />
-              <Entrada type="date" aria-label={t('Até')} value={ate} onChange={(e) => setAte(e.target.value)} />
-            </div>
-          </Campo>
-          <div className="col-span-2 flex items-end lg:col-span-1">
-            <Botao variante="leve" disabled={!nFiltros} onClick={limpar}>× {t('Limpar filtros')}</Botao>
-          </div>
-        </div>
+        <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar lançamento, pacote, compra ou pessoa" ativos={nFiltros} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
+        <ChipsFiltros itens={ativos} onTirar={tirarFiltro} onLimpar={limpar} />
+        {verFiltros && (
+          <PainelFiltros resultados={linhas.length} temAtivos={nFiltros > 0} onLimpar={limpar} onFechar={() => setVerFiltros(false)}>
+            <GrupoFiltro titulo="De onde veio" icone="🛒">
+              <Campo rotulo="Compra"><Selecao valor={compra} onChange={setCompra} vazio="Todas" opcoes={dados.porCompra.map((c) => ({ id: c.compraId, nome: [c.codigo, c.fornecedor].filter(Boolean).join(' · ') }))} /></Campo>
+              <Campo rotulo="Pacote"><Entrada type="search" value={pacote} placeholder={t('Código ou nome')} onChange={(e) => setPacote(e.target.value)} /></Campo>
+            </GrupoFiltro>
+            <GrupoFiltro titulo="Quem" icone="👤">
+              <Campo rotulo="Cliente / fornecedor"><Selecao valor={pessoa} onChange={setPessoa} vazio="Todas" opcoes={pessoas.map(([id, nome]) => ({ id, nome }))} /></Campo>
+              <Campo rotulo="Quem fez o lançamento"><Selecao valor={quem} onChange={setQuem} vazio="Todos" opcoes={quemFez.map((x) => ({ id: x, nome: x }))} /></Campo>
+            </GrupoFiltro>
+            <GrupoFiltro titulo="O lançamento" icone="⚖">
+              <Campo rotulo="Tipo"><Selecao valor={tipo} onChange={(v) => ajustarParams({ tipo: v || undefined, grupo: undefined })} vazio="Todos" opcoes={dados.tipos.map((x) => ({ id: x.id, nome: t(x.nome) }))} /></Campo>
+              <Campo rotulo="Entrou ou saiu"><Selecao valor={sentido} onChange={(v) => setSentido(v as typeof sentido)} vazio="Os dois" opcoes={[{ id: 'entrou', nome: '▲ Só o que entrou' }, { id: 'saiu', nome: '▼ Só o que saiu' }]} /></Campo>
+              <CampoFaixa rotulo="Quantidade (g)">
+                <Entrada inputMode="numeric" aria-label={t('Mínimo (g)')} placeholder={t('de')} value={gMin} onChange={(e) => setGMin(e.target.value.replace(/\D/g, ''))} />
+                <Entrada inputMode="numeric" aria-label={t('Máximo (g)')} placeholder={t('até')} value={gMax} onChange={(e) => setGMax(e.target.value.replace(/\D/g, ''))} />
+              </CampoFaixa>
+            </GrupoFiltro>
+            <GrupoFiltro titulo="Quando" icone="📅">
+              <CampoFaixa rotulo="Período">
+                <Entrada type="date" aria-label={t('De')} value={de} onChange={(e) => setDe(e.target.value)} />
+                <Entrada type="date" aria-label={t('Até')} value={ate} onChange={(e) => setAte(e.target.value)} />
+              </CampoFaixa>
+            </GrupoFiltro>
+          </PainelFiltros>
+        )}
       </div>
 
       <Cartao titulo={`${t('Lançamentos')} · ${linhas.length}`}>
@@ -206,29 +264,80 @@ export function Livro() {
         {!tudo && linhas.length > MAX && <Botao variante="leve" className="mt-2" onClick={() => setTudo(true)}>{t('Ver tudo ({n})', { n: linhas.length })}</Botao>}
       </Cartao>
 
-      <Cartao titulo={t('Fechamento por compra')} ajuda={DICA_CONFERE}>
-        <button type="button" aria-expanded={verFechamento} onClick={() => setVerFechamento(!verFechamento)} className="-mt-1 mb-1 min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">
-          {verFechamento ? `▾ ${t('Esconder')}` : `▸ ${t('Mostrar ({n})', { n: compras.length })}`}
-        </button>
-        {!verFechamento ? null : !compras.length ? <p className="text-sm text-[var(--suave)]">{t('Nenhuma compra de cabelo ainda.')}</p> : (
-          <ul className="divide-y divide-[var(--borda)]">
-            {compras.map((c) => (
-              <li key={c.compraId} {...clicavel(() => ir('pedido', { id: c.compraId }))} className="cursor-pointer rounded-lg px-1 py-2 text-sm outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <b><span className="font-mono">{c.codigo}</span>{c.fornecedor ? ` · ${c.fornecedor}` : ''}</b>
-                  <span className="text-xs text-[var(--suave)]">{dataBR(c.data)}</span>
-                </div>
-                <p className={cx('num mt-0.5', c.confere ? 'text-[var(--bom)]' : 'text-[var(--alerta)]')}>
-                  {t('comprado')} {gramasTexto(c.comprado)} = {t('em pacotes')} {gramasTexto(c.emPacotes)} + {t('vendido')} {gramasTexto(c.vendido)} + {t('perda')} {gramasTexto(c.perda)}{c.diferenca ? <> + {t('diferença')} {gramasTexto(c.diferenca)}</> : null}{' '}
-                  {c.confere ? '✓' : `⚠️ ${t('não fecha: faltam {g}', { g: gramasTexto(c.resto) })}`}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="mt-2 flex items-center text-xs text-[var(--suave)]">{t('Confere ✓')}<Info texto={DICA_CONFERE} /></p>
-      </Cartao>
+      <FechamentoCompras compras={compras} aberto={verFechamento} onAlternar={() => setVerFechamento(!verFechamento)} onAbrir={(id) => ir('pedido', { id })} />
     </div>
+  )
+}
+
+type FechamentoCompra = ResultadoConsulta<'livroCabelo'>['porCompra'][number]
+type FiltroFech = '' | 'fecha' | 'naoFecha' | 'comEstoque' | 'acabou'
+const PARTES_FECH = [
+  { k: 'emPacotes', nome: 'em pacotes', cor: 'var(--marca)' },
+  { k: 'vendido', nome: 'vendido', cor: 'var(--bom)' },
+  { k: 'perda', nome: 'perda', cor: 'var(--ruim)' },
+  { k: 'diferenca', nome: 'diferença', cor: 'var(--alerta)' },
+] as const
+
+/**
+ * FECHAMENTO POR COMPRA (peça própria): números grandes que filtram (fecham ✓ · não fecham ⚠ · com estoque · acabou),
+ * busca por código/fornecedor e, em cada compra, a barra de para onde foi cada grama + os 4 números em blocos.
+ */
+function FechamentoCompras({ compras, aberto, onAlternar, onAbrir }: { compras: FechamentoCompra[]; aberto: boolean; onAlternar(): void; onAbrir(id: string): void }) {
+  const t = useT()
+  const [filtro, setFiltro] = useParamTela<FiltroFech>('fech', '')
+  const [busca, setBusca] = useState('')
+  const passa = (c: FechamentoCompra, f: FiltroFech) => (f === 'fecha' ? c.confere : f === 'naoFecha' ? !c.confere : f === 'comEstoque' ? c.emPacotes > 0 : f === 'acabou' ? c.emPacotes === 0 : true)
+  const b = busca.trim().toLowerCase()
+  const lista = compras.filter((c) => passa(c, filtro) && (!b || `${c.codigo ?? ''} ${c.fornecedor ?? ''}`.toLowerCase().includes(b)))
+  const n = (f: FiltroFech) => compras.filter((c) => passa(c, f)).length
+  const alternar = (f: FiltroFech) => setFiltro(filtro === f ? '' : f)
+  return (
+    <section aria-label={t('Fechamento por compra')} className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center text-base font-bold">{t('Fechamento por compra')}<span className="num ml-1 text-sm font-normal text-[var(--suave)]">· {compras.length}</span><Info texto={DICA_CONFERE} /></h2>
+        <button type="button" aria-expanded={aberto} onClick={onAlternar} className="min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{aberto ? `▾ ${t('Esconder')}` : `▸ ${t('Mostrar ({n})', { n: compras.length })}`}</button>
+      </div>
+      {aberto && (!compras.length ? <p className="mt-2 text-sm text-[var(--suave)]">{t('Nenhuma compra de cabelo ainda.')}</p> : (
+        <div className="mt-3 space-y-3">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <NumeroGrande rotulo="Fecham" icone="✓" cor="var(--bom)" valor={String(n('fecha'))} ativo={filtro === 'fecha'} onClick={() => alternar('fecha')} selos={[{ texto: t('cada grama tem lugar'), tom: 'bom' }]} />
+            <NumeroGrande rotulo="Não fecham" icone="⚠" cor="var(--alerta)" colorirValor={n('naoFecha') > 0} valor={String(n('naoFecha'))} ativo={filtro === 'naoFecha'} onClick={() => alternar('naoFecha')} selos={n('naoFecha') ? [{ texto: t('conferir'), tom: 'alerta' }] : [{ texto: t('nada a conferir'), tom: 'bom' }]} />
+            <NumeroGrande rotulo="Com estoque" icone="📦" cor="var(--marca)" valor={String(n('comEstoque'))} ativo={filtro === 'comEstoque'} onClick={() => alternar('comEstoque')} selos={[{ texto: gramasTexto(compras.reduce((s, c) => s + c.emPacotes, 0)), tom: 'marca' }]} />
+            <NumeroGrande rotulo="Acabou" icone="✔" cor="var(--suave)" valor={String(n('acabou'))} ativo={filtro === 'acabou'} onClick={() => alternar('acabou')} selos={[{ texto: t('tudo vendido ou perdido') }]} />
+          </div>
+          <Entrada type="search" aria-label={t('Buscar compra ou fornecedor')} placeholder={t('Buscar compra ou fornecedor')} value={busca} onChange={(e) => setBusca(e.target.value)} />
+          {/* legenda das cores da barra (uma vez) */}
+          <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--suave)]">
+            {PARTES_FECH.map((x) => <span key={x.k} className="inline-flex items-center gap-1"><span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: x.cor }} />{t(x.nome)}</span>)}
+          </p>
+          {!lista.length ? <p className="text-sm text-[var(--suave)]">{t('Nada com estes filtros.')}</p> : (
+            <ul className="space-y-2">
+              {lista.map((c) => (
+                <li key={c.compraId} {...clicavel(() => onAbrir(c.compraId))} className={cx('cursor-pointer rounded-xl border p-3 outline-none hover:border-[var(--marca)] focus-visible:ring-2 focus-visible:ring-[var(--marca)]', c.confere ? 'border-[var(--borda)]' : 'border-[var(--alerta)]')}>
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <b className="min-w-0 truncate"><span className="font-mono text-[var(--marca)]">{c.codigo}</span>{c.fornecedor ? ` · ${c.fornecedor}` : ''}</b>
+                    <span className="num text-xs text-[var(--suave)]">{dataBR(c.data)} · {t('comprou')} <b className="text-[var(--texto)]">{gramasTexto(c.comprado)}</b></span>
+                  </div>
+                  {/* para onde foi cada grama */}
+                  <div aria-hidden className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-[var(--fundo)]">
+                    {PARTES_FECH.map((x) => c[x.k] > 0 && c.comprado > 0 ? <span key={x.k} style={{ width: `${(c[x.k] * 100) / c.comprado}%`, background: x.cor }} /> : null)}
+                  </div>
+                  <div className="num mt-2 grid grid-cols-2 gap-1.5 text-center sm:grid-cols-4">
+                    {PARTES_FECH.filter((x) => x.k !== 'diferenca' || c.diferenca).map((x) => (
+                      <span key={x.k} className="rounded-lg bg-[var(--fundo)] px-1 py-1.5">
+                        <span className="block text-[11px] text-[var(--suave)]">{t(x.nome)}</span>
+                        <b className="block text-sm" style={{ color: c[x.k] ? x.cor : undefined }}>{gramasTexto(c[x.k])}</b>
+                      </span>
+                    ))}
+                  </div>
+                  <p className={cx('mt-2 text-xs font-semibold', c.confere ? 'text-[var(--bom)]' : 'text-[var(--alerta)]')}>{c.confere ? `✓ ${t('Fecha: cada grama tem lugar')}` : `⚠️ ${t('não fecha: faltam {g}', { g: gramasTexto(c.resto) })}`}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
+    </section>
   )
 }
 

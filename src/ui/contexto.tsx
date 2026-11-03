@@ -66,16 +66,20 @@ export function useConsulta<N extends NomeConsulta>(nome: N, params: ParamsConsu
   useEffect(() => {
     vivo.current = true
     if (!ativo) return
+    // flag POR consulta: uma resposta antiga que chega depois da nova não sobrescreve a tela com dado velho
+    // (ex.: publicou a v3 e a consulta da v2, mais lenta, voltava por último)
+    let atual = true
     backend
       .consulta(nome, JSON.parse(chave))
       .then((r) => {
-        if (vivo.current) {
+        if (atual && vivo.current) {
           setDados(r)
           setErro(undefined)
         }
       })
-      .catch((e) => vivo.current && setErro(e instanceof Error ? e.message : String(e)))
+      .catch((e) => atual && vivo.current && setErro(e instanceof Error ? e.message : String(e)))
     return () => {
+      atual = false
       vivo.current = false
     }
   }, [backend, nome, chave, versao, ativo, sessao.usuarioId])

@@ -192,34 +192,31 @@ export function PainelViajante({ viagemId }: { viagemId?: Id }) {
   if (!v) return <Vazio texto="Você não tem viagem de compra aberta." />
   const admin = sessao.perfil === 'admin'
   return (
-    <div className="space-y-3">
+    // PAINEL DO VIAJANTE (centralizado, o essencial): qual viagem + botão de gasto do tamanho normal; o dinheiro e os
+    // dois orçamentos num cartão só; depois os gastos e as compras
+    <div className="mx-auto max-w-xl space-y-3">
       <Cartao>
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="text-xs font-semibold text-[var(--suave)]">✈️ {t('Em viagem')} · {v.codigo}</div>
-            <h2 className="break-words text-xl font-bold">{v.nome}</h2>
-            <p className="text-sm text-[var(--suave)]">{v.viajantes.join(', ')} · {t('desde')} {dataBR(v.inicio)}{v.fim ? ` ${t('até')} ${dataBR(v.fim)}` : ''}</p>
+        <div className="flex items-start gap-3">
+          <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--marca-suave)] text-xl">✈️</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-[var(--marca)]"><span className="font-mono">{v.codigo}</span>{v.acimaOrcamento && <Pilula tom="ruim">{t('Acima do orçamento')}</Pilula>}</div>
+            <h2 className="break-words text-lg font-bold leading-tight">{v.nome}</h2>
+            <p className="text-xs text-[var(--suave)]">👤 {v.viajantes.join(', ')} · 📅 {dataBR(v.inicio)}{v.fim ? ` → ${dataBR(v.fim)}` : ''}</p>
           </div>
-          {v.acimaOrcamento && <Pilula tom="ruim">{t('Acima do orçamento')}</Pilula>}
         </div>
         {dados.abertas.length > 1 && (
           <div className="mt-2">
             <Selecao valor={v.id} onChange={(x) => setEscolhida(x)} opcoes={dados.abertas.map((x) => ({ id: x.id, nome: `${x.codigo} · ${x.nome}${x.minha ? ' ★' : ''}` }))} />
           </div>
         )}
-        <button type="button" onClick={() => setFolha(true)} className="mt-4 flex min-h-20 w-full items-center justify-center gap-2 rounded-3xl bg-[var(--marca)] text-2xl font-black text-white shadow-lg active:scale-[0.99]">
-          <span aria-hidden>+</span> {t('Gasto')}
-        </button>
-        <AvisoNoAparelho className="mt-2" />
+        <Botao grande className="mt-3 w-full" onClick={() => setFolha(true)}>⛽ {t('Lançar gasto')}</Botao>
+        <AvisoNoAparelho className="mt-2 text-center" />
       </Cartao>
-      <Cartao titulo={t('Dinheiro da viagem')}>
-        <CarteiraViagem carteira={v.carteira} />
-      </Cartao>
-      <Cartao titulo={t('Orçamento')}>
+      <Cartao titulo={t('Dinheiro e orçamento')}>
         <div className="space-y-3">
+          <CarteiraViagem carteira={v.carteira} />
           <BarraOrcamento rotulo="Gastos da viagem" usado={v.gasto} previsto={v.orcamento} moeda={dados.moeda} />
-          <BarraOrcamento rotulo="Cabelo comprado" usado={v.valorCompras} previsto={v.orcamentoCompra} moeda={dados.moeda} />
-          <p className="num text-sm">{t('Cabelo comprado')}: <b>{gramasTexto(v.gramas)}</b> · {formatar(v.valorCompras, dados.moeda)}</p>
+          <BarraOrcamento rotulo={`${t('Cabelo comprado')} · ${gramasTexto(v.gramas)}`} usado={v.valorCompras} previsto={v.orcamentoCompra} moeda={dados.moeda} />
         </div>
       </Cartao>
       <Cartao titulo={`${t('Gastos')} (${v.despesas.filter((x) => !x.anulada).length})`}>

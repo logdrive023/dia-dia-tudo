@@ -287,7 +287,7 @@ export function Titulo({ children, acao, subtitulo }: { children: ReactNode; aca
   )
 }
 
-export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { id: string; nome: string; extra?: ReactNode }[]; atual: string; onChange(id: string): void; variante?: 'pilula' | 'sublinhado' }) {
+export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { id: string; nome: string; extra?: ReactNode; desativada?: boolean }[]; atual: string; onChange(id: string): void; variante?: 'pilula' | 'sublinhado' }) {
   const t = useT()
   if (variante === 'sublinhado') {
     // até 4 abas: dividem a largura (cabem em 360 px, sem barra de rolar); mais que isso: rolam, sem barra aparente
@@ -295,7 +295,7 @@ export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { i
     return (
       <div role="tablist" style={cabe ? { gridTemplateColumns: `repeat(${abas.length}, minmax(0, 1fr))` } : undefined} className={cx('mb-4 gap-1 overflow-y-hidden border-b border-[var(--borda)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', cabe ? 'grid sm:flex' : 'flex overflow-x-auto')}>
         {abas.map((a) => (
-          <button key={a.id} role="tab" aria-selected={a.id === atual} type="button" onClick={() => onChange(a.id)} className={cx('-mb-px min-h-11 min-w-0 border-b-2 px-2 text-sm font-semibold sm:shrink-0 sm:px-3', cabe ? 'py-1 text-center leading-tight' : 'shrink-0', a.id === atual ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}>
+          <button key={a.id} role="tab" aria-selected={a.id === atual} type="button" disabled={a.desativada} title={a.desativada ? t('Em breve') : undefined} onClick={() => onChange(a.id)} className={cx('-mb-px disabled:cursor-not-allowed disabled:opacity-40 min-h-11 min-w-0 border-b-2 px-2 text-sm font-semibold sm:shrink-0 sm:px-3', cabe ? 'py-1 text-center leading-tight' : 'shrink-0', a.id === atual ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}>
             {t(a.nome)} {a.extra}
           </button>
         ))}
@@ -310,10 +310,12 @@ export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { i
           role="tab"
           aria-selected={a.id === atual}
           type="button"
+          disabled={a.desativada}
+          title={a.desativada ? t('Em breve') : undefined}
           onClick={() => onChange(a.id)}
-          className={cx('min-h-10 shrink-0 rounded-lg px-3 text-sm font-semibold', a.id === atual ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}
+          className={cx('min-h-10 shrink-0 rounded-lg px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40', a.id === atual ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}
         >
-          {t(a.nome)} {a.extra}
+          {t(a.nome)} {a.extra}{a.desativada && <span className="ml-1 text-[10px] uppercase">{t('em breve')}</span>}
         </button>
       ))}
     </div>

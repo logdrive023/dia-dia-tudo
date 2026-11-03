@@ -55,7 +55,7 @@ describe('tabela de preço (tela)', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /Histórico/ }))
     await screen.findByText('“Subiu 60 cm Helena”', {}, { timeout: 10000 })
-    await screen.findByText(new RegExp(`→ ficou assim ${proxima}`), {}, { timeout: 10000 })
+    await screen.findByText(new RegExp(`→ ${proxima}: \\d+ preço`), {}, { timeout: 10000 })
     expect((await screen.findAllByText('+6,3%', {}, { timeout: 10000 })).length).toBeGreaterThan(0)
   }, 120000)
 })

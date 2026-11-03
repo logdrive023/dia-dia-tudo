@@ -13,11 +13,16 @@ import { Anexos, clicavel, useCotacoes } from '../ui/compartilhados'
 import { Barras } from '../ui/graficos'
 import { useT } from '../ui/i18n'
 import { LinhaDoTempo } from '../ui/linhaTempo'
+import { NumeroGrande } from '../ui/numeroGrande'
+import { MenuAcoes } from '../ui/menuAcoes'
+import { Passo } from '../ui/passoAPasso'
 import { AvisoNoAparelho, BarraOrcamento, CarteiraViagem, FolhaDespesa, LinhaGasto, PainelViajante } from '../ui/viagem'
 
 const pct = (bp?: number) => (bp === undefined ? '—' : `${(bp / 100).toLocaleString(loc(), { maximumFractionDigits: 1 })}%`)
 const TOM_STATUS = { aberta: 'marca', encerrada: 'neutro' } as const
 const NOME_STATUS = { aberta: 'Aberta', encerrada: 'Encerrada' } as const
+/** "Por viajante" (quem compra mais barato): desligado por enquanto — a aba aparece "em breve" */
+const COMPARATIVO_LIGADO = false as boolean
 
 /** Número com rótulo e explicação (a ficha e a comparação). */
 function Numero({ rotulo, valor, ajuda, tom, sub }: { rotulo: string; valor: ReactNode; ajuda?: string; tom?: 'bom' | 'ruim'; sub?: ReactNode }) {
@@ -74,12 +79,16 @@ function ViagensAdmin() {
   const [busca, setBusca] = useParamTela('busca', '')
   const { dados } = useConsulta('viagens', { status: status || undefined, viajanteId: viajanteId || undefined, busca: busca || undefined })
   const { dados: painel } = useConsulta('painelViajante', {})
+  // contagem de abertas/encerradas sem o filtro de situação (os números grandes não somem ao filtrar)
+  const { dados: semStatus } = useConsulta('viagens', { viajanteId: viajanteId || undefined, busca: busca || undefined })
+  const todasViagens = semStatus?.linhas
   const [folha, setFolha] = useState<Id>()
   const abertas = painel?.abertas ?? []
   return (
     <div>
       <Titulo subtitulo={t('Gastos, compras e resultado de cada viagem de compra.')} acao={<Botao onClick={() => ir('novaViagem')}>+ {t('Nova viagem')}</Botao>}>{t('Viagens de compra')}</Titulo>
-      {abertas.length > 0 && (
+      {/* no Painel do viajante o cartão "Em viagem" seria repetido: some */}
+      {abertas.length > 0 && aba !== 'viajante' && (
         <ul className="mb-4 grid gap-2 md:grid-cols-2">
           {abertas.map((v) => (
             <li key={v.id} className="flex items-center gap-2 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-3">
@@ -87,22 +96,31 @@ function ViagensAdmin() {
                 <span className="block text-xs font-semibold text-[var(--marca)]">✈️ {t('Em viagem')} · {v.codigo}</span>
                 <span className="block truncate font-semibold">{v.nome}</span>
               </button>
-              <Botao onClick={() => setFolha(v.id)}>+ {t('Gasto')}</Botao>
+              <Botao variante="secundario" className="shrink-0 px-3" onClick={() => setFolha(v.id)}>⛽ {t('Gasto')}</Botao>
             </li>
           ))}
         </ul>
       )}
-      <Abas atual={aba} onChange={(x) => setAba(x as typeof aba)} abas={[{ id: 'lista', nome: 'Viagens' }, { id: 'viajante', nome: 'Painel do viajante' }, { id: 'comparar', nome: 'Por viajante' }]} />
+      {/* "Por viajante" (comparativo) fica desativado por enquanto: a ideia está guardada, volta depois */}
+      <Abas atual={aba === 'comparar' ? 'lista' : aba} onChange={(x) => setAba(x as typeof aba)} abas={[{ id: 'lista', nome: 'Viagens' }, { id: 'viajante', nome: 'Painel do viajante' }, { id: 'comparar', nome: 'Por viajante', desativada: true }]} />
       {aba === 'viajante' ? (
         <div className="mx-auto max-w-2xl"><PainelViajante /></div>
       ) : (
         <>
-          <div className="mb-3 grid gap-2 md:grid-cols-[auto_14rem_1fr]">
-            <Escolha<typeof status> rotulo="Situação" valor={status} onChange={setStatus} opcoes={[{ id: '', nome: 'Todas' }, { id: 'aberta', nome: 'Abertas' }, { id: 'encerrada', nome: 'Encerradas' }]} />
+          {/* NÚMEROS GRANDES (padrão): tocar em Abertas/Encerradas filtra; gasto e resultado somam o que está na lista */}
+          {aba === 'lista' && todasViagens && (
+            <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+              <NumeroGrande rotulo="Abertas" icone="✈️" cor="var(--marca)" valor={String(todasViagens.filter((v) => v.status === 'aberta').length)} ativo={status === 'aberta'} onClick={() => setStatus(status === 'aberta' ? '' : 'aberta')} selos={todasViagens.some((v) => v.status === 'aberta' && v.acimaOrcamento) ? [{ texto: t('acima do orçamento'), tom: 'ruim' }] : [{ texto: t('em andamento'), tom: 'marca' }]} />
+              <NumeroGrande rotulo="Encerradas" icone="🏁" cor="var(--suave)" valor={String(todasViagens.filter((v) => v.status === 'encerrada').length)} ativo={status === 'encerrada'} onClick={() => setStatus(status === 'encerrada' ? '' : 'encerrada')} />
+              <NumeroGrande rotulo="Gastos" icone="⛽" cor="var(--alerta)" valor={formatar((dados?.linhas ?? []).reduce((s, v) => s + v.gasto, 0), dados?.moeda ?? 'BOB')} selos={[{ texto: gramasTexto((dados?.linhas ?? []).reduce((s, v) => s + v.gramas, 0)) }]} />
+              <NumeroGrande rotulo="Resultado" icone="📈" cor={(dados?.linhas ?? []).reduce((s, v) => s + v.resultado, 0) < 0 ? 'var(--ruim)' : 'var(--bom)'} colorirValor valor={formatar((dados?.linhas ?? []).reduce((s, v) => s + v.resultado, 0), dados?.moeda ?? 'BOB')} />
+            </div>
+          )}
+          <div className="mb-3 grid gap-2 md:grid-cols-[14rem_1fr]">
             <Selecao valor={viajanteId} onChange={setViajante} vazio="Quem viajou: todos" opcoes={dados?.viajantesPossiveis ?? []} />
             <Entrada type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={t('Buscar código, nome, destino ou viajante')} aria-label={t('Buscar')} />
           </div>
-          {!dados ? <Carregando /> : aba === 'comparar' ? <Comparativo linhas={dados.comparativo} moeda={dados.moeda} /> : !dados.linhas.length ? (
+          {!dados ? <Carregando /> : COMPARATIVO_LIGADO && aba === 'comparar' ? <Comparativo linhas={dados.comparativo} moeda={dados.moeda} /> : !dados.linhas.length ? (
             <Vazio texto="Nenhuma viagem por aqui."><Botao variante="secundario" onClick={() => ir('novaViagem')}>+ {t('Nova viagem')}</Botao></Vazio>
           ) : (
             <ListaViagens linhas={dados.linhas} />
@@ -116,66 +134,64 @@ function ViagensAdmin() {
 
 type LinhaLista = NonNullable<ReturnType<typeof useConsulta<'viagens'>>['dados']>['linhas'][number]
 
+/**
+ * LISTA DAS VIAGENS (bateu o olho, entendeu): um cartão por viagem, igual no celular e no computador —
+ * cabeçalho (código, nome, destino, situação), quem foi e quando, a barra do orçamento e 4 blocos
+ * (Gastos · Comprou · Custo/kg real · Resultado). Prospecção (sem compra) diz isso em vez de "−Bs".
+ */
 function ListaViagens({ linhas }: { linhas: LinhaLista[] }) {
   const t = useT()
   const { ir } = useApp()
-  const resultado = (v: LinhaLista) => (v.prospeccao ? <span className="text-[var(--suave)]">{t('prospecção')}</span> : <span className={v.resultado < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{formatar(v.resultado, v.moeda)}</span>)
   return (
-    <>
-      {/* celular: cartões */}
-      <ul className="grid gap-2 md:hidden">
-        {linhas.map((v) => (
+    <ul className="grid gap-3 lg:grid-cols-2">
+      {linhas.map((v) => {
+        const usoOrc = v.orcamento ? Math.min(100, Math.round((v.gasto * 100) / v.orcamento)) : undefined
+        const aberta = v.status === 'aberta'
+        return (
           <li key={v.id}>
-            <button type="button" onClick={() => ir('viagem', { id: v.id })} className="w-full rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left hover:border-[var(--marca)]">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <b className="min-w-0 break-words">{v.codigo} · {v.nome}</b>
-                <span className="flex gap-1">{v.acimaOrcamento && <Pilula tom="ruim">{t('Acima do orçamento')}</Pilula>}<Pilula tom={TOM_STATUS[v.status]}>{t(NOME_STATUS[v.status])}</Pilula></span>
+            <button type="button" onClick={() => ir('viagem', { id: v.id })} className={cx('flex h-full w-full flex-col gap-3 rounded-2xl border bg-[var(--cartao)] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md', aberta ? 'border-[var(--marca)]' : 'border-[var(--borda)]')}>
+              <div className="flex items-start gap-3">
+                <span aria-hidden className={cx('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl', aberta ? 'bg-[var(--marca-suave)]' : 'bg-[var(--fundo)]')}>{aberta ? '✈️' : '🏁'}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <b className="font-mono text-sm text-[var(--marca)]">{v.codigo}</b>
+                    <Pilula tom={TOM_STATUS[v.status]}>{t(NOME_STATUS[v.status])}</Pilula>
+                    {v.prospeccao && <Pilula>{t('prospecção')}</Pilula>}
+                  </span>
+                  <b className="mt-0.5 block text-base leading-tight [overflow-wrap:anywhere]">{v.nome}</b>
+                  <span className="mt-0.5 block text-xs text-[var(--suave)]">{[v.destino ? `📍 ${v.destino}` : '', `👤 ${v.viajantes.map((x) => x.nome).join(', ')}`, `📅 ${dataBR(v.inicio)}${v.fim ? ` → ${dataBR(v.fim)}` : ''} · ${t('{n} dia(s)', { n: v.dias })}`].filter(Boolean).join('  ·  ')}</span>
+                </span>
+                <span aria-hidden className="text-xl text-[var(--suave)]">›</span>
               </div>
-              <div className="text-sm text-[var(--suave)]">{v.viajantes.map((x) => x.nome).join(', ')} · {dataBR(v.inicio)}{v.fim ? ` – ${dataBR(v.fim)}` : ''} · {v.dias} d</div>
-              <div className="num mt-1 grid grid-cols-2 gap-x-3 text-sm">
-                <span>{t('Gastos')}: <b>{formatar(v.gasto, v.moeda)}</b></span>
-                <span>{gramasTexto(v.gramas)}</span>
-                <span>{t('Resultado')}: <b>{resultado(v)}</b></span>
-                <span>ROI: <b>{pct(v.roiBp)}</b></span>
+              {usoOrc !== undefined && (
+                <div>
+                  <div className="num flex justify-between text-xs"><span className="text-[var(--suave)]">{t('Orçamento dos gastos')}</span><span className={v.acimaOrcamento ? 'font-semibold text-[var(--ruim)]' : 'text-[var(--suave)]'}>{formatar(v.gasto, v.moeda)} {t('de')} {formatar(v.orcamento!, v.moeda)}{v.acimaOrcamento ? ` · ${t('passou')}` : ''}</span></div>
+                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-[var(--fundo)]"><span className="block h-full rounded-full" style={{ width: `${usoOrc}%`, background: v.acimaOrcamento ? 'var(--ruim)' : usoOrc > 80 ? 'var(--alerta)' : 'var(--bom)' }} /></div>
+                </div>
+              )}
+              <div className="num grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Bloco rotulo="Gastos" valor={formatar(v.gasto, v.moeda)} />
+                <Bloco rotulo="Comprou" valor={gramasTexto(v.gramas)} sub={t('{n} compra(s)', { n: v.compras })} />
+                <Bloco rotulo="Custo/kg real" valor={v.custoKgReal !== undefined ? formatar(v.custoKgReal, v.moeda) : '—'} />
+                <Bloco rotulo="Resultado" valor={v.prospeccao ? t('sem compra') : formatar(v.resultado, v.moeda)} sub={v.prospeccao ? undefined : `ROI ${pct(v.roiBp)}`} cor={v.prospeccao ? undefined : v.resultado < 0 ? 'var(--ruim)' : 'var(--bom)'} />
               </div>
             </button>
           </li>
-        ))}
-      </ul>
-      {/* desktop: tabela */}
-      <div className="hidden overflow-x-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] md:block">
-        <table className="w-full text-sm">
-          <thead className="bg-[var(--fundo)] text-left text-xs text-[var(--suave)]">
-            <tr>
-              <th className="p-2">{t('Viagem')}</th>
-              <th className="p-2">{t('Quem viajou')}</th>
-              <th className="p-2">{t('Datas')}</th>
-              <th className="p-2">{t('Situação')}</th>
-              <th className="p-2 text-right">{t('Gastos')}</th>
-              <th className="p-2 text-right">{t('Gramas')}</th>
-              <th className="p-2 text-right">{t('Custo/kg real')}</th>
-              <th className="p-2 text-right">{t('Resultado')}</th>
-              <th className="p-2 text-right">ROI</th>
-            </tr>
-          </thead>
-          <tbody>
-            {linhas.map((v) => (
-              <tr key={v.id} {...clicavel(() => ir('viagem', { id: v.id }))} className="cursor-pointer border-t border-[var(--borda)] hover:bg-[var(--marca-suave)]">
-                <td className="p-2"><b>{v.codigo}</b> · {v.nome}{v.destino ? <span className="text-xs text-[var(--suave)]"> · {v.destino}</span> : null}</td>
-                <td className="p-2">{v.viajantes.map((x) => x.nome).join(', ')}</td>
-                <td className="num p-2">{dataBR(v.inicio)}{v.fim ? ` – ${dataBR(v.fim)}` : ''}</td>
-                <td className="p-2"><span className="flex flex-wrap gap-1"><Pilula tom={TOM_STATUS[v.status]}>{t(NOME_STATUS[v.status])}</Pilula>{v.acimaOrcamento && <Pilula tom="ruim">{t('Acima do orçamento')}</Pilula>}</span></td>
-                <td className="num p-2 text-right">{formatar(v.gasto, v.moeda)}</td>
-                <td className="num p-2 text-right">{gramasTexto(v.gramas)}</td>
-                <td className="num p-2 text-right">{v.custoKgReal !== undefined ? formatar(v.custoKgReal, v.moeda) : '—'}</td>
-                <td className="num p-2 text-right font-semibold">{resultado(v)}</td>
-                <td className="num p-2 text-right">{pct(v.roiBp)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
+        )
+      })}
+    </ul>
+  )
+}
+
+/** bloco de número do cartão da viagem */
+function Bloco({ rotulo, valor, sub, cor }: { rotulo: string; valor: string; sub?: string; cor?: string }) {
+  const t = useT()
+  return (
+    <span className="min-w-0 rounded-xl bg-[var(--fundo)] px-2.5 py-2">
+      <span className="block truncate text-[11px] text-[var(--suave)]">{t(rotulo)}</span>
+      <b className="block truncate text-sm" style={cor ? { color: cor } : undefined}>{valor}</b>
+      {sub && <span className="block truncate text-[11px] text-[var(--suave)]">{sub}</span>}
+    </span>
   )
 }
 
@@ -248,38 +264,68 @@ function FormViagem({ viagem }: { viagem?: Viagem }) {
     else ir('viagem', { id: r.id })
   }
   const pessoas = dados?.viajantesPossiveis ?? []
+  // PASSO A PASSO (como Separar e Nova compra): 1 Para onde · 2 Quem vai · 3 Quanto pode gastar · 4 Como dividir
+  const [abertos, setAbertos] = useState<Set<number>>(() => new Set([1]))
+  const alternar = (n: number) => setAbertos((s) => { const x = new Set(s); if (x.has(n)) x.delete(n); else x.add(n); return x })
+  const ir_ = (n: number) => setAbertos(new Set([n]))
+  const dias = inicio && fim && fim >= inicio ? Math.round((new Date(`${fim}T12:00:00`).getTime() - new Date(`${inicio}T12:00:00`).getTime()) / 86400000) + 1 : undefined
+  const nomesViajantes = pessoas.filter((p) => viajantes.includes(p.id)).map((p) => p.nome)
+  const proximo = (n: number, rotulo: string) => <div className="flex justify-end"><Botao variante="secundario" onClick={() => ir_(n + 1)}>{t('Próximo')}: {t(rotulo)} →</Botao></div>
+  const falta = !nome.trim() ? t('o nome da viagem') : !viajantes.length ? t('quem vai') : ''
   return (
-    <Pagina titulo={t(viagem ? 'Editar viagem' : 'Nova viagem de compra')} subtitulo={viagem?.codigo} onVoltar={voltar} rodape={<Botao grande className="w-full" disabled={ocupado || !nome.trim() || !viajantes.length} onClick={salvar}>{t(viagem ? 'Salvar' : 'Criar viagem')}</Botao>}>
-      <div className="mx-auto max-w-2xl space-y-4">
-        <Campo rotulo="Nome da viagem"><Entrada value={nome} onChange={(e) => setNome(e.target.value)} placeholder={t('Ex.: Feira de Oruro · novembro')} autoFocus={!viagem} /></Campo>
-        <Campo rotulo="Destino"><Entrada value={destino} onChange={(e) => setDestino(e.target.value)} /></Campo>
-        <Campo rotulo="Quem viaja" comoDiv ajuda="Funcionárias e sócias. Quem viaja lança os gastos pelo celular, só nesta viagem.">
+    <Pagina titulo={t(viagem ? 'Editar viagem' : 'Nova viagem de compra')} subtitulo={viagem?.codigo} onVoltar={voltar} rodape={
+      <Botao grande className="w-full" disabled={ocupado || !!falta} onClick={salvar}>{falta ? t('Falta: {x}', { x: falta }) : t(viagem ? 'Salvar' : 'Criar viagem')}</Botao>
+    }>
+      <ol className="mx-auto max-w-2xl space-y-3" aria-label={t('Passos da viagem')}>
+        <Passo n={1} de={4} titulo="Para onde e quando" feito={!!nome.trim()} aberto={abertos.has(1)} onAlternar={() => alternar(1)}
+          resumo={nome.trim() ? [nome.trim(), destino ? `📍 ${destino}` : '', `📅 ${dataBR(inicio)}${fim ? ` → ${dataBR(fim)}` : ''}${dias ? ` · ${t('{n} dia(s)', { n: dias })}` : ''}`].filter(Boolean).join(' · ') : t('falta o nome')}
+          ajuda="Um nome curto para achar a viagem depois, para onde vai e as datas. A volta pode ficar em branco."
+          exemplo="Ex.: Feira de Oruro · novembro · Oruro · 02/11 → 07/11 (6 dias)">
+          <Campo rotulo="Nome da viagem *"><Entrada value={nome} onChange={(e) => setNome(e.target.value)} placeholder={t('Ex.: Feira de Oruro · novembro')} autoFocus={!viagem} /></Campo>
+          <Campo rotulo="Destino"><Entrada value={destino} onChange={(e) => setDestino(e.target.value)} placeholder={t('Ex.: Oruro')} /></Campo>
+          <div className="grid grid-cols-2 gap-2">
+            <Campo rotulo="Ida"><Entrada type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} /></Campo>
+            <Campo rotulo="Volta (prevista)"><Entrada type="date" value={fim} onChange={(e) => setFim(e.target.value)} /></Campo>
+          </div>
+          {dias !== undefined && <p className="num text-sm font-semibold text-[var(--marca)]">= {t('{n} dia(s)', { n: dias })}</p>}
+          {proximo(1, 'Quem vai')}
+        </Passo>
+        <Passo n={2} de={4} titulo="Quem vai" feito={viajantes.length > 0} aberto={abertos.has(2)} onAlternar={() => alternar(2)}
+          resumo={nomesViajantes.length ? `👤 ${nomesViajantes.join(', ')}` : t('ninguém escolhido')}
+          ajuda="Quem viaja lança os gastos pelo celular (gasolina, hotel, comida), só nesta viagem, e as compras dela ficam ligadas aqui."
+          exemplo="Ex.: Paula e Wagner → os dois lançam gastos e o resultado conta para os dois">
           {!pessoas.length ? <p className="text-sm text-[var(--suave)]">{t('Cadastre a equipe (papel funcionária ou sócia) em Pessoas.')}</p> : (
             <div className="flex flex-wrap gap-2">
               {pessoas.map((p) => {
                 const on = viajantes.includes(p.id)
                 return (
-                  <button key={p.id} type="button" aria-pressed={on} onClick={() => setViajantes(on ? viajantes.filter((x) => x !== p.id) : [...viajantes, p.id])} className={cx('min-h-10 rounded-full px-3 text-sm font-semibold', on ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
+                  <button key={p.id} type="button" aria-pressed={on} onClick={() => setViajantes(on ? viajantes.filter((x) => x !== p.id) : [...viajantes, p.id])} className={cx('min-h-11 rounded-full px-4 text-sm font-semibold', on ? 'bg-[var(--marca)] text-white' : 'bg-[var(--cartao)] text-[var(--marca)] ring-1 ring-[var(--marca)]/40')}>
                     {on ? '✓ ' : ''}{p.nome}
                   </button>
                 )
               })}
             </div>
           )}
-        </Campo>
-        <div className="grid grid-cols-2 gap-2">
-          <Campo rotulo="Ida"><Entrada type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} /></Campo>
-          <Campo rotulo="Volta (prevista)"><Entrada type="date" value={fim} onChange={(e) => setFim(e.target.value)} /></Campo>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Campo rotulo="Orçamento dos gastos" ajuda="Combustível, hospedagem, comida… O painel avisa quando passar."><ValorInput moeda={moeda} valor={orcamento} onChange={setOrcamento} /></Campo>
-          <Campo rotulo="Orçamento de compra" ajuda="Quanto pode gastar em cabelo nesta viagem (capital de compra)."><ValorInput moeda={moeda} valor={orcamentoCompra} onChange={setOrcamentoCompra} /></Campo>
-        </div>
-        <Campo rotulo="Dividir o gasto da viagem entre as compras" comoDiv ajuda="Por gramas: cada grama leva o mesmo custo de logística. Por valor: o cabelo mais caro leva mais. Ex.: Bs 800 de gasto em 4 kg = Bs 200 por kg.">
+          {proximo(2, 'Quanto pode gastar')}
+        </Passo>
+        <Passo n={3} de={4} titulo="Quanto pode gastar" opcional feito={!!orcamento || !!orcamentoCompra} aberto={abertos.has(3)} onAlternar={() => alternar(3)}
+          resumo={[orcamento ? `⛽ ${formatar(orcamento, moeda)}` : '', orcamentoCompra ? `💇 ${formatar(orcamentoCompra, moeda)}` : ''].filter(Boolean).join(' · ') || t('sem limite')}
+          ajuda="Dois limites, se quiser: o dos gastos da viagem (gasolina, hotel, comida) e o do cabelo. O painel avisa quando passar."
+          exemplo="Ex.: gastos até Bs 1.500 · cabelo até Bs 40.000">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Campo rotulo="Gastos da viagem (até)"><ValorInput moeda={moeda} valor={orcamento} onChange={setOrcamento} /></Campo>
+            <Campo rotulo="Compra de cabelo (até)"><ValorInput moeda={moeda} valor={orcamentoCompra} onChange={setOrcamentoCompra} /></Campo>
+          </div>
+          {proximo(3, 'Como dividir o gasto')}
+        </Passo>
+        <Passo n={4} de={4} titulo="Como dividir o gasto" opcional feito aberto={abertos.has(4)} onAlternar={() => alternar(4)}
+          resumo={`${t(rateio === 'grama' ? 'Por gramas' : 'Por valor')}${obs.trim() ? ` · “${obs.trim()}”` : ''}`}
+          ajuda="No fim, o gasto da viagem vai para o custo do cabelo comprado nela. Por gramas: cada grama leva o mesmo. Por valor: o cabelo mais caro leva mais."
+          exemplo="Ex.: Bs 800 de gasto em 4 kg = Bs 200 por kg (por gramas)">
           <Escolha<'grama' | 'valor'> valor={rateio} onChange={setRateio} opcoes={[{ id: 'grama', nome: 'Por gramas' }, { id: 'valor', nome: 'Por valor' }]} />
-        </Campo>
-        <Campo rotulo="Observação"><Entrada value={obs} onChange={(e) => setObs(e.target.value)} /></Campo>
-      </div>
+          <Campo rotulo="Observação"><Entrada value={obs} onChange={(e) => setObs(e.target.value)} placeholder={t('Ex.: levar balança e sacos')} /></Campo>
+        </Passo>
+      </ol>
     </Pagina>
   )
 }
@@ -293,7 +339,7 @@ export function FichaViagem() {
   const { nav, voltar, ir } = useApp()
   const id = nav.params.id as Id
   const { dados, erro } = useConsulta('viagem', { id })
-  const [aba, setAba] = useParamTela<'resumo' | 'gastos' | 'compras' | 'rateio' | 'contas'>('aba', 'resumo')
+  const [aba, setAba] = useParamTela<'resumo' | 'gastos' | 'compras' | 'rateio' | 'contas' | 'historico'>('aba', 'resumo')
   const [folha, setFolha] = useState(false)
   const [adiantar, setAdiantar] = useState(false)
   const { dados: cfg } = useConsulta('configuracoes', {})
@@ -308,29 +354,58 @@ export function FichaViagem() {
       voltarRotulo="Viagens"
       onVoltar={voltar}
     >
-      <div className="mb-3 flex flex-wrap gap-2">
-        {aberta && <Botao onClick={() => setFolha(true)}>+ {t('Gasto')}</Botao>}
-        {aberta && <Botao variante="secundario" onClick={() => setAdiantar(true)}>+ {t('Adiantamento')}</Botao>}
-        <Botao variante="leve" onClick={() => ir('novaViagem', { editar: v.id })}>✎ {t('Editar')}</Botao>
+      {/* UMA linha de ações (padrão da página do pacote): as duas principais dividem a largura; editar no ⋯ */}
+      <div className="mb-3 flex items-center gap-2">
+        {aberta ? (
+          <>
+            <Botao className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => setFolha(true)}>⛽ {t('Gasto')}</Botao>
+            <Botao variante="secundario" className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => setAdiantar(true)}>💵 {t('Adiantamento')}</Botao>
+          </>
+        ) : <Botao variante="secundario" className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => ir('novaViagem', { editar: v.id })}>✎ {t('Editar')}</Botao>}
+        {aberta && <MenuAcoes comRotulo className="shrink-0" acoes={[{ rotulo: 'Editar viagem', icone: '✎', onClick: () => ir('novaViagem', { editar: v.id }) }]} />}
       </div>
       <Abas variante="sublinhado" atual={aba} onChange={(x) => setAba(x as typeof aba)} abas={[
         { id: 'resumo', nome: 'Resumo' },
         { id: 'gastos', nome: 'Gastos', extra: <span className="text-xs">({dados.despesas.filter((x) => !x.anulada).length})</span> },
         { id: 'compras', nome: 'Compras', extra: <span className="text-xs">({dados.compras.length})</span> },
         { id: 'rateio', nome: 'Rateio' },
-        { id: 'contas', nome: 'Prestação de contas' },
+        { id: 'contas', nome: 'Contas' },
+        { id: 'historico', nome: 'Histórico' },
       ]} />
       {aba === 'resumo' && <AbaResumo d={dados} />}
       {aba === 'gastos' && <AbaGastos d={dados} onNovo={() => setFolha(true)} />}
       {aba === 'compras' && <AbaCompras d={dados} />}
       {aba === 'rateio' && <AbaRateio d={dados} />}
       {aba === 'contas' && <AbaContas d={dados} onAdiantar={() => setAdiantar(true)} />}
-      <div className="mt-4">
-        <Cartao titulo={t('Histórico')}><LinhaDoTempo id={v.id} /></Cartao>
-      </div>
+      {/* HISTÓRICO numa aba só dele (antes aparecia embaixo de todas as abas) */}
+      {aba === 'historico' && <AbaHistorico d={dados} />}
       {folha && <FolhaDespesa aberta onFechar={() => setFolha(false)} viagemId={v.id} categorias={dados.categorias} moedas={cfg?.config.moedasAtivas ?? [dados.moeda]} moedaPadrao={dados.moeda} />}
       {adiantar && <FormAdiantamento viagemId={v.id} onFechar={() => setAdiantar(false)} />}
     </Pagina>
+  )
+}
+
+/**
+ * HISTÓRICO DA VIAGEM: em cima, a vida da viagem em 4 blocos (quando abriu · gastos lançados · dinheiro levado ·
+ * compras ligadas) e a situação; embaixo, a linha do tempo completa (cada ação com quem e quando, e o link).
+ */
+function AbaHistorico({ d }: { d: Dados }) {
+  const t = useT()
+  const v = d.viagem
+  const gastos = d.despesas.filter((x) => !x.anulada)
+  const anulados = d.despesas.length - gastos.length
+  return (
+    <div className="space-y-3">
+      <div className="num grid grid-cols-2 gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm lg:grid-cols-4">
+        <Bloco rotulo="Abriu" valor={dataBR(v.inicio)} sub={v.fim ? `${t('volta')} ${dataBR(v.fim)}` : t('sem data de volta')} />
+        <Bloco rotulo="Gastos lançados" valor={String(gastos.length)} sub={anulados ? t('{n} anulado(s)', { n: anulados }) : formatar(d.kpis.gasto, d.moeda)} />
+        <Bloco rotulo="Compras ligadas" valor={String(d.compras.length)} sub={gramasTexto(d.kpis.gramas)} />
+        <Bloco rotulo="Situação" valor={t(NOME_STATUS[v.status])} sub={v.status === 'encerrada' ? t('contas prestadas') : t('em andamento')} cor={v.status === 'aberta' ? 'var(--marca)' : undefined} />
+      </div>
+      <Cartao titulo={t('Tudo o que aconteceu')} ajuda="Cada ação da viagem, da mais nova para a mais antiga, com quem fez e quando: gastos lançados ou anulados, adiantamentos, compras ligadas, encerramento. Toque na referência para abrir. Ex.: 03/11 · Paula lançou gasolina Bs 150 ↗">
+        <LinhaDoTempo id={v.id} />
+      </Cartao>
+    </div>
   )
 }
 
