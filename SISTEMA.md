@@ -157,6 +157,21 @@ Toque no **i** de qualquer item ou número: explicação + **quadro de exemplo**
 - Atendimento do salão: unidade, cliente, serviços, quem atende (comissão), **agora ou agendado**; pode usar cabelo do estoque.
 - Recibo no WhatsApp. Cancelar devolve estoque, estorna cada pagamento e a conta.
 
+### 2.4.0 Modo caixa (venda rápida: Vender › ⚡ Modo caixa)
+- Passa a pistola, lê o QR ou digita o código: o pacote entra **inteiro** com o preço da tabela; tocar nas gramas vende só
+  uma parte; tocar na foto abre **Conferir** (foto, peso, compras de origem, histórico) sem sair da venda.
+- **Cobrar em Bs, US$ ou R$**: fora da moeda principal aparece a **cotação** (vem a do dia, dá para trocar); total, desconto,
+  pagamento e troco na moeda escolhida; a venda guarda "Cobrado em R$ · cotação 1 R$ = 1,30 Bs".
+- **Desconto** em % ou valor (na moeda de cobrança, convertido pela cotação digitada). O serviço reparte o desconto entre
+  as linhas: cada linha **continua ligada à tabela** (medida, fator, tabela, coluna) com o valor cheio (gramas × fator), o
+  desconto e o total líquido. Comissão, lucro, caixa e relatórios usam o líquido; a venda guarda "desconto 2,5% = Bs 878,50"
+  (recibo e detalhe). DRE: Receita de vendas (cheia) → (−) Descontos → = Receita líquida. Vendas antigas sem desconto: iguais.
+- **Fechar** = um toque na forma de pagamento. Baixa no estoque e histórico na hora.
+- **Dividir pagamento**: cada pagamento fora da moeda principal tem a sua cotação ("1 US$ = [6,96] Bs"), que vem da já
+  digitada para aquela moeda ou da do sistema; cada pagamento guarda a sua e o detalhe da venda lista
+  "US$ 100 · 1 US$ = 6,96 Bs". (Vender e Comprar continuam com a cotação do sistema.)
+- Mesma tela no celular, tablet e computador com pistola (a pistola funciona como teclado).
+
 ### 2.4.1 Corrigir uma venda (a qualquer momento, quantas vezes precisar)
 - Venda › **Corrigir**: muda gramas/quantidade, fator ou valor de cada linha. O estoque acerta a diferença, o custo do lote e a
   comissão são recalculados.
@@ -227,6 +242,12 @@ Toque no **i** de qualquer item ou número: explicação + **quadro de exemplo**
   unidade, ativar/desativar (sempre fica pelo menos um admin), trocar a própria senha.
 - **Permissões** (`src/core/services/permissoes.ts`): o backend confere antes de executar. Administrador: tudo. Funcionária:
   vender/atender, clientes, anexos, a própria agenda, unidade e comissões. Sem entrar, nada (só a lista de usuários de teste).
+- **Funcionária: papel enxuto, focado na venda do cabelo** (modo caixa, ver pacote para vender); administrar estoque,
+  triagem, compras e custos é do administrador. Ao abrir `#/lotes/<id>` (ex.: lendo o QR) ela vê o **pacote para vender**
+  (consulta `pacoteVenda`): foto (toque amplia), código, rótulo (medida · categoria · cor), situação, peso disponível,
+  preço de venda pela tabela e os códigos das compras de origem — sem custo, margem, preço do fornecedor nem histórico — e
+  um botão **Vender** (abre o modo caixa com o pacote: `#/venda-rapida?lote=<id>`). Pacote bruto, não identificado ou
+  esgotado: "Ainda não está pronto para vender", sem ações. A ficha completa (`fichaItem`) continua só do administrador.
 - **Pronto para a API**: `POST /v1/auth/entrar` devolve `{ token, sessao }`; o adaptador manda `Authorization: Bearer` em todo
   pedido e o servidor aplica a mesma lista de permissões (`src/adapters/api/backendApi.ts`).
 
@@ -315,7 +336,7 @@ HTTPS (use os dois) e, sem `VITE_API_CHAVE_PUBLICA`, alguém no meio com um cert
 
 ## 6. Testes
 ```bash
-npm test          # 46 testes: regras, contrato (memória × IndexedDB × API simulada), dados de exemplo, telas
+npm test          # 114 testes: regras, contrato (memória × IndexedDB × API simulada), dados de exemplo, telas
 npm run build     # tipos + build de produção (PWA)
 npm run dev       # http://localhost:5173
 ```
@@ -374,6 +395,9 @@ Lendo os pedidos e o caderno real (PDF de contas), apareceram coisas que nenhum 
 - **Sincronizar aparelhos**: a fila de saída já existe; falta o servidor/sincronizador.
 - **Devolução parcial** de produto (hoje: corrigir a quantidade ou cancelar).
 - ~~Etiqueta do lote~~: feito (foto + código + QR, 50×30 mm ou folha A4).
+- **Leitura de QR/código de barras dentro do sistema no iPhone (Safari) e no Firefox**: hoje a leitura pela câmera usa o
+  recurso do navegador (Chrome/Android e computador); nos outros, a câmera normal do celular lê o QR e abre o pacote. Próximo passo:
+  incluir uma biblioteca de leitura própria (≈ 1 dia), no mesmo botão "📷 Ler".
 - **Fiscal/legal**: só registra comprovante de origem; nota fiscal e impostos fora do escopo.
 - Testes "macaco" e backtest de longa duração (como no Dia a Dia) para o novo núcleo.
 

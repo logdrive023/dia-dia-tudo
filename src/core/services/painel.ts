@@ -9,6 +9,7 @@ import { type Ctx, cotacoesAtuais, lerConfig } from './contexto'
 import { situacaoDe } from './emprestimos'
 import { filaTriagem } from './compras'
 import { recortarVenda, valorEm, vendas } from './vendas'
+import { toleranciaConversao } from './pagamentos'
 import { viagensAbertas } from './viagens'
 import { conferirFinanciamentos, resumoFinanciamentos } from './financiamentos'
 
@@ -72,6 +73,8 @@ function resumo(d: DadosPainel, moeda?: string) {
   const lucro = d.vendas.reduce((s, t) => s + lucroDe(t), 0)
   const fatConv = d.vendas.reduce((s, t) => s + t.totalPrincipal, 0)
   return {
+    /** descontos dados no período (moeda principal); o faturamento já é líquido */
+    descontos: d.vendas.reduce((s, t) => s + t.linhas.reduce((x, l) => x + (l.descontoPrincipal ?? 0), 0), 0),
     faturamento,
     lucro,
     margem: fatConv ? Math.round((lucro / fatConv) * 10000) : 0,
@@ -266,7 +269,7 @@ async function alertasGerais(ctx: Ctx, d: DadosPainel): Promise<Alerta[]> {
     { id: 'faltaReceber', nivel: 'urgente', titulo: 'Vendas com valor a receber', acao: 'Cobre ou registre o pagamento (Pessoas e contas › Recebi).', quantidade: faltaReceber.length, itens: faltaReceber.map((v) => itemVenda(v, 'faltaReceber')), detalhe: { tela: 'vendas', filtro: { pendencia: 'faltaReceber' } } },
     { id: 'atrasadas', nivel: 'urgente', titulo: 'Parcelas de empréstimo atrasadas', acao: 'Cobre no WhatsApp ou registre o pagamento.', quantidade: atrasadas.length, itens: atrasadas, detalhe: { tela: 'emprestimos', filtro: { status: 'atrasada' } } },
     { id: 'faltaPagar', nivel: 'urgente', titulo: 'Compras com valor a pagar', acao: 'Pague o fornecedor ou registre o acerto.', quantidade: faltaPagar.length, itens: faltaPagar.map((t) => itemCompra(t, 'faltaPagar')), detalhe: { tela: 'comprar', filtro: { encerradas: true, pendencia: 'faltaPagar' } } },
-    { id: 'triagemParada', nivel: 'atencao', titulo: `Compras paradas na triagem (${cfg.diasTriagemParada}+ dias)`, acao: 'Abra e avance a etapa (conferir, pagar, pôr no estoque).', quantidade: parada.length, itens: parada.map((t) => itemCompra(t)), detalhe: { tela: 'comprar', filtro: { pendencia: 'paradaTriagem' } } },
+    { id: 'triagemParada', nivel: 'atencao', titulo: `Compras paradas na triagem (${cfg.diasTriagemParada}+ dias)`, acao: 'Abra e avance o pagamento e a entrega (conferir, pagar, concluir).', quantidade: parada.length, itens: parada.map((t) => itemCompra(t)), detalhe: { tela: 'comprar', filtro: { pendencia: 'paradaTriagem' } } },
     { id: 'semComprovante', nivel: 'atencao', titulo: 'Compras sem comprovante de origem', acao: 'Anexe a nota ou recibo de quem vendeu.', quantidade: semOrigem.length, itens: semOrigem.map((t) => itemCompra(t)), detalhe: { tela: 'comprar', filtro: { encerradas: true, pendencia: 'semComprovanteOrigem' } } },
     { id: 'vendaSemComprovante', nivel: 'atencao', titulo: 'Vendas por QR/transferência sem comprovante', acao: 'Anexe a foto do comprovante na venda.', quantidade: semComprovanteVenda.length, itens: semComprovanteVenda.map((v) => itemVenda(v, 'semComprovante')), detalhe: { tela: 'vendas', filtro: { pendencia: 'semComprovante' } } },
     { id: 'semFotos', nivel: 'info', titulo: 'Compras na triagem sem fotos', acao: 'Tire fotos do cabelo/pedido ao conferir.', quantidade: semFotos.length, itens: semFotos.map((t) => itemCompra(t)), detalhe: { tela: 'comprar', filtro: { pendencia: 'semFotos' } } },
@@ -325,7 +328,7 @@ export async function diagnostico(ctx: Ctx, _p: object = {}) {
     // com cliente pode ser fiado (o resto fica na conta dela); sem cliente o pagamento fecha com o total
     if (t.etapa === 'concluido' && t.tipo === 'venda' && !t.pessoaId) {
       const pago = t.pagamentos.reduce((s, p) => s + p.valorPrincipal, 0)
-      const tol = t.pagamentos.filter((p) => p.moeda !== t.moedaPrincipal).length
+      const tol = toleranciaConversao(t.pagamentos, t.moedaPrincipal)
       if (Math.abs(pago - t.totalPrincipal) > tol) problemas.push(`Venda ${t.id}: pagamentos ${pago} ≠ total ${t.totalPrincipal}`)
     }
   }

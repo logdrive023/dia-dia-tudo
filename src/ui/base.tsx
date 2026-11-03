@@ -189,7 +189,7 @@ export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { i
   const t = useT()
   if (variante === 'sublinhado')
     return (
-      <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto border-b border-[var(--borda)]">
+      <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-[var(--borda)]">
         {abas.map((a) => (
           <button key={a.id} role="tab" aria-selected={a.id === atual} type="button" onClick={() => onChange(a.id)} className={cx('-mb-px min-h-11 shrink-0 border-b-2 px-3 text-sm font-semibold', a.id === atual ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}>
             {t(a.nome)} {a.extra}

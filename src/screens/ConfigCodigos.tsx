@@ -4,10 +4,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { Id } from '../core/domain/tipos'
-import type { ModoCompra, ModoLote, RegrasCodigos, Sequencia } from '../core/services/codigos'
+import type { ModoCompra, ModoEtiqueta, ModoLote, RegrasCodigos, Sequencia } from '../core/services/codigos'
 import { Botao, Campo, Carregando, Cartao, Entrada, ErroTela, Pilula, Selecao, cx } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta } from '../ui/contexto'
 import { useT } from '../ui/i18n'
+import { AJUDA_TIPO_ETIQUETA } from '../ui/etiquetas'
 
 type Rascunho = Omit<RegrasCodigos, 'siglas'>
 
@@ -21,6 +22,12 @@ const MODOS_LOTE: { id: ModoLote; nome: string; ajuda: string; exemplo: string }
   { id: 'incremental', nome: 'Incremental', ajuda: 'Um número que sobe sozinho, igual para todos os lotes.', exemplo: 'L-0001, L-0002 · 1, 2, 3' },
   { id: 'daCompra', nome: 'Da compra', ajuda: 'O lote leva o código da compra. Separado: o código do lote-mãe + letra. Juntado: as compras com "+".', exemplo: 'M1-1 → M1-1a, M1-1b · M1+C3-1' },
   { id: 'manual', nome: 'Manual', ajuda: 'Digita-se o código de cada lote (na entrada, na separação e ao juntar). Sugere o próximo incremental.', exemplo: 'CX-07, PRETO-60' },
+]
+
+const TIPOS_ETIQUETA: { id: ModoEtiqueta; nome: string; ajuda: string; exemplo: string }[] = [
+  { id: 'qrBarras', nome: 'QR + código de barras', ajuda: 'Para leitor "pistola" no balcão: ele lê as barras e digita o código na busca.', exemplo: 'Code 128 · M1-2' },
+  { id: 'qr', nome: 'Só QR', ajuda: 'Para quem usa só o celular: a câmera lê o QR e abre o pacote.', exemplo: '…#/lotes/<id>' },
+  { id: 'nenhuma', nome: 'Sem etiqueta', ajuda: 'O código aparece grande na tela para escrever à mão no pacote.', exemplo: 'P4' },
 ]
 
 const PAPEL: Record<string, string> = { fornecedor: 'Fornecedor', doadora: 'Doadora', funcionario: 'Funcionária', profissional: 'Profissional', socio: 'Sócia', cliente: 'Cliente', devedor: 'Devedor', credor: 'Credor' }
@@ -37,14 +44,14 @@ export function ConfigCodigos() {
   const [exemploId, setExemploId] = useState<Id>()
   const { dados, erro } = useConsulta('codigos', { rascunho: rasc, pessoaId: exemploId }, admin)
   const { executar, ocupado } = useComando()
-  const salvo = useMemo<Rascunho | undefined>(() => (dados ? { compra: dados.regras.compra, lote: dados.regras.lote, triagem: dados.regras.triagem, venda: dados.regras.venda } : undefined), [dados])
+  const salvo = useMemo<Rascunho | undefined>(() => (dados ? { compra: dados.regras.compra, lote: dados.regras.lote, triagem: dados.regras.triagem, venda: dados.regras.venda, etiqueta: dados.regras.etiqueta } : undefined), [dados])
   const atual = rasc ?? salvo
   const mudou = !!rasc && !igual(rasc, salvo)
   useAvisoSaida(mudou)
   if (!admin) return <p className="text-sm text-[var(--suave)]">{t('Só o administrador muda os códigos.')}</p>
   if (erro) return <ErroTela texto={erro} onVoltar={() => history.back()} />
   if (!dados || !atual) return <Carregando />
-  const mudar = <K extends keyof Rascunho>(k: K, v: Partial<Rascunho[K]>) => setRasc({ ...atual, [k]: { ...atual[k], ...v } })
+  const mudar = <K extends Exclude<keyof Rascunho, 'etiqueta'>>(k: K, v: Partial<Rascunho[K]>) => setRasc({ ...atual, [k]: { ...atual[k], ...v } })
   const salvar = async () => {
     const r = await executar('salvarCodigos', atual, t('Códigos salvos. Valem para as próximas compras e lotes.'))
     if (r) setRasc(undefined)
@@ -110,6 +117,12 @@ export function ConfigCodigos() {
             <Previa rotulo="Próximos" codigos={pv.venda} />
           </div>
         </div>
+      </Cartao>
+
+      {/* ETIQUETA */}
+      <Cartao titulo={`🏷 ${t('Tipo de etiqueta')}`} ajuda={AJUDA_TIPO_ETIQUETA}>
+        <OpcoesModo opcoes={TIPOS_ETIQUETA} valor={atual.etiqueta} onChange={(etiqueta) => setRasc({ ...atual, etiqueta })} nome="modo-etiqueta" />
+        <p className="mt-2 text-xs text-[var(--suave)]">{t('Dá para trocar em cada impressão.')}</p>
       </Cartao>
 
       <div className="sticky bottom-20 z-10 flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-2 shadow-lg md:bottom-4">

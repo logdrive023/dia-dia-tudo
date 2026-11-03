@@ -23,21 +23,26 @@ import { Equipe } from './screens/Equipe'
 import { Estoque, FichaLote, Rastreio, SepararTela } from './screens/Estoque'
 import { Painel } from './screens/Painel'
 import { Triagem } from './screens/Triagem'
+import { Livro } from './screens/Livro'
 import { FichaPessoa, Pessoas } from './screens/Pessoas'
 import { Precos } from './screens/Precos'
 import { Relatorios } from './screens/Relatorios'
 import { DetalheVenda, Vendas } from './screens/Vendas'
 import { Vender } from './screens/Vender'
+import { VendaRapida } from './screens/VendaRapida'
+import { PacoteVenda } from './screens/PacoteVenda'
 import { FichaViagem, Viagens, NovaViagemTela } from './screens/Viagens'
 import { Financiamentos, FichaFinanciamento, NovoFinanciamento } from './screens/Financiamentos'
 
 const TELAS: Record<string, () => JSX.Element> = {
   painel: Painel,
   vender: Vender,
+  vendaRapida: VendaRapida,
   comprar: Comprar,
   pedido: Pedido,
   novaCompra: NovaCompraTela,
   triagem: Triagem,
+  livro: Livro,
   estoque: Estoque,
   lote: FichaLote,
   rastreio: Rastreio,
@@ -239,7 +244,8 @@ function Tela() {
   useEffect(() => {
     if (proibida) history.replaceState(null, '', navParaHash({ tela: 'agenda', params: {} }))
   }, [proibida])
-  const T = TELAS[nome] ?? Painel
+  // funcionária abrindo um pacote (QR): a visão enxuta para VENDER (a ficha completa é do administrador)
+  const T = nome === 'lote' && sessao.perfil !== 'admin' ? PacoteVenda : TELAS[nome] ?? Painel
   return <T />
 }
 

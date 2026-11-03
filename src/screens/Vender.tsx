@@ -1,17 +1,23 @@
-// VENDER: assistente que pensa junto. "É cabelo?" (tabela medida × comprador, gramas × fator), "É serviço?"
-// (unidade, cliente, o que vai fazer, quem atende, agora ou agendar) ou qualquer outra modalidade ativa.
+// VENDER: a entrada é "⚡ Vender cabelo" (Modo caixa) + botões pequenos para os outros módulos (serviço, produto…).
+// O assistente por medida (tabela medida × comprador, gramas × fator) fica no link "Sem etiqueta? Vender por medida";
+// serviço: unidade, cliente, o que vai fazer, quem atende, agora ou agendar.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatar, multiplicarFator, fatorValido } from '../core/domain/dinheiro'
 import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { Id, Item, TabelaPreco } from '../core/domain/tipos'
 import { fatorDaTabela } from '../core/services/precos'
-import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, GramasInput, Selecao, Titulo, ValorInput, Vazio, cx, gramasTexto, loc, moedaPadrao } from '../ui/base'
+import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, GramasInput, Info, Selecao, Titulo, ValorInput, Vazio, cx, gramasTexto, loc, moedaPadrao } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { Anexos, EditorPagamentos, type PagamentoTela, SeletorPessoa, ValoresConvertidos, linkWhatsApp, useCotacoes, conv } from '../ui/compartilhados'
 import { useT } from '../ui/i18n'
 import { type AjusteServico, EditorServico, SeletorServicos, ajusteParaEntrada, faltaNoAjuste } from '../ui/linhaServico'
+import { LeitorCodigo } from '../ui/estoqueUi'
+import { acharPorCodigo, buscarPacotes, usePistola } from '../ui/leitorPistola'
+
+/** categorias de reserva (quando a configuração de atributos não tem a lista) */
+const CATEGORIAS_RESERVA = ['Normal', 'Tinte', 'CH', 'CH+', 'Rojo', 'Quemado', 'Menudo', 'Entresaque']
 
 interface LinhaTela {
   id: Id
@@ -84,9 +90,31 @@ export function Vender() {
   const mod = ativos.find((m) => m.id === caminho)
   if (!caminho || (cfg && !mod)) {
     const emAndamento = temItens ? ativos.find((m) => m.id === carrinho!.moduloId) : undefined
+    const temCabelo = ativos.some((m) => m.id === 'cabelo')
+    // o resto (serviço, produto…) vira botões pequenos; cabelo é pelo Modo caixa (ou "por medida", no link)
+    const outros = ativos.filter((m) => m.id !== 'cabelo')
     return (
-      <div>
-        <Titulo subtitulo={t('Escolha e o assistente pergunta o resto.')}>{t('O que você está vendendo?')}</Titulo>
+      <div className="mx-auto max-w-2xl">
+        <Titulo>{t('Vender')}</Titulo>
+        {temCabelo && (
+          <div className="mb-4">
+            {/* MODO CAIXA: passa a pistola / lê o QR, o pacote entra inteiro com o preço da tabela e fecha num toque */}
+            <button type="button" onClick={() => ir('vendaRapida')} className="flex min-h-24 w-full items-center gap-3 rounded-2xl bg-[var(--marca)] p-4 text-left text-white shadow-md hover:brightness-110">
+              <span className="text-4xl" aria-hidden>⚡</span>
+              <span>
+                <span className="block text-xl font-black">{t('Vender cabelo')}</span>
+                <span className="block text-sm opacity-90">{t('Passe a pistola ou leia o QR')}</span>
+              </span>
+            </button>
+            {/* sem etiqueta: o assistente antigo por medida (pega o pacote mais antigo daquela medida) */}
+            <div className="mt-1 flex items-center">
+              <button type="button" onClick={() => escolher('cabelo')} className="min-h-10 px-1 text-sm font-semibold text-[var(--marca)] underline-offset-4 hover:underline">
+                {t('Sem etiqueta? Vender por medida')}
+              </button>
+              <Info texto="Para pacote sem etiqueta: escolha a medida e o sistema pega o pacote mais antigo. Ex.: 60 cm · 2 kg." />
+            </div>
+          </div>
+        )}
         {emAndamento && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[var(--marca)] bg-[var(--marca-suave)] p-3">
             <span className="text-sm font-semibold">{emAndamento.icone} {t('Venda em andamento: {n} item(ns).', { n: carrinho!.linhas.length })}</span>
@@ -96,15 +124,16 @@ export function Vender() {
             </div>
           </div>
         )}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {ativos.map((m) => (
-            <button key={m.id} type="button" onClick={() => escolher(m.id)} className="min-h-28 rounded-2xl border-2 border-[var(--borda)] bg-[var(--cartao)] p-4 text-left hover:border-[var(--marca)]">
-              <div className="text-3xl">{m.icone}</div>
-              <div className="mt-1 text-lg font-bold">{pergunta(m)}</div>
-              <div className="text-sm text-[var(--suave)]">{t(m.descricao)}</div>
-            </button>
-          ))}
-        </div>
+        {outros.length > 0 && (
+          <div className={cx('grid gap-2', temCabelo ? 'grid-cols-2 sm:grid-cols-3' : 'sm:grid-cols-2')}>
+            {outros.map((m) => (
+              <button key={m.id} type="button" onClick={() => escolher(m.id)} className="flex min-h-14 items-center gap-2 rounded-xl border-2 border-[var(--borda)] bg-[var(--cartao)] px-3 py-2 text-left font-bold hover:border-[var(--marca)]">
+                <span className="text-2xl" aria-hidden>{m.icone}</span>
+                <span className="min-w-0">{rotuloCurto(m.id, m.nome, t)}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {trocar !== undefined && (
           <Confirmar
             titulo="Descartar a venda em andamento?"
@@ -134,7 +163,7 @@ export function Vender() {
       moduloId={caminho}
       porTabela={porTabela}
       atendimento={atendimento}
-      titulo={`${mod.icone} ${pergunta(mod)}`}
+      titulo={`${mod.icone} ${caminho === 'cabelo' ? t('Vender por medida') : pergunta(mod)}`}
       carrinho={atual}
       onCarrinho={(c) => setCarrinho((x) => ({ ...(x?.moduloId === caminho ? x : atual), ...c, moduloId: caminho }))}
       passo={atual.linhas.length ? passo : 'itens'}
@@ -148,6 +177,11 @@ export function Vender() {
       nomeNegocio={cfg?.config.nomeNegocio ?? ''}
     />
   )
+}
+
+/** nome do botão pequeno na entrada do Vender ("Serviço", "Produto" ou o nome do módulo) */
+function rotuloCurto(id: string, nome: string, t: ReturnType<typeof useT>) {
+  return id === 'salao' ? t('Serviço') : id === 'produtos' ? t('Produto') : t(nome)
 }
 
 function perguntaDe(id: string, nome: string, t: ReturnType<typeof useT>) {
@@ -388,6 +422,7 @@ function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: { modulo
   const t = useT()
   const { dados: tabelas } = useConsulta('tabelasPreco', { moduloId })
   const { dados: estoque } = useConsulta('estoque', { moduloId, somenteComSaldo: true })
+  const { dados: conf } = useConsulta('configuracoes', {})
   const [aberto, setAberto] = useState(!opcional)
   const [categoria, setCategoria] = useState('Normal')
   const tabela: TabelaPreco | undefined = useMemo(() => {
@@ -401,6 +436,23 @@ function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: { modulo
   const [gramas, setGramas] = useState<number>()
   const [fator, setFator] = useState('')
   const [loteEscolhido, setLoteEscolhido] = useState<Id>()
+  // coluna e fator ficam numa linha só ("60 cm · 17,5 · Bs 35.140") quando vêm da cliente/tabela; "trocar" abre
+  const [trocarPreco, setTrocarPreco] = useState(false)
+  // LER OU BUSCAR PACOTE: leitor pistola (Enter com código exato), câmera ou digitação (código, código antigo, rótulo)
+  const [busca, setBusca] = useState('')
+  const [lendo, setLendo] = useState(false)
+  const [aviso, setAviso] = useState<string>()
+  const [focarGramas, setFocarGramas] = useState(0)
+  const caixaGramas = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (focarGramas) caixaGramas.current?.querySelector('input')?.focus()
+  }, [focarGramas])
+  // categorias: da configuração de atributos do módulo (Configurações › Atributos), não fixas na tela
+  const categorias = useMemo(() => {
+    const def = conf?.modulos.find((m) => m.id === moduloId)?.tiposItem.flatMap((ti) => ti.campos).find((c) => c.id === 'categoria')
+    const lista = def?.opcoes?.length ? def.opcoes : CATEGORIAS_RESERVA
+    return lista.includes(categoria) ? lista : [...lista, categoria]
+  }, [conf, moduloId, categoria])
   // vindo da Triagem (#/vender?modulo=cabelo&lote=… ou &medida=60&categoria=Normal): já abre com a medida, a categoria,
   // o lote e as gramas dele
   const { nav } = useApp()
@@ -436,9 +488,28 @@ function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: { modulo
   const moedaTabela = tabela?.moeda ?? moedaPadrao()
   const fatorTabela = tabela && medida && colunaAtual ? fatorDaTabela(tabela, medida, colunaAtual).fator : undefined
   const fatorUsado = fator.trim() || fatorTabela || ''
+  // recolhido: o fator veio da tabela (coluna da cliente ou a primeira) e ninguém pediu para trocar
+  const precoAberto = trocarPreco || coluna !== undefined || !fatorTabela
+  const nomeColuna = tabela?.colunas.find((c) => c.id === colunaAtual)?.nome
   const disponivel = loteEscolhido ? lotes.find((l) => l.id === loteEscolhido)?.livre ?? 0 : lotes.reduce((s, l) => s + l.livre, 0)
   const totalPrev = gramas && fatorValido(fatorUsado) ? multiplicarFator(gramas, fatorUsado, moedaTabela) : undefined
   const medidas = [...new Set([...(tabela?.linhas ?? []), ...(estoque ?? []).filter((i) => i.campos.comprimento).map((i) => Number(i.campos.comprimento))])].sort((a, b) => a - b)
+
+  const usarPacote = (l: NonNullable<typeof estoque>[number]) => {
+    setBusca('')
+    if (l.unidade !== 'grama' || !l.campos.comprimento) return setAviso(t('{c} ainda não tem medida: separe na triagem antes de vender.', { c: l.codigo ?? l.nome }))
+    const livre = l.saldo - (usados.get(l.id) ?? 0)
+    if (livre <= 0) return setAviso(t('{c} já está todo nesta venda.', { c: l.codigo ?? l.nome }))
+    setAviso(undefined)
+    setCategoria(String(l.campos.categoria || 'Normal'))
+    setMedida(Number(l.campos.comprimento))
+    setFator('')
+    setGramas(undefined)
+    setLoteEscolhido(l.id)
+    setFocarGramas((n) => n + 1)
+  }
+  const pistola = usePistola(estoque, usarPacote, (x) => setAviso(t('Nenhum pacote com o código {c}.', { c: x.trim() })))
+  const achados = buscarPacotes(estoque, busca, 6)
 
   if (!aberto)
     return (
@@ -477,13 +548,57 @@ function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: { modulo
 
   return (
     <Cartao titulo={t('Cabelo')} ajuda="Como no caderno: medida | gramas × fator = total. Ex.: 40 | 2.000 × 3,5 = Bs 7.000.">
+      <div className="relative mb-3">
+        <Campo comoDiv rotulo="Ler ou buscar pacote" ajuda="Aponte o leitor ou a câmera para a etiqueta, ou digite o código. Ex.: P4 ou M1-2.">
+          <div className="flex gap-2">
+            <Entrada
+              type="search"
+              aria-label={t('Ler ou buscar pacote')}
+              placeholder={t('Código, código antigo ou rótulo')}
+              value={busca}
+              onChange={(e) => (setBusca(e.target.value), setAviso(undefined))}
+              onKeyDown={pistola.onKeyDown}
+              spellCheck={false}
+              autoComplete="off"
+            />
+            <Botao variante="secundario" className="shrink-0" aria-label={t('Ler código')} title={t('Ler código')} onClick={() => setLendo(true)}>📷</Botao>
+          </div>
+        </Campo>
+        {achados.length > 0 && (
+          <ul className="absolute inset-x-0 z-20 mt-1 max-h-72 overflow-auto rounded-xl border border-[var(--borda)] bg-[var(--cartao)] shadow-lg">
+            {achados.map((l) => (
+              <li key={l.id}>
+                <button type="button" onClick={() => usarPacote(l)} className="flex w-full justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--marca-suave)]">
+                  <span className="min-w-0 truncate"><b className="font-mono">{l.codigo ?? '—'}</b> · {l.nome}</span>
+                  <span className="num shrink-0 text-[var(--suave)]">{gramasTexto(l.saldo)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {aviso && <p className="mt-1 text-sm font-semibold text-[var(--alerta)]">{aviso}</p>}
+      </div>
+      {lendo && (
+        <LeitorCodigo
+          abrirLote={false}
+          onFechar={() => setLendo(false)}
+          onLer={(c) => {
+            setLendo(false)
+            const l = acharPorCodigo(estoque, c)
+            if (l) usarPacote(l)
+            else (setBusca(c), setAviso(t('Nenhum pacote com o código {c}.', { c })))
+          }}
+        />
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <Campo rotulo="Categoria">
-          <Selecao valor={categoria} onChange={(v) => (setCategoria(v), setFator(''))} opcoes={['Normal', 'Tinte', 'CH', 'CH+', 'Rojo', 'Quemado', 'Menudo', 'Entresaque'].map((c) => ({ id: c, nome: c }))} />
+          <Selecao valor={categoria} onChange={(v) => (setCategoria(v), setFator(''), setLoteEscolhido(undefined))} opcoes={categorias.map((c) => ({ id: c, nome: t(c) }))} />
         </Campo>
-        <Campo rotulo="Coluna da tabela (comprador)" ajuda="Cada comprador tem seu preço. Se a pessoa estiver ligada a uma coluna, ela já vem escolhida.">
-          <Selecao valor={colunaAtual} onChange={(v) => (setColuna(v), setFator(''))} opcoes={(tabela?.colunas ?? []).map((c) => ({ id: c.id, nome: c.nome }))} />
-        </Campo>
+        {precoAberto && (
+          <Campo rotulo="Coluna da tabela (comprador)" ajuda="Cada comprador tem seu preço. Se a pessoa estiver ligada a uma coluna, ela já vem escolhida.">
+            <Selecao valor={colunaAtual} onChange={(v) => (setColuna(v), setFator(''))} opcoes={(tabela?.colunas ?? []).map((c) => ({ id: c.id, nome: c.nome }))} />
+          </Campo>
+        )}
       </div>
       <div className="mt-3">
         <span id="medida-cabelo" className="mb-1 block text-sm font-semibold text-[var(--suave)]">{t('Medida (cm)')}</span>
@@ -501,14 +616,27 @@ function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: { modulo
       {medida && (
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <Campo rotulo="Gramas" ajuda="Digite em gramas (2008) ou troque para kg (2,5).">
-            <GramasInput valor={gramas} onChange={setGramas} />
+            <div ref={caixaGramas}><GramasInput key={focarGramas} valor={gramas} onChange={setGramas} /></div>
           </Campo>
-          <Campo rotulo="Fator" ajuda="Vem da tabela; dá para mudar só nesta venda.">
-            <Entrada inputMode="decimal" value={fator} placeholder={fatorTabela ?? '?'} onChange={(e) => setFator(e.target.value)} />
-          </Campo>
-          <Campo rotulo="Lote">
+          {precoAberto && (
+            <Campo rotulo="Fator" ajuda="Vem da tabela; dá para mudar só nesta venda.">
+              <Entrada inputMode="decimal" value={fator} placeholder={fatorTabela ?? '?'} onChange={(e) => setFator(e.target.value)} />
+            </Campo>
+          )}
+          <Campo rotulo="Lote" ajuda="Pega o pacote mais antigo; se não bastar, divide. Ex.: 1.500 g = 1.000 g do P1 + 500 g do P4.">
             <Selecao valor={loteEscolhido} onChange={(v) => setLoteEscolhido(v || undefined)} vazio="Automático (mais antigo)" opcoes={lotes.map((l) => ({ id: l.id, nome: `${l.codigo ?? ''} ${gramasTexto(l.livre)}` }))} />
           </Campo>
+        </div>
+      )}
+      {medida && !precoAberto && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <span className="num font-semibold">{medida} cm</span>
+          <span aria-hidden>·</span>
+          <input inputMode="decimal" aria-label={t('Fator')} value={fator} placeholder={fatorTabela} onChange={(e) => setFator(e.target.value)} className="num w-16 rounded-lg border border-transparent bg-transparent px-1 font-semibold outline-none placeholder:text-[var(--texto)] hover:border-[var(--borda)] focus:border-[var(--marca)]" />
+          <span aria-hidden>·</span>
+          <span className="num font-semibold">{totalPrev !== undefined ? formatar(totalPrev, moedaTabela) : '—'}</span>
+          {nomeColuna && <span className="text-[var(--suave)]">({nomeColuna})</span>}
+          <button type="button" className="min-h-10 px-2 font-semibold text-[var(--marca)] underline-offset-4 hover:underline" onClick={() => setTrocarPreco(true)}>{t('trocar')}</button>
         </div>
       )}
       {medida && (

@@ -4,6 +4,8 @@
 // confere que a viagem é dela); criar, adiantar, ligar compras, encerrar, incorporar e o resultado: só administrador.
 // Adiantamentos a parceiros: criar, registrar entrega, receber, abater, pagar diferença e encerrar só administrador;
 // a funcionária só CONSULTA os adiantamentos dela (o serviço filtra pela pessoa da sessão).
+// Funcionária: papel enxuto, focado na venda do cabelo (modo caixa, ver pacote para vender: pacoteVenda);
+// administrar estoque, triagem, compras e custos (fichaItem, rastreio, triagem…) é do administrador.
 // Códigos (salvarCodigos, salvarSigla, trocarCodigo*, codigos, codigoDisponivel): só administrador (fora das listas).
 
 import type { NomeComando, NomeConsulta } from '.'
@@ -13,6 +15,11 @@ export const COMANDOS_FUNCIONARIO = new Set<NomeComando>([
   'atenderAgendamento',
   'criarServicoRapido',
   'cancelarVenda',
+  // agenda: compromissos dela e "Pago" depois nos atendimentos dela (o serviço confere)
+  'salvarEvento',
+  'excluirEvento',
+  'concluirEvento',
+  'receberAtendimento',
   'salvarPessoa',
   'registrarAnexo',
   'definirMiniatura',
@@ -35,13 +42,20 @@ export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
   'calcularPreco',
   'agenda',
   'conflitosAgenda',
+  'calendario',
+  'evento',
   'venda',
+  'origemDoPacote',
+  'origemDaVenda',
+  // ver o pacote para VENDER (QR): só foto, código, rótulo, peso e preço da tabela; a ficha completa (fichaItem) é do admin
+  'pacoteVenda',
   'organograma',
   'resumoFuncionario',
   'unidades',
   'anexosDe',
   'fotosDoLote',
   'etiquetas',
+  'modoEtiqueta',
   'linhaDoTempo',
   'comissoes',
   'usuariosDemo',

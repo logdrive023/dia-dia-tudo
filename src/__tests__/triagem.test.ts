@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { bs, novoBackend } from './ajuda'
-import { faseLote } from '../core/services/triagem'
+import { COLUNAS_PADRAO, COLUNA_LAVAGEM, faseLote } from '../core/services/triagem'
 
 type B = Awaited<ReturnType<typeof novoBackend>>['b']
 
@@ -15,6 +15,8 @@ async function comprar(b: B, id: string, fornecedor: string, gramas: number, tot
 describe('triagem: compra → unificar → preparar → separar → venda', () => {
   it('lote bruto da compra aparece aguardando; muda de fase com log', async () => {
     const { b } = await novoBackend()
+    // as colunas padrão mudaram (Aguardando → Separado → Pronto para venda): lavar é opcional, então este teste liga a coluna de lavagem
+    await b.comando('salvarFluxoTriagem', { moduloId: 'cabelo', colunas: [COLUNAS_PADRAO[0], COLUNA_LAVAGEM, ...COLUNAS_PADRAO.slice(1)] })
     const l1 = await comprar(b, 'c1', 'ana', 5000, bs(40000), { cor: 'Preto', textura: 'Liso' })
     let q = await b.consulta('triagem', {})
     expect(q.lotes.find((x) => x.id === l1)).toMatchObject({ fase: 'aguardando', saldo: 5000, compras: [{ id: 'c1', fornecedor: 'ANA' }] })
@@ -38,14 +40,15 @@ describe('triagem: compra → unificar → preparar → separar → venda', () =
     const l2 = await comprar(b, 'c2', 'bia', 2000, bs(10000), {})
     await b.comando('moverFaseTriagem', { ids: [l2], fase: 'triado' })
     expect((await b.consulta('fichaItem', { id: l2 })).item.campos.estado).toBe('Separado')
-    expect((await b.consulta('logDetalhado', { acao: 'moverFaseTriagem' })).linhas[0].resumo).toMatch(/→ Triado \(pronto para venda\) \(Situação: Bruto → Separado/)
+    expect((await b.consulta('logDetalhado', { acao: 'moverFaseTriagem' })).linhas[0].resumo).toMatch(/→ Separado \(Situação: Bruto → Separado/)
   })
 
   it('colunas personalizadas: renomear, criar, reordenar, entrada configurável, não tira coluna com lote, volta ao padrão', async () => {
     const { b } = await novoBackend()
     const padrao = (await b.consulta('fluxosTriagem', {})).find((f) => f.moduloId === 'cabelo')!
     expect(padrao.personalizado).toBe(false)
-    expect(padrao.colunas.map((c) => c.id)).toEqual(['aguardando', 'preparando', 'triado', 'vendido'])
+    // padrão novo: Aguardando → Separado → Pronto para venda (+ Vendido); a lavagem virou opcional
+    expect(padrao.colunas.map((c) => c.id)).toEqual(['aguardando', 'triado', 'pronto', 'vendido'])
     const l1 = await comprar(b, 'c1', 'ana', 5000, bs(40000), {})
     // nova coluna "Lavagem" antes de tudo e é a entrada; "Aguardando" vira "Fila" e vai para depois
     const cols = [
@@ -76,11 +79,12 @@ describe('triagem: compra → unificar → preparar → separar → venda', () =
     expect(q.lotes.find((x) => x.id === l2)?.fase).toBe('aguardando')
     // voltar ao padrão: "Lavagem" (com l1) impede; depois de mover, volta
     await expect(b.comando('salvarFluxoTriagem', { moduloId: 'cabelo', colunas: null })).rejects.toThrow(/Lavagem/)
-    await b.comando('moverFaseTriagem', { ids: [l1], fase: 'preparando' })
+    // (a lavagem não está mais no padrão: o lote vai para "Pronto", que continua no padrão como "Separado")
+    await b.comando('moverFaseTriagem', { ids: [l1], fase: 'triado' })
     await b.comando('salvarFluxoTriagem', { moduloId: 'cabelo', colunas: null })
     q = await b.consulta('triagem', {})
-    expect(q.colunas.map((c) => c.id)).toEqual(['aguardando', 'preparando', 'triado', 'vendido'])
-    expect(q.lotes.find((x) => x.id === l1)?.fase).toBe('preparando')
+    expect(q.colunas.map((c) => c.id)).toEqual(['aguardando', 'triado', 'pronto', 'vendido'])
+    expect(q.lotes.find((x) => x.id === l1)?.fase).toBe('triado')
     // coluna guardada que não existe mais: bruto volta para a entrada, separado para a primeira "pronto"
     const cs = q.colunas
     expect(faseLote({ saldo: 10, campos: { estado: 'Bruto' }, faseTriagem: { fase: 'sumiu', desde: '' } }, cs)).toBe('aguardando')
@@ -92,6 +96,8 @@ describe('triagem: compra → unificar → preparar → separar → venda', () =
 
   it('unifica lotes de 2 compras, separa com perda e mantém as duas compras no rastreio', async () => {
     const { b } = await novoBackend()
+    // as colunas padrão mudaram (Aguardando → Separado → Pronto para venda): lavar é opcional, então este teste liga a coluna de lavagem
+    await b.comando('salvarFluxoTriagem', { moduloId: 'cabelo', colunas: [COLUNAS_PADRAO[0], COLUNA_LAVAGEM, ...COLUNAS_PADRAO.slice(1)] })
     const l1 = await comprar(b, 'c1', 'ana', 5000, bs(40000), { cor: 'Preto', textura: 'Liso' })
     const l2 = await comprar(b, 'c2', 'bia', 3000, bs(30000), { cor: 'Castanho', textura: 'Liso' })
     await b.comando('moverFaseTriagem', { ids: [l2], fase: 'preparando' })

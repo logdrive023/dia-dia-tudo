@@ -55,7 +55,7 @@ export async function resumoMenu(ctx: Ctx, _p: object = {}) {
     aReceber,
     atrasadas,
     brutos: itens.filter((i) => i.saldo > 0 && i.campos.estado === 'Bruto').length,
-    aguardandoTriagem: itens.filter((i) => i.saldo > 0 && i.campos.estado === 'Bruto' && (!i.faseTriagem || !!i.faseTriagem.entrada)).length,
+    aguardandoTriagem: itens.filter((i) => i.saldo > 0 && (i.campos.estado === 'Bruto' || i.campos.estado === 'Não identificado') && (!i.faseTriagem || !!i.faseTriagem.entrada)).length,
     repor: itens.filter((i) => i.controlaEstoque && i.estoqueIdeal && i.saldo < i.estoqueIdeal).length,
   }
 }

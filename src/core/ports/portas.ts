@@ -9,6 +9,7 @@ import type {
   CotacaoRegistro,
   Dia,
   Emprestimo,
+  Evento,
   Financiamento,
   Id,
   Item,
@@ -56,6 +57,8 @@ export interface Repos {
   usuarios: Colecao<Usuario>
   viagens: Colecao<Viagem>
   financiamentos: Colecao<Financiamento>
+  /** compromissos e lembretes da agenda */
+  eventos: Colecao<Evento>
   outbox: Colecao<Outbox>
 }
 
@@ -78,6 +81,7 @@ export const NOMES_COLECOES: (keyof Repos)[] = [
   'usuarios',
   'viagens',
   'financiamentos',
+  'eventos',
   'outbox',
 ]
 

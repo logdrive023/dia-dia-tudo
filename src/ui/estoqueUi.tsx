@@ -12,6 +12,7 @@ export const STATUS_LOTE: Record<StatusLote, { nome: string; tom: 'bom' | 'alert
   disponivel: { nome: 'Disponível', tom: 'bom' },
   parcial: { nome: 'Parcial', tom: 'marca' },
   bruto: { nome: 'Bruto · para separar', tom: 'alerta' },
+  naoIdentificado: { nome: 'Não identificado', tom: 'alerta' },
   preparando: { nome: 'Em triagem', tom: 'marca' },
   esgotado: { nome: 'Esgotado', tom: 'neutro' },
 }
@@ -85,20 +86,28 @@ export function Etapa({ n, titulo, children, acao }: { n: number; titulo: ReactN
 
 type Detector = { detect(v: HTMLVideoElement): Promise<{ rawValue: string }[]> }
 
-export const temLeitorCodigo = () => typeof window !== 'undefined' && 'BarcodeDetector' in window
+/** o navegador lê QR/código de barras pela câmera (Chrome no Android, por exemplo) */
+export const temDetectorCodigo = () => typeof window !== 'undefined' && 'BarcodeDetector' in window
+
+/**
+ * O botão da câmera aparece SEMPRE: onde o navegador não lê códigos, a janela explica que dá para usar a câmera do
+ * celular no QR (ela abre o pacote direto). Mantido com este nome para as telas que já usam.
+ */
+export const temLeitorCodigo = () => true
 
 /**
  * Abre a câmera, lê QR/código de barras e devolve o texto. Sem câmera ou sem permissão: explica e deixa digitar.
- * QR da ETIQUETA do lote (…#/lotes/<id>): abre o lote direto.
+ * QR da ETIQUETA do lote (…#/lotes/<id>): abre o lote direto (abrirLote=false: devolve o texto, ex.: a venda adiciona).
  */
-export function LeitorCodigo({ onLer: onLerTexto, onFechar }: { onLer(codigo: string): void; onFechar(): void }) {
+export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true }: { onLer(codigo: string): void; onFechar(): void; abrirLote?: boolean }) {
   const t = useT()
   const { ir } = useApp()
-  const ref = useRef({ onLerTexto, onFechar, ir })
-  ref.current = { onLerTexto, onFechar, ir }
+  const ref = useRef({ onLerTexto, onFechar, ir, abrirLote })
+  ref.current = { onLerTexto, onFechar, ir, abrirLote }
+  const semDetector = !temDetectorCodigo()
   const onLer = useCallback((texto: string) => {
     const lote = loteDoCodigoLido(texto)
-    if (lote) return (ref.current.onFechar(), ref.current.ir('lote', { id: lote }))
+    if (lote && ref.current.abrirLote) return (ref.current.onFechar(), ref.current.ir('lote', { id: lote }))
     ref.current.onLerTexto(texto)
   }, [])
   const video = useRef<HTMLVideoElement>(null)
@@ -107,6 +116,7 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar }: { onLer(codigo: st
     let stream: MediaStream | undefined
     let vivo = true
     let timer: ReturnType<typeof setTimeout> | undefined
+    if (semDetector) return undefined
     ;(async () => {
       try {
         const Ctor = (window as unknown as { BarcodeDetector: new (o?: object) => Detector }).BarcodeDetector
@@ -135,10 +145,15 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar }: { onLer(codigo: st
       if (timer) clearTimeout(timer)
       stream?.getTracks().forEach((x) => x.stop())
     }
-  }, [onLer])
+  }, [onLer, semDetector])
   return (
     <Janela aberta titulo={t('Ler código')} onFechar={onFechar} rodape={<Botao variante="leve" className="w-full" onClick={onFechar}>{t('Fechar')}</Botao>}>
-      {erro ? <p className="text-sm text-[var(--ruim)]">{t(erro)}</p> : (
+      {semDetector ? (
+        <div className="space-y-2 text-sm">
+          <p className="font-semibold">📱 {t('Use a câmera do celular para ler o QR')}</p>
+          <p className="text-[var(--suave)]">{t('Este navegador não lê códigos pela câmera. A câmera do celular lê o QR da etiqueta e abre o pacote; o leitor de balcão digita o código na busca.')}</p>
+        </div>
+      ) : erro ? <p className="text-sm text-[var(--ruim)]">{t(erro)}</p> : (
         <div className="space-y-2">
           <video ref={video} className={cx('aspect-video w-full rounded-xl bg-black object-cover')} muted playsInline />
           <p className="text-center text-sm text-[var(--suave)]">{t('Aponte para a etiqueta do lote (QR ou código de barras).')}</p>

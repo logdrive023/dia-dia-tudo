@@ -377,7 +377,7 @@ export function FichaFinanciamento() {
             ))}
           </ul>
           <Botao variante="secundario" onClick={() => setLinhas([...linhas, novaLinha()])}>+ {t('Outra medida')}</Botao>
-          <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" checked={entrarNoEstoque} onChange={(e) => setEntrar(e.target.checked)} /> {t('Já entrar no estoque (vai para a Triagem)')}</label>
+          <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" checked={entrarNoEstoque} onChange={(e) => setEntrar(e.target.checked)} /> {t('Já marcar a entrega como concluída (o cabelo vai para a Triagem de qualquer jeito)')}</label>
           <Campo rotulo="Observação (opcional)"><Entrada value={obs} onChange={(e) => setObs(e.target.value)} /></Campo>
         </div>
       </Janela>

@@ -1,7 +1,7 @@
 // VENDAS e ATENDIMENTOS: uma venda tem linhas (cabelo em gramas, serviço, produto) e pagamentos em qualquer moeda.
 // Agendado não mexe em estoque nem caixa; só ao concluir.
 
-import { converter, formatar, multiplicarFator, proporcao, type CodigoMoeda } from '../domain/dinheiro'
+import { converter, formatar, moeda as moedaDe, multiplicarFator, proporcao, type CodigoMoeda, type Cotacao } from '../domain/dinheiro'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { dataDeInstante } from '../domain/datas'
 import type { Id, Item, Linha, RegraComissao, Transacao } from '../domain/tipos'
@@ -31,6 +31,11 @@ export interface LinhaVendaEntrada {
   insumo?: InsumoEntrada
   /** motivo de cobrar menos que o preço do catálogo (funcionária precisa dizer) */
   motivoPreco?: string
+  /**
+   * DESCONTO desta linha na moeda da linha. A linha continua com a conta da tabela (medida, fator, tabela, coluna) e o
+   * valor cheio; o total gravado é o líquido. Ex.: 2.008 g × 17,5 = Bs 35.140 com desconto 87850 → total Bs 34.261,50.
+   */
+  desconto?: number
 }
 
 export interface InsumoEntrada {
@@ -51,6 +56,58 @@ export interface VendaEntrada {
   obs?: string
   /** agenda: marcar mesmo com horário ocupado (a tela pergunta antes) */
   ignorarConflito?: boolean
+  /**
+   * MOEDA DE COBRANÇA (modo caixa): em que moeda a pessoa pagou e a cotação digitada na hora.
+   * Ex.: { moeda: 'BRL', cotacao: { moeda: 'BRL', valor: '1,28', sentido: 'basePorMoeda', contra: 'BOB' } } →
+   * a venda guarda "Cobrado em R$ · cotação 1 R$ = 1,28 Bs".
+   */
+  cobranca?: { moeda: CodigoMoeda; cotacao?: Cotacao }
+  /**
+   * DESCONTO da venda (modo caixa), em % ou em valor na moeda das linhas: é repartido entre as linhas dessa moeda,
+   * proporcional ao valor cheio de cada uma (a última fica com o arredondamento). As linhas guardam a conta da tabela.
+   * `cobrado` = o mesmo desconto na moeda de cobrança (para o texto "desconto R$ 10,00").
+   * Ex.: { moeda: 'BOB', pct: 2.5 } sobre Bs 35.140 → "desconto 2,5% = Bs 878,50".
+   */
+  desconto?: { moeda: CodigoMoeda; valor?: number; pct?: number; cobrado?: number }
+}
+
+/** Reparte o desconto da venda entre as linhas da moeda dele (proporcional ao valor cheio). Devolve as linhas e o texto. */
+function repartirDesconto(linhas: LinhaVendaEntrada[], d: VendaEntrada['desconto'], cobranca: VendaEntrada['cobranca']) {
+  if (!d || (!d.valor && !d.pct)) return { linhas, texto: undefined as string | undefined }
+  const cheio = (l: LinhaVendaEntrada) => (l.calculo?.fator ? multiplicarFator(l.quantidade, l.calculo.fator, l.moeda) : l.total)
+  const alvo = linhas.filter((l) => l.moeda === d.moeda && !l.desconto)
+  const base = alvo.reduce((s, l) => s + cheio(l), 0)
+  exigir(alvo.length && base > 0, `Desconto em ${d.moeda}, mas nenhum item da venda está em ${d.moeda}.`, 'desconto')
+  if (d.pct !== undefined) exigir(Number.isFinite(d.pct) && d.pct > 0 && d.pct <= 100, 'Desconto de 0 a 100%.', 'desconto')
+  const valor = d.pct !== undefined ? Math.round((base * d.pct) / 100) : d.valor!
+  exigirInteiroPositivo(valor, 'Desconto')
+  exigir(valor <= base, 'Desconto maior que o total.', 'desconto')
+  let resta = valor
+  const ultima = alvo[alvo.length - 1]
+  const saida = linhas.map((l) => {
+    if (!alvo.includes(l)) return l
+    const parte = l === ultima ? resta : proporcao(valor, cheio(l), base)
+    resta -= parte
+    return parte ? { ...l, desconto: parte } : l
+  })
+  const pctTxt = d.pct !== undefined ? `${String(Math.round(d.pct * 100) / 100).replace('.', ',')}% = ` : ''
+  const naCobranca = d.cobrado !== undefined && cobranca && cobranca.moeda !== d.moeda
+  const texto = naCobranca
+    ? `desconto ${pctTxt}${formatar(d.cobrado!, cobranca!.moeda)} (= ${formatar(valor, d.moeda)})`
+    : `desconto ${pctTxt}${formatar(valor, d.moeda)}`
+  return { linhas: saida, texto }
+}
+
+/** "Cobrado em R$ · cotação 1 R$ = 1,28 Bs" (ou "Cobrado em Bs") para os campos da venda. */
+function camposCobranca(c: VendaEntrada['cobranca'], principal: CodigoMoeda) {
+  if (!c) return {}
+  const sm = moedaDe(c.moeda).simbolo
+  const cot = c.moeda !== principal && c.cotacao?.valor ? String(c.cotacao.valor).trim() : undefined
+  return {
+    cobradoEm: c.moeda,
+    ...(cot ? { cotacaoCobranca: cot } : {}),
+    cobranca: cot ? `Cobrado em ${sm} · cotação 1 ${sm} = ${cot} ${moedaDe(principal).simbolo}` : `Cobrado em ${sm}`,
+  }
 }
 
 /** Insumos da linha (moeda principal): os enviados ou os do catálogo. Mudar pede motivo; baixar do catálogo é do administrador. */
@@ -99,9 +156,17 @@ async function montarLinhas(ctx: Ctx, entrada: LinhaVendaEntrada[], profissional
     const item = await ctx.repos.itens.obter(l.itemId)
     exigir(item && item.ativo, 'Item não encontrado.')
     exigirInteiroPositivo(l.quantidade, `Quantidade de ${item.nome}`)
-    const total = l.calculo?.fator ? multiplicarFator(l.quantidade, l.calculo.fator, l.moeda) : l.total
-    exigirInteiroPositivo(total, `Valor de ${item.nome}`, true)
+    const bruto = l.calculo?.fator ? multiplicarFator(l.quantidade, l.calculo.fator, l.moeda) : l.total
+    exigirInteiroPositivo(bruto, `Valor de ${item.nome}`, true)
+    // desconto: a linha guarda o cheio (gramas × fator) e o líquido; comissão e lucro usam o líquido
+    const desconto = l.desconto || 0
+    if (desconto) {
+      exigirInteiroPositivo(desconto, `Desconto de ${item.nome}`)
+      exigir(desconto <= bruto, `O desconto de ${item.nome} passa do valor.`, 'desconto')
+    }
+    const total = bruto - desconto
     const conv = await paraPrincipal(ctx, total, l.moeda, 'venda')
+    const convBruto = desconto ? await paraPrincipal(ctx, bruto, l.moeda, 'venda') : conv
     const profissionalId = l.profissionalId ?? (item.controlaEstoque ? undefined : profissionalPadrao)
     const servico = item.unidade === 'servico'
     // preço abaixo do catálogo: a funcionária diz o motivo; fica guardado na linha e no log
@@ -130,6 +195,7 @@ async function montarLinhas(ctx: Ctx, entrada: LinhaVendaEntrada[], profissional
       ...(ins.motivo ? { insumoMotivo: ins.motivo } : {}),
       ...(precoCatalogo !== undefined ? { precoCatalogo } : {}),
       ...(precoCatalogo !== undefined && total !== precoCatalogo && l.motivoPreco?.trim() ? { motivoPreco: l.motivoPreco.trim() } : {}),
+      ...(desconto ? { bruto, desconto, descontoPrincipal: convBruto.valorPrincipal - conv.valorPrincipal } : {}),
       campos: l.calculo?.fator
         ? {
             medida: l.calculo.medida,
@@ -137,7 +203,7 @@ async function montarLinhas(ctx: Ctx, entrada: LinhaVendaEntrada[], profissional
             categoria: l.calculo.categoria,
             tabelaId: l.calculo.tabelaId,
             colunaId: l.calculo.colunaId,
-            calculo: `${l.calculo.medida ?? ''}${l.calculo.categoria ? ' ' + l.calculo.categoria : ''} | ${l.quantidade.toLocaleString('pt-BR')} × ${l.calculo.fator} = ${formatar(total, l.moeda)}`,
+            calculo: `${l.calculo.medida ?? ''}${l.calculo.categoria ? ' ' + l.calculo.categoria : ''} | ${l.quantidade.toLocaleString('pt-BR')} × ${l.calculo.fator} = ${formatar(bruto, l.moeda)}`,
           }
         : {},
     }
@@ -189,7 +255,8 @@ async function concluir(ctx: Ctx, v: Transacao, pagamentosEntrada: PagamentoEntr
 export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
   if (await ctx.repos.transacoes.obter(d.id)) return { id: d.id }
   const cfg = await lerConfig(ctx)
-  const linhas = await montarLinhas(ctx, d.linhas, d.profissionalId)
+  const comDesconto = repartirDesconto(d.linhas ?? [], d.desconto, d.cobranca)
+  const linhas = await montarLinhas(ctx, comDesconto.linhas, d.profissionalId)
   const primeiro = await ctx.repos.itens.obter(linhas[0].itemId!)
   let v = novo<Transacao>(ctx, {
     id: d.id,
@@ -208,7 +275,7 @@ export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
     totalPrincipal: linhas.reduce((s, l) => s + l.totalPrincipal, 0),
     historico: [],
     obs: d.obs,
-    campos: {},
+    campos: { ...camposCobranca(d.cobranca, cfg.moedaPrincipal), ...(comDesconto.texto ? { desconto: comDesconto.texto } : {}) },
   })
   if (d.agendadoPara) {
     exigir(d.pessoaId, 'Diga quem é a cliente do agendamento.', 'pessoaId')
@@ -223,6 +290,10 @@ export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
   await ctx.repos.transacoes.salvar(v)
   await auditar(ctx, d.agendadoPara ? 'agendar' : 'concluirVenda', v.id, linhas.map((l) => l.descricao).join(', '), [v.pessoaId!, v.profissionalId!, ...linhas.map((l) => l.itemId!)])
   await auditarAjustes(ctx, v)
+  // cotação digitada na hora (não a do sistema): fica no log
+  const manuais = d.pagamentos.filter((p) => p.cotacao && p.moeda !== cfg.moedaPrincipal)
+  if (manuais.length)
+    await auditar(ctx, 'cotacaoManual', v.id, manuais.map((p) => `${formatar(p.valor, p.moeda)} · 1 ${p.moeda} = ${p.cotacao!.valor} ${p.cotacao!.contra ?? cfg.moedaPrincipal}`).join(' · '), [v.pessoaId!])
   return { id: v.id }
 }
 
@@ -319,7 +390,12 @@ export async function corrigirVenda(
     const qtd = c.quantidade ?? l.quantidade
     exigirInteiroPositivo(qtd, `Quantidade de ${l.descricao}`)
     const fator = c.fator?.trim() || (l.campos.fator as string | undefined)
-    const total = c.fator?.trim() || (fator && c.quantidade !== undefined && c.total === undefined) ? multiplicarFator(qtd, fator!, l.moeda) : c.total ?? l.total
+    // com fator o valor cheio é recalculado (gramas × fator) e o desconto da linha continua (até o cheio);
+    // valor digitado (c.total) é o valor final da linha: o desconto sai
+    const recalcula = !!(c.fator?.trim() || (fator && c.quantidade !== undefined && c.total === undefined))
+    const bruto = recalcula ? multiplicarFator(qtd, fator!, l.moeda) : l.bruto ?? l.total
+    const desconto = recalcula ? Math.min(l.desconto ?? 0, bruto) : c.total !== undefined ? 0 : l.desconto ?? 0
+    const total = recalcula ? bruto - desconto : c.total ?? l.total
     exigirInteiroPositivo(total, `Valor de ${l.descricao}`, true)
     // insumos e % da comissão (salão): o que já estava na linha vale; só muda o que vier na correção
     let insumoNovo: { insumoPrincipal: number; insumos: { nome: string; valorPrincipal: number }[] } | undefined
@@ -340,7 +416,7 @@ export async function corrigirVenda(
     if (t.etapa === 'concluido' && item?.controlaEstoque && qtd !== l.quantidade)
       await moverEstoque(ctx, { itemId: item.id, delta: l.quantidade - qtd, motivo: 'correcao', origemId: v.id, descricao: `Correção da venda: ${l.quantidade} → ${qtd}` })
     if (qtd !== l.quantidade || total !== l.total)
-      ajustes.push(`${l.descricao}: ${l.quantidade.toLocaleString('pt-BR')} = ${formatar(l.total, l.moeda)} → ${qtd.toLocaleString('pt-BR')}${fator ? ` × ${fator}` : ''} = ${formatar(total, l.moeda)}`)
+      ajustes.push(`${l.descricao}: ${l.quantidade.toLocaleString('pt-BR')} = ${formatar(l.total, l.moeda)} → ${qtd.toLocaleString('pt-BR')}${fator ? ` × ${fator}` : ''}${desconto ? ` − desconto ${formatar(desconto, l.moeda)}` : ''} = ${formatar(total, l.moeda)}`)
     if (insumoNovo) ajustes.push(`${l.descricao}: insumos ${formatar(l.insumoPrincipal ?? 0, v.moedaPrincipal)} → ${formatar(insumoNovo.insumoPrincipal, v.moedaPrincipal)}`)
     if (bpNovo !== undefined) ajustes.push(`${l.descricao}: comissão ${pct(l.comissaoBp ?? 0)} → ${pct(bpNovo)}`)
     const conv = await paraPrincipal(ctx, total, l.moeda, 'venda')
@@ -348,9 +424,18 @@ export async function corrigirVenda(
     l.total = total
     l.totalPrincipal = conv.valorPrincipal
     l.cotacao = conv.cotacao
+    if (desconto) {
+      l.bruto = bruto
+      l.desconto = desconto
+      l.descontoPrincipal = (await paraPrincipal(ctx, bruto, l.moeda, 'venda')).valorPrincipal - conv.valorPrincipal
+    } else {
+      delete l.bruto
+      delete l.desconto
+      delete l.descontoPrincipal
+    }
     if (fator) {
       l.campos.fator = fator
-      l.campos.calculo = `${l.campos.medida ?? ''}${l.campos.categoria && l.campos.categoria !== 'Normal' ? ' ' + l.campos.categoria : ''} | ${qtd.toLocaleString('pt-BR')} × ${fator} = ${formatar(total, l.moeda)}`
+      l.campos.calculo = `${l.campos.medida ?? ''}${l.campos.categoria && l.campos.categoria !== 'Normal' ? ' ' + l.campos.categoria : ''} | ${qtd.toLocaleString('pt-BR')} × ${fator} = ${formatar(recalcula || desconto ? bruto : total, l.moeda)}`
     }
     if (item?.controlaEstoque) l.custoPrincipal = custoDe(item, qtd)
     if (insumoNovo) {

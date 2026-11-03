@@ -8,7 +8,7 @@ import { type ReactNode, useState } from 'react'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import type { Cadeia } from '../core/services/estoque'
-import { Botao, cx, dataBR, fmt, gramasTexto } from './base'
+import { Botao, Info, cx, dataBR, fmt, gramasTexto } from './base'
 import { useApp } from './contexto'
 import { useT } from './i18n'
 import { MenuAcoes, acoesLote } from './menuAcoes'
@@ -121,7 +121,8 @@ export function RastreioTotal({ g, admin = true }: { g: Genealogia; admin?: bool
   return (
     <div className="space-y-3">
       <p className={cx('num rounded-xl p-2 text-sm font-semibold', tt.confere ? 'bg-[var(--bom)]/10 text-[var(--bom)]' : 'bg-[var(--alerta)]/10 text-[var(--alerta)]')}>
-        {t('Entrou')} {gramasTexto(tt.entrou)} = {t('vendido')} {gramasTexto(tt.vendido)} + {t('em estoque')} {gramasTexto(tt.emEstoque)} + {t('perda')} {gramasTexto(tt.perda)} {tt.confere ? '✓' : `⚠️ ${g.parcial ? t('(mostrando só uma parte)') : t('(não fecha: confira os ajustes)')}`}
+        {t('Entrou')} {gramasTexto(tt.entrou)} = {t('vendido')} {gramasTexto(tt.vendido)} + {t('em estoque')} {gramasTexto(tt.emEstoque)} + {t('perda')} {gramasTexto(tt.perda)}{tt.cancelado ? <> + {t('cancelado')} {gramasTexto(tt.cancelado)}</> : null} {tt.confere ? '✓' : `⚠️ ${g.parcial ? t('(mostrando só uma parte)') : t('(não fecha: confira os ajustes)')}`}
+        <Info texto="Comprado = em pacotes + vendido + perda. Ex.: 10 kg = 4 + 5,4 + 0,6." />
       </p>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {coluna('Compras', 'de onde veio', g.compras.length, g.compras.map((c) =>

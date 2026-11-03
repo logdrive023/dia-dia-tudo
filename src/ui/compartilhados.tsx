@@ -2,10 +2,10 @@
 // moedas, fotos/comprovantes, conversor de moedas e recibo no WhatsApp.
 
 import { useEffect, useState } from 'react'
-import { MOEDAS, converter, formatar, type TabelaCotacoes } from '../core/domain/dinheiro'
+import { MOEDAS, type Cotacao, converter, formatar, moeda as moedaDe, type TabelaCotacoes, valorDeUm } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
-import type { CategoriaAnexo, Id, Papel } from '../core/domain/tipos'
-import { Botao, Campo, Entrada, Janela, Pilula, Selecao, ValorInput, cx, moedaPadrao } from './base'
+import type { CategoriaAnexo, Id, Pagamento, Papel } from '../core/domain/tipos'
+import { Botao, Campo, Entrada, Janela, Pilula, Selecao, ValorInput, cx, loc, moedaPadrao } from './base'
 import { useApp, useComando, useConsulta } from './contexto'
 import { useT } from './i18n'
 import { VisorFotos, useEnviarFotos } from './fotos'
@@ -75,6 +75,48 @@ export interface PagamentoTela {
   forma: string
   moeda: string
   valor?: number
+  /** cotação digitada para ESTE pagamento ("6,96" = 1 US$ = 6,96 na moeda principal); sem ela vale a sugerida */
+  cotacao?: string
+}
+
+/** cotação digitada: "6,96" ou "6.96" → "6,96" (inválida → undefined) */
+export function lerCotacaoTexto(texto: string | undefined) {
+  const s = (texto ?? '').trim()
+  if (!/^\d+([.,]\d+)?$/.test(s) || !(Number(s.replace(',', '.')) > 0)) return undefined
+  return s.replace('.', ',')
+}
+/** 6.96 → "6,96" (até 4 casas, sem separador de milhar) */
+export const cotacaoTexto = (n: number) => String(Math.round(n * 10000) / 10000).replace('.', ',')
+
+/** Cotação "1 [moeda] = X [principal]" pronta para mandar ao backend. */
+export function cotacaoDigitada(moeda: string, texto: string, principal: string): Cotacao {
+  return { moeda, valor: texto, sentido: 'basePorMoeda', contra: principal, data: '', uso: 'venda' }
+}
+
+/**
+ * Texto da cotação de um pagamento em outra moeda: o digitado, senão o sugerido (cotação já digitada para a moeda,
+ * ex. a de cobrança do modo caixa), senão a do sistema. Vazio na moeda principal.
+ */
+export function textoCotacaoPagamento(p: Pick<PagamentoTela, 'moeda' | 'cotacao'>, principal: string, cot: TabelaCotacoes, sugeridas: Record<string, string> = {}) {
+  if (p.moeda === principal) return ''
+  if (p.cotacao !== undefined) return p.cotacao
+  if (sugeridas[p.moeda]) return sugeridas[p.moeda]
+  const v = valorDeUm(p.moeda, principal, cot)
+  return v ? cotacaoTexto(v) : ''
+}
+
+/** "1 US$ = 6,96 Bs" de um pagamento gravado (pela cotação guardada nele). Vazio na moeda principal. */
+export function cotacaoDoPagamento(p: Pick<Pagamento, 'moeda' | 'valor' | 'valorPrincipal' | 'cotacao'>, principal: string) {
+  if (p.moeda === principal) return ''
+  const c = p.cotacao
+  let n: number | undefined
+  if (c && c.moeda === p.moeda && (c.contra ?? principal) === principal) {
+    const v = Number(String(c.valor).replace(',', '.'))
+    if (v > 0) n = c.sentido === 'moedaPorBase' ? 1 / v : v
+  }
+  if (n === undefined && p.valor) n = p.valorPrincipal / 10 ** moedaDe(principal).casas / (p.valor / 10 ** moedaDe(p.moeda).casas)
+  if (!n) return ''
+  return `1 ${moedaDe(p.moeda).simbolo} = ${n.toLocaleString(loc(), { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${moedaDe(principal).simbolo}`
 }
 
 /** Câmbio em uso: 'venda' (recebo em outra moeda), 'compra' (pago em outra moeda) ou 'base' (mercado). */
@@ -92,12 +134,29 @@ export function conv(v: number, de: string, para: string, cot: TabelaCotacoes) {
   }
 }
 
-/** Lista de pagamentos (qualquer moeda e forma). Mostra quanto falta/sobra na moeda do total. */
-export function EditorPagamentos({ total, moedaTotal, pagamentos, onChange, permiteFiado, uso = 'venda' }: { total: number; moedaTotal: string; pagamentos: PagamentoTela[]; onChange(p: PagamentoTela[]): void; permiteFiado: boolean; uso?: 'venda' | 'compra' }) {
+/**
+ * Lista de pagamentos (qualquer moeda e forma). Mostra quanto falta/sobra na moeda do total.
+ * cotacaoEditavel (modo caixa): cada pagamento fora da moeda principal ganha o campo "1 US$ = [6,96] Bs", que vem da
+ * cotação já digitada para a moeda (cotacoesSugeridas) ou da do sistema; a conta do que falta usa a cotação de cada um.
+ */
+export function EditorPagamentos({ total, moedaTotal, pagamentos, onChange, permiteFiado, uso = 'venda', cotacaoEditavel, cotacoesSugeridas = {} }: { total: number; moedaTotal: string; pagamentos: PagamentoTela[]; onChange(p: PagamentoTela[]): void; permiteFiado: boolean; uso?: 'venda' | 'compra'; cotacaoEditavel?: boolean; cotacoesSugeridas?: Record<string, string> }) {
   const t = useT()
   const { cot, cfg } = useCotacoes(uso)
   const formas = cfg?.formas ?? []
-  const pago = pagamentos.reduce((s, p) => s + (p.valor ? conv(p.valor, p.moeda, moedaTotal, cot) ?? 0 : 0), 0)
+  const principal = cfg?.moedaPrincipal ?? moedaPadrao()
+  // tabela para converter: a do sistema + as sugeridas (ex.: a cotação de cobrança digitada) + a de cada pagamento
+  const base: TabelaCotacoes = { ...cot }
+  if (cotacaoEditavel)
+    for (const [m, v] of Object.entries(cotacoesSugeridas)) {
+      const ok = lerCotacaoTexto(v)
+      if (m !== principal && ok) base[m] = cotacaoDigitada(m, ok, principal)
+    }
+  const tabelaDe = (p: PagamentoTela): TabelaCotacoes => {
+    if (!cotacaoEditavel || p.moeda === principal) return base
+    const v = lerCotacaoTexto(textoCotacaoPagamento(p, principal, cot, cotacoesSugeridas))
+    return v ? { ...base, [p.moeda]: cotacaoDigitada(p.moeda, v, principal) } : base
+  }
+  const pago = pagamentos.reduce((s, p) => s + (p.valor ? conv(p.valor, p.moeda, moedaTotal, tabelaDe(p)) ?? 0 : 0), 0)
   const falta = total - pago
   const atualizar = (i: number, d: Partial<PagamentoTela>) => onChange(pagamentos.map((p, k) => (k === i ? { ...p, ...d } : p)))
   return (
@@ -106,10 +165,11 @@ export function EditorPagamentos({ total, moedaTotal, pagamentos, onChange, perm
         const formasDaMoeda = formas.filter((f) => f.moedas.includes(p.moeda))
         return (
           <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--borda)] p-2">
-            <Selecao className="w-28" valor={p.moeda} onChange={(m) => atualizar(i, { moeda: m, forma: formas.find((f) => f.moedas.includes(m))?.id ?? 'dinheiro', valor: undefined })} opcoes={MOEDAS.filter((m) => cfg?.moedasAtivas.includes(m.codigo)).map((m) => ({ id: m.codigo, nome: `${m.simbolo} ${m.codigo}` }))} />
+            <Selecao className="w-28" valor={p.moeda} onChange={(m) => atualizar(i, { moeda: m, forma: formas.find((f) => f.moedas.includes(m))?.id ?? 'dinheiro', valor: undefined, cotacao: undefined })} opcoes={MOEDAS.filter((m) => cfg?.moedasAtivas.includes(m.codigo)).map((m) => ({ id: m.codigo, nome: `${m.simbolo} ${m.codigo}` }))} />
             <Selecao className="w-auto min-w-0 flex-1" valor={p.forma} onChange={(f) => atualizar(i, { forma: f })} opcoes={formasDaMoeda.map((f) => ({ id: f.id, nome: t(f.nome) }))} />
             <button type="button" className="h-10 w-10 text-xl sm:order-last" aria-label={t('Tirar')} onClick={() => onChange(pagamentos.filter((_, k) => k !== i))}>×</button>
             <div className="w-full sm:w-auto sm:flex-1"><ValorInput moeda={p.moeda} valor={p.valor} onChange={(v) => atualizar(i, { valor: v })} /></div>
+            {cotacaoEditavel && p.moeda !== principal && MOEDAS.some((m) => m.codigo === p.moeda) && <CampoCotacao moeda={p.moeda} principal={principal} texto={textoCotacaoPagamento(p, principal, cot, cotacoesSugeridas)} onChange={(c) => atualizar(i, { cotacao: c })} />}
           </div>
         )
       })}
@@ -120,7 +180,7 @@ export function EditorPagamentos({ total, moedaTotal, pagamentos, onChange, perm
         {falta > 0 && pagamentos.length > 0 && (
           <Botao variante="leve" onClick={() => {
             const ult = pagamentos[pagamentos.length - 1]
-            const emMoeda = conv(falta, moedaTotal, ult.moeda, cot) ?? 0
+            const emMoeda = conv(falta, moedaTotal, ult.moeda, tabelaDe(ult)) ?? 0
             atualizar(pagamentos.length - 1, { valor: (ult.valor ?? 0) + emMoeda })
           }}>
             {t('Completar o que falta')}
@@ -139,6 +199,25 @@ export function EditorPagamentos({ total, moedaTotal, pagamentos, onChange, perm
               : t('Passou {v} do total.', { v: formatar(-falta, moedaTotal) })}
       </div>
     </div>
+  )
+}
+
+/** "1 US$ = [6,96] Bs" (cotação de um pagamento; borda vermelha quando inválida) */
+function CampoCotacao({ moeda, principal, texto, onChange }: { moeda: string; principal: string; texto: string; onChange(t: string): void }) {
+  const t = useT()
+  const sm = moedaDe(moeda).simbolo
+  return (
+    <label className="flex w-full items-center gap-2 text-sm font-semibold">
+      <span className="shrink-0">1 {sm} =</span>
+      <input
+        inputMode="decimal"
+        aria-label={t('Cotação de {m}', { m: sm })}
+        value={texto}
+        onChange={(e) => onChange(e.target.value)}
+        className={cx('num min-h-10 w-24 rounded-xl border bg-[var(--cartao)] px-2 text-base outline-none focus:border-[var(--marca)]', lerCotacaoTexto(texto) ? 'border-[var(--borda)]' : 'border-[var(--ruim)]')}
+      />
+      <span className="shrink-0">{moedaDe(principal).simbolo}</span>
+    </label>
   )
 }
 

@@ -61,7 +61,10 @@ export function moduloDeConfig(m: ModuloConfig): ModuloDef {
     ? [
         ...(m.recursos.triagem?.length ? m.recursos.triagem : ['Pedido feito']).map((nome, k): EtapaDef => ({ id: `e${k}`, nome, ajuda: nome })),
         { id: 'pago', nome: 'Pago', ajuda: 'Pagamento feito.', faz: ['pagamento'] },
-        { id: 'concluido', nome: 'No estoque', ajuda: 'Entrou no estoque.', faz: ['estoque'] },
+        // lote por compra: o lote já nasce no registro (vai para a Triagem); a última etapa só fecha o pedido
+        m.recursos.loteNaCompra
+          ? { id: 'concluido', nome: 'Concluído', ajuda: 'Pagamento e entrega acertados. O lote já está no estoque desde o registro.', faz: ['estoque'] }
+          : { id: 'concluido', nome: 'No estoque', ajuda: 'Entrou no estoque.', faz: ['estoque'] },
       ]
     : undefined
   const campos: CampoDef[] = [...(m.recursos.tabelaPreco ? [{ id: 'comprimento', nome: 'Medida', tipo: 'numero' as const }] : []), ...m.campos]

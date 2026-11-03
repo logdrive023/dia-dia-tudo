@@ -22,6 +22,7 @@ async function conversor(ctx: Ctx) {
 
 /**
  * DRE simplificado (resultado do período) + divisão entre sócios.
+ * Receita bruta − descontos = receita líquida (com desconto no período aparecem as três linhas).
  * Receita − custo do que foi vendido − insumos dos serviços − comissões = lucro bruto; − despesas = resultado; resultado × parte de cada sócio
  * − retiradas já feitas = quanto falta acertar com cada um.
  */
@@ -29,7 +30,10 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
   const cfg = await lerConfig(ctx)
   const conv = await conversor(ctx)
   const vendas = (await ctx.repos.transacoes.listar({ tipo: 'venda' })).filter((t) => t.etapa === 'concluido' && t.data >= p.de && t.data <= p.ate)
+  // receita = líquida (o total da venda já é com desconto); descontos guardados em cada linha (vendas antigas: 0)
   const receita = vendas.reduce((s, t) => s + t.totalPrincipal, 0)
+  const descontos = vendas.reduce((s, t) => s + t.linhas.reduce((x, l) => x + (l.descontoPrincipal ?? 0), 0), 0)
+  const receitaBruta = receita + descontos
   const cmv = vendas.reduce((s, t) => s + t.linhas.reduce((x, l) => x + (l.custoPrincipal ?? 0), 0), 0)
   const comissoes = vendas.reduce((s, t) => s + t.linhas.reduce((x, l) => x + (l.comissaoPrincipal ?? 0), 0), 0)
   // insumos do salão (tinta, água oxigenada…) usados nos serviços: custo da venda, guardado em cada linha
@@ -63,7 +67,8 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
     ate: p.ate,
     moeda: cfg.moedaPrincipal,
     linhas: [
-      { conta: 'Receita de vendas', valor: receita, nivel: 0 },
+      { conta: 'Receita de vendas', valor: receitaBruta, nivel: 0 },
+      ...(descontos ? [{ conta: '(−) Descontos', valor: -descontos, nivel: 1 }, { conta: '= Receita líquida', valor: receita, nivel: 0 }] : []),
       { conta: '(−) Custo do que foi vendido', valor: -cmv, nivel: 1 },
       ...(insumos ? [{ conta: '(−) Insumos dos serviços', valor: -insumos, nivel: 1 }] : []),
       { conta: '(−) Comissões', valor: -comissoes, nivel: 1 },
@@ -72,6 +77,8 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
       { conta: '= Resultado do período', valor: resultado, nivel: 0 },
     ],
     receita,
+    receitaBruta,
+    descontos,
     cmv,
     insumos,
     comissoes,
@@ -178,6 +185,10 @@ export async function vendasDetalhadas(ctx: Ctx, p: { de: string; ate: string; p
           categoria: (l.campos.categoria as string | undefined) ?? (itens.get(l.itemId!)?.campos.categoria as string | undefined) ?? '',
           quantidade: l.quantidade,
           fator: (l.campos.fator as string | undefined) ?? '',
+          /** valor cheio (gramas × fator) e desconto, na moeda da linha; total = líquido */
+          bruto: l.bruto ?? l.total,
+          desconto: l.desconto ?? 0,
+          descontoPrincipal: l.descontoPrincipal ?? 0,
           total: l.total,
           moeda: l.moeda,
           totalPrincipal: l.totalPrincipal,

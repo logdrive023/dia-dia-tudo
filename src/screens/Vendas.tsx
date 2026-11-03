@@ -4,9 +4,9 @@ import { Caminho, RastreioTotal } from '../ui/rastreioTotal'
 import { useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../core/domain/dinheiro'
 import type { Id, Transacao } from '../core/domain/tipos'
-import { Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, ErroTela, loc, moedaPadrao } from '../ui/base'
+import { Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, ErroTela, gramasTexto, loc, moedaPadrao } from '../ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
-import { Anexos, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
+import { Anexos, cotacaoDoPagamento, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { useT } from '../ui/i18n'
 import { MemoriaLinha } from '../ui/linhaServico'
@@ -117,30 +117,45 @@ export function DetalheVenda() {
   const faltaReceber = v.etapa === 'concluido' && v.totalPrincipal - pago > v.pagamentos.length ? v.totalPrincipal - pago : 0
   const naoVivo = v.pagamentos.some((x) => x.forma !== 'dinheiro')
   const semComprovante = v.etapa === 'concluido' && naoVivo && !dados.anexos.some((a) => a.categoria === 'comprovante')
+  // desconto da venda: "desconto 2,5% = Bs 878,50" (guardado na venda) e o de cada linha
+  const descontoVenda = v.campos.desconto ? String(v.campos.desconto) : ''
+  const comCotacao = (p: (typeof v.pagamentos)[number]) => {
+    const c = cotacaoDoPagamento(p, v.moedaPrincipal)
+    return c ? ` · ${c}` : ''
+  }
   // recibo da CLIENTE: só itens e total (a divisão salão × profissional e os insumos são internos)
-  const texto = [`${t('Venda')} ${dataBR(v.data)}`, dados.cliente ? `${t('Cliente')}: ${dados.cliente.nome}` : '', ...v.linhas.map((l) => (l.campos.calculo ? String(l.campos.calculo) : `${l.descricao}: ${formatar(l.total, l.moeda)}`)), `${t('Total')}: ${formatar(v.totalPrincipal, v.moedaPrincipal)}`].filter(Boolean).join('\n')
+  const texto = [
+    `${t('Venda')} ${dataBR(v.data)}`,
+    dados.cliente ? `${t('Cliente')}: ${dados.cliente.nome}` : '',
+    ...v.linhas.map((l) => (l.campos.calculo ? String(l.campos.calculo) : `${l.descricao}: ${formatar(l.bruto ?? l.total, l.moeda)}`)),
+    descontoVenda ? descontoVenda.charAt(0).toUpperCase() + descontoVenda.slice(1) : '',
+    `${t('Total')}: ${formatar(v.totalPrincipal, v.moedaPrincipal)}`,
+    v.campos.cobranca ? String(v.campos.cobranca) : '',
+  ].filter(Boolean).join('\n')
   return (
     <Pagina onVoltar={voltar} titulo={<>{t('Venda')} · {dados.cliente ? <button type="button" className="underline-offset-4 hover:underline" onClick={() => ir('pessoa', { id: dados.cliente!.id })}>{dados.cliente.nome}</button> : t('Sem nome')}</>} subtitulo={<>{dataBR(v.data)} · <Pilula tom={v.etapa === 'concluido' ? 'bom' : v.etapa === 'cancelado' ? 'ruim' : 'marca'}>{t(NOME_ETAPA[v.etapa] ?? v.etapa)}</Pilula>{dados.local ? ` · ${dados.local.nome}` : ''}{dados.profissional ? ` · ${dados.profissional.nome}` : ''}</>}>
       <div className="space-y-4">
         {v.etapa === 'concluido' && (
           <SeloPendencias moeda={v.moedaPrincipal} pendencias={[...(faltaReceber ? [{ id: 'faltaReceber' as const, texto: 'Falta receber', valor: faltaReceber, nivel: 'urgente' as const }] : []), ...(semComprovante ? [{ id: 'semComprovante' as const, texto: 'Sem comprovante do pagamento', nivel: 'atencao' as const }] : [])]} />
         )}
-        {sessao.perfil === 'admin' && v.linhas.some((l) => l.itemId) && <OrigemDaVenda vendaId={v.id} />}
+        {v.linhas.some((l) => l.itemId) && <OrigemDaVenda vendaId={v.id} admin={sessao.perfil === 'admin'} />}
         <div className="grid gap-4 md:grid-cols-2">
           <Cartao titulo={t('Itens')}>
             <ul className="divide-y divide-[var(--borda)] text-sm">
               {v.linhas.map((l) => (
                 <li key={l.id} className="py-2">
                   <div className="flex justify-between gap-2">
-                    <span className="min-w-0 break-words">{l.descricao}{l.campos.calculo ? <span className="num block text-[var(--suave)]">{String(l.campos.calculo)}</span> : null}</span>
+                    <span className="min-w-0 break-words">{l.descricao}{l.campos.calculo ? <span className="num block text-[var(--suave)]">{String(l.campos.calculo)}</span> : null}{l.desconto ? <span className="num block text-[var(--suave)]">− {t('desconto')} {formatar(l.desconto, l.moeda)}</span> : null}</span>
                     <b className="num shrink-0">{formatar(l.total, l.moeda)}</b>
                   </div>
                   {(sessao.perfil === 'admin' || (l.profissionalId && l.profissionalId === (sessao.pessoaId ?? sessao.usuarioId))) && <MemoriaLinha linha={l} moeda={v.moedaPrincipal} />}
                 </li>
               ))}
             </ul>
+            {descontoVenda && <p className="num mt-2 text-sm font-semibold text-[var(--bom)]">{descontoVenda.charAt(0).toUpperCase() + descontoVenda.slice(1)}</p>}
             <div className="mt-2 flex justify-between gap-2 text-lg font-bold"><span>{t('Total')}</span><span className="num">{formatar(v.totalPrincipal, v.moedaPrincipal)}</span></div>
-            <p className="text-sm text-[var(--suave)]">{t('Pago')}: {v.pagamentos.map((p) => `${formatar(p.valor, p.moeda)} (${nomeForma(p.forma)})`).join(' + ') || '—'}</p>
+            <p className="text-sm text-[var(--suave)]">{t('Pago')}: {v.pagamentos.map((p) => `${formatar(p.valor, p.moeda)} (${nomeForma(p.forma)})${comCotacao(p)}`).join(' + ') || '—'}</p>
+            {v.campos.cobranca ? <p className="text-sm font-semibold">💱 {String(v.campos.cobranca)}</p> : null}
             <div className="mt-3 flex flex-wrap gap-2">
               <a className="min-h-10 rounded-xl bg-[#25d366] px-3 py-2 text-sm font-semibold text-white" href={linkWhatsApp(texto, dados.cliente?.telefone)} target="_blank" rel="noreferrer">{t('Recibo no WhatsApp')}</a>
               {sessao.perfil === 'admin' && (v.etapa === 'concluido' || v.etapa === 'agendado') && <Botao variante="secundario" onClick={() => setCorrigir(true)}>✏️ {t('Corrigir')}</Botao>}
@@ -189,7 +204,8 @@ function CorrigirVenda({ venda, temCliente, onFechar }: { venda: Transacao; temC
     const c = linhas[l.id] ?? {}
     const q = c.quantidade ?? l.quantidade
     const f = c.fator || (l.campos.fator as string | undefined)
-    const tot = c.total !== undefined ? c.total : f && fatorValido(f) ? multiplicarFator(q, f, l.moeda) : l.total
+    // com fator: cheio − desconto da linha (valor digitado é o final, sem desconto)
+    const tot = c.total !== undefined ? c.total : f && fatorValido(f) && (c.fator || c.quantidade !== undefined) ? Math.max(0, multiplicarFator(q, f, l.moeda) - (l.desconto ?? 0)) : l.total
     return s + tot
   }, 0)
   const antes = venda.linhas.reduce((s, l) => s + l.total, 0)
@@ -274,16 +290,40 @@ function PreviaCorrecao({ linha: l, c, moeda }: { linha: Transacao['linhas'][num
   return <div className="num mt-2 text-xs text-[var(--suave)]">🧮 {memoriaCalculo({ totalPrincipal: totalP, insumoPrincipal: ins, insumos, comissaoBp: bp, comissaoPrincipal: d.comissao, comissaoRegra: bp !== l.comissaoBp ? 'linha' : l.comissaoRegra, baseComissao: d.base, parteSalao: d.parteSalao }, moeda, t)}</div>
 }
 
-/** De onde veio este cabelo: Compra(s) → Triagem(ns) → Lote(s) → esta venda, em gramas. */
-function OrigemDaVenda({ vendaId }: { vendaId: Id }) {
+/**
+ * De onde veio este cabelo: a parte de cada compra NESTA venda, em gramas ("1,5 kg da compra C1 · Maria"), para quem
+ * vendeu também (sem custo). O admin vê embaixo o caminho inteiro: Compra(s) → Triagem(ns) → Lote(s) → esta venda.
+ */
+function OrigemDaVenda({ vendaId, admin }: { vendaId: Id; admin: boolean }) {
   const t = useT()
-  const { dados } = useConsulta('genealogia', { vendaId })
-  if (!dados || !dados.lotes.length) return null
+  const { ir } = useApp()
+  const { dados: origem } = useConsulta('origemDaVenda', { vendaId })
+  const { dados } = useConsulta('genealogia', { vendaId }, admin)
+  const temRastreio = admin && !!dados?.lotes.length
+  if (!origem?.length && !temRastreio) return null
   return (
-    <Cartao titulo={t('De onde veio este cabelo')}>
+    <Cartao titulo={t('De onde veio este cabelo')} ajuda="As compras que formaram este cabelo, em gramas. Ex.: 1,5 kg da Maria + 1 kg do Celso.">
       <div className="space-y-3">
-        <Caminho g={dados} />
-        <RastreioTotal g={dados} />
+        {!!origem?.length && (
+          <div className="flex flex-wrap gap-2">
+            {origem.map((o) => {
+              const texto = <><span className="num">{gramasTexto(o.gramas)}</span> {t('da compra')} {o.codigo ?? o.compraId.slice(-4).toUpperCase()}{o.fornecedor ? ` · ${o.fornecedor}` : ''}</>
+              const classe = 'inline-flex min-h-10 items-center gap-1 rounded-full bg-[var(--marca-suave)] px-3 text-sm font-semibold text-[var(--marca)]'
+              // a página da compra é do admin; quem vendeu vê a origem sem abrir a compra (e sem custo)
+              return admin ? (
+                <button key={o.compraId} type="button" onClick={() => ir('pedido', { id: o.compraId })} className={`${classe} hover:underline`}>{texto}</button>
+              ) : (
+                <span key={o.compraId} className={classe}>{texto}</span>
+              )
+            })}
+          </div>
+        )}
+        {temRastreio && dados && (
+          <>
+            <Caminho g={dados} />
+            <RastreioTotal g={dados} />
+          </>
+        )}
       </div>
     </Cartao>
   )

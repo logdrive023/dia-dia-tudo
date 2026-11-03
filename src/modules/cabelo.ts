@@ -25,7 +25,7 @@ const ehLote = (i: Item) => i.moduloId === 'cabelo' && i.tipoItem === 'lote'
 function painelCabelo(d: DadosPainel): Secao[] {
   const lotes = d.itens.filter(ehLote)
   const comSaldo = lotes.filter((i) => i.saldo > 0)
-  const brutos = comSaldo.filter((i) => i.campos.estado === 'Bruto')
+  const brutos = comSaldo.filter((i) => (i.campos.estado === 'Bruto' || i.campos.estado === 'Não identificado'))
   const gramas = comSaldo.reduce((s, i) => s + i.saldo, 0)
   const valorCusto = comSaldo.reduce((s, i) => s + custoDe(i, i.saldo), 0)
   const linhasVendidas = d.vendas.flatMap((t) => t.linhas.filter((l) => d.moduloDoItem(l.itemId) === 'cabelo').map((l) => ({ t, l })))
@@ -87,7 +87,7 @@ function painelCabelo(d: DadosPainel): Secao[] {
   ]
   const funil = [
     ...etapas.map(([id, nome]) => ({ nome, quantidade: comprasTodas.filter((t) => t.etapa === id).length, detalhe: { tela: 'comprar' } })),
-    { nome: 'No estoque (no período)', quantidade: comprasCabelo.length, detalhe: { tela: 'comprar', filtro: { encerradas: true } } },
+    { nome: 'Concluído (no período)', quantidade: comprasCabelo.length, detalhe: { tela: 'comprar', filtro: { encerradas: true } } },
     { nome: 'Para separar (lotes brutos)', quantidade: brutos.length, detalhe: { tela: 'triagem' } },
   ]
 
@@ -165,7 +165,7 @@ export const moduloCabelo: ModuloDef = {
       controlaEstoque: true,
       nasceNaCompra: true,
       campos: [
-        { id: 'estado', nome: 'Situação', tipo: 'lista', opcoes: ['Bruto', 'Separado'], fixo: true, ajuda: 'Bruto = ainda não foi separado por medida/categoria.' },
+        { id: 'estado', nome: 'Situação', tipo: 'lista', opcoes: ['Bruto', 'Não identificado', 'Separado'], fixo: true, ajuda: 'Bruto = ainda não foi separado por medida/categoria.' },
         { id: 'comprimento', nome: 'Medida', tipo: 'numero', unidade: 'cm', fixo: true, ajuda: 'Comprimento em cm (40, 50, 55, 60…). Bruto misturado pode ficar sem medida.' },
         { id: 'categoria', nome: 'Categoria', tipo: 'lista', opcoes: CATEGORIAS_CABELO, fixo: true, ajuda: 'Normal, Tinte (tingido), CH, Rojo, Quemado… Cada uma pode ter sua tabela de preço.' },
         { id: 'cor', nome: 'Cor', tipo: 'lista', opcoes: ['Preto', 'Castanho escuro', 'Castanho', 'Castanho claro', 'Loiro', 'Ruivo', 'Grisalho', 'Misturado'] },
@@ -189,7 +189,8 @@ export const moduloCabelo: ModuloDef = {
       { id: 'recebido', nome: 'Chegou', ajuda: 'O cabelo chegou (ou foi oferecido). Tire fotos.', lembrar: ['fotos'] },
       { id: 'conferido', nome: 'Conferido', ajuda: 'Pesado e conferido: ajuste gramas e valor se for preciso (fica registrado o motivo).' },
       { id: 'pago', nome: 'Pago', ajuda: 'Pagamento feito (pode ser parte: o resto fica na conta da pessoa).', faz: ['pagamento'], lembrar: ['comprovante'] },
-      { id: 'concluido', nome: 'No estoque', ajuda: 'Entrou no estoque como lote. Se veio misturado, separe depois em Estoque › Separar.', faz: ['estoque'] },
+      // o lote já nasce no registro da compra (cai na Triagem como "Aguardando triagem"); esta etapa só fecha o pedido
+      { id: 'concluido', nome: 'Concluído', ajuda: 'Pagamento e entrega acertados. O cabelo já está na Triagem desde que a compra foi registrada.', faz: ['estoque'] },
     ],
   },
   venda: {
@@ -200,19 +201,23 @@ export const moduloCabelo: ModuloDef = {
   painel: painelCabelo,
   alertas: (d) => {
     const lotes = d.itens.filter((i) => ehLote(i) && i.saldo > 0)
-    const brutos = lotes.filter((i) => i.campos.estado === 'Bruto')
+    const brutos = lotes.filter((i) => (i.campos.estado === 'Bruto' || i.campos.estado === 'Não identificado'))
     // esperando na triagem há mais dias que o aviso da compra (padrão 3)
     const aviso = moduloCabelo.compra?.avisarParadaDias ?? 3
     const diasNaFila = (i: Item) => diasEntre((i.faseTriagem?.desde ?? i.criadoEm).slice(0, 10), d.hoje)
     const esperando = brutos.filter((i) => diasNaFila(i) > aviso).sort((a, b) => diasNaFila(b) - diasNaFila(a))
+    // "X kg aguardando triagem" (o bruto entra na Triagem no registro da compra): quantos kg e há quantos dias o mais antigo
+    const porIdade = [...brutos].sort((a, b) => diasNaFila(b) - diasNaFila(a))
+    const kgAguardando = (brutos.reduce((s, i) => s + i.saldo, 0) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })
+    const maisAntigo = porIdade[0] ? diasNaFila(porIdade[0]) : 0
     const parados = lotes.filter((i) => {
       const ult = d.movEstoque.filter((m) => m.itemId === i.id).map((m) => m.data).sort().pop() ?? i.criadoEm.slice(0, 10)
       return diasEntre(ult, d.hoje) > 60
     })
     return [
-      { id: 'cab.triagem', texto: `lote(s) esperando na triagem há mais de ${aviso} dias`, acao: 'Abra a Triagem: prepare, unifique ou separe para poder vender.', quantidade: esperando.length, nivel: 'alerta', detalhe: { tela: 'triagem', filtro: { f: 'atrasados' } },
-        itens: esperando.slice(0, 5).map((i) => ({ texto: `${i.codigo ?? ''} · ${i.nome}`, sub: `${(i.saldo / 1000).toLocaleString('pt-BR')} kg · ${diasNaFila(i)} d`, detalhe: { tela: 'lote', filtro: { id: i.id } } })) },
-      { id: 'cab.brutos', texto: 'lote(s) bruto(s) esperando separação', quantidade: brutos.length - esperando.length, nivel: 'info', detalhe: { tela: 'triagem' } },
+      // UM alerta para todo o bruto parado: "X kg aguardando triagem · o mais antigo há N dias" (atenção quando passa do aviso)
+      { id: 'cab.triagem', texto: `${kgAguardando} kg aguardando triagem · o mais antigo há ${maisAntigo} dia(s)`, acao: esperando.length ? `${esperando.length} lote(s) passaram de ${aviso} dias: abra a Triagem e separe para poder vender.` : 'Abra a Triagem e separe quando puder; nada some enquanto espera.', quantidade: brutos.length, nivel: esperando.length ? 'alerta' : 'info', detalhe: { tela: 'triagem', filtro: esperando.length ? { f: 'atrasados' } : undefined },
+        itens: porIdade.slice(0, 5).map((i) => ({ texto: `${i.codigo ?? ''} · ${i.nome}`, sub: `${(i.saldo / 1000).toLocaleString('pt-BR')} kg · ${diasNaFila(i)} d`, detalhe: { tela: 'lote', filtro: { id: i.id } } })) },
       { id: 'cab.parados', texto: 'lote(s) parado(s) há mais de 60 dias', quantidade: parados.length, nivel: 'info', detalhe: { tela: 'estoque', filtro: { modulo: 'cabelo' } } },
     ]
   },

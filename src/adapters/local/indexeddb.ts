@@ -36,6 +36,8 @@ export function abrirBanco(nome = 'tudo'): BancoLocal {
   db.version(3).stores({ ...ESQUEMA_V1, usuarios: 'id, &login', viagens: 'id, status, inicio' })
   // v4: adiantamentos a parceiros (financiamentos AD-0001; tabela nova)
   db.version(4).stores({ ...ESQUEMA_V1, usuarios: 'id, &login', viagens: 'id, status, inicio', financiamentos: 'id, pessoaId' })
+  // v5: compromissos e lembretes da agenda (tabela nova)
+  db.version(5).stores({ ...ESQUEMA_V1, usuarios: 'id, &login', viagens: 'id, status, inicio', financiamentos: 'id, pessoaId', eventos: 'id, data, pessoaId' })
   return db
 }
 

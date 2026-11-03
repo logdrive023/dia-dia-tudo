@@ -43,6 +43,8 @@ export async function comissoes(ctx: Ctx, p: { de?: string; ate?: string; pessoa
           // base = valor − insumos do salão (linhas antigas, sem insumo: o valor da linha). Guardada na venda: não muda depois.
           base: l.baseComissao ?? l.totalPrincipal,
           valorLinha: l.totalPrincipal,
+          /** desconto da linha (a base da comissão já é o valor com desconto) */
+          desconto: l.descontoPrincipal ?? 0,
           insumo: l.insumoPrincipal ?? 0,
           insumos: l.insumos ?? [],
           parteSalao: l.parteSalao ?? (l.baseComissao ?? l.totalPrincipal) - l.comissaoPrincipal!,

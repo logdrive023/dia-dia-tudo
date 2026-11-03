@@ -3,8 +3,10 @@
 
 import { useState } from 'react'
 import { novoId } from '../core/domain/ids'
-import { COLUNA_VENDIDO, type ColunaTriagem } from '../core/services/triagem'
-import { Botao, Cartao, Carregando, Confirmar, Entrada, Escolha, Pilula, Vazio, cx } from '../ui/base'
+import { COLUNA_LAVAGEM, COLUNA_VENDIDO, type ColunaTriagem } from '../core/services/triagem'
+import { Botao, Cartao, Carregando, Confirmar, Entrada, Escolha, Info, Pilula, Vazio, cx } from '../ui/base'
+
+const DICA_LAVAGEM = 'Opcional. Se lavar, digite o peso depois. Ex.: 6.000 g → 5.700 g (−300 g).'
 import { BarraSalvar } from '../ui/barraSalvar'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
@@ -92,6 +94,7 @@ function EditorTriagem({ item }: { item: Item }) {
                         <label className="flex min-h-10 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!c.separarAoEntrar} onChange={(e) => mudar(i, { separarAoEntrar: e.target.checked || undefined })} /> ✂️ {t('Separar ao entrar (abre a separação)')}</label>
                         <label className="flex min-h-10 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!c.lembrarFotos} onChange={(e) => mudar(i, { lembrarFotos: e.target.checked || undefined })} /> 📷 {t('Lembrar das fotos')}</label>
                         <label className="flex min-h-10 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!c.exigirFoto} onChange={(e) => mudar(i, { exigirFoto: e.target.checked || undefined })} /> 📸 {t('Exigir foto do lote para sair desta coluna')}</label>
+                        <span className="flex min-h-10 items-center gap-2"><label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!c.pedirPeso} onChange={(e) => mudar(i, { pedirPeso: e.target.checked || undefined })} /> ⚖️ {t('Pedir o peso depois ao sair (lavagem)')}</label><Info texto={DICA_LAVAGEM} /></span>
                       </>
                     )}
                   </div>
@@ -102,6 +105,15 @@ function EditorTriagem({ item }: { item: Item }) {
           <Botao variante="secundario" className="mt-3" disabled={cs.length >= 10} onClick={() => setCs([...cs.slice(0, -1), { id: novoId().toLowerCase().slice(-10), nome: '', cor: CORES[cs.length % CORES.length] }, cs[cs.length - 1]])}>
             + {t('Coluna')}
           </Botao>
+          {/* lavar é opcional: quem lava liga a coluna (depois da entrada) */}
+          {!cs.some((c) => c.id === COLUNA_LAVAGEM.id || c.pedirPeso) && (
+            <span className="ml-2 inline-flex items-center">
+              <Botao variante="leve" className="mt-3" disabled={cs.length >= 10} onClick={() => { const k = Math.max(0, cs.findIndex((c) => c.entrada)) + 1; setCs([...cs.slice(0, k), { ...COLUNA_LAVAGEM }, ...cs.slice(k)]) }}>
+                + 🫧 {t('Lavagem/limpeza (opcional)')}
+              </Botao>
+              <Info texto={DICA_LAVAGEM} />
+            </span>
+          )}
         </Cartao>
         <div className="space-y-4">
           <Cartao titulo={t('Como vai ficar')}>
@@ -109,7 +121,7 @@ function EditorTriagem({ item }: { item: Item }) {
               {cs.map((c) => (
                 <div key={c.id} className="w-32 shrink-0 rounded-xl bg-[var(--fundo)] p-2">
                   <div className="flex items-start gap-1 text-xs font-bold leading-tight"><span aria-hidden className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: c.cor ?? 'var(--marca)' }} />{c.nome || '…'}</div>
-                  <div className="mt-1 text-[10px] text-[var(--suave)]">{[c.entrada && '📥', c.pronto && '💰', c.separarAoEntrar && '✂️', c.lembrarFotos && '📷', c.exigirFoto && '📸'].filter(Boolean).join(' ')}</div>
+                  <div className="mt-1 text-[10px] text-[var(--suave)]">{[c.entrada && '📥', c.pronto && '💰', c.separarAoEntrar && '✂️', c.lembrarFotos && '📷', c.exigirFoto && '📸', c.pedirPeso && '⚖️'].filter(Boolean).join(' ')}</div>
                   <div className="mt-2 h-6 rounded-lg border border-dashed border-[var(--borda)]" />
                 </div>
               ))}

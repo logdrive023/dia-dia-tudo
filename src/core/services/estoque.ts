@@ -7,6 +7,7 @@ import { auditar, type Ctx, exigirInteiroPositivo, novo, tocar } from './context
 import { nomeAcao } from './historico'
 import { codigoNovoLote, exigirCodigosLivres, proximoSequencial, siglasPorPessoa } from './codigos'
 import { leitorFotos } from './fotos'
+import { fatorDaTabela } from './precos'
 
 export async function moverEstoque(
   ctx: Ctx,
@@ -28,6 +29,8 @@ export async function moverEstoque(
     origemId: m.origemId,
     corrigeId: m.corrigeId,
     descricao: m.descricao,
+    usuario: ctx.sessao.usuarioId || undefined,
+    porNome: ctx.sessao.nome || undefined,
   })
   await ctx.repos.movEstoque.salvar(mov)
   await ctx.repos.itens.salvar(tocar(ctx, { ...item, saldo: depois }))
@@ -194,12 +197,22 @@ export interface SaidaSeparacao {
   valorReferencia?: string
 }
 
+/** "Deixar para depois": o que ainda não deu para separar vira um pacote "Não identificado" (pendência), não perda. */
+export interface ParaDepois {
+  id: Id
+  quantidade: number
+  codigo?: string
+}
+
+/** Situação do pacote que ainda não foi identificado (fica na entrada da triagem, como pendência). */
+export const NAO_IDENTIFICADO = 'Não identificado'
+
 /**
  * SEPARAÇÃO / TRIAGEM DE LOTE (genérica): consome parte de um lote e gera N lotes novos; a diferença é a perda.
  * Ex.: 40 kg de cabelo bruto → 20 kg preto + 19,5 kg castanho (perda 0,5 kg). O custo usado é dividido pelo peso
  * de cada parte (mais o custo extra, se houver). Cada lote novo guarda de onde veio: rastreio compra → venda.
  */
-export type DadosSeparacao = { id: Id; loteId: Id; quantidadeUsada: number; saidas: SaidaSeparacao[]; custoExtraPrincipal?: number; descricao?: string }
+export type DadosSeparacao = { id: Id; loteId: Id; quantidadeUsada: number; saidas: SaidaSeparacao[]; paraDepois?: ParaDepois; custoExtraPrincipal?: number; descricao?: string }
 
 /** Identidade de uma TRIAGEM (como compra e venda têm a sua): "T-0003", quem e quando. */
 export type Triagem = NonNullable<Item['triagem']>
@@ -208,8 +221,9 @@ export async function novaTriagem(ctx: Ctx, id: Id): Promise<Omit<Triagem, 'pape
 }
 
 export async function separarLote(ctx: Ctx, d: DadosSeparacao) {
-  if (d.saidas?.length && (await ctx.repos.itens.obter(d.saidas[0].id))) return { id: d.id, lotes: d.saidas.map((x) => x.id) }
-  exigir(d.saidas?.length, 'Diga em que lotes ele foi separado.')
+  const primeiro = d.saidas?.[0]?.id ?? d.paraDepois?.id
+  if (primeiro && (await ctx.repos.itens.obter(primeiro))) return { id: d.id, lotes: [...(d.saidas ?? []).map((x) => x.id), ...(d.paraDepois?.quantidade ? [d.paraDepois.id] : [])] }
+  exigir(d.saidas?.length || d.paraDepois?.quantidade, 'Diga em que lotes ele foi separado.')
   return separarNaTriagem(ctx, d, await novaTriagem(ctx, d.id))
 }
 
@@ -217,10 +231,14 @@ export async function separarLote(ctx: Ctx, d: DadosSeparacao) {
 export async function separarNaTriagem(ctx: Ctx, d: DadosSeparacao, tg: Omit<Triagem, 'papel'>) {
   const lote = await ctx.repos.itens.obter(d.loteId)
   exigir(lote, 'Lote não encontrado.')
-  exigir(d.saidas?.length, 'Diga em que lotes ele foi separado.')
+  const saidas = d.saidas ?? []
+  const depois = d.paraDepois?.quantidade ? d.paraDepois : undefined
+  exigir(saidas.length || depois, 'Diga em que lotes ele foi separado.')
   exigirInteiroPositivo(d.quantidadeUsada, 'Quantidade usada')
-  for (const x of d.saidas) exigirInteiroPositivo(x.quantidade, 'Quantidade de cada parte')
-  const soma = d.saidas.reduce((s, x) => s + x.quantidade, 0)
+  for (const x of saidas) exigirInteiroPositivo(x.quantidade, 'Quantidade de cada parte')
+  if (depois) exigirInteiroPositivo(depois.quantidade, 'Quantidade para depois')
+  // perda = o que sobra depois das partes E do que ficou para depois
+  const soma = saidas.reduce((s, x) => s + x.quantidade, 0) + (depois?.quantidade ?? 0)
   exigir(soma <= d.quantidadeUsada, `As partes somam ${unidadeTexto(lote.unidade, soma)}, mais do que foi usado (${unidadeTexto(lote.unidade, d.quantidadeUsada)}).`)
   const extra = d.custoExtraPrincipal ?? 0
   exigirInteiroPositivo(extra, 'Custo extra', true)
@@ -228,23 +246,26 @@ export async function separarNaTriagem(ctx: Ctx, d: DadosSeparacao, tg: Omit<Tri
   const custoTotal = custoDe(lote, d.quantidadeUsada) + extra
   const perda = d.quantidadeUsada - soma
   // base do rateio: valor de mercado (quantidade × referência) quando todas têm referência; senão o peso
-  const porValor = d.saidas.every((x) => x.valorReferencia && fatorValido(x.valorReferencia))
-  const base = d.saidas.map((x) => (porValor ? multiplicarFator(x.quantidade, x.valorReferencia!, 'BOB') : x.quantidade))
+  const porValor = saidas.length > 0 && saidas.every((x) => x.valorReferencia && fatorValido(x.valorReferencia))
+  const base = saidas.map((x) => (porValor ? multiplicarFator(x.quantidade, x.valorReferencia!, 'BOB') : x.quantidade))
   const somaBase = base.reduce((s, v) => s + v, 0)
+  // o "para depois" leva o custo pelo peso (ainda não se sabe o valor); as partes dividem o resto
+  const custoDepois = depois ? (saidas.length ? proporcao(custoTotal, depois.quantidade, soma) : custoTotal) : 0
+  const custoPartes = custoTotal - custoDepois
   // códigos digitados: confere tudo ANTES de mexer no estoque (sem repetir entre si e sem existir)
-  const { limpos, reservados } = await exigirCodigosLivres(ctx, 'lote', d.saidas.map((x) => x.codigo))
+  const { limpos, reservados } = await exigirCodigosLivres(ctx, 'lote', [...saidas.map((x) => x.codigo), depois?.codigo])
   await moverEstoque(ctx, {
     itemId: lote.id,
     delta: -d.quantidadeUsada,
     motivo: 'transformacao',
     origemId: d.id,
-    descricao: d.descricao ?? `Separado em ${d.saidas.length} lote(s)${perda ? ` · perda ${unidadeTexto(lote.unidade, perda)}` : ''}`,
+    descricao: d.descricao ?? `Separado em ${saidas.length} lote(s)${depois ? ` · ${unidadeTexto(lote.unidade, depois.quantidade)} para depois` : ''}${perda ? ` · perda ${unidadeTexto(lote.unidade, perda)}` : ''}`,
   })
   const criados: Id[] = []
   const compraIds = comprasDe(lote)
-  let custoRestante = custoTotal
-  for (const [k, x] of d.saidas.entries()) {
-    const custo = k === d.saidas.length - 1 ? custoRestante : proporcao(custoTotal, base[k], somaBase)
+  let custoRestante = custoPartes
+  for (const [k, x] of saidas.entries()) {
+    const custo = k === saidas.length - 1 ? custoRestante : proporcao(custoPartes, base[k], somaBase)
     custoRestante -= custo
     const campos: Campos = { ...lote.campos, ...x.campos, separacaoId: d.id, rateio: porValor ? 'valor' : 'peso' }
     const nome = x.nome?.trim() || tipo.nomear?.(campos) || `${lote.nome} · parte ${k + 1}`
@@ -269,13 +290,36 @@ export async function separarNaTriagem(ctx: Ctx, d: DadosSeparacao, tg: Omit<Tri
     await moverEstoque(ctx, { itemId: filho.id, delta: x.quantidade, motivo: 'transformacao', origemId: lote.id, descricao: `Veio de ${lote.codigo ?? lote.nome}` })
     criados.push(filho.id)
   }
+  if (depois) {
+    const campos: Campos = { ...lote.campos, estado: NAO_IDENTIFICADO, separacaoId: d.id, rateio: 'peso' }
+    const filho = novo<Item>(ctx, {
+      id: depois.id,
+      moduloId: lote.moduloId,
+      tipoItem: lote.tipoItem,
+      nome: NAO_IDENTIFICADO,
+      codigo: await codigoNovoLote(ctx, { codigo: limpos[saidas.length], paiId: lote.id, reservados }),
+      unidade: lote.unidade,
+      controlaEstoque: true,
+      ativo: true,
+      saldo: 0,
+      precoSugerido: lote.precoSugerido,
+      custoPrincipal: custoDepois,
+      quantidadeInicial: depois.quantidade,
+      origem: { tipo: 'transformacao', id: lote.id, pessoaId: lote.origem?.pessoaId, compraId: compraIds[0], compraIds: compraIds.length > 1 ? compraIds : undefined },
+      triagem: { ...tg, papel: 'saida' },
+      campos,
+    })
+    await ctx.repos.itens.salvar(filho)
+    await moverEstoque(ctx, { itemId: filho.id, delta: depois.quantidade, motivo: 'transformacao', origemId: lote.id, descricao: `Para depois (não identificado) · veio de ${lote.codigo ?? lote.nome}` })
+    criados.push(filho.id)
+  }
   // peso bruto (antes) → peso líquido (soma das partes) e a perda, com quem e quando (o log guarda o usuário)
   const pct = ((perda * 100) / d.quantidadeUsada).toLocaleString('pt-BR', { maximumFractionDigits: 1 })
   await auditar(
     ctx,
     'separarLote',
     lote.id,
-    `${tg.codigo} · ${lote.codigo ?? lote.nome}: peso bruto ${unidadeTexto(lote.unidade, d.quantidadeUsada)} → líquido ${unidadeTexto(lote.unidade, soma)} em ${d.saidas.length} lote(s) (${d.saidas.map((x) => x.quantidade).join(' + ')}) · perda ${unidadeTexto(lote.unidade, perda)} (${pct}%)`,
+    `${tg.codigo} · ${lote.codigo ?? lote.nome}: peso bruto ${unidadeTexto(lote.unidade, d.quantidadeUsada)} → líquido ${unidadeTexto(lote.unidade, soma)} em ${criados.length} lote(s) (${[...saidas.map((x) => x.quantidade), ...(depois ? [depois.quantidade] : [])].join(' + ')})${depois ? ` · ${unidadeTexto(lote.unidade, depois.quantidade)} para depois` : ''} · perda ${unidadeTexto(lote.unidade, perda)} (${pct}%)`,
     [d.id, ...criados],
   )
   return { id: d.id, codigo: tg.codigo, lotes: criados }
@@ -299,11 +343,12 @@ export async function transformarLote(
 
 // ---------- consultas ----------
 
-/** Situação do lote na lista: bruto (para separar), em preparação (limpeza), disponível, parcial (já saiu parte) ou esgotado. */
-export type StatusLote = 'bruto' | 'preparando' | 'disponivel' | 'parcial' | 'esgotado'
+/** Situação do lote na lista: bruto (para separar), não identificado (ficou para depois), em preparação (limpeza), disponível, parcial (já saiu parte) ou esgotado. */
+export type StatusLote = 'bruto' | 'naoIdentificado' | 'preparando' | 'disponivel' | 'parcial' | 'esgotado'
 
 export function statusLote(i: Pick<Item, 'saldo' | 'campos' | 'quantidadeInicial' | 'faseTriagem'>): StatusLote {
   if (i.saldo <= 0) return 'esgotado'
+  if (i.campos.estado === NAO_IDENTIFICADO) return 'naoIdentificado'
   if (i.campos.estado === 'Bruto') return i.faseTriagem && !i.faseTriagem.entrada ? 'preparando' : 'bruto'
   if (i.quantidadeInicial && i.saldo < i.quantidadeInicial) return 'parcial'
   return 'disponivel'
@@ -371,6 +416,48 @@ export async function movimentosDoItem(ctx: Ctx, p: { itemId: Id }) {
 
 /** Ações que contam a história da triagem de um lote (o "log da triagem"). */
 const ACOES_TRIAGEM = ['unificarLotes', 'moverFaseTriagem', 'separarLote', 'marcarLotes', 'editarAtributosLote']
+
+/**
+ * PACOTE PARA VENDER (o que a funcionária vê ao ler o QR): foto, código, rótulo, situação, peso disponível e o preço de
+ * venda pela tabela (coluna padrão). Nada de custo, margem, preço do fornecedor nem histórico; as compras de origem só
+ * pelo código. Pacote bruto, não identificado ou esgotado volta com vendavel = false.
+ * Ex.: P4 · 60 cm · Normal · Castanho · 2.008 g · 2.008 g × 17,5 = Bs 35.140.
+ */
+export async function pacoteVenda(ctx: Ctx, p: { id: Id }) {
+  const i = await ctx.repos.itens.obter(p.id)
+  exigir(i && i.controlaEstoque && i.ativo, 'Pacote não encontrado.')
+  const status = statusLote(i)
+  const grama = i.unidade === 'grama'
+  const medida = i.campos.comprimento !== undefined && i.campos.comprimento !== '' ? Number(i.campos.comprimento) : undefined
+  const categoria = i.campos.categoria ? String(i.campos.categoria) : undefined
+  const cor = i.campos.cor ? String(i.campos.cor) : undefined
+  const vendavel = i.saldo > 0 && (grama ? !['bruto', 'naoIdentificado', 'preparando'].includes(status) && !!medida : !!i.precoSugerido)
+  // preço como no modo caixa: tabela da categoria (ou a geral) × coluna padrão
+  let preco: { moeda: string; fator?: string; coluna?: string; total: number } | undefined
+  if (vendavel && grama && medida) {
+    const ts = (await ctx.repos.tabelasPreco.listar({ moduloId: i.moduloId }))
+    const tb = ts.find((x) => (x.categoria ?? 'Normal') === (categoria ?? 'Normal')) ?? ts.find((x) => !x.categoria) ?? ts[0]
+    const col = tb?.colunas[0]
+    const fator = tb && col ? fatorDaTabela(tb, medida, col.id).fator : undefined
+    if (tb && col && fator) preco = { moeda: tb.moeda, fator: fator.replace('.', ','), coluna: col.nome, total: multiplicarFator(i.saldo, fator, tb.moeda) }
+  } else if (vendavel && i.precoSugerido) preco = { moeda: i.precoSugerido.moeda, total: i.precoSugerido.valor }
+  const F = await leitorFotos(ctx)
+  const compras = (await Promise.all(comprasDe(i).map((id) => ctx.repos.transacoes.obter(id)))).map((t) => t?.codigo).filter((c): c is string => !!c)
+  return {
+    id: i.id,
+    codigo: i.codigo,
+    nome: i.nome,
+    rotulo: [medida !== undefined ? `${medida} cm` : undefined, categoria, cor].filter(Boolean).join(' · ') || i.nome,
+    campos: { comprimento: i.campos.comprimento, categoria, cor },
+    unidade: i.unidade,
+    status,
+    saldo: i.saldo,
+    foto: F.principal(i.id),
+    vendavel,
+    preco,
+    compras,
+  }
+}
 
 /** Ficha do lote: de onde veio, para onde foi cada grama e quanto deu de lucro. */
 export async function fichaItem(ctx: Ctx, p: { id: Id }) {
@@ -657,7 +744,7 @@ export async function aplicarCampos(ctx: Ctx, item: Item, campos: Campos) {
   const faseTriagem = novos.estado === item.campos.estado ? item.faseTriagem : undefined
   const nomeAntes = tipo.nomear?.(item.campos)
   const nomeDepois = tipo.nomear?.(novos)
-  const nome = nomeDepois && nomeDepois !== nomeAntes ? nomeDepois : item.nome
+  const nome = nomeDepois && (nomeDepois !== nomeAntes || item.nome === NAO_IDENTIFICADO) ? nomeDepois : item.nome
   if (nome !== item.nome) mudou.push(`Nome: ${item.nome} → ${nome}`)
   await ctx.repos.itens.salvar(tocar(ctx, { ...item, campos: novos, nome, faseTriagem }))
   return mudou

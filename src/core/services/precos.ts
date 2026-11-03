@@ -191,9 +191,18 @@ export async function tabelaPreco(ctx: Ctx, p: { id: Id }) {
   const versoes = await versoesTabela(ctx, p)
   const usos = (await ctx.repos.transacoes.listar())
     .filter((x) => x.etapa !== 'cancelado' && x.linhas.some((l) => l.campos.tabelaId === t.id))
-    .map((x) => ({ id: x.id, tipo: x.tipo, data: x.data, codigo: x.codigo, total: x.totalPrincipal, linhas: x.linhas.filter((l) => l.campos.tabelaId === t.id).length }))
+    .map((x) => {
+      const ls = x.linhas.filter((l) => l.campos.tabelaId === t.id)
+      // desconto das linhas desta tabela (a linha com desconto continua ligada à tabela, com o fator que usou)
+      return { id: x.id, tipo: x.tipo, data: x.data, codigo: x.codigo, total: x.totalPrincipal, linhas: ls.length, desconto: ls.reduce((s, l) => s + (l.descontoPrincipal ?? 0), 0) }
+    })
     .sort((a, b) => (a.data < b.data ? 1 : -1))
-  return { tabela: t, versoes, atual: versoes[0]?.numero ?? 1, usos: usos.slice(0, 20), totalUsos: usos.length }
+  return {
+    tabela: t, versoes, atual: versoes[0]?.numero ?? 1, usos: usos.slice(0, 20), totalUsos: usos.length,
+    // para a lista ("usada em 8 vendas · 2 compras")
+    totalVendas: usos.filter((u) => u.tipo !== 'compra').length,
+    totalCompras: usos.filter((u) => u.tipo === 'compra').length,
+  }
 }
 
 /** Calcula como no caderno: "40 | 3,5 × 2 kg = Bs 7.000". */

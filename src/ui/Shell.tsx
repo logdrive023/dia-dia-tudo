@@ -40,6 +40,8 @@ export const MENU: ItemMenu[] = [
   // viagens de compra: admin sempre; funcionária só quando está numa viagem aberta (painel do viajante)
   { tela: 'viagens', nome: 'Viagens', grupo: 'Estoque e compras', precisa: 'compra' },
   { tela: 'estoque', nome: 'Estoque', grupo: 'Estoque e compras', admin: true, precisa: 'estoque' },
+  // livro do cabelo: todos os lançamentos de gramas e o fechamento de cada compra
+  { tela: 'livro', nome: 'Livro do cabelo', curto: 'Livro', grupo: 'Estoque e compras', admin: true, precisa: 'cabelo' },
   { tela: 'precos', nome: 'Tabelas de preço', curto: 'Preços', grupo: 'Estoque e compras', admin: true, precisa: 'cabelo' },
   { tela: 'pessoas', nome: 'Pessoas e contas', curto: 'Pessoas', grupo: 'Pessoas' },
   { tela: 'equipe', nome: 'Equipe e unidades', curto: 'Equipe', grupo: 'Pessoas' },

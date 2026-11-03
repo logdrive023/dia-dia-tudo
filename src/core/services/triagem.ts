@@ -8,7 +8,7 @@ import { exigir } from '../domain/erros'
 import type { Campos, Id, Item, Transacao } from '../domain/tipos'
 import type { CampoDef } from '../modulos'
 import { auditar, type Ctx, novo, paraPrincipal, tocar } from './contexto'
-import { type Cadeia, type SaidaSeparacao, type Triagem, aplicarCampos, comprasDe, custoDe, leitorCadeia, lotesDeOrigem, moverEstoque, novaTriagem, separarNaTriagem, unidadeTexto } from './estoque'
+import { type Cadeia, NAO_IDENTIFICADO, type ParaDepois, type SaidaSeparacao, type Triagem, aplicarCampos, comprasDe, custoDe, leitorCadeia, lotesDeOrigem, moverEstoque, novaTriagem, separarNaTriagem, unidadeTexto } from './estoque'
 import { codigoNovoLote, exigirCodigosLivres, siglasPorPessoa } from './codigos'
 import { fatorDaTabela, tabelaVigente } from './precos'
 import { type FotoResumo, leitorFotos } from './fotos'
@@ -43,17 +43,27 @@ export interface ColunaTriagem {
   lembrarFotos?: boolean
   /** o lote só sai desta coluna (mover ou triar) com pelo menos uma foto PRÓPRIA (as herdadas não contam) */
   exigirFoto?: boolean
+  /** lavagem/secagem: ao sair desta coluna pergunta o peso depois (opcional) e registra a perda de lavagem (antes → depois) */
+  pedirPeso?: boolean
 }
 
 /** Última coluna, sempre: lotes que acabaram com venda (calculada; dá para renomear, não para tirar). */
 export const COLUNA_VENDIDO = 'vendido'
 
+/**
+ * Padrão: Aguardando → Separado → Pronto para venda (+ Vendido automático). Lavar é opcional: quem lava liga a coluna
+ * COLUNA_LAVAGEM em Configurações › Etapas da triagem. Fluxos salvos antes continuam como estão; lote numa coluna que
+ * deixou de existir volta para a calculada (bruto → entrada; separado → primeira "pronto").
+ */
 export const COLUNAS_PADRAO: ColunaTriagem[] = [
-  { id: 'aguardando', nome: 'Aguardando triagem', cor: '#f59e0b', ajuda: 'Nenhum lote esperando. Quando uma compra entra no estoque, o lote bruto aparece aqui sozinho.', entrada: true },
-  { id: 'preparando', nome: 'Em preparação/limpeza', cor: '#8b5cf6', ajuda: 'Arraste para cá o lote que está sendo lavado ou limpo.' },
-  { id: 'triado', nome: 'Triado (pronto para venda)', cor: '#16a34a', ajuda: 'Separe um lote bruto (✂️) e as partes aparecem aqui, prontas para vender.', pronto: true, separarAoEntrar: true },
+  { id: 'aguardando', nome: 'Aguardando triagem', cor: '#f59e0b', ajuda: 'Nenhum lote esperando. Quando uma compra é registrada, o cabelo bruto aparece aqui sozinho.', entrada: true },
+  { id: 'triado', nome: 'Separado', cor: '#0ea5e9', ajuda: 'Separe um lote bruto (✂️) e as partes aparecem aqui, já dá para vender.', pronto: true, separarAoEntrar: true },
+  { id: 'pronto', nome: 'Pronto para venda', cor: '#16a34a', ajuda: 'Arraste para cá o que já está etiquetado e pronto para vender.', pronto: true },
   { id: COLUNA_VENDIDO, nome: 'Vendido', cor: '#94a3b8', ajuda: 'Lotes que acabaram nos últimos 30 dias aparecem aqui.' },
 ]
+
+/** Coluna opcional de lavagem/limpeza (o admin liga em Configurações › Etapas da triagem). */
+export const COLUNA_LAVAGEM: ColunaTriagem = { id: 'preparando', nome: 'Em preparação/limpeza', cor: '#8b5cf6', ajuda: 'Arraste para cá o lote que está sendo lavado ou limpo. Ao sair, digite o peso depois (se quiser).', pedirPeso: true }
 
 export async function colunasTriagem(ctx: Ctx, moduloId: string): Promise<ColunaTriagem[]> {
   const r = await ctx.repos.config.obter('fluxoTriagem')
@@ -71,10 +81,11 @@ export function faseLote(i: Pick<Item, 'saldo' | 'campos' | 'faseTriagem'>, colu
   if (i.saldo <= 0) return vendeu ? COLUNA_VENDIDO : undefined
   const guardada = colunas.find((c) => c.id === i.faseTriagem?.fase && c.id !== COLUNA_VENDIDO)
   if (guardada) return guardada.id
-  return i.campos.estado === 'Bruto' ? entradaDe(colunas).id : prontoDe(colunas).id
+  return i.campos.estado === 'Bruto' || i.campos.estado === NAO_IDENTIFICADO ? entradaDe(colunas).id : prontoDe(colunas).id
 }
 
-const ehBruto = (i: Item) => i.campos.estado === 'Bruto'
+/** bruto ou "não identificado" (ficou para depois): ainda precisa ser separado */
+const ehBruto = (i: Item) => i.campos.estado === 'Bruto' || i.campos.estado === NAO_IDENTIFICADO
 const vazio = (v: Campos[string]) => v === undefined || v === null || v === ''
 
 /** Atributos do lote unificado: o que é igual em todos fica; lista diferente vira "Misturado" (se a opção existir); o resto fica vazio. */
@@ -156,7 +167,7 @@ async function unificarNaTriagem(ctx: Ctx, d: { id: Id; ids: Id[]; motivo?: stri
  * Leva lotes para qualquer coluna da triagem (menos "Vendido", que é calculada). Entrar numa coluna "pronto para venda"
  * marca o lote bruto como Separado (vendável). Uma linha no log por lote, com de → para.
  */
-export async function moverFaseTriagem(ctx: Ctx, d: { ids: Id[]; fase: string; obs?: string }) {
+export async function moverFaseTriagem(ctx: Ctx, d: { ids: Id[]; fase: string; obs?: string; pesos?: Record<Id, number | undefined> }) {
   exigir(ctx.sessao.perfil === 'admin', 'Só o administrador mexe na triagem.')
   exigir(d.ids?.length, 'Escolha pelo menos um lote.')
   const obs = d.obs?.trim() || undefined
@@ -174,6 +185,18 @@ export async function moverFaseTriagem(ctx: Ctx, d: { ids: Id[]; fase: string; o
     if (antes === col.id && !obs) continue
     await exigirFotoParaSair(ctx, [i], col.id)
     let extra = ''
+    // lavagem: peso depois (opcional) → a diferença vira "perda de lavagem" no livro (antes → depois)
+    const peso = d.pesos?.[id]
+    if (peso !== undefined && peso !== null) {
+      exigir(Number.isSafeInteger(peso) && peso > 0, 'Peso depois inválido.')
+      exigir(peso <= i.saldo, `${i.codigo ?? i.nome}: o peso depois (${unidadeTexto(i.unidade, peso)}) é maior que o de antes (${unidadeTexto(i.unidade, i.saldo)}).`)
+      if (peso < i.saldo) {
+        const texto = `${unidadeTexto(i.unidade, i.saldo)} → ${unidadeTexto(i.unidade, peso)} (−${unidadeTexto(i.unidade, i.saldo - peso)})`
+        await moverEstoque(ctx, { itemId: i.id, delta: peso - i.saldo, motivo: 'perda', descricao: `Perda de lavagem: ${texto}` })
+        extra += ` · lavagem ${texto}`
+        i = (await ctx.repos.itens.obter(id))!
+      }
+    }
     if (col.pronto && ehBruto(i)) {
       const mudou = await aplicarCampos(ctx, i, { estado: 'Separado' })
       if (mudou) extra = ` (${mudou.join('; ')})`
@@ -246,7 +269,7 @@ export async function salvarFluxoTriagem(ctx: Ctx, d: { moduloId: string; coluna
     exigir(cs.every((c) => !c.cor || /^#[0-9a-fA-F]{6}$/.test(c.cor)), 'Cor inválida.')
     valor[d.moduloId] = cs.map((c) => {
       const v = c.id === COLUNA_VENDIDO
-      return { id: c.id, nome: c.nome.trim(), cor: c.cor || undefined, ajuda: c.ajuda?.trim() || undefined, entrada: (!v && c.entrada) || undefined, pronto: (!v && c.pronto) || undefined, separarAoEntrar: (!v && c.separarAoEntrar) || undefined, lembrarFotos: (!v && c.lembrarFotos) || undefined, exigirFoto: (!v && c.exigirFoto) || undefined }
+      return { id: c.id, nome: c.nome.trim(), cor: c.cor || undefined, ajuda: c.ajuda?.trim() || undefined, entrada: (!v && c.entrada) || undefined, pronto: (!v && c.pronto) || undefined, separarAoEntrar: (!v && c.separarAoEntrar) || undefined, lembrarFotos: (!v && c.lembrarFotos) || undefined, exigirFoto: (!v && c.exigirFoto) || undefined, pedirPeso: (!v && c.pedirPeso) || undefined }
     })
   }
   await ctx.repos.config.salvar(r ? tocar(ctx, { ...r, valor }) : novo(ctx, { id: 'fluxoTriagem', valor }))
@@ -412,6 +435,7 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
   const geradoMes = soma((m) => m.delta > 0 && m.data >= mesDesde)
   const porColuna = Object.fromEntries(colunas.map((c) => { const ls = lotes.filter((x) => x.fase === c.id); return [c.id, { n: ls.length, g: ls.reduce((s, x) => s + x.saldo, 0) }] }))
   const prontos = lotes.filter((x) => porColunaId.get(x.fase)?.pronto)
+  const naoId = lotes.filter((x) => x.fase !== COLUNA_VENDIDO && x.campos.estado === NAO_IDENTIFICADO)
   return {
     lotes,
     colunas,
@@ -430,6 +454,8 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
       pronto: prontos.reduce((s, x) => s + x.saldo, 0),
       prontoValor: prontos.reduce((s, x) => s + (x.preco?.valorPrincipal ?? 0), 0),
       aguardando: lotes.filter((x) => x.fase === entradaDe(colunas).id).reduce((s, x) => s + x.saldo, 0),
+      // "não identificado": o que ficou para depois numa separação (pendência até alguém separar)
+      naoIdentificado: { n: naoId.length, g: naoId.reduce((s, x) => s + x.saldo, 0), dias: naoId.reduce((s, x) => Math.max(s, x.dias), 0) },
     },
   }
 }
@@ -440,27 +466,29 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
  * TRIAR: um passo, um id ("T-0004"). Com 2+ lotes, junta (unifica); com partes, separa (o que sobra é perda).
  * Dá para só juntar, só separar ou os dois. Cada lote que sai guarda a triagem (quem, quando) e de onde veio.
  */
-export async function triarLotes(ctx: Ctx, d: { id: Id; ids: Id[]; quantidadeUsada?: number; saidas?: SaidaSeparacao[]; custoExtraPrincipal?: number; motivo?: string; codigo?: string }) {
+export async function triarLotes(ctx: Ctx, d: { id: Id; ids: Id[]; quantidadeUsada?: number; saidas?: SaidaSeparacao[]; paraDepois?: ParaDepois; custoExtraPrincipal?: number; motivo?: string; codigo?: string }) {
   exigir(ctx.sessao.perfil === 'admin', 'Só o administrador faz a triagem.')
   const ja = (await ctx.repos.itens.listar()).filter((i) => i.triagem?.id === d.id)
   if (ja.length) return { id: d.id, codigo: ja[0].triagem!.codigo, lotes: ja.filter((i) => i.triagem!.papel === 'saida').map((i) => i.id) }
   const ids = [...new Set(d.ids ?? [])]
   exigir(ids.length, 'Escolha o(s) lote(s).')
-  exigir(ids.length >= 2 || d.saidas?.length, 'Diga em que lotes ele foi separado.')
+  // separa quando há partes ou um pacote "para depois" (não identificado)
+  const separa = !!d.saidas?.length || !!d.paraDepois?.quantidade
+  exigir(ids.length >= 2 || separa, 'Diga em que lotes ele foi separado.')
   // coluna com "exigir foto ao sair": cada lote que entra na triagem precisa de foto própria
   await exigirFotoParaSair(ctx, (await Promise.all(ids.map((x) => ctx.repos.itens.obter(x)))).filter((x): x is Item => !!x))
   // códigos digitados (lote juntado e partes): conferidos antes de mexer em qualquer lote
-  const { reservados } = await exigirCodigosLivres(ctx, 'lote', [d.codigo, ...(d.saidas ?? []).map((x) => x.codigo)])
+  const { reservados } = await exigirCodigosLivres(ctx, 'lote', [d.codigo, ...(d.saidas ?? []).map((x) => x.codigo), d.paraDepois?.codigo])
   const tg = await novaTriagem(ctx, d.id)
   let loteId = ids[0]
   if (ids.length > 1) {
-    loteId = d.saidas?.length ? `${d.id}-u` : d.id
-    await unificarNaTriagem(ctx, { id: loteId, ids, motivo: d.motivo, codigo: d.codigo, reservados: new Set([...reservados].filter((c) => c !== (d.codigo ?? '').trim().toUpperCase())) }, tg, d.saidas?.length ? 'intermediario' : 'saida', true)
+    loteId = separa ? `${d.id}-u` : d.id
+    await unificarNaTriagem(ctx, { id: loteId, ids, motivo: d.motivo, codigo: d.codigo, reservados: new Set([...reservados].filter((c) => c !== (d.codigo ?? '').trim().toUpperCase())) }, tg, separa ? 'intermediario' : 'saida', true)
   }
-  if (!d.saidas?.length) return { id: d.id, codigo: tg.codigo, lotes: [loteId] }
+  if (!separa) return { id: d.id, codigo: tg.codigo, lotes: [loteId] }
   const lote = await ctx.repos.itens.obter(loteId)
   exigir(lote, 'Lote não encontrado.')
-  const r = await separarNaTriagem(ctx, { id: d.id, loteId, quantidadeUsada: d.quantidadeUsada ?? lote.saldo, saidas: d.saidas, custoExtraPrincipal: d.custoExtraPrincipal, descricao: d.motivo?.trim() || undefined }, tg)
+  const r = await separarNaTriagem(ctx, { id: d.id, loteId, quantidadeUsada: d.quantidadeUsada ?? lote.saldo, saidas: d.saidas ?? [], paraDepois: d.paraDepois, custoExtraPrincipal: d.custoExtraPrincipal, descricao: d.motivo?.trim() || undefined }, tg)
   return { id: d.id, codigo: tg.codigo, lotes: r.lotes }
 }
 
@@ -571,7 +599,9 @@ export async function genealogia(ctx: Ctx, p: { compraId?: Id; itemId?: Id; vend
         ...vendasNos.filter((v) => v.lotes.some((l) => l.id === i.id)).map((v) => ({ tipo: 'venda' as const, id: v.id, codigo: v.codigo, g: v.lotes.find((l) => l.id === i.id)!.g })),
       ]
       const ajustes = -soma(i.id, (m) => m.motivo === 'ajuste' || m.motivo === 'perda')
-      return { tipo: 'lote' as const, id: i.id, codigo: i.codigo, nome: i.nome, entrou: de.reduce((s, x) => s + x.g, 0) || i.quantidadeInicial || 0, saldo: i.saldo, vendido: para.filter((x) => x.tipo === 'venda').reduce((s, x) => s + x.g, 0), triado: para.filter((x) => x.tipo === 'triagem').reduce((s, x) => s + x.g, 0), ajustes, de, para, compras: comprasDe(i).map(L.compraCurta), bruto: i.campos.estado === 'Bruto', foto: F.principal(i.id), campos: { comprimento: i.campos.comprimento, categoria: i.campos.categoria } }
+      // compra recusada/cancelada: o cabelo devolvido sai do lote (movimento 'cancelamento' ligado à compra)
+      const cancelado = -soma(i.id, (m) => m.motivo === 'cancelamento' && !!m.origemId && L.compras.has(m.origemId))
+      return { tipo: 'lote' as const, id: i.id, codigo: i.codigo, nome: i.nome, entrou: de.reduce((s, x) => s + x.g, 0) || i.quantidadeInicial || 0, saldo: i.saldo, vendido: para.filter((x) => x.tipo === 'venda').reduce((s, x) => s + x.g, 0), triado: para.filter((x) => x.tipo === 'triagem').reduce((s, x) => s + x.g, 0), ajustes, cancelado, de, para, compras: comprasDe(i).map(L.compraCurta), bruto: i.campos.estado === 'Bruto', foto: F.principal(i.id), campos: { comprimento: i.campos.comprimento, categoria: i.campos.categoria } }
     })
     .sort((a, b) => ((a.codigo ?? '') < (b.codigo ?? '') ? -1 : 1))
   triagens.sort((a, b) => (a.em < b.em ? -1 : 1))
@@ -580,6 +610,7 @@ export async function genealogia(ctx: Ctx, p: { compraId?: Id; itemId?: Id; vend
   const emEstoque = nosLotes.reduce((s, l) => s + l.saldo, 0)
   const perdaTriagem = triagens.reduce((s, t) => s + t.perda, 0)
   const ajustes = nosLotes.reduce((s, l) => s + l.ajustes, 0)
+  const cancelado = nosLotes.reduce((s, l) => s + l.cancelado, 0)
   // CAMINHO do registro em foco (a barra "você está aqui"): compra(s) → triagem(ns) → [lote] → venda(s)
   const juntar = <X extends { id: Id }>(xs: X[]) => [...new Map(xs.map((x) => [x.id, x])).values()]
   const cadeias = sementes.filter((id) => porId.get(id)?.triagem?.papel !== 'intermediario').map((id) => L.cadeia(id))
@@ -599,7 +630,7 @@ export async function genealogia(ctx: Ctx, p: { compraId?: Id; itemId?: Id; vend
     lotes: nosLotes,
     vendas: vendasNos,
     parcial,
-    totais: { entrou, vendido, emEstoque, perdaTriagem, ajustes, perda: perdaTriagem + ajustes, confere: !parcial && entrou === vendido + emEstoque + perdaTriagem + ajustes },
+    totais: { entrou, vendido, emEstoque, perdaTriagem, ajustes, cancelado, perda: perdaTriagem + ajustes, confere: !parcial && entrou === vendido + emEstoque + perdaTriagem + ajustes + cancelado },
   }
 }
 

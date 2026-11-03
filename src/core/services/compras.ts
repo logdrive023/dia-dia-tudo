@@ -1,19 +1,24 @@
-// COMPRAS com TRIAGEM: a compra anda etapa por etapa (definidas pelo módulo) e só entra no estoque no fim.
+// COMPRAS: registra o que entrou. Quando o item NASCE NA COMPRA (lote de cabelo, modalidade "lote por compra"), o lote
+// nasce JÁ NO REGISTRO e cai na Triagem como "Aguardando triagem" (Bruto) — sem esperar pagamento nem as etapas.
+// As etapas da compra ficam só para PAGAMENTO E ENTREGA (conferir, pagar, concluir); a última etapa não cria lote de novo.
+// Item de catálogo (produto) continua entrando no estoque só na última etapa, como antes.
 
 import { formatar, multiplicarFator, type CodigoMoeda } from '../domain/dinheiro'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { diasEntre } from '../domain/datas'
-import type { Campos, Id, Item, Linha, Transacao } from '../domain/tipos'
+import type { Campos, Id, Item, Linha, MovEstoque, Transacao } from '../domain/tipos'
 import { auditar, type Ctx, exigirInteiroPositivo, lerConfig, novo, paraPrincipal, tocar } from './contexto'
 import { moverCaixa } from './caixa'
 import { comprasDe, custoDe, moverEstoque } from './estoque'
-import { codigoNovaCompra, codigoNovoLote, exigirCodigosLivres, type ModoCompra, siglasPorPessoa } from './codigos'
+import { codigoNovaCompra, codigoNovoLote, exigirCodigoLivre, exigirCodigosLivres, type ModoCompra, siglasPorPessoa } from './codigos'
 import { lerFormCompra, obrigatorioNoForm } from './formCompra'
 import { leitorFotos } from './fotos'
 import { montarPagamentos, type PagamentoEntrada } from './pagamentos'
 import { pendenciasCompra } from './pendencias'
 import { moverConta } from './contas'
 import { estornarConta } from './vendas'
+import { genealogia } from './triagem'
+import { origemDoPacote } from './origem'
 
 export const ETAPA_RECUSADO = 'recusado'
 export const ETAPA_CANCELADO = 'cancelado'
@@ -80,6 +85,8 @@ export async function criarCompra(
     modoCodigo?: ModoCompra
     /** VIAGEM de compra aberta a que esta compra pertence (admin: qualquer aberta; funcionária: só a viagem dela) */
     viagemId?: Id
+    /** lote que nasce no registro: código digitado de cada lote (linhaId → código; vazio = o da regra) */
+    codigosLotes?: Record<Id, string>
   },
 ) {
   if (await ctx.repos.transacoes.obter(d.id)) return { id: d.id }
@@ -138,6 +145,11 @@ export async function criarCompra(
     ...(viagem ? { viagemId: viagem.id } : {}),
   })
   await ctx.repos.transacoes.salvar(t)
+  // REGRA NOVA: o lote nasce agora (o bruto já aparece na Triagem como "Aguardando triagem"); o pagamento é à parte
+  if (tipo.nasceNaCompra) {
+    await criarLotes(ctx, t, d.codigosLotes, 'Compra registrada')
+    await ctx.repos.transacoes.salvar(t)
+  }
   // mesma linha de log do "ligar compras" da viagem (uma viagem por compra: compra nova não está em outra)
   if (viagem) await auditar(ctx, 'vincularCompras', viagem.id, `${viagem.codigo} ← ${t.codigo ?? t.id}`, [t.id])
   await auditar(ctx, 'criarCompra', t.id, `${t.codigo} · ${linhas.length} item(ns): ${linhas.map((l) => `${l.descricao} ${l.quantidade}`).join(', ')}`, [t.pessoaId!])
@@ -177,13 +189,23 @@ export async function avancarTriagem(
   let compra: Transacao = { ...t, linhas: t.linhas.map((l) => ({ ...l })) }
   const historicoAjustes: string[] = []
 
+  const tipo = ctx.modulos.tipoItem(t.moduloId, c.tipoItem)
+  /** lote que já nasceu no registro (regra nova); compra antiga ainda sem lote → undefined */
+  const loteDaLinha = async (l: Linha) => (tipo.nasceNaCompra && l.itemId ? await ctx.repos.itens.obter(l.itemId) : undefined)
+  const conferencias: { linhaId: Id; pesado: number }[] = []
+  const custos: { itemId: Id; custo: number }[] = []
   for (const a of d.ajustes ?? []) {
     const l = compra.linhas.find((x) => x.id === a.linhaId)
     exigir(l, 'Linha não encontrada.')
+    const lote = await loteDaLinha(l)
     if (a.quantidade !== undefined && a.quantidade !== l.quantidade) {
       exigirInteiroPositivo(a.quantidade, 'Quantidade')
-      historicoAjustes.push(`${l.descricao}: quantidade ${l.quantidade} → ${a.quantidade}`)
-      l.quantidade = a.quantidade
+      // com o lote já no estoque, o peso conferido vira LANÇAMENTO (diferença de peso) e o comprado não muda
+      if (lote) conferencias.push({ linhaId: l.id, pesado: a.quantidade })
+      else {
+        historicoAjustes.push(`${l.descricao}: quantidade ${l.quantidade} → ${a.quantidade}`)
+        l.quantidade = a.quantidade
+      }
     }
     if (a.total !== undefined && a.total !== l.total) {
       exigirInteiroPositivo(a.total, 'Valor', true)
@@ -192,6 +214,10 @@ export async function avancarTriagem(
       const conv = await paraPrincipal(ctx, a.total, l.moeda, 'compra')
       l.totalPrincipal = conv.valorPrincipal
       l.cotacao = conv.cotacao
+      if (lote) {
+        await exigirLoteIntacto(ctx, compra, lote, 'Parte deste cabelo já foi separada ou vendida: não dá para mudar o valor da compra.')
+        custos.push({ itemId: lote.id, custo: conv.valorPrincipal })
+      }
     }
     for (const [k, v] of Object.entries(a.campos ?? {})) {
       if (l.campos[k] !== v) historicoAjustes.push(`${l.descricao}: ${k} ${l.campos[k] ?? '—'} → ${v}`)
@@ -199,11 +225,14 @@ export async function avancarTriagem(
     }
   }
   if (historicoAjustes.length) exigir(!compra.pagamentos.length, 'A compra já foi paga: não dá para mudar valores. Cancele e refaça.')
+  for (const x of conferencias) historicoAjustes.push(`${compra.linhas.find((l) => l.id === x.linhaId)?.descricao ?? ''}: pesou ${gTxt(x.pesado)} (diferença de peso lançada no lote)`)
   compra.totalPrincipal = compra.linhas.reduce((s, l) => s + l.totalPrincipal, 0)
 
   if (d.para === ETAPA_RECUSADO) {
     exigir(!compra.pagamentos.length, 'A compra já foi paga. Use "Cancelar compra" para devolver o dinheiro.')
     exigir(d.motivo?.trim(), 'Diga o motivo da recusa.', 'motivo')
+    // recusou: o bruto que entrou no registro sai da Triagem (só se ninguém separou nem vendeu)
+    await tirarLotesDaCompra(ctx, compra, 'Compra recusada')
     compra = { ...compra, etapa: ETAPA_RECUSADO }
   } else {
     const prox = c.etapas[idx + 1]
@@ -231,6 +260,12 @@ export async function avancarTriagem(
     if (prox.faz?.includes('estoque')) await entrarNoEstoque(ctx, compra, d.codigosLotes)
     compra = { ...compra, etapa: prox.id }
   }
+  // novo valor (conferência antes de pagar): o custo do lote acompanha
+  for (const x of custos) {
+    const item = await ctx.repos.itens.obter(x.itemId)
+    if (item) await ctx.repos.itens.salvar(tocar(ctx, { ...item, custoPrincipal: x.custo }))
+  }
+  for (const x of conferencias) await lancarConferencia(ctx, compra, x.linhaId, x.pesado, d.motivo?.trim() || 'Conferido na etapa')
   compra.historico = [
     ...compra.historico,
     { de: etapaAtual.id, para: compra.etapa, em: ctx.relogio.agora(), por: ctx.sessao.usuarioId, porNome: ctx.sessao.nome, motivo: d.motivo, ajustes: historicoAjustes.length ? historicoAjustes : undefined },
@@ -240,40 +275,136 @@ export async function avancarTriagem(
   return { id: compra.id }
 }
 
+/**
+ * Cria os lotes das linhas que NASCEM NA COMPRA (e grava o lote em cada linha). Usado no registro (regra nova) e, para
+ * compra antiga que ainda não tinha lote, na última etapa.
+ */
+async function criarLotes(ctx: Ctx, compra: Transacao, codigosLotes: Record<Id, string> | undefined, descricao: string) {
+  const c = etapasDe(ctx, compra.moduloId)
+  const tipo = ctx.modulos.tipoItem(compra.moduloId, c.tipoItem)
+  const novas = compra.linhas.filter((l) => !l.itemId)
+  // códigos digitados: conferidos antes de criar qualquer lote (sem repetir entre si e sem existir)
+  const { limpos, reservados } = await exigirCodigosLivres(ctx, 'lote', novas.map((l) => codigosLotes?.[l.id]))
+  for (const [k, l] of novas.entries()) {
+    const lote = novo<Item>(ctx, {
+      moduloId: compra.moduloId,
+      tipoItem: tipo.id,
+      nome: tipo.nomear?.(l.campos) ?? l.descricao,
+      codigo: await codigoNovoLote(ctx, { codigo: limpos[k], compraId: compra.id, reservados }),
+      unidade: tipo.unidade,
+      controlaEstoque: tipo.controlaEstoque,
+      ativo: true,
+      saldo: 0,
+      custoPrincipal: l.totalPrincipal,
+      quantidadeInicial: l.quantidade,
+      origem: { tipo: 'compra', id: compra.id, pessoaId: compra.pessoaId },
+      campos: { ...l.campos },
+    })
+    await ctx.repos.itens.salvar(lote)
+    l.itemId = lote.id
+    await moverEstoque(ctx, { itemId: lote.id, delta: l.quantidade, motivo: 'compra', origemId: compra.id, descricao: l.campos.estado === 'Bruto' ? `${descricao} · aguardando triagem` : descricao })
+  }
+}
+
+/** Última etapa ("concluído"): lote que já nasceu no registro não entra de novo; item de catálogo entra agora (custo médio). */
 async function entrarNoEstoque(ctx: Ctx, compra: Transacao, codigosLotes?: Record<Id, string>) {
   const c = etapasDe(ctx, compra.moduloId)
   const tipo = ctx.modulos.tipoItem(compra.moduloId, c.tipoItem)
-  // códigos digitados: conferidos antes de criar qualquer lote (sem repetir entre si e sem existir)
-  const { limpos, reservados } = await exigirCodigosLivres(ctx, 'lote', tipo.nasceNaCompra ? compra.linhas.map((l) => codigosLotes?.[l.id]) : [])
-  for (const [k, l] of compra.linhas.entries()) {
-    let itemId = l.itemId
-    if (tipo.nasceNaCompra) {
-      const lote = novo<Item>(ctx, {
-        moduloId: compra.moduloId,
-        tipoItem: tipo.id,
-        nome: tipo.nomear?.(l.campos) ?? l.descricao,
-        codigo: await codigoNovoLote(ctx, { codigo: limpos[k], compraId: compra.id, reservados }),
-        unidade: tipo.unidade,
-        controlaEstoque: tipo.controlaEstoque,
-        ativo: true,
-        saldo: 0,
-        custoPrincipal: l.totalPrincipal,
-        quantidadeInicial: l.quantidade,
-        origem: { tipo: 'compra', id: compra.id, pessoaId: compra.pessoaId },
-        campos: { ...l.campos },
-      })
-      await ctx.repos.itens.salvar(lote)
-      itemId = lote.id
-      l.itemId = lote.id
+  if (tipo.nasceNaCompra) {
+    // código digitado na última etapa para um lote que já existe: troca o código (o antigo continua achando o lote)
+    for (const l of compra.linhas) {
+      const cod = codigosLotes?.[l.id]?.trim()
+      if (!l.itemId || !cod) continue
+      const item = await ctx.repos.itens.obter(l.itemId)
+      if (!item) continue
+      const novoCodigo = await exigirCodigoLivre(ctx, 'lote', cod, item.id)
+      if (novoCodigo !== item.codigo) await ctx.repos.itens.salvar(tocar(ctx, { ...item, codigo: novoCodigo, codigosAnteriores: [...(item.codigosAnteriores ?? []), ...(item.codigo ? [item.codigo] : [])] }))
     }
-    exigir(itemId, 'Item da compra sem cadastro.')
-    if (!tipo.nasceNaCompra) {
-      // custo médio: custo do que já tinha + o que entrou, dividido pela quantidade nova
-      const item = await ctx.repos.itens.obter(itemId)
-      if (item) await ctx.repos.itens.salvar(tocar(ctx, { ...item, custoPrincipal: custoDe(item, item.saldo) + l.totalPrincipal, quantidadeInicial: item.saldo + l.quantidade }))
-    }
-    await moverEstoque(ctx, { itemId, delta: l.quantidade, motivo: 'compra', origemId: compra.id, descricao: 'Compra concluída' })
+    // compra registrada antes da regra nova (ainda sem lote): o lote nasce agora
+    if (compra.linhas.some((l) => !l.itemId)) await criarLotes(ctx, compra, codigosLotes, 'Compra concluída')
+    return
   }
+  for (const l of compra.linhas) {
+    exigir(l.itemId, 'Item da compra sem cadastro.')
+    // custo médio: custo do que já tinha + o que entrou, dividido pela quantidade nova
+    const item = await ctx.repos.itens.obter(l.itemId)
+    if (item) await ctx.repos.itens.salvar(tocar(ctx, { ...item, custoPrincipal: custoDe(item, item.saldo) + l.totalPrincipal, quantidadeInicial: item.saldo + l.quantidade }))
+    await moverEstoque(ctx, { itemId: l.itemId, delta: l.quantidade, motivo: 'compra', origemId: compra.id, descricao: 'Compra concluída' })
+  }
+}
+
+/** Diferença de peso (conferência) é um ajuste do lote ligado à compra, com este começo na descrição. */
+export const PREFIXO_CONFERENCIA = 'Diferença de peso'
+const ehConferencia = (m: MovEstoque, compraId: Id) => m.motivo === 'ajuste' && m.origemId === compraId && !!m.descricao?.startsWith(PREFIXO_CONFERENCIA)
+
+/** O lote da compra ainda não foi separado, juntado, vendido nem ajustado (fora a entrada e a conferência de peso). */
+async function exigirLoteIntacto(ctx: Ctx, compra: Transacao, lote: Item, mensagem: string) {
+  const movs = await ctx.repos.movEstoque.listar({ itemId: lote.id })
+  const mexido = movs.some((m) => !(m.motivo === 'compra' && m.origemId === compra.id) && !ehConferencia(m, compra.id))
+  exigir(!mexido, `${mensagem} (${lote.codigo ?? lote.nome}).`)
+}
+
+/** Lotes que nasceram desta compra (no registro ou na última etapa). */
+function lotesDasLinhas(ctx: Ctx, compra: Transacao) {
+  const c = etapasDe(ctx, compra.moduloId)
+  const tipo = ctx.modulos.tipoItem(compra.moduloId, c.tipoItem)
+  return tipo.nasceNaCompra ? compra.linhas.filter((l) => l.itemId).map((l) => l.itemId!) : []
+}
+
+/**
+ * Cancelou/recusou: tira da Triagem o cabelo que entrou com a compra (zera o lote com um movimento de cancelamento).
+ * Recusa se alguma parte já foi separada, juntada ou vendida: aí o certo é ajustar o estoque.
+ */
+async function tirarLotesDaCompra(ctx: Ctx, compra: Transacao, descricao: string) {
+  const lotes: Item[] = []
+  for (const id of lotesDasLinhas(ctx, compra)) {
+    const lote = await ctx.repos.itens.obter(id)
+    if (!lote || lote.origem?.tipo !== 'compra' || lote.origem.id !== compra.id) continue
+    await exigirLoteIntacto(ctx, compra, lote, 'Parte desta compra já foi separada ou vendida: ajuste o estoque em vez de cancelar a compra')
+    lotes.push(lote)
+  }
+  for (const lote of lotes) {
+    if (lote.saldo > 0) await moverEstoque(ctx, { itemId: lote.id, delta: -lote.saldo, motivo: 'cancelamento', origemId: compra.id, descricao })
+    const atual = await ctx.repos.itens.obter(lote.id)
+    if (atual) await ctx.repos.itens.salvar(tocar(ctx, { ...atual, ativo: false }))
+  }
+}
+
+const gTxt = (n: number) => `${n.toLocaleString('pt-BR')} g`
+
+/** Lança a diferença de peso no lote da linha: comprou X g · pesou Y g (o comprado não muda). */
+async function lancarConferencia(ctx: Ctx, compra: Transacao, linhaId: Id, pesado: number, motivo: string) {
+  const l = compra.linhas.find((x) => x.id === linhaId)
+  exigir(l, 'Linha não encontrada.')
+  exigir(l.itemId, 'Esta linha ainda não tem lote.')
+  const lote = await ctx.repos.itens.obter(l.itemId)
+  exigir(lote, 'Lote não encontrado.')
+  const antes = (await ctx.repos.movEstoque.listar({ itemId: lote.id })).filter((m) => ehConferencia(m, compra.id)).reduce((s, m) => s + m.delta, 0)
+  const delta = pesado - (l.quantidade + antes)
+  exigir(delta !== 0, 'O peso é o mesmo da última conferência.')
+  exigir(lote.saldo + delta >= 0, `O lote ${lote.codigo ?? lote.nome} só tem ${gTxt(lote.saldo)} agora.`)
+  await moverEstoque(ctx, {
+    itemId: lote.id,
+    delta,
+    motivo: 'ajuste',
+    origemId: compra.id,
+    descricao: `${PREFIXO_CONFERENCIA}: comprou ${gTxt(l.quantidade)} · pesou ${gTxt(pesado)} (${delta > 0 ? '+' : '−'}${gTxt(Math.abs(delta))}) · ${motivo}`,
+  })
+  await auditar(ctx, 'conferirPesoCompra', compra.id, `${compra.codigo ?? ''} · ${l.descricao}: comprou ${gTxt(l.quantidade)} · pesou ${gTxt(pesado)} · ${motivo}`, [lote.id])
+}
+
+/**
+ * CONFERÊNCIA DE PESO (opcional, de um toque, vale mesmo depois de pago): pesou na chegada e deu diferente → lança a
+ * diferença no lote, com motivo, sem mudar o que foi comprado. Ex.: comprou 10.000 g, pesou 9.850 g → −150 g.
+ */
+export async function conferirPesoCompra(ctx: Ctx, d: { compraId: Id; linhaId: Id; pesado: number; motivo: string }) {
+  const t = await ctx.repos.transacoes.obter(d.compraId)
+  exigir(t && t.tipo === 'compra', 'Compra não encontrada.')
+  exigir(t.etapa !== ETAPA_CANCELADO && t.etapa !== ETAPA_RECUSADO, 'Essa compra foi cancelada.')
+  exigir(Number.isSafeInteger(d.pesado) && d.pesado >= 0, 'Peso conferido inválido.', 'pesado')
+  exigir(d.motivo?.trim(), 'Diga o motivo da diferença.', 'motivo')
+  await lancarConferencia(ctx, t, d.linhaId, d.pesado, d.motivo.trim())
+  return { id: t.id }
 }
 
 /** Cancela: devolve o dinheiro (estorno) e, se já entrou no estoque, tira de volta (só se o lote não foi mexido). */
@@ -283,9 +414,12 @@ export async function cancelarCompra(ctx: Ctx, d: { compraId: Id; motivo: string
   exigir(t.etapa !== ETAPA_CANCELADO && t.etapa !== ETAPA_RECUSADO, 'Essa compra já foi encerrada.')
   exigir(d.motivo?.trim(), 'Diga o motivo do cancelamento.', 'motivo')
   const c = etapasDe(ctx, t.moduloId)
+  const tipo = ctx.modulos.tipoItem(t.moduloId, c.tipoItem)
   const idxEstoque = c.etapas.findIndex((e) => e.faz?.includes('estoque'))
   const entrou = idxEstoque >= 0 && c.etapas.findIndex((e) => e.id === t.etapa) >= idxEstoque
-  if (entrou) {
+  // lote que nasce na compra (desde o registro): sai da Triagem, se ninguém separou nem vendeu
+  if (tipo.nasceNaCompra) await tirarLotesDaCompra(ctx, t, 'Compra cancelada')
+  else if (entrou) {
     for (const l of t.linhas) {
       if (!l.itemId) continue
       const item = await ctx.repos.itens.obter(l.itemId)
@@ -367,6 +501,69 @@ export async function compra(ctx: Ctx, p: { id: Id }) {
 }
 
 /**
+ * A CONTA DA COMPRA FECHA (como um livro caixa): comprado = em pacotes + aguardando triagem + vendido + perda + diferença
+ * de peso. Lê a genealogia da compra; em pacote misturado conta só a parte desta compra (pela origem em gramas).
+ * Ex.: 10 kg comprados = 4 kg em pacotes + 5,4 kg vendidos + 0,6 kg de perda ✓.
+ */
+export async function fechamentoCompra(ctx: Ctx, p: { id: Id }) {
+  const t = await ctx.repos.transacoes.obter(p.id)
+  exigir(t && t.tipo === 'compra', 'Compra não encontrada.')
+  const comprado = t.linhas.reduce((s, l) => s + l.quantidade, 0)
+  const g = await genealogia(ctx, { compraId: t.id })
+  if (!g.lotes.length) return undefined
+  // fração desta compra em cada lote (1 = só dela; misturado = pela origem em gramas)
+  const fracao = new Map<Id, number>()
+  const BASE = 1_000_000_000
+  const fracaoDe = async (id: Id): Promise<number> => {
+    if (fracao.has(id)) return fracao.get(id)!
+    const item = await ctx.repos.itens.obter(id)
+    const cs = comprasDe(item)
+    let f = 0
+    if (cs.length === 1) f = cs[0] === t.id ? 1 : 0
+    else if (cs.includes(t.id)) f = ((await origemDoPacote(ctx, { itemId: id, gramas: BASE })).find((o) => o.compraId === t.id)?.gramas ?? 0) / BASE
+    fracao.set(id, f)
+    return f
+  }
+  const aguardandoEstados = ['Bruto', 'Não identificado']
+  let pacotes = 0
+  let aguardando = 0
+  let vendido = 0
+  let perda = 0
+  for (const l of g.lotes) {
+    const f = await fracaoDe(l.id)
+    if (!f) continue
+    const item = await ctx.repos.itens.obter(l.id)
+    if (aguardandoEstados.includes(String(item?.campos.estado ?? ''))) aguardando += l.saldo * f
+    else pacotes += l.saldo * f
+    vendido += l.vendido * f
+    perda += l.ajustes * f
+  }
+  // perda na triagem: o que entrou desta compra menos o que saiu dela nos pacotes
+  for (const tg of g.triagens) {
+    for (const e of tg.entradas) perda += e.g * (await fracaoDe(e.id))
+    for (const s of tg.saidas) perda -= s.g * (await fracaoDe(s.id))
+  }
+  // diferença de peso (conferência) e cancelamento: lançamentos no lote da própria compra
+  const movs = (await ctx.repos.movEstoque.listar()).filter((m) => m.origemId === t.id)
+  const diferenca = -movs.filter((m) => ehConferencia(m, t.id)).reduce((s, m) => s + m.delta, 0)
+  const cancelado = -movs.filter((m) => m.motivo === 'cancelamento').reduce((s, m) => s + m.delta, 0)
+  perda -= diferenca
+  const r = {
+    comprado,
+    pacotes: Math.round(pacotes),
+    aguardando: Math.round(aguardando),
+    vendido: Math.round(vendido),
+    perda: Math.round(perda),
+    diferenca,
+    cancelado,
+  }
+  const soma = r.pacotes + r.aguardando + r.vendido + r.perda + r.diferenca + r.cancelado
+  // tolerância: 1 g por lote misturado (arredondamento das proporções)
+  const tolerancia = [...fracao.values()].filter((f) => f > 0 && f < 1).length
+  return { ...r, soma, confere: Math.abs(soma - comprado) <= tolerancia, falta: comprado - soma }
+}
+
+/**
  * Tela do PEDIDO (pedidos/:id): tudo de uma compra num lugar — etapas, pendências, itens, pagamentos,
  * conta do fornecedor, lotes que nasceram dela e as outras compras da mesma pessoa.
  */
@@ -385,8 +582,14 @@ export async function pedido(ctx: Ctx, p: { id: Id }) {
   const outras = fila.filter((x) => x.pessoaId && x.pessoaId === t.pessoaId && x.id !== t.id).slice(0, 5)
   const vg = t.viagemId ? await ctx.repos.viagens.obter(t.viagemId) : undefined
   const gramas = t.linhas.reduce((s, l) => s + l.quantidade, 0)
+  const hoje = ctx.relogio.hoje()
+  const movsCompra = (await ctx.repos.movEstoque.listar()).filter((m) => m.origemId === t.id)
   return {
     compra: t,
+    /** comprado = em pacotes + aguardando + vendido + perda + diferença (✓ quando fecha); sem lote ainda = undefined */
+    fechamento: await fechamentoCompra(ctx, { id: t.id }),
+    /** conferências de peso lançadas nos lotes desta compra (comprou × pesou, com motivo) */
+    conferencias: movsCompra.filter((m) => ehConferencia(m, t.id)).map((m) => ({ id: m.id, itemId: m.itemId, data: m.data, delta: m.delta, descricao: m.descricao ?? '' })),
     pessoa,
     comprador: comprador ? { id: comprador.id, nome: comprador.nome } : undefined,
     anexos,
@@ -396,7 +599,14 @@ export async function pedido(ctx: Ctx, p: { id: Id }) {
     gramas,
     custoKg: gramas ? Math.round((t.totalPrincipal * 1000) / gramas) : 0,
     saldoConta,
-    lotes: lotes.map((l) => ({ id: l.id, codigo: l.codigo, nome: l.nome, saldo: l.saldo, inicial: l.quantidadeInicial ?? 0, unidade: l.unidade, campos: { comprimento: l.campos.comprimento, categoria: l.campos.categoria }, foto: F.principal(l.id), fotosProprias: F.proprias(l.id) })),
+    lotes: lotes.map((l) => ({
+      id: l.id, codigo: l.codigo, nome: l.nome, saldo: l.saldo, inicial: l.quantidadeInicial ?? 0, unidade: l.unidade, campos: { comprimento: l.campos.comprimento, categoria: l.campos.categoria }, foto: F.principal(l.id), fotosProprias: F.proprias(l.id),
+      /** lote da própria compra (não um pacote que nasceu dele na triagem) */
+      daCompra: l.origem?.tipo === 'compra' && l.origem.id === t.id,
+      linhaId: t.linhas.find((x) => x.itemId === l.id)?.id,
+      /** bruto com saldo: "Aguardando triagem · há N dias" (desde que entrou ou mudou de coluna) */
+      aguardando: l.campos.estado === 'Bruto' && l.saldo > 0 ? { dias: diasEntre((l.faseTriagem?.desde ?? l.criadoEm).slice(0, 10), hoje) } : undefined,
+    })),
     /** viagem de compra a que pertence (chip na tela do pedido) */
     viagem: vg && !vg.apagadoEm ? { id: vg.id, codigo: vg.codigo, nome: vg.nome, destino: vg.destino, status: vg.status } : undefined,
     /** fotos da compra (as que os lotes herdam) */

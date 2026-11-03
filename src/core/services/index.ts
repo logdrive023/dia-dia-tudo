@@ -1,6 +1,7 @@
 // Catálogo de COMANDOS (mudam dados) e CONSULTAS (só leem). É o contrato que as telas usam e que a API
 // vai expor: POST /v1/comandos/{nome} e GET /v1/consultas/{nome}. As telas nunca chamam o banco.
 
+import * as agenda from './agenda'
 import * as caixa from './caixa'
 import * as cadastros from './cadastros'
 import * as codigos from './codigos'
@@ -14,6 +15,8 @@ import * as financiamentos from './financiamentos'
 import * as formCompra from './formCompra'
 import * as fotos from './fotos'
 import * as historico from './historico'
+import * as livro from './livro'
+import * as origem from './origem'
 import * as painel from './painel'
 import * as precos from './precos'
 import * as relatorios from './relatorios'
@@ -56,6 +59,7 @@ export const comandos = {
   criarCompra: compras.criarCompra,
   avancarTriagem: compras.avancarTriagem,
   cancelarCompra: compras.cancelarCompra,
+  conferirPesoCompra: compras.conferirPesoCompra,
   salvarFormCompra: formCompra.salvarFormCompra,
   // vendas e atendimentos
   concluirVenda: vendas.concluirVenda,
@@ -63,6 +67,11 @@ export const comandos = {
   cancelarVenda: vendas.cancelarVenda,
   corrigirVenda: vendas.corrigirVenda,
   pagarComissao: comissoes.pagarComissao,
+  // agenda: compromissos/lembretes e "Pago" depois do atendimento
+  salvarEvento: agenda.salvarEvento,
+  excluirEvento: agenda.excluirEvento,
+  concluirEvento: agenda.concluirEvento,
+  receberAtendimento: agenda.receberAtendimento,
   // salão: serviço novo na hora do atendimento e biblioteca padrão
   criarServicoRapido: servicosSalao.criarServicoRapido,
   revisarServico: servicosSalao.revisarServico,
@@ -121,13 +130,22 @@ export const consultas = {
   catalogo: estoque.catalogo,
   movimentosDoItem: estoque.movimentosDoItem,
   fichaItem: estoque.fichaItem,
+  // funcionária: o pacote só para vender (sem custo, margem nem histórico)
+  pacoteVenda: estoque.pacoteVenda,
   codigos: codigos.codigos,
   codigoDisponivel: codigos.codigoDisponivel,
+  modoEtiqueta: codigos.modoEtiqueta,
   rastreio: estoque.rastreio,
   triagem: triagem.triagem,
   fluxosTriagem: triagem.fluxosTriagem,
   genealogia: triagem.genealogia,
+  // origem em gramas por compra (pacote misturado e venda)
+  origemDoPacote: origem.origemDoPacote,
+  origemDaVenda: origem.origemDaVenda,
   triagens: triagem.triagens,
+  // livro do cabelo (lançamentos de gramas) e histórico de cada pacote
+  livroCabelo: livro.livroCabelo,
+  historicoPacote: livro.historicoPacote,
   tabelasPreco: precos.tabelasPreco,
   tabelaVigente: precos.tabelaVigente,
   historicoTabela: precos.historicoTabela,
@@ -158,6 +176,9 @@ export const consultas = {
   venda: vendas.venda,
   agenda: vendas.agenda,
   conflitosAgenda: vendas.conflitosAgenda,
+  // calendário: atendimentos + viagens + compromissos numa lista só
+  calendario: agenda.calendario,
+  evento: agenda.evento,
   comissoes: comissoes.comissoes,
   servicosReceitaInsumos: servicosSalao.servicosReceitaInsumos,
   usuarios: usuarios.usuarios,

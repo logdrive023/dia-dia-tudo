@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { CategoriaAnexo } from '../core/domain/tipos'
-import { COLUNAS_PADRAO } from '../core/services/triagem'
+import { COLUNAS_PADRAO, COLUNA_LAVAGEM } from '../core/services/triagem'
 import { enderecoDoLote, loteDoCodigoLido } from '../ui/etiquetas'
 import { bitsFormato, correcaoRS, gerarQR } from '../ui/qr'
 import { bs, novoBackend } from './ajuda'
@@ -107,7 +107,8 @@ describe('fotos do lote', () => {
     const { b } = await novoBackend()
     const { lote } = await compraNoEstoque(b, 'c1')
     await foto(b, 'fc', 'c1', 'pedido') // herdada: não basta
-    const colunas = COLUNAS_PADRAO.map((c) => (c.entrada ? { ...c, exigirFoto: true } : c))
+    // a lavagem saiu das colunas padrão (é opcional): o teste liga a coluna para ter para onde mover
+    const colunas = [COLUNAS_PADRAO[0], COLUNA_LAVAGEM, ...COLUNAS_PADRAO.slice(1)].map((c) => (c.entrada ? { ...c, exigirFoto: true } : c))
     await b.comando('salvarFluxoTriagem', { moduloId: 'cabelo', colunas })
     expect((await b.consulta('fluxosTriagem', {}))[0].colunas[0].exigirFoto).toBe(true)
     await expect(b.comando('moverFaseTriagem', { ids: [lote.id], fase: 'preparando' })).rejects.toThrow(/Tire uma foto/)

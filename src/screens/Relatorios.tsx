@@ -120,7 +120,7 @@ function Dre({ de, ate }: { de: string; ate: string }) {
   const m = dados.moeda
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Cartao titulo={t('Resultado do período')} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('resultado', dados.linhas.map((l) => ({ conta: l.conta, valor: l.valor / 100 })))}>CSV</Botao>} ajuda="Receita − custo do que foi vendido − insumos dos serviços − comissões = lucro bruto; − despesas = resultado.">
+      <Cartao titulo={t('Resultado do período')} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('resultado', dados.linhas.map((l) => ({ conta: l.conta, valor: l.valor / 100 })))}>CSV</Botao>} ajuda="Receita − descontos − custo do que foi vendido − insumos dos serviços − comissões = lucro bruto; − despesas = resultado.">
         <table className="w-full text-sm">
           <tbody>
             {dados.linhas.map((l, i) => (
@@ -184,14 +184,15 @@ function VendasDet({ de, ate }: { de: string; ate: string }) {
   const total = dados.reduce((s, l) => s + l.totalPrincipal, 0)
   const lucro = dados.reduce((s, l) => s + l.lucro, 0)
   return (
-    <Cartao titulo={`${t('Vendas linha a linha')} · ${formatar(total, moedaPadrao())} · ${t('lucro')} ${formatar(lucro, moedaPadrao())}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('vendas-detalhadas', dados.map((l) => ({ data: l.data, cliente: l.cliente, lote: l.lote, descricao: l.descricao, medida: l.medida, categoria: l.categoria, quantidade: l.quantidade, fator: l.fator, total: l.total / 100, moeda: l.moeda, total_principal: l.totalPrincipal / 100, custo: l.custo / 100, lucro: l.lucro / 100 })))}>CSV</Botao>}>
+    <Cartao titulo={`${t('Vendas linha a linha')} · ${formatar(total, moedaPadrao())} · ${t('lucro')} ${formatar(lucro, moedaPadrao())}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('vendas-detalhadas', dados.map((l) => ({ data: l.data, cliente: l.cliente, lote: l.lote, descricao: l.descricao, medida: l.medida, categoria: l.categoria, quantidade: l.quantidade, fator: l.fator, bruto: l.bruto / 100, desconto: l.desconto / 100, total: l.total / 100, moeda: l.moeda, total_principal: l.totalPrincipal / 100, custo: l.custo / 100, lucro: l.lucro / 100 })))}>CSV</Botao>}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead><tr className="text-left text-xs text-[var(--suave)]"><th>{t('Data')}</th><th>{t('Cliente')}</th><th>{t('Lote')}</th><th>{t('Conta')}</th><th className="text-right">{t('Total')}</th><th className="text-right">{t('Lucro')}</th></tr></thead>
+          <thead><tr className="text-left text-xs text-[var(--suave)]"><th>{t('Data')}</th><th>{t('Cliente')}</th><th>{t('Lote')}</th><th>{t('Conta')}</th><th className="text-right">{t('Desconto')}</th><th className="text-right">{t('Total')}</th><th className="text-right">{t('Lucro')}</th></tr></thead>
           <tbody>{dados.map((l, i) => (
             <tr key={i} {...clicavel(() => ir('venda', { id: l.vendaId }))} className={LINHA}>
               <td className="whitespace-nowrap py-1">{dataBR(l.data)}</td><td>{l.cliente}</td><td className="font-mono text-xs">{l.lote}</td>
               <td className="num">{l.fator ? `${l.medida} | ${l.quantidade.toLocaleString(loc())} × ${l.fator}` : `${l.descricao} × ${l.quantidade}`}</td>
+              <td className="num text-right text-[var(--ruim)]">{l.desconto ? `−${formatar(l.desconto, l.moeda)}` : ''}</td>
               <td className="num text-right">{formatar(l.total, l.moeda)}</td><td className={cx('num text-right', l.lucro < 0 && 'text-[var(--ruim)]')}>{formatar(l.lucro, moedaPadrao())}</td>
             </tr>
           ))}</tbody>

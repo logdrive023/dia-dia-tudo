@@ -144,6 +144,15 @@ export interface Linha {
   /** preço do catálogo na hora (mesma moeda da linha) e motivo quando cobrou menos */
   precoCatalogo?: number
   motivoPreco?: string
+  /**
+   * DESCONTO da linha (venda): `bruto` = valor cheio na moeda da linha (gramas × fator da tabela), `desconto` = quanto
+   * saiu dele (mesma moeda) e `descontoPrincipal` na moeda principal. `total`/`totalPrincipal` já são o LÍQUIDO
+   * (bruto − desconto): comissão, lucro, caixa e relatórios usam o líquido. Vendas antigas não têm esses campos.
+   * Ex.: 2.008 g × 17,5 = Bs 35.140 (bruto) − desconto Bs 878,50 = Bs 34.261,50 (total).
+   */
+  bruto?: number
+  desconto?: number
+  descontoPrincipal?: number
   campos: Campos
 }
 
@@ -206,6 +215,9 @@ export interface MovEstoque extends Base {
   origemId?: Id
   corrigeId?: Id
   descricao?: string
+  /** quem fez (usuário da sessão), para o histórico do pacote e o livro do cabelo */
+  usuario?: Id
+  porNome?: string
 }
 
 export interface Dia extends Base {
@@ -481,4 +493,25 @@ export interface Outbox extends Base {
   comando: string
   dados: unknown
   enviadoEm?: string
+}
+
+/**
+ * COMPROMISSO / LEMBRETE da agenda (não mexe em dinheiro nem estoque): "Buscar mechas no correio · 04/11 15:00".
+ * Dono = quem criou (criadoPor); pessoaId = para quem é (o administrador pode marcar para outra pessoa).
+ * Excluir = apagadoEm (fica no log). Semanal: repete toda semana a partir de `data` (até `repetirAte`, se houver).
+ */
+export interface Evento extends Base {
+  titulo: string
+  /** AAAA-MM-DD (dia local) */
+  data: string
+  /** "HH:MM" local; sem hora = o dia todo */
+  hora?: string
+  duracaoMin?: number
+  nota?: string
+  pessoaId?: Id
+  localId?: Id
+  semanal?: boolean
+  repetirAte?: string
+  /** dias (AAAA-MM-DD) já feitos — no semanal, cada semana é marcada à parte */
+  feitos?: string[]
 }

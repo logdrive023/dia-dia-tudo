@@ -13,6 +13,9 @@ import { auditar, type Ctx, novo, tocar } from './contexto'
 export type ModoCompra = 'incremental' | 'porPessoa' | 'manual'
 export type ModoLote = 'incremental' | 'daCompra' | 'manual'
 export type TipoCodigo = 'compra' | 'lote'
+/** etiqueta do lote: QR + código de barras (Code 128, leitor "pistola"), só QR (celular) ou nenhuma (código grande à mão) */
+export type ModoEtiqueta = 'qrBarras' | 'qr' | 'nenhuma'
+export const MODOS_ETIQUETA: ModoEtiqueta[] = ['qrBarras', 'qr', 'nenhuma']
 
 /** prefixo (pode ser vazio) + número com N casas: { 'P-', 4 } → P-0007; { '', 0 } → 7 */
 export interface Sequencia {
@@ -27,6 +30,8 @@ export interface RegrasCodigos {
   venda: Sequencia
   /** sigla de cada pessoa no modo "por pessoa" (sem sigla guardada = a sugerida pelo nome) */
   siglas: Record<Id, string>
+  /** tipo de etiqueta padrão (dá para trocar em cada impressão) */
+  etiqueta: ModoEtiqueta
 }
 
 /** Padrão = como sempre foi (P-0001, L-0001, T-0001, V-0001): nada muda até alguém mudar. */
@@ -36,6 +41,7 @@ export const CODIGOS_PADRAO: RegrasCodigos = {
   triagem: { prefixo: 'T-', digitos: 4 },
   venda: { prefixo: 'V-', digitos: 4 },
   siglas: {},
+  etiqueta: 'qr',
 }
 
 const ID_CONFIG = 'codigos'
@@ -51,6 +57,7 @@ export async function lerCodigos(ctx: Ctx): Promise<RegrasCodigos> {
     triagem: { ...CODIGOS_PADRAO.triagem, ...(v.triagem ?? {}) },
     venda: { ...CODIGOS_PADRAO.venda, ...(v.venda ?? {}) },
     siglas: { ...(v.siglas ?? {}) },
+    etiqueta: v.etiqueta && MODOS_ETIQUETA.includes(v.etiqueta) ? v.etiqueta : CODIGOS_PADRAO.etiqueta,
   }
 }
 
@@ -389,7 +396,7 @@ function textoRegra(r: RegrasCodigos, k: 'compra' | 'lote' | 'triagem' | 'venda'
 }
 
 /** Muda como compras e lotes são identificados (admin). Os códigos que já existem não mudam. */
-export async function salvarCodigos(ctx: Ctx, d: { compra?: Partial<RegrasCodigos['compra']>; lote?: Partial<RegrasCodigos['lote']>; triagem?: Partial<Sequencia>; venda?: Partial<Sequencia> }) {
+export async function salvarCodigos(ctx: Ctx, d: { compra?: Partial<RegrasCodigos['compra']>; lote?: Partial<RegrasCodigos['lote']>; triagem?: Partial<Sequencia>; venda?: Partial<Sequencia>; etiqueta?: ModoEtiqueta }) {
   exigir(ctx.sessao.perfil === 'admin', 'Só o administrador muda os códigos.')
   const antes = await lerCodigos(ctx)
   const depois: RegrasCodigos = {
@@ -398,7 +405,9 @@ export async function salvarCodigos(ctx: Ctx, d: { compra?: Partial<RegrasCodigo
     lote: { ...antes.lote, ...(d.lote ?? {}) },
     triagem: { ...antes.triagem, ...(d.triagem ?? {}) },
     venda: { ...antes.venda, ...(d.venda ?? {}) },
+    etiqueta: d.etiqueta ?? antes.etiqueta,
   }
+  exigir(MODOS_ETIQUETA.includes(depois.etiqueta), 'Tipo de etiqueta inválido.')
   exigir(MODOS_COMPRA.includes(depois.compra.modo), 'Modo de código da compra inválido.')
   exigir(depois.compra.base === 'fornecedor' || depois.compra.base === 'comprador', 'Base inválida: fornecedor ou quem comprou.')
   exigir(MODOS_LOTE.includes(depois.lote.modo), 'Modo de código do lote inválido.')
@@ -407,6 +416,7 @@ export async function salvarCodigos(ctx: Ctx, d: { compra?: Partial<RegrasCodigo
   validarSequencia(depois.triagem, 'Triagem')
   validarSequencia(depois.venda, 'Venda')
   const mudou = (['compra', 'lote', 'triagem', 'venda'] as const).filter((k) => textoRegra(antes, k) !== textoRegra(depois, k)).map((k) => `${k[0].toUpperCase()}${k.slice(1)}: ${textoRegra(antes, k)} → ${textoRegra(depois, k)}`)
+  if (antes.etiqueta !== depois.etiqueta) mudou.push(`Etiqueta: ${antes.etiqueta} → ${depois.etiqueta}`)
   exigir(mudou.length, 'Nada mudou.')
   await gravarCodigos(ctx, depois)
   await auditar(ctx, 'salvarCodigos', ID_CONFIG, mudou.join('; '))
@@ -532,6 +542,11 @@ export async function codigos(ctx: Ctx, p: { rascunho?: Partial<Omit<RegrasCodig
       sugestoes: siglasSugeridas(x.nome).slice(0, 4),
     })),
   }
+}
+
+/** Tipo de etiqueta padrão da empresa (para a tela de imprimir; qualquer perfil que imprime etiqueta lê). */
+export async function modoEtiqueta(ctx: Ctx, _p: object = {}): Promise<ModoEtiqueta> {
+  return (await lerCodigos(ctx)).etiqueta
 }
 
 /**
