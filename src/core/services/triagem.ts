@@ -314,6 +314,8 @@ export interface CartaoTriagem {
   /** miniatura (a própria mais nova ou a herdada da origem/compra) e quantas fotos próprias o lote tem */
   foto?: FotoResumo
   fotosProprias: number
+  /** etiqueta: quando e quem imprimiu (sem = ainda não tem) e a via (2 = "2ª via") */
+  etiqueta: { impressaEm?: string; por?: string; via?: number }
   /** texto da busca: códigos atuais e anteriores (lote, compras, origem), fornecedor e sigla */
   busca: string
 }
@@ -417,6 +419,7 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
       cadeia: L.cadeia(i.id),
       foto: F.principal(i.id),
       fotosProprias: F.proprias(i.id),
+      etiqueta: { impressaEm: i.etiquetaImpressaEm, por: i.etiquetaImpressaPor, via: i.etiquetaVia && i.etiquetaVia > 1 ? i.etiquetaVia : undefined },
       busca: [
         i.codigo, ...(i.codigosAnteriores ?? []), i.nome,
         ...cs.flatMap((t) => [t.codigo, ...(t.codigosAnteriores ?? []), ...[t.pessoaId, t.compradorId].flatMap((x) => (x ? [pessoas.get(x), siglas.get(x)] : []))]),
@@ -673,7 +676,7 @@ async function genealogiaTriagem(ctx: Ctx, L: Awaited<ReturnType<typeof leitorCa
     por: tg?.por,
     compras: [...compras.values()],
     entradas: [...entradas].map((id) => ({ id, codigo: L.porId.get(id)?.codigo })),
-    saidas: saidas.map((i) => ({ id: i.id, codigo: i.codigo, nome: i.nome, g: i.quantidadeInicial ?? 0, saldo: i.saldo })),
+    saidas: saidas.map((i) => ({ id: i.id, codigo: i.codigo, nome: i.nome, g: i.quantidadeInicial ?? 0, saldo: i.saldo, etiquetaImpressaEm: i.etiquetaImpressaEm })),
     pesoEntrada: gIn,
     pesoSaida: gOut,
     perda: gIn - gOut,

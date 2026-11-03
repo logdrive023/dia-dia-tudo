@@ -9,9 +9,9 @@ import { createPortal } from 'react-dom'
 import type { Id } from '../core/domain/tipos'
 import type { Etiqueta } from '../core/services/fotos'
 import type { ModoEtiqueta } from '../core/services/codigos'
-import { Botao, Carregando, Escolha, Erro, Info, dataBR, fmt } from './base'
+import { Botao, Campo, Carregando, Entrada, Escolha, Erro, Info, Janela, cx, dataBR, fmt, loc } from './base'
 import { caminhoCode128 } from './code128'
-import { useConsulta } from './contexto'
+import { useApp, useComando, useConsulta } from './contexto'
 import { useT } from './i18n'
 import { caminhoQR, gerarQR } from './qr'
 import { useUrlFoto } from './fotos'
@@ -82,7 +82,7 @@ function UmaEtiqueta({ e, tamanho, barras }: { e: Etiqueta; tamanho: TamanhoEtiq
         <div className="flex items-end justify-between" style={{ gap: '1mm' }}>
           <div className="min-w-0">
             <div className="num" style={{ fontWeight: 700 }}>{peso}</div>
-            <div style={{ color: '#444', overflowWrap: 'anywhere' }}>{dataBR(e.data)}{e.compras ? ` · ${e.compras}` : ''}</div>
+            <div style={{ color: '#444', overflowWrap: 'anywhere' }}>{dataBR(e.data)}{e.compras ? ` · ${e.compras}` : ''}{e.via ? <b style={{ color: '#000' }}> · {t('{n}ª via', { n: e.via })}</b> : null}</div>
           </div>
           {foto && <img src={foto} alt="" className="shrink-0 object-cover" style={{ width: `${s.foto}mm`, height: `${s.foto}mm`, borderRadius: '1mm' }} />}
         </div>
@@ -99,7 +99,7 @@ function CodigoAMao({ e }: { e: Etiqueta }) {
   return (
     <div className="etiqueta rounded-2xl border border-[var(--borda)] bg-white p-4 text-black" style={{ breakInside: 'avoid' }}>
       <b className="block break-all font-mono text-5xl leading-none">{e.codigo}</b>
-      <div className="mt-2 text-sm">{[linha, fmt(e.saldo, e.unidade === 'grama' ? 'gramas' : 'numero'), dataBR(e.data), e.compras].filter(Boolean).join(' · ')}</div>
+      <div className="mt-2 text-sm">{[linha, fmt(e.saldo, e.unidade === 'grama' ? 'gramas' : 'numero'), dataBR(e.data), e.compras, e.via ? t('{n}ª via', { n: e.via }) : ''].filter(Boolean).join(' · ')}</div>
     </div>
   )
 }
@@ -108,13 +108,22 @@ function CodigoAMao({ e }: { e: Etiqueta }) {
  * Tela de impressão por cima de tudo: escolher o tamanho e o tipo, ver como fica e imprimir (só as etiquetas saem no
  * papel). `modo` vem da compra/triagem quando ela escolheu; senão vale o de Configurações › Códigos.
  */
-export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial }: { ids: Id[]; onFechar(): void; modo?: ModoEtiqueta }) {
+export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso }: { ids: Id[]; onFechar(): void; modo?: ModoEtiqueta; onImpresso?(): void }) {
   const t = useT()
+  const { sessao } = useApp()
+  const { executar } = useComando()
   const [tamanho, setTamanho] = useState<TamanhoEtiqueta>(ids.length > 4 ? 'a4' : 'pequena')
   const { dados, erro } = useConsulta('etiquetas', { ids })
   const { dados: modoPadrao } = useConsulta('modoEtiqueta', {}, !modoInicial)
   const [escolhido, setModo] = useState<ModoEtiqueta>()
+  const [impresso, setImpresso] = useState(false)
   const modo = escolhido ?? modoInicial ?? modoPadrao ?? 'qr'
+  // mandou imprimir: o lote sai de Etiquetas › "Sem etiqueta" (fica "impressa em 03/11 por Paula")
+  const imprimir = async () => {
+    window.print()
+    if (sessao.perfil !== 'admin') return
+    if (await executar('marcarEtiquetasImpressas', { ids })) (setImpresso(true), onImpresso?.())
+  }
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onFechar()
     window.addEventListener('keydown', esc)
@@ -141,7 +150,8 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial }: { ids: I
           <Info texto={AJUDA_TIPO_ETIQUETA} />
         </span>
         {modo !== 'nenhuma' && <Escolha rotulo="Tamanho" valor={tamanho} onChange={(v) => setTamanho(v as TamanhoEtiqueta)} opcoes={[{ id: 'pequena', nome: '50 × 30 mm' }, { id: 'a4', nome: 'Folha A4' }]} />}
-        <Botao disabled={!dados} onClick={() => window.print()}>🖨 {t('Imprimir')}</Botao>
+        <Botao disabled={!dados} onClick={imprimir}>🖨 {t(impresso ? 'Imprimir de novo' : 'Imprimir')}</Botao>
+        {impresso && <span role="status" className="text-sm font-semibold text-[var(--bom)]">✓ {t('Marcadas como impressas')}</span>}
       </div>
       <div className="folha min-h-0 flex-1 overflow-auto p-3">
         {erro ? <Erro texto={erro} /> : !dados ? <Carregando /> : modo === 'nenhuma' ? (
@@ -158,4 +168,100 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial }: { ids: I
     </div>
   )
   return createPortal(conteudo, document.body)
+}
+
+/**
+ * Depois de separar (a tela volta para o quadro ou para o pacote com ?novos=a,b,c): um cartão no alto com
+ * "✓ 3 pacotes novos · [🏷 Imprimir etiquetas] [Depois]". "Depois" fecha e os pacotes ficam em Etiquetas › Sem etiqueta.
+ */
+export function AvisoPacotesNovos() {
+  const t = useT()
+  const { nav, ajustarParams, ir, avisar } = useApp()
+  const [imprimir, setImprimir] = useState(false)
+  const ids = String(nav.params.novos ?? '').split(',').filter(Boolean)
+  if (!ids.length) return null
+  const fechar = () => ajustarParams({ novos: undefined })
+  return (
+    <div role="status" className="mb-4 rounded-2xl border border-[var(--bom)]/40 bg-[var(--bom)]/10 p-3 text-sm">
+      <div className="flex items-start gap-2">
+        <p className="min-w-0 flex-1 pt-2">
+          <b className="text-[var(--bom)]">✓ {t(ids.length === 1 ? '1 pacote novo' : '{n} pacotes novos', { n: ids.length })}</b>
+          <span className="text-[var(--suave)]"> · {t('sem etiqueta ainda')}</span>
+        </p>
+        <button type="button" aria-label={t('Fechar')} onClick={fechar} className="-mr-1 -mt-1 h-10 w-10 shrink-0 rounded-xl text-lg hover:bg-[var(--fundo)]">×</button>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Botao onClick={() => setImprimir(true)}>🏷 {t('Imprimir etiquetas')}</Botao>
+        <Botao variante="leve" onClick={() => (fechar(), avisar(t('Ficam em Etiquetas › Sem etiqueta para imprimir depois.')))}>{t('Depois')}</Botao>
+        <button type="button" onClick={() => ir('etiquetas')} className="min-h-10 text-xs font-semibold text-[var(--marca)] hover:underline">{t('ficam em Etiquetas para imprimir depois')} ›</button>
+      </div>
+      {imprimir && <ImprimirEtiquetas ids={ids} onImpresso={fechar} onFechar={() => setImprimir(false)} />}
+    </div>
+  )
+}
+
+const MOTIVOS_REFAZER = ['Saiu errada', 'Borrou/rasgou', 'Perdeu', 'Outro'] as const
+
+/**
+ * "Errou? Gerar nova" em 2 toques: o motivo já vem em "Saiu errada" → "Cancelar a antiga e imprimir nova". Grava no
+ * histórico (refazerEtiqueta: nova via, mesmo código) e abre a impressão do lote na hora.
+ */
+export function RefazerEtiqueta({ id, codigo, onFechar }: { id: Id; codigo?: string; onFechar(): void }) {
+  const t = useT()
+  const { executar, ocupado } = useComando()
+  const [motivo, setMotivo] = useState<(typeof MOTIVOS_REFAZER)[number]>('Saiu errada')
+  const [outro, setOutro] = useState('')
+  const [imprimir, setImprimir] = useState(false)
+  if (imprimir) return <ImprimirEtiquetas ids={[id]} onFechar={onFechar} />
+  const confirmar = async () => {
+    const texto = motivo === 'Outro' ? (outro.trim() ? `${t('Outro')}: ${outro.trim()}` : t('Outro')) : t(motivo)
+    if (await executar('refazerEtiqueta', { id, motivo: texto })) setImprimir(true)
+  }
+  return (
+    <Janela aberta titulo={`↻ ${t('Errou? Gerar nova')}${codigo ? ` · ${codigo}` : ''}`} onFechar={onFechar} rodape={
+      <Botao grande className="w-full" disabled={ocupado} onClick={confirmar}>{t('Cancelar a antiga e imprimir nova')}</Botao>
+    }>
+      <p className="mb-2 text-sm text-[var(--suave)]">{t('O que aconteceu?')}</p>
+      <div role="radiogroup" aria-label={t('Motivo')} className="flex flex-wrap gap-2">
+        {MOTIVOS_REFAZER.map((m) => (
+          <button key={m} type="button" role="radio" aria-checked={motivo === m} onClick={() => setMotivo(m)} className={cx('min-h-10 rounded-full border px-3 text-sm font-semibold', motivo === m ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)]')}>
+            {t(m)}
+          </button>
+        ))}
+      </div>
+      {motivo === 'Outro' && <div className="mt-3"><Campo rotulo="O que houve? (opcional)"><Entrada value={outro} maxLength={150} placeholder={t('Ex.: medida trocada')} onChange={(e) => setOutro(e.target.value)} /></Campo></div>}
+      <p className="mt-3 text-xs text-[var(--suave)]">{t('Fica no histórico do pacote. O código não muda; a nova sai marcada como “2ª via”.')}</p>
+    </Janela>
+  )
+}
+
+/** "03/11" (dia/mês no formato do idioma) */
+export const diaMesEtiqueta = (iso: string) => new Date(iso).toLocaleDateString(loc(), { day: '2-digit', month: '2-digit' })
+const pararEv = (e: React.SyntheticEvent) => e.stopPropagation()
+
+/**
+ * Situação da etiqueta numa linha (Triagem e listas): "🏷 Sem etiqueta" (âmbar; um toque abre a impressão deste pacote)
+ * ou "✓ Etiqueta" (verde discreto; "impressa em 03/11 por Paula · 2ª via" no title).
+ */
+export function SeloEtiqueta({ id, impressaEm, por, via, className }: { id: Id; impressaEm?: string; por?: string; via?: number; className?: string }) {
+  const t = useT()
+  const [imprimir, setImprimir] = useState(false)
+  const viaTxt = via && via > 1 ? t('{n}ª via', { n: via }) : ''
+  if (impressaEm) {
+    const quando = por ? t('impressa em {d} por {p}', { d: diaMesEtiqueta(impressaEm), p: por }) : t('impressa em {d}', { d: diaMesEtiqueta(impressaEm) })
+    return (
+      <span title={[quando, viaTxt].filter(Boolean).join(' · ')} className={cx('inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[color-mix(in_srgb,var(--bom)_12%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--bom)]', className)}>
+        ✓ {t('Etiqueta')}{viaTxt && <span className="ml-1 font-normal">· {viaTxt}</span>}<span className="sr-only"> · {quando}</span>
+      </span>
+    )
+  }
+  // o clique não chega na linha (que abre o pacote), nem o que acontece dentro da folha de impressão
+  return (
+    <span className={cx('inline-flex shrink-0', className)} onClick={pararEv} onKeyDown={pararEv}>
+      <button type="button" onClick={() => setImprimir(true)} title={t('Imprimir a etiqueta deste pacote')} className="inline-flex min-h-7 items-center whitespace-nowrap rounded-full bg-[color-mix(in_srgb,var(--alerta)_16%,transparent)] px-2 text-xs font-semibold text-[var(--alerta)] hover:brightness-95">
+        🏷 {t('Sem etiqueta')}{viaTxt && <span className="ml-1 font-normal">· {viaTxt}</span>}
+      </button>
+      {imprimir && <ImprimirEtiquetas ids={[id]} onImpresso={() => setImprimir(false)} onFechar={() => setImprimir(false)} />}
+    </span>
+  )
 }

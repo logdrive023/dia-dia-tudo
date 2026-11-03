@@ -7,6 +7,8 @@
 // Funcionária: papel enxuto, focado na venda do cabelo (modo caixa, ver pacote para vender: pacoteVenda);
 // administrar estoque, triagem, compras e custos (fichaItem, rastreio, triagem…) é do administrador.
 // Códigos (salvarCodigos, salvarSigla, trocarCodigo*, codigos, codigoDisponivel): só administrador (fora das listas).
+// Etiquetas: a funcionária vê os dados da etiqueta (etiquetas, modoEtiqueta); marcarEtiquetasImpressas (tela Etiquetas,
+// "Sem etiqueta" / "Já impressa") é do administrador (fora das listas).
 
 import type { NomeComando, NomeConsulta } from '.'
 

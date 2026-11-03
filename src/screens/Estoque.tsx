@@ -23,7 +23,7 @@ import { MenuAcoes, acoesLote } from '../ui/menuAcoes'
 import { CampoCodigo, CodigoSelo, TrocarCodigo } from '../ui/codigos'
 import { useT } from '../ui/i18n'
 import { FotosDoLote, MiniaturaLote, marcadorLote, useTirarFoto } from '../ui/fotos'
-import { ImprimirEtiquetas } from '../ui/etiquetas'
+import { AvisoPacotesNovos, RefazerEtiqueta } from '../ui/etiquetas'
 import { baixarCSV } from './Relatorios'
 
 type Linha = ResultadoConsulta<'estoque'>[number]
@@ -58,33 +58,75 @@ function origemTexto(i: Linha, t: (s: string) => string) {
   ].filter(Boolean).join(' · ')
 }
 
-/** De onde veio o lote: compra(s) com o fornecedor, o lote-mãe ou os lotes juntados — completo, em chips que não cortam. */
+/** link discreto dentro de uma linha clicável (não abre o lote junto) */
+const linkLeve = 'rounded hover:text-[var(--marca)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--marca)]'
+
+/**
+ * De onde veio o lote, numa linha curta: "🛒 P-0002 · Cecília" (código abre a compra, nome abre o fornecedor) e, se for
+ * filho de uma separação, "✂ de L-0001" (abre o lote-mãe). Compra sem código mostra só o fornecedor (nada de "?").
+ */
 function VeioDe({ i }: { i: Linha }) {
   const t = useT()
+  const { ir } = useApp()
   const vazio = !i.compras.length && !i.pai && !i.unificadoDe?.length
+  const abrir = (tela: string, id: Id) => (e: React.MouseEvent) => (e.stopPropagation(), ir(tela, { id }))
   return (
-    <div className="flex min-w-0 flex-wrap gap-1">
+    <div className="min-w-0 space-y-0.5 text-xs leading-snug">
       {i.compras.map((c) => (
-        <span key={c.id} className={chip} title={[c.codigo, c.fornecedor].filter(Boolean).join(' · ')}>
-          <span aria-hidden>🛒</span><b className="font-mono">{c.codigo ?? '?'}</b>{c.fornecedor && <span className="truncate">· {c.fornecedor}</span>}
-        </span>
+        <div key={c.id} className="flex min-w-0 items-center gap-1">
+          <span aria-hidden className="shrink-0">🛒</span>
+          <button type="button" onClick={abrir('pedido', c.id)} onKeyDown={parar} className={cx(linkLeve, 'shrink-0 font-mono font-semibold')} title={t('Abrir a compra')}>{c.codigo ?? t('Compra')}</button>
+          {c.fornecedor && (
+            <>
+              <span aria-hidden className="text-[var(--suave)]">·</span>
+              {c.fornecedorId
+                ? <button type="button" onClick={abrir('pessoa', c.fornecedorId)} onKeyDown={parar} className={cx(linkLeve, 'min-w-0 truncate')} title={`${t('Ver fornecedor')} · ${c.fornecedor}`}>{c.fornecedor}</button>
+                : <span className="min-w-0 truncate">{c.fornecedor}</span>}
+            </>
+          )}
+        </div>
       ))}
-      {i.pai && <span className={chip}><span aria-hidden>✂️</span>{t('separado de')} <b className="font-mono">{i.pai.codigo ?? i.pai.nome}</b></span>}
-      {!!i.unificadoDe?.length && <span className={chip}><span aria-hidden>🔗</span>{t('juntado de')} <b className="font-mono">{i.unificadoDe.join(' + ')}</b></span>}
-      {vazio && <span className="text-xs text-[var(--suave)]">{t('cadastro')}</span>}
+      {i.pai && (
+        <div className="flex min-w-0 items-center gap-1 text-[var(--suave)]">
+          <span aria-hidden className="shrink-0">✂</span>{t('de')}
+          <button type="button" onClick={abrir('lote', i.pai.id)} onKeyDown={parar} className={cx(linkLeve, 'font-mono')} title={t('Ver lote de origem')}>{i.pai.codigo ?? i.pai.nome}</button>
+        </div>
+      )}
+      {!!i.unificadoDe?.length && <div className="truncate text-[var(--suave)]" title={i.unificadoDe.join(' + ')}><span aria-hidden>🔗</span> {t('juntado de')} <span className="font-mono">{i.unificadoDe.join(' + ')}</span></div>}
+      {vazio && <span className="text-[var(--suave)]">{t('cadastro')}</span>}
     </div>
   )
 }
 
-/** Peso "agora / inicial" com a barrinha do quanto ainda sobra. */
-function Peso({ i }: { i: Linha }) {
+/** Peso: o que TEM agora em destaque; "de 7,8 kg" e a barrinha só quando já saiu alguma coisa (senão é ruído). */
+function Peso({ i, esquerda }: { i: Linha; esquerda?: boolean }) {
+  const t = useT()
   const ini = i.quantidadeInicial ?? 0
-  const pct = ini ? Math.max(0, Math.min(100, (i.saldo / ini) * 100)) : 0
+  const mudou = ini > 0 && ini !== i.saldo
+  const pct = mudou ? Math.max(0, Math.min(100, (i.saldo / ini) * 100)) : 100
   return (
-    <div className="min-w-[7.5rem] text-right">
-      <div className="num whitespace-nowrap"><b>{qtd(i, i.saldo)}</b>{ini ? <span className="text-xs text-[var(--suave)]"> / {qtd(i, ini)}</span> : null}</div>
-      {ini > 0 && <div className="ml-auto mt-1 h-1.5 w-full max-w-[8rem] overflow-hidden rounded-full bg-[var(--fundo)]" role="img" aria-label={`${Math.round(pct)}%`}><div className="h-full rounded-full bg-[var(--marca)]" style={{ width: `${pct}%` }} /></div>}
+    <div className={cx('min-w-[5.5rem]', !esquerda && 'text-right')}>
+      <div className="num whitespace-nowrap text-base font-bold leading-tight">{qtd(i, i.saldo)}</div>
+      {mudou && (
+        <>
+          <div className="num whitespace-nowrap text-xs text-[var(--suave)]">{t('de {q}', { q: qtd(i, ini) })}</div>
+          <div className={cx('mt-0.5 h-1 w-full max-w-[6rem] overflow-hidden rounded-full bg-[var(--borda)]', !esquerda && 'ml-auto')} role="img" aria-label={`${Math.round(pct)}%`}><div className="h-full rounded-full bg-[var(--marca)]" style={{ width: `${pct}%` }} /></div>
+        </>
+      )}
     </div>
+  )
+}
+
+const COR_TOM = { bom: 'var(--bom)', alerta: 'var(--alerta)', marca: 'var(--marca)', neutro: 'var(--suave)' } as const
+/** Status em bolinha colorida + texto (lê de longe, ocupa pouco). */
+function StatusPonto({ status }: { status: Linha['status'] }) {
+  const t = useT()
+  const s = STATUS_LOTE[status]
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold" style={{ color: s.tom === 'neutro' ? 'var(--suave)' : COR_TOM[s.tom] }}>
+      <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: COR_TOM[s.tom] }} />
+      {t(s.nome)}
+    </span>
   )
 }
 
@@ -121,7 +163,6 @@ export function Estoque() {
   const [ajustar, setAjustar] = useState<Id>()
   const [trocar, setTrocar] = useState<Linha>()
   const [janela, setJanela] = useState<'colunas' | 'favorito' | 'marcar' | 'camera'>()
-  const [etiquetas, setEtiquetas] = useState<Id[]>()
   const { tirar } = useTirarFoto()
   const [abrirFiltros, setAbrirFiltros] = useState(false)
 
@@ -167,8 +208,8 @@ export function Estoque() {
   // código e lote são fixos (sempre na frente); o resto se escolhe em "Colunas" (Veio de, peso e status vêm ligados)
   const colunas: Coluna[] = [
     { id: 'origem', nome: 'Veio de', texto: (i) => origemTexto(i, t), celula: (i) => <VeioDe i={i} /> },
-    { id: 'peso', nome: 'Peso (agora / inicial)', num: true, texto: (i) => [qtd(i, i.saldo), qtd(i, i.quantidadeInicial)].filter(Boolean).join(' / '), celula: (i) => <Peso i={i} /> },
-    { id: 'status', nome: 'Status', texto: (i) => t(STATUS_LOTE[i.status].nome), celula: (i) => <StatusBadge status={i.status} /> },
+    { id: 'peso', nome: 'Peso', num: true, texto: (i) => [qtd(i, i.saldo), qtd(i, i.quantidadeInicial)].filter(Boolean).join(' / '), celula: (i) => <Peso i={i} /> },
+    { id: 'status', nome: 'Status', texto: (i) => t(STATUS_LOTE[i.status].nome), celula: (i) => <StatusPonto status={i.status} /> },
     ...campos.map((c): Coluna => ({ id: `c.${c.id}`, nome: c.nome, num: c.tipo === 'numero', texto: (i) => textoCampo(c, i.campos[c.id]) })),
     { id: 'vendido', nome: 'Vendido', num: true, texto: (i) => (i.vendido ? qtd(i, i.vendido) : '') },
     { id: 'caminho', nome: 'Caminho', texto: (i) => [i.cadeia.compras.map((c) => c.codigo).join(' + '), i.cadeia.triagens.map((x) => x.codigo).join(' + '), i.cadeia.vendas.map((v) => v.codigo).join(', ')].filter(Boolean).join(' → '), celula: (i) => <CadeiaChips cadeia={i.cadeia} /> },
@@ -177,8 +218,13 @@ export function Estoque() {
   ]
   const padrao = ['origem', 'peso', 'status']
   const escolhidas = colunasSalvas[modulo] ?? padrao
-  const chipsDe = (i: Linha) =>
-    CHIPS.map((id) => campos.find((c) => c.id === id)).filter((c): c is CampoDef => !!c).map((c) => ({ id: c.id, texto: textoCampo(c, i.campos[c.id]) })).filter((x) => x.texto)
+  // chips só do que o nome NÃO diz (o nome já é "38 cm · Normal · Castanho": repetir em chips é ruído)
+  const chipsDe = (i: Linha) => {
+    const noNome = new Set(i.nome.toLowerCase().split(/\s*·\s*/).map((x) => x.trim()))
+    return CHIPS.map((id) => campos.find((c) => c.id === id)).filter((c): c is CampoDef => !!c)
+      .map((c) => ({ id: c.id, bruto: String(i.campos[c.id] ?? '').toLowerCase(), texto: textoCampo(c, i.campos[c.id]) }))
+      .filter((x) => x.texto && !noNome.has(x.texto.toLowerCase()) && !noNome.has(x.bruto) && ![...noNome].some((n) => n.startsWith(`${x.bruto} `)))
+  }
   const visiveis = colunas.filter((c) => escolhidas.includes(c.id))
   const modo = larga ? visao : 'cartoes'
 
@@ -210,23 +256,25 @@ export function Estoque() {
     <div className="flex flex-nowrap justify-end gap-0.5" onClick={parar} onKeyDown={parar}>
       {admin && ehBruto(i.status) && i.saldo > 0 && <BotaoIcone rotulo={t('Separar')} onClick={() => ir('separar', { id: i.id })}>✂️</BotaoIcone>}
       <MenuAcoes acoes={acoesLote(
-        { id: i.id, saldo: i.saldo, compras: i.compras, vendavel: !ehBruto(i.status), origens: i.pai ? [i.pai] : i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).map((id, k) => ({ id, codigo: i.unificadoDe?.[k] })) : [] },
+        { id: i.id, saldo: i.saldo, compras: i.compras, vendavel: !ehBruto(i.status), etiquetaImpressa: !!i.etiquetaImpressaEm, origens: i.pai ? [i.pai] : i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).map((id, k) => ({ id, codigo: i.unificadoDe?.[k] })) : [] },
         { ir, t, admin, onAjustar: () => setAjustar(i.id), onTrocarCodigo: () => setTrocar(i), extras: [
           { rotulo: 'Tirar foto', icone: '📷', onClick: () => tirar(i.id), separar: true },
           { rotulo: 'Escolher foto da galeria', icone: '🖼', onClick: () => tirar(i.id, { galeria: true }) },
-          { rotulo: 'Imprimir etiqueta', icone: '🏷', onClick: () => setEtiquetas([i.id]) },
           ...(ehBruto(i.status) && i.saldo > 0 ? [{ rotulo: 'Abrir na triagem', icone: '🧺', onClick: () => ir('triagem'), separar: true }] : []),
         ] },
       )} />
     </div>
   )
-  /** nome numa linha só (inteiro no "title") e medida/categoria/cor em chips */
-  const nomeLote = (i: Linha) => (
-    <div className="min-w-0">
-      <div className="truncate font-semibold" title={i.nome}>{i.nome}</div>
-      {chipsDe(i).length > 0 && <div className="mt-0.5 flex flex-wrap gap-1">{chipsDe(i).map((x) => <span key={x.id} className={chip}>{x.texto}</span>)}</div>}
-    </div>
-  )
+  /** nome numa linha só (inteiro no "title"); chips só para medida/categoria/cor que o nome não mostra */
+  const nomeLote = (i: Linha, quebrar?: boolean) => {
+    const chips = chipsDe(i)
+    return (
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span className={cx('min-w-0 max-w-full font-semibold', quebrar ? 'line-clamp-2 leading-snug' : 'truncate')} title={i.nome}>{i.nome}</span>
+        {chips.map((x) => <span key={x.id} className={chip}>{x.texto}</span>)}
+      </div>
+    )
+  }
   const caixa = (i: Linha) => <input type="checkbox" className="h-5 w-5 cursor-pointer" aria-label={`${t('Selecionar')} ${i.codigo ?? i.nome}`} checked={sel.has(i.id)} onChange={() => alternar(i.id)} onClick={parar} onKeyDown={parar} />
 
   return (
@@ -242,12 +290,16 @@ export function Estoque() {
         {admin && numero('Valor em estoque (custo)', formatar(comSaldo.reduce((s, i) => s + (custoAgora(i) ?? 0), 0), moedaPadrao()), t('custo do que ainda tem'), '', undefined, true)}
       </div>
 
+      {/* barra única: no celular a busca ocupa a linha e os botões vão embaixo (só ícone no que é raro); na tela larga, tudo numa linha */}
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Entrada type="search" aria-label={t('Buscar por código, nome ou atributo')} className="w-auto min-w-0 flex-1 basis-48" placeholder={t('Buscar por código, nome ou atributo')} value={busca} onChange={(e) => setP('busca', e.target.value)} onKeyDown={pistola.onKeyDown} />
-        <Botao variante="secundario" onClick={() => setJanela('camera')}>📷 {t('Ler código')}</Botao>
-        <Botao variante={abrirFiltros || avancados ? 'secundario' : 'leve'} aria-expanded={abrirFiltros} onClick={() => setAbrirFiltros(!abrirFiltros)}>⚙︎ {t('Filtros')}{avancados ? ` · ${avancados}` : ''}</Botao>
-        <Botao variante="leve" onClick={() => setJanela('colunas')}>▦ {t('Colunas')}</Botao>
-        {larga && <div className="w-56"><Escolha rotulo="Ver como" valor={visao} onChange={setVisao} opcoes={[{ id: 'tabela', nome: 'Tabela' }, { id: 'cartoes', nome: 'Cartões' }]} /></div>}
+        <Entrada type="search" aria-label={t('Buscar por código, nome ou atributo')} className="w-auto min-w-0 flex-1 basis-full sm:basis-48" placeholder={t('Buscar por código, nome ou atributo')} value={busca} onChange={(e) => setP('busca', e.target.value)} onKeyDown={pistola.onKeyDown} />
+        <div className="flex flex-1 flex-nowrap items-center gap-1.5 sm:flex-none">
+          <Botao variante="secundario" className="whitespace-nowrap px-3" onClick={() => setJanela('camera')}>📷 {t('Ler código')}</Botao>
+          <Botao variante={abrirFiltros || avancados ? 'secundario' : 'leve'} className="whitespace-nowrap px-3" aria-expanded={abrirFiltros} onClick={() => setAbrirFiltros(!abrirFiltros)}>⚙︎ {t('Filtros')}{avancados ? ` · ${avancados}` : ''}</Botao>
+          <Botao variante="leve" className="whitespace-nowrap px-3" title={t('Colunas')} onClick={() => setJanela('colunas')}>▦<span className="sr-only sm:not-sr-only"> {t('Colunas')}</span></Botao>
+          {larga && <div className="shrink-0 [&_button]:whitespace-nowrap"><Escolha rotulo="Ver como" valor={visao} onChange={setVisao} opcoes={[{ id: 'tabela', nome: 'Tabela' }, { id: 'cartoes', nome: 'Cartões' }]} /></div>}
+          <Botao variante="leve" className="ml-auto whitespace-nowrap px-3 sm:ml-0" disabled={!lista.length} title={selecionados.length ? t('Exportar CSV dos {n} selecionados', { n: selecionados.length }) : t('Exportar CSV')} aria-label={t('Exportar CSV')} onClick={() => exportar(selecionados.length ? selecionados : lista)}>⬇<span className="hidden sm:inline"> CSV</span></Botao>
+        </div>
       </div>
 
       {abrirFiltros && (
@@ -277,7 +329,8 @@ export function Estoque() {
         </div>
       )}
 
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+        <span className="num text-xs text-[var(--suave)]" aria-live="polite">{t('{n} de {total} lote(s)', { n: lista.length, total: dados?.length ?? 0 })}</span>
         {favoritos.map((f, k) => (
           <span key={k} className="inline-flex items-center rounded-full bg-[var(--marca-suave)] text-[var(--marca)]">
             <button type="button" className="min-h-10 rounded-l-full pl-3 pr-1 font-semibold" onClick={() => ajustarParams({ ...Object.fromEntries(chavesFiltro.map((x) => [x, undefined])), ...f.params })}>★ {f.nome}</button>
@@ -290,8 +343,6 @@ export function Estoque() {
             <Botao variante="leve" onClick={limpar}>× {t('Limpar filtros')}</Botao>
           </>
         )}
-        <span className="ml-auto text-[var(--suave)]">{t('{n} de {total} lote(s)', { n: lista.length, total: dados?.length ?? 0 })}</span>
-        <Botao variante="secundario" disabled={!lista.length} onClick={() => exportar(selecionados.length ? selecionados : lista)}>⬇ {t('Exportar CSV')}</Botao>
       </div>
 
       {!dados ? (
@@ -303,23 +354,23 @@ export function Estoque() {
           <table className="w-full text-sm">
             <thead className="bg-[var(--fundo)] text-left text-xs text-[var(--suave)]">
               <tr>
-                <th className="w-10 p-2"><input type="checkbox" className="h-5 w-5 cursor-pointer" aria-label={t('Selecionar todos os filtrados')} checked={todos} onChange={() => setSel(todos ? new Set() : new Set(lista.map((i) => i.id)))} /></th>
-                <th className="w-12 p-1"><span className="sr-only">{t('Foto')}</span></th>
-                <th className="whitespace-nowrap p-2">{t('Código')}</th>
-                <th className="p-2">{t('Lote / item')}</th>
-                {visiveis.map((c) => <th key={c.id} className={cx('whitespace-nowrap p-2', c.num && 'text-right')}>{t(c.nome)}</th>)}
-                <th className="relative w-10 p-2"><span className="sr-only">{t('Ações')}</span></th>
+                <th className="w-10 px-2 py-1.5"><input type="checkbox" className="h-5 w-5 cursor-pointer" aria-label={t('Selecionar todos os filtrados')} checked={todos} onChange={() => setSel(todos ? new Set() : new Set(lista.map((i) => i.id)))} /></th>
+                <th className="w-12 px-1 py-1.5"><span className="sr-only">{t('Foto')}</span></th>
+                <th className="whitespace-nowrap px-2 py-1.5">{t('Código')}</th>
+                <th className="px-2 py-1.5">{t('Lote / item')}</th>
+                {visiveis.map((c) => <th key={c.id} className={cx('whitespace-nowrap px-2 py-1.5', c.num && 'text-right')}>{t(c.nome)}</th>)}
+                <th className="relative w-10 px-2 py-1.5"><span className="sr-only">{t('Ações')}</span></th>
               </tr>
             </thead>
             <tbody>
               {lista.map((i) => (
                 <tr key={i.id} {...clicavel(() => ir('lote', { id: i.id }))} className={cx('cursor-pointer border-t border-[var(--borda)] align-middle outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]', sel.has(i.id) && 'bg-[var(--marca-suave)]', i.saldo <= 0 && 'text-[var(--suave)]')}>
                   <td className="px-2 py-1">{caixa(i)}</td>
-                  <td className="p-1"><MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} tamanho="sm" /></td>
-                  <td className="whitespace-nowrap p-2"><CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /></td>
-                  <td className="w-full min-w-[11rem] max-w-0 p-2">{nomeLote(i)}</td>
-                  {visiveis.map((c) => <td key={c.id} className={cx('p-2', c.id === 'origem' && 'min-w-[12rem] max-w-[18rem]', c.id === 'status' && 'whitespace-nowrap', c.num && 'num whitespace-nowrap text-right')}>{c.celula ? c.celula(i) : c.texto(i) || '—'}</td>)}
-                  <td className="p-1">{acoes(i)}</td>
+                  <td className="px-1 py-1"><MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} tamanho="sm" iconeSemFoto /></td>
+                  <td className="whitespace-nowrap px-2 py-1"><CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /></td>
+                  <td className="w-full min-w-[11rem] max-w-0 px-2 py-1">{nomeLote(i)}</td>
+                  {visiveis.map((c) => <td key={c.id} className={cx('px-2 py-1', c.id === 'origem' && 'min-w-[10rem] max-w-[16rem]', c.id === 'status' && 'whitespace-nowrap', c.num && 'num whitespace-nowrap text-right')}>{c.celula ? c.celula(i) : c.texto(i) || '—'}</td>)}
+                  <td className="px-1 py-1">{acoes(i)}</td>
                 </tr>
               ))}
             </tbody>
@@ -330,19 +381,22 @@ export function Estoque() {
           {lista.map((i) => {
             const extras = visiveis.filter((c) => !['origem', 'peso', 'status'].includes(c.id)).map((c) => [c, c.texto(i)] as const).filter(([, v]) => v)
             return (
-              <li key={i.id} {...clicavel(() => ir('lote', { id: i.id }))} className={cx('min-w-0 cursor-pointer space-y-2 rounded-2xl border bg-[var(--cartao)] p-3 shadow-sm outline-none transition hover:border-[var(--marca)] focus-visible:border-[var(--marca)]', sel.has(i.id) ? 'border-[var(--marca)]' : 'border-[var(--borda)]')}>
+              // cartão: [☐ foto | nome (linha toda) | ⋯] · embaixo código + status à esquerda e o peso à direita · de onde veio, pequeno
+              <li key={i.id} {...clicavel(() => ir('lote', { id: i.id }))} className={cx('min-w-0 cursor-pointer rounded-2xl border bg-[var(--cartao)] p-2.5 shadow-sm outline-none transition hover:border-[var(--marca)] focus-visible:border-[var(--marca)]', sel.has(i.id) ? 'border-[var(--marca)] bg-[var(--marca-suave)]' : 'border-[var(--borda)]', i.saldo <= 0 && 'text-[var(--suave)]')}>
                 <div className="flex items-start gap-2">
-                  <div className="flex min-h-10 items-center">{caixa(i)}</div>
-                  <MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} />
+                  <div className="flex h-10 shrink-0 items-center">{caixa(i)}</div>
+                  <MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} tamanho="sm" iconeSemFoto />
                   <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-1"><CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /><StatusBadge status={i.status} /></div>
-                    {nomeLote(i)}
+                    <div className="flex min-h-10 items-center">{nomeLote(i, true)}</div>
+                    <div className="flex items-start gap-2">
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1"><CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /><StatusPonto status={i.status} /></div>
+                      <Peso i={i} />
+                    </div>
+                    <VeioDe i={i} />
+                    {extras.length > 0 && <p className="text-xs text-[var(--suave)] [overflow-wrap:anywhere]">{extras.map(([c, v]) => `${t(c.nome)}: ${v}`).join(' · ')}</p>}
                   </div>
-                  {acoes(i)}
+                  <div className="-mr-1 shrink-0">{acoes(i)}</div>
                 </div>
-                <VeioDe i={i} />
-                <Peso i={i} />
-                {extras.length > 0 && <p className="text-xs text-[var(--suave)] [overflow-wrap:anywhere]">{extras.map(([c, v]) => `${t(c.nome)}: ${v}`).join(' · ')}</p>}
               </li>
             )
           })}
@@ -354,7 +408,7 @@ export function Estoque() {
           <b className="px-2 text-sm">{t('{n} selecionado(s)', { n: selecionados.length })}</b>
           {!todos && <Botao variante="leve" onClick={() => setSel(new Set(lista.map((i) => i.id)))}>{t('Selecionar todos os {n} filtrados', { n: lista.length })}</Botao>}
           <Botao variante="secundario" onClick={() => exportar(selecionados)}>⬇ {t('Exportar CSV')}</Botao>
-          <Botao variante="secundario" onClick={() => setEtiquetas(selecionados.map((i) => i.id))}>🏷 {t('Imprimir etiquetas')}</Botao>
+          <Botao variante="secundario" onClick={() => ir('etiquetas', { f: 'todas', sel: selecionados.map((i) => i.id).join(',') })}>🏷 {t('Imprimir etiquetas')}</Botao>
           {admin && <Botao variante="secundario" onClick={() => setJanela('marcar')}>✎ {t('Mudar atributo')}</Botao>}
           <Botao variante="leve" onClick={() => setSel(new Set())}>{t('Limpar seleção')}</Botao>
         </div>
@@ -363,7 +417,6 @@ export function Estoque() {
       {ajustar && <Ajustar itemId={ajustar} onFechar={() => setAjustar(undefined)} />}
       {trocar && <TrocarCodigo tipo="lote" id={trocar.id} atual={trocar.codigo} onFechar={() => setTrocar(undefined)} />}
       {janela === 'camera' && <LeitorCodigo onLer={lerCodigo} onFechar={() => setJanela(undefined)} />}
-      {etiquetas && <ImprimirEtiquetas ids={etiquetas} onFechar={() => setEtiquetas(undefined)} />}
       {janela === 'colunas' && (
         <Janela aberta titulo={t('Colunas')} onFechar={() => setJanela(undefined)} rodape={<Botao variante="leve" className="w-full" onClick={() => setColunasSalvas({ ...colunasSalvas, [modulo]: padrao })}>{t('Voltar ao padrão')}</Botao>}>
           <p className="mb-2 text-sm text-[var(--suave)]">{t('Escolha o que aparece na lista e no CSV. Fica guardado neste aparelho.')}</p>
@@ -430,26 +483,18 @@ function MarcarLotes({ ids, campos, onFechar, onFeito }: { ids: Id[]; campos: Ca
  * Vindo da Triagem (&volta=triagem), volta para o quadro depois.
  */
 export function SepararTela() {
-  const t = useT()
   const { nav, voltar, ir, marcarSujo } = useApp()
-  const ids = (nav.params.ids ? String(nav.params.ids).split(',') : [nav.params.id as Id]).filter(Boolean)
+  const ids =(nav.params.ids ? String(nav.params.ids).split(',') : [nav.params.id as Id]).filter(Boolean)
   const daTriagem = nav.params.volta === 'triagem'
-  // depois de separar: "Imprimir N etiquetas?" com os pacotes novos e, depois, volta (quadro ou pacote)
-  const [feitos, setFeitos] = useState<Id[]>()
-  const [imprimir, setImprimir] = useState(false)
-  const seguir = () => (daTriagem ? ir('triagem') : ir('lote', { id: feitos?.length === 1 ? feitos[0] : ids[0] }))
-  if (feitos)
-    return imprimir ? <ImprimirEtiquetas ids={feitos} onFechar={seguir} /> : (
-      <Janela aberta titulo={t('Imprimir {n} etiquetas?', { n: feitos.length })} onFechar={seguir} rodape={
-        <div className="flex gap-2">
-          <Botao variante="leve" className="flex-1" onClick={seguir}>{t('Agora não')}</Botao>
-          <Botao grande className="flex-1" onClick={() => setImprimir(true)}>🏷 {t('Imprimir')}</Botao>
-        </div>
-      }>
-        <p className="text-sm">{t('Uma etiqueta por pacote novo: o código abre o pacote no sistema.')}</p>
-      </Janela>
-    )
-  return <Separar ids={ids} onFechar={voltar} voltarRotulo={daTriagem ? 'Voltar à triagem' : undefined} onSeparou={(lotes) => (marcarSujo(false), setFeitos(lotes))} />
+  // depois de separar: volta na hora (quadro ou pacote) e lá aparece no alto "✓ 3 pacotes novos · 🏷 Imprimir etiquetas · Depois"
+  // (?novos=…, cartão AvisoPacotesNovos). Nada de janela por cima de uma tela vazia.
+  const seguir = (feitos: Id[]) => {
+    marcarSujo(false)
+    const novos = feitos.length ? feitos.join(',') : undefined
+    if (daTriagem) ir('triagem', { novos })
+    else ir('lote', { id: feitos.length === 1 ? feitos[0] : ids[0], novos })
+  }
+  return <Separar ids={ids} onFechar={voltar} voltarRotulo={daTriagem ? 'Voltar à triagem' : undefined} onSeparou={seguir} />
 }
 
 const DICA_SEPARAR = 'Digite o peso e o que é cada parte; o que sobrar é perda. Ex.: 10 kg bruto → 2 kg loiro + 2 kg moreno + 6 kg para depois.'
@@ -501,6 +546,8 @@ function Separar({ ids, onFechar, onSeparou, voltarRotulo }: { ids: Id[]; onFech
   const digitar = digitarCodigos ?? regrasCodigos?.regras.lote.modo === 'manual'
   const codigosDigitados = [...partes.map((p) => p.codigo), gDepois ? depois.codigo : undefined].map((c) => (c ?? '').trim().toUpperCase()).filter(Boolean)
   const codigosValidos = !digitar || ([...partes, ...(gDepois ? [depois] : [])].every((p) => codigosOk[p.id] !== false) && new Set(codigosDigitados).size === codigosDigitados.length)
+  // exemplo apagado (não parece peso digitado)
+  const exemploPeso = { g: t('Ex.: 500'), kg: t('Ex.: 0,5') }
   const att = (i: number, d: Partial<(typeof partes)[number]>) => setPartes(partes.map((p, k) => (k === i ? { ...p, ...d, campos: { ...p.campos, ...(d.campos ?? {}) } } : p)))
   const triar = async (comPartes: boolean) => {
     const r = await executar('triarLotes', {
@@ -520,17 +567,16 @@ function Separar({ ids, onFechar, onSeparou, voltarRotulo }: { ids: Id[]; onFech
       onVoltar={onFechar}
       voltarRotulo={voltarRotulo}
       rodape={
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className={cx('num inline-flex flex-wrap items-center gap-x-1 text-sm font-semibold', soma > usar ? 'text-[var(--ruim)]' : 'text-[var(--suave)]')}>
-            {t('Peso bruto')} <b className="text-[var(--texto)]">{gramasTexto(usar)}</b> → {t('partes')} <b className="text-[var(--texto)]">{gramasTexto(somaPartes)}</b>
-            {gDepois > 0 && <> + {t('para depois')} <b className="text-[var(--texto)]">{gramasTexto(gDepois)}</b></>}
-            · {t('perda')} <b className={perda > 0 ? 'text-[var(--ruim)]' : undefined}>{gramasTexto(perda)}{usar ? ` (${fmt(Math.round((perda * 10000) / usar), 'percentual')})` : ''}</b>
+        // barra curta: a conta numa linha (rótulos longos só na tela larga) e o botão à direita
+        <div className="flex items-center gap-2">
+          <span className={cx('num min-w-0 flex-1 text-xs font-semibold leading-snug sm:text-sm', soma > usar ? 'text-[var(--ruim)]' : 'text-[var(--suave)]')}>
+            <span className="hidden sm:inline">{t('Peso bruto')} </span><b className="text-[var(--texto)]">{gramasTexto(usar)}</b> → <span className="hidden sm:inline">{t('partes')} </span><b className="text-[var(--texto)]">{gramasTexto(somaPartes)}</b>
+            {gDepois > 0 && <> + <b className="text-[var(--texto)]">{gramasTexto(gDepois)}</b><span className="hidden sm:inline"> {t('para depois')}</span></>}
+            {' · '}{t('perda')} <b className={perda > 0 ? 'text-[var(--ruim)]' : undefined}>{gramasTexto(perda)}{usar ? ` (${fmt(Math.round((perda * 10000) / usar), 'percentual')})` : ''}</b>
             <Info texto={DICA_PERDA} />
           </span>
-          <span className="flex flex-wrap gap-2">
-            {juntar && <Botao variante="secundario" disabled={ocupado} onClick={() => triar(false)}>🔗 {t('Só juntar')}</Botao>}
-            <Botao grande disabled={ocupado || !soma || soma > usar || !codigosValidos} onClick={() => triar(true)}>{juntar ? t('Juntar e separar') : t('Separar')}</Botao>
-          </span>
+          {juntar && <Botao variante="secundario" className="shrink-0 px-3" disabled={ocupado} onClick={() => triar(false)}>🔗<span className="hidden sm:inline"> {t('Só juntar')}</span><span className="sr-only sm:hidden">{t('Só juntar')}</span></Botao>}
+          <Botao className="shrink-0" disabled={ocupado || !soma || soma > usar || !codigosValidos} onClick={() => triar(true)}>{juntar ? t('Juntar e separar') : t('Separar')}</Botao>
         </div>
       }
     >
@@ -551,7 +597,7 @@ function Separar({ ids, onFechar, onSeparou, voltarRotulo }: { ids: Id[]; onFech
         {partes.map((p, i) => (
           <div key={p.id} className="space-y-2 rounded-xl border border-[var(--borda)] p-3">
             <div className="grid grid-cols-[1fr_auto] items-end gap-2 sm:max-w-sm">
-              <Campo rotulo="Peso"><GramasInput valor={p.quantidade} onChange={(q) => att(i, { quantidade: q })} /></Campo>
+              <Campo rotulo="Peso"><GramasInput valor={p.quantidade} placeholder={exemploPeso} onChange={(q) => att(i, { quantidade: q })} /></Campo>
               <Botao variante="leve" disabled={partes.length === 1} onClick={() => setPartes(partes.filter((_, k) => k !== i))}>{t('Tirar')}</Botao>
             </div>
             <CamposDinamicos campos={campos} valores={p.campos} onChange={(v) => att(i, { campos: v })} pular={['estado']} />
@@ -564,7 +610,7 @@ function Separar({ ids, onFechar, onSeparou, voltarRotulo }: { ids: Id[]; onFech
         <div className="space-y-2 rounded-xl border border-dashed border-[var(--alerta)] p-3">
           <div className="flex items-center text-sm font-bold">❓ {t('Deixar para depois')}<Info texto={DICA_DEPOIS} /></div>
           <div className="grid grid-cols-[1fr_auto] items-end gap-2 sm:max-w-sm">
-            <Campo rotulo="Peso (fica como “Não identificado”)"><GramasInput valor={depois.quantidade} onChange={(q) => setDepois({ ...depois, quantidade: q })} /></Campo>
+            <Campo rotulo="Peso (fica como “Não identificado”)"><GramasInput valor={depois.quantidade} placeholder={exemploPeso} onChange={(q) => setDepois({ ...depois, quantidade: q })} /></Campo>
             <Botao variante="leve" disabled={usar - somaPartes <= 0} onClick={() => setDepois({ ...depois, quantidade: usar - somaPartes })}>{t('Tudo o que sobrou')}</Botao>
           </div>
           {digitar && gDepois > 0 && <CampoCodigo tipo="lote" rotulo="Código deste lote" valor={depois.codigo ?? ''} onChange={(v) => setDepois({ ...depois, codigo: v })} contexto={{ paiId: juntar ? undefined : lotes[0].id, posicao: partes.length }} onEstado={(ok) => marcarCodigo(depois.id, ok)} />}
@@ -625,7 +671,7 @@ export function FichaLote() {
   const [ajustar, setAjustar] = useState(false)
   const [editar, setEditar] = useState(false)
   const [trocar, setTrocar] = useState(false)
-  const [etiqueta, setEtiqueta] = useState(false)
+  const [refazer, setRefazer] = useState(false)
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
   const i = dados.item
@@ -643,22 +689,39 @@ export function FichaLote() {
   return (
     <div className="space-y-4">
       <Botao variante="leve" onClick={voltar}>← {t('Voltar')}</Botao>
-      <Titulo subtitulo={<span className="inline-flex flex-wrap items-center gap-2"><CodigoSelo grande codigo={i.codigo} anteriores={i.codigosAnteriores} />{!!i.codigosAnteriores?.length && <span className="text-xs">{t('antes')}: <span className="font-mono">{i.codigosAnteriores.join(', ')}</span></span>}· {t('desde')} {dataBR(i.criadoEm)} <StatusBadge status={dados.status} /></span>} acao={
-        <div className="flex flex-wrap items-center gap-2">
+      <AvisoPacotesNovos />
+      {/* cabeçalho compacto: foto pequena + nome; código e situação numa linha; UMA linha de ações (principal + Etiqueta + ⋯) */}
+      <header className="space-y-3">
+        <div className="flex items-start gap-3">
+          <MiniaturaLote itemId={i.id} foto={dados.fotoPrincipal} marcador={marcadorLote(i.campos, i.nome)} tamanho="ficha" iconeSemFoto />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-bold leading-tight [overflow-wrap:anywhere] sm:text-2xl">{i.nome}</h1>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--suave)]">
+              <CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} />
+              <StatusBadge status={dados.status} />
+              <span className="whitespace-nowrap text-xs">{t('desde')} {dataBR(i.criadoEm)}</span>
+              {!!i.codigosAnteriores?.length && <span className="text-xs">{t('antes')}: <span className="font-mono">{i.codigosAnteriores.join(', ')}</span></span>}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
           {/* um botão principal (Vender ou Separar, conforme a situação); o resto fica no ⋯ */}
-          {proximo && <Botao grande onClick={proximo.f}>{t(proximo.rotulo)}</Botao>}
-          <Botao variante="leve" onClick={() => ir('rastreio', { itemId: i.id })}>🔎 {t('Rastrear origem e destino')}</Botao>
-          <MenuAcoes comRotulo acoes={acoesLote(
-            { id: i.id, saldo: i.saldo, compras: dados.dna.compras.map((c) => ({ id: c.id, codigo: c.codigo, fornecedor: c.fornecedor?.nome, fornecedorId: c.fornecedor?.id })), origens: dados.pai ? [dados.pai] : dados.dna.unificacao?.fontes, vendavel: !bruto },
-            { ir, t, admin, semAbrir: true, onAjustar: () => setAjustar(true), onTrocarCodigo: () => setTrocar(true), extras: [
-              { rotulo: 'Etiqueta', icone: '🏷', onClick: () => setEtiqueta(true), separar: true },
-              ...(admin ? [{ rotulo: 'Editar atributos', icone: '✎', onClick: () => setEditar(true) }] : []),
+          {proximo && <Botao className="min-w-0 flex-1 sm:flex-none" onClick={proximo.f}>{t(proximo.rotulo)}</Botao>}
+          {admin && <Botao variante="secundario" className="shrink-0" onClick={() => ir('etiquetas', { f: 'todas', sel: i.id })}>🏷 {t('Etiqueta')}</Botao>}
+          <MenuAcoes comRotulo className="shrink-0" acoes={acoesLote(
+            { id: i.id, saldo: i.saldo, compras: dados.dna.compras.map((c) => ({ id: c.id, codigo: c.codigo, fornecedor: c.fornecedor?.nome, fornecedorId: c.fornecedor?.id })), origens: dados.pai ? [dados.pai] : dados.dna.unificacao?.fontes, vendavel: !bruto, etiquetaImpressa: !!i.etiquetaImpressaEm },
+            { ir, t, admin, semAbrir: true, onAjustar: () => setAjustar(true), onTrocarCodigo: () => setTrocar(true), onRefazerEtiqueta: () => setRefazer(true), extras: [
+              ...(admin ? [{ rotulo: 'Editar atributos', icone: '✎', onClick: () => setEditar(true), separar: true }] : []),
               ...(bruto && i.saldo > 0 ? [{ rotulo: 'Abrir na triagem', icone: '🧺', onClick: () => ir('triagem') }] : []),
             ] },
           )} />
         </div>
-      }><span className="flex min-w-0 items-center gap-3"><MiniaturaLote itemId={i.id} foto={dados.fotoPrincipal} marcador={marcadorLote(i.campos, i.nome)} tamanho="lg" /><span className="min-w-0 [overflow-wrap:anywhere]">{i.nome}</span></span></Titulo>
-      {gen && <Caminho g={gen} onSeparar={admin && bruto && i.saldo > 0 ? separar : undefined} onVender={admin && !bruto && i.saldo > 0 ? vender : undefined} />}
+      </header>
+      {/* o caminho sem os botões (Vender/Separar já estão no alto) e o link do rastreio completo */}
+      <div className="space-y-1">
+        {gen && <Caminho g={gen} />}
+        <button type="button" onClick={() => ir('rastreio', { itemId: i.id })} className="min-h-10 text-sm font-semibold text-[var(--marca)] hover:underline">🔎 {t('Rastrear origem e destino')}</button>
+      </div>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <Cartao><div className="text-xs text-[var(--suave)]">{t('Agora')}</div><div className="num text-xl font-bold">{q(i.saldo)}</div></Cartao>
         <Cartao><div className="text-xs text-[var(--suave)]">{t('Custo do lote')}</div><div className="num text-xl font-bold">{formatar(i.custoPrincipal ?? 0, m)}</div></Cartao>
@@ -668,7 +731,7 @@ export function FichaLote() {
       {ajustar && <Ajustar itemId={i.id} onFechar={() => setAjustar(false)} />}
       {editar && <EditarAtributos id={i.id} campos={campos} valores={i.campos} onFechar={() => setEditar(false)} />}
       {trocar && <TrocarCodigo tipo="lote" id={i.id} atual={i.codigo} onFechar={() => setTrocar(false)} />}
-      {etiqueta && <ImprimirEtiquetas ids={[i.id]} onFechar={() => setEtiqueta(false)} />}
+      {refazer && <RefazerEtiqueta id={i.id} codigo={i.codigo} onFechar={() => setRefazer(false)} />}
 
       {i.unidade === 'grama' && (
         <Cartao titulo={`${t('Cada grama deste lote')} · ${t('entrou')} ${q(f.inicial)}`}>

@@ -189,12 +189,23 @@ export async function tabelaPreco(ctx: Ctx, p: { id: Id }) {
   const t = await ctx.repos.tabelasPreco.obter(p.id)
   exigir(t, 'Tabela não encontrada.')
   const versoes = await versoesTabela(ctx, p)
+  const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x.nome]))
   const usos = (await ctx.repos.transacoes.listar())
     .filter((x) => x.etapa !== 'cancelado' && x.linhas.some((l) => l.campos.tabelaId === t.id))
     .map((x) => {
       const ls = x.linhas.filter((l) => l.campos.tabelaId === t.id)
       // desconto das linhas desta tabela (a linha com desconto continua ligada à tabela, com o fator que usou)
-      return { id: x.id, tipo: x.tipo, data: x.data, codigo: x.codigo, total: x.totalPrincipal, linhas: ls.length, desconto: ls.reduce((s, l) => s + (l.descontoPrincipal ?? 0), 0) }
+      return {
+        id: x.id, tipo: x.tipo, data: x.data, codigo: x.codigo, total: x.totalPrincipal, linhas: ls.length,
+        desconto: ls.reduce((s, l) => s + (l.descontoPrincipal ?? 0), 0),
+        pessoa: x.pessoaId ? pessoas.get(x.pessoaId) : undefined,
+        gramas: ls.reduce((s, l) => s + l.quantidade, 0),
+        // detalhe (aberto na própria lista): cada linha com medida, gramas × fator e valor
+        detalhe: ls.map((l) => ({
+          id: l.id, descricao: l.descricao, medida: l.campos.medida as number | string | undefined, gramas: l.quantidade,
+          fator: l.campos.fator as number | string | undefined, total: l.totalPrincipal, desconto: l.descontoPrincipal,
+        })),
+      }
     })
     .sort((a, b) => (a.data < b.data ? 1 : -1))
   return {

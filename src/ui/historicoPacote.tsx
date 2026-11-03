@@ -56,7 +56,7 @@ function Movimento({ m }: { m: MovHistorico }) {
   return (
     <li className="p-3 text-sm">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+        <span className="min-w-0 flex-1 basis-40 [overflow-wrap:anywhere]">
           ○ <b>{m.titulo}</b>
           {m.delta !== 0 && <span className={cx('num ml-1 font-semibold', m.delta < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>{sinal(m.delta)}</span>}
         </span>

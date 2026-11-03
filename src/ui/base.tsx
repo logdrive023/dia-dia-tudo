@@ -278,7 +278,8 @@ export function Campo({ rotulo, ajuda, children, className, comoDiv }: { rotulo:
   )
 }
 
-const classeEntradaBase = 'min-h-11 rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 text-base outline-none focus:border-[var(--marca)]'
+// placeholder apagado (nunca parece um valor digitado)
+const classeEntradaBase = 'min-h-11 rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 text-base outline-none placeholder:font-normal placeholder:text-[var(--suave)] placeholder:opacity-70 focus:border-[var(--marca)]'
 
 /** largura: "w-auto"/"w-…" no className troca o padrão (largura toda) */
 function classeEntrada(extra?: string) {
@@ -343,7 +344,7 @@ export function ValorInput({ moeda, valor, onChange, placeholder }: { moeda: str
 }
 
 /** Quantidade em gramas com troca g/kg (o caderno usa os dois: "2 kg" e "2008 g"). */
-export function GramasInput({ valor, onChange }: { valor?: number; onChange(g: number | undefined): void }) {
+export function GramasInput({ valor, onChange, placeholder }: { valor?: number; onChange(g: number | undefined): void; placeholder?: { g: string; kg: string } }) {
   const [unidade, setUnidade] = useState<'g' | 'kg'>('g')
   const [texto, setTexto] = useState(valor ? String(valor) : '')
   const ler = (t: string, u: 'g' | 'kg') => {
@@ -353,7 +354,7 @@ export function GramasInput({ valor, onChange }: { valor?: number; onChange(g: n
   }
   return (
     <div className="flex gap-1">
-      <input inputMode="decimal" value={texto} onChange={(e) => (setTexto(e.target.value), onChange(ler(e.target.value, unidade)))} className={classeEntrada('num')} placeholder={unidade === 'g' ? '2008' : '2,5'} />
+      <input inputMode="decimal" value={texto} onChange={(e) => (setTexto(e.target.value), onChange(ler(e.target.value, unidade)))} className={classeEntrada('num')} placeholder={placeholder ? placeholder[unidade] : unidade === 'g' ? '2008' : '2,5'} />
       <button type="button" onClick={() => {
         const u = unidade === 'g' ? 'kg' : 'g'
         setUnidade(u)
@@ -411,7 +412,8 @@ export function Pagina({ titulo, subtitulo, onVoltar, voltarRotulo, children, ro
       <h1 className="text-2xl font-bold">{titulo}</h1>
       {subtitulo && <p className="mb-4 text-sm text-[var(--suave)]">{subtitulo}</p>}
       <div className={cx(!subtitulo && 'mt-4', 'pb-4')}>{children}</div>
-      {rodape && <div className="sticky bottom-20 z-20 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-3 shadow-lg md:bottom-4">{rodape}</div>}
+      {/* barra fixa no fim do conteúdo (no fluxo da página: o último campo nunca fica escondido embaixo dela) */}
+      {rodape && <div className="sticky bottom-20 z-20 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-2 shadow-lg sm:p-3 md:bottom-4">{rodape}</div>}
     </div>
   )
 }

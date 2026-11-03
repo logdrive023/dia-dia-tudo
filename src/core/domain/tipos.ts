@@ -92,6 +92,13 @@ export interface Item extends Base {
   codigo?: string
   /** códigos que o lote já teve (trocados pelo admin): continuam achando o lote na busca */
   codigosAnteriores?: string[]
+  /** etiqueta: quando foi impressa pela última vez e por quem (Etiquetas › "Sem etiqueta" / "Já impressa") */
+  etiquetaImpressaEm?: string
+  etiquetaImpressaPor?: string
+  /** via da etiqueta (1, 2, 3…): sobe quando a antiga é cancelada ("Errou? Gerar nova"); o código do lote não muda */
+  etiquetaVia?: number
+  /** a última etiqueta cancelada: por quê, quando e quem */
+  etiquetaCancelada?: { motivo: string; em: string; porNome?: string; via: number }
   campos: Campos
 }
 

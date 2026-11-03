@@ -111,6 +111,8 @@ const NOMES_ACAO: Record<string, string> = {
   ajustarEstoque: 'Estoque ajustado',
   marcarLotes: 'Lotes alterados em massa',
   editarAtributosLote: 'Atributos do lote editados',
+  marcarEtiquetasImpressas: 'Etiqueta impressa',
+  refazerEtiqueta: 'Etiqueta cancelada · nova via',
   salvarCodigos: 'Regra dos códigos mudada',
   salvarSigla: 'Sigla da pessoa mudada',
   trocarCodigoCompra: 'Código da compra trocado',

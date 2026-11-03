@@ -94,7 +94,8 @@ export function ListaRastreio({ linhas, max = 5 }: { linhas: LinhaRastreio[]; ma
     <ul className="divide-y divide-[var(--borda)]">
       {vis.map((l) => (
         <li key={l.id} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 py-2 text-sm">
-          <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+          {/* basis: o texto não encolhe até uma palavra por linha; o botão desce quando não cabe */}
+          <span className="min-w-0 flex-1 basis-48 [overflow-wrap:anywhere]">
             {l.onClick ? <button type="button" onClick={l.onClick} className="text-left font-semibold hover:underline">{l.principal}</button> : <span className="font-semibold">{l.principal}</span>}
             {l.detalhe && <span className="text-[var(--suave)]"> · {l.detalhe}</span>}
           </span>

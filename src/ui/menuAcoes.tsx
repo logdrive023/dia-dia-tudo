@@ -116,15 +116,17 @@ export interface LoteMenu {
   /** lote-mãe (separação) ou lotes unificados */
   origens?: { id: Id; codigo?: string }[]
   vendavel?: boolean
+  /** a etiqueta já foi impressa: aparece "Errou? Gerar nova" (cancela a antiga, nova via) */
+  etiquetaImpressa?: boolean
 }
 
 /**
  * Ações padrão de um lote: abrir, compra(s) e fornecedor de origem, lote de origem, rastrear, vendas, vender,
- * separar, ajustar e trocar código (admin). `extras` entra no fim (ex.: "Mover para…" na triagem).
+ * separar, ajustar, imprimir etiqueta (tela Etiquetas) e trocar código (admin). `extras` entra no fim (ex.: "Mover para…" na triagem).
  */
 export function acoesLote(
   l: LoteMenu,
-  o: { ir(tela: string, p?: Params): void; t(s: string, v?: Record<string, string | number>): string; admin: boolean; extras?: Acao[]; separarParams?: Params; onAjustar?(): void; onTrocarCodigo?(): void; semAbrir?: boolean },
+  o: { ir(tela: string, p?: Params): void; t(s: string, v?: Record<string, string | number>): string; admin: boolean; extras?: Acao[]; separarParams?: Params; onAjustar?(): void; onTrocarCodigo?(): void; semAbrir?: boolean; onRefazerEtiqueta?(): void },
 ): Acao[] {
   const { ir, t, admin } = o
   const acoes: Acao[] = []
@@ -140,6 +142,10 @@ export function acoesLote(
   if (l.saldo > 0 && l.vendavel !== false) acoes.push({ rotulo: 'Vender', icone: '💰', onClick: () => ir('vender', { modulo: 'cabelo', lote: l.id }), separar: true })
   if (admin && l.saldo > 0) acoes.push({ rotulo: 'Separar', icone: '✂️', onClick: () => ir('separar', { id: l.id, ...(o.separarParams ?? {}) }) })
   if (admin && l.saldo > 0 && o.onAjustar) acoes.push({ rotulo: 'Ajustar', icone: '±', onClick: o.onAjustar })
+  // etiqueta: abre a tela Etiquetas com este lote já marcado (lá também ficam os outros sem etiqueta)
+  if (admin) acoes.push({ rotulo: 'Imprimir etiqueta', icone: '🏷', onClick: () => ir('etiquetas', { f: 'todas', sel: l.id }) })
+  // saiu errada / borrou / perdeu: cancela a antiga e imprime nova (aqui mesmo, se a tela abrir a janela; senão na tela Etiquetas)
+  if (admin && l.etiquetaImpressa) acoes.push({ rotulo: 'Errou? Gerar nova', icone: '↻', onClick: o.onRefazerEtiqueta ?? (() => ir('etiquetas', { f: 'todas', sel: l.id, refazer: l.id })) })
   if (admin && o.onTrocarCodigo) acoes.push({ rotulo: 'Trocar código', icone: '#', onClick: o.onTrocarCodigo, separar: true })
   return [...acoes, ...(o.extras ?? [])]
 }

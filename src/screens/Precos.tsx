@@ -1,17 +1,17 @@
 // TABELAS DE PREÇO com VERSÕES.
-//  #/precos        lista: um cartão simples por tabela (nome, categoria, medidas · compradores · vendas, última versão)
+//  #/precos        lista: um cartão por tabela (nome, padrão/categoria, faixa de fatores, medidas · compradores · vendas · compras, última versão)
 //  #/precos/:id    tela da tabela: UMA grade editável (toque no número e digite) + Histórico (versões e comparação)
 //  #/precos/novo   nova tabela
 // Toda alteração publica uma versão nova (barra "3 mudanças · Publicar v3"); as anteriores ficam guardadas e dá para
 // comparar quaisquer duas ("era X → ficou Y"). Vendas e compras guardam o fator que usaram: o passado não muda.
 
 import { useRef, useState } from 'react'
-import { fatorValido, formatar } from '../core/domain/dinheiro'
+import { fatorValido, formatar, moeda } from '../core/domain/dinheiro'
 import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { TabelaPreco } from '../core/domain/tipos'
 import type { DiferencaCelula } from '../core/services/precos'
-import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pilula, Selecao, Titulo, Vazio, cx, dataBR, loc, moedaPadrao } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pilula, Selecao, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 import { MenuAcoes, type Acao } from '../ui/menuAcoes'
@@ -47,9 +47,17 @@ export function Precos() {
   // key: trocar de tabela (ou ir para "novo") recomeça o rascunho do zero
   if (nav.params.id || nav.tela === 'tabelaPreco') return <TabelaTela key={String(nav.params.id)} />
   const nova = () => ir('tabelaPreco', { id: 'novo' })
+  // a geral (sem categoria) primeiro: é a padrão; depois as das categorias
+  const lista = [...(dados ?? [])].sort((a, b) => Number(!!a.categoria) - Number(!!b.categoria))
   return (
     <div>
-      <Titulo subtitulo={t('Valor = gramas × fator. Ex.: 40 cm, 2.000 g × 3,5 = Bs 7.000.')} acao={<Botao grande onClick={nova}>+ {t('Tabela')}</Botao>}>{t('Tabelas de preço')}</Titulo>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold">{t('Tabelas de preço')}</h1>
+          <p className="text-sm text-[var(--suave)]">{t('Valor = gramas × fator. Ex.: 40 cm, 2.000 g × 3,5 = Bs 7.000.')}</p>
+        </div>
+        {!!dados?.length && <Botao className="shrink-0" onClick={nova}>+ {t('Tabela')}</Botao>}
+      </div>
       {!dados ? <Carregando /> : !dados.length ? (
         <Vazio texto="Nenhuma tabela ainda.">
           <p className="mb-3">{t('Uma tabela diz o fator por medida e comprador: 60 cm × Helena = 16 → valor = gramas × 16.')}</p>
@@ -57,11 +65,17 @@ export function Precos() {
         </Vazio>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {dados.map((tb) => <CartaoTabela key={tb.id} tb={tb} />)}
+          {lista.map((tb) => <CartaoTabela key={tb.id} tb={tb} />)}
         </div>
       )}
     </div>
   )
+}
+
+/** menor e maior fator da tabela (só os preenchidos e válidos) */
+function faixaDe(tb: TabelaPreco): [number, number] | undefined {
+  const ns = Object.values(tb.valores).filter((v) => fatorValido(v)).map((v) => Number(String(v).replace(',', '.')))
+  return ns.length ? [Math.min(...ns), Math.max(...ns)] : undefined
 }
 
 function CartaoTabela({ tb }: { tb: TabelaPreco }) {
@@ -69,24 +83,45 @@ function CartaoTabela({ tb }: { tb: TabelaPreco }) {
   const { ir } = useApp()
   const { dados } = useConsulta('tabelaPreco', { id: tb.id })
   const v = dados?.versoes[0]
-  const usos = !dados ? '…' : dados.totalVendas || dados.totalCompras
-    ? [dados.totalVendas ? t(dados.totalVendas === 1 ? 'usada em 1 venda' : 'usada em {n} vendas', { n: dados.totalVendas }) : '', dados.totalCompras ? t(dados.totalCompras === 1 ? '1 compra' : '{n} compras', { n: dados.totalCompras }) : ''].filter(Boolean).join(' · ')
-    : t('ainda não usada')
+  const faixa = faixaDe(tb)
+  const n = (x: number) => x.toLocaleString(loc(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const simbolo = moeda(tb.moeda).simbolo
+  const porQue = tb.fatorPor === 'grama' ? '/g' : `/${t('un.')}`
+  const medidas = [...tb.linhas].sort((a, b) => a - b)
+  const stats: [string, number | undefined][] = [
+    ['Medidas', tb.linhas.length],
+    ['Compradores', tb.colunas.length],
+    ['Vendas', dados?.totalVendas],
+    ['Compras', dados?.totalCompras],
+  ]
   return (
-    <button type="button" onClick={() => ir('tabelaPreco', { id: tb.id })} className="group flex w-full min-w-0 items-center gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 text-left shadow-sm hover:border-[var(--marca)]">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-lg font-bold leading-tight">{tb.nome}</span>
-          <Pilula tom={tb.categoria ? 'marca' : 'neutro'}>{t(tb.categoria ?? 'Normal')}</Pilula>
+    <button type="button" onClick={() => ir('tabelaPreco', { id: tb.id })} className="group flex w-full min-w-0 flex-col rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 text-left shadow-sm transition hover:border-[var(--marca)] hover:shadow-md">
+      <div className="flex w-full items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-lg font-bold leading-tight [overflow-wrap:anywhere]">{tb.nome}</span>
+            {tb.categoria ? <Pilula tom="marca">{t(tb.categoria)}</Pilula> : <Pilula tom="bom">★ {t('Padrão')}</Pilula>}
+          </div>
+          <p className="mt-1 text-sm">
+            {faixa ? (
+              <><span className="num font-semibold">{simbolo} {n(faixa[0])}{faixa[1] !== faixa[0] ? ` – ${n(faixa[1])}` : ''}</span> <span className="text-[var(--suave)]">{porQue}</span></>
+            ) : <span className="text-[var(--suave)]">{t('sem preços ainda')}</span>}
+            {medidas.length > 0 && <span className="text-xs text-[var(--suave)]"> · {medidas[0]}{medidas.length > 1 ? `–${medidas[medidas.length - 1]}` : ''} {tb.unidadeMedida}</span>}
+          </p>
         </div>
-        <p className="mt-1 text-sm">
-          <span className="num">{tb.linhas.length}</span> {t('medidas')} · <span className="num">{tb.colunas.length}</span> {t('compradores')} · {usos}
-        </p>
-        <p className="mt-0.5 truncate text-xs text-[var(--suave)]">
-          {v ? <>v{v.numero} · {t('mudou em {d}', { d: diaCurto(v.em) })}{v.nota ? ` · “${v.nota}”` : ''}</> : '…'}
-        </p>
+        <span aria-hidden className="text-2xl leading-none text-[var(--suave)] group-hover:text-[var(--marca)]">›</span>
       </div>
-      <span aria-hidden className="text-2xl text-[var(--suave)] group-hover:text-[var(--marca)]">›</span>
+      <dl className="mt-3 grid w-full grid-cols-4 gap-1.5">
+        {stats.map(([rotulo, valor]) => (
+          <div key={rotulo} className="flex min-w-0 flex-col-reverse rounded-xl bg-[var(--fundo)] px-1 py-1.5 text-center">
+            <dt className="text-[10px] leading-tight text-[var(--suave)] [overflow-wrap:anywhere]">{t(rotulo)}</dt>
+            <dd className={cx('num text-base font-bold leading-tight', !valor && 'text-[var(--suave)]')}>{valor ?? '…'}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-2 w-full truncate text-xs text-[var(--suave)]">
+        {v ? <>v{v.numero} · {t('mudou em {d}', { d: diaCurto(v.em) })}{v.nota ? ` · “${v.nota}”` : ''}</> : '…'}
+      </p>
     </button>
   )
 }
@@ -309,14 +344,7 @@ function TabelaTela() {
           {tb && dados!.usos.length > 0 && (
             <Cartao titulo={`${t('Usada em')} ${dados!.totalUsos}`} ajuda="Vendas e compras que calcularam o preço com esta tabela. Cada uma guarda o fator que usou: mudar a tabela não muda o passado.">
               <ul className="divide-y divide-[var(--borda)] text-sm">
-                {dados!.usos.map((u) => (
-                  <li key={u.id}>
-                    <button type="button" onClick={() => ir(u.tipo === 'compra' ? 'pedido' : 'venda', { id: u.id })} className="flex w-full justify-between gap-2 py-2 text-left hover:text-[var(--marca)]">
-                      <span>{t(u.tipo === 'compra' ? 'Compra' : 'Venda')} {u.codigo ?? ''} · {dataBR(u.data)} · {u.linhas} {t('linha(s)')}</span>
-                      <span className="num">{formatar(u.total, tb.moeda)}{u.desconto ? <span className="block text-xs text-[var(--suave)]">{t('desconto')} {formatar(u.desconto, tb.moeda)}</span> : null}</span>
-                    </button>
-                  </li>
-                ))}
+                {dados!.usos.map((u) => <UsoTabela key={u.id} u={u} moeda={tb.moeda} />)}
               </ul>
             </Cartao>
           )}
@@ -780,5 +808,49 @@ function Comparacao({ id, de, para }: { id: string; de: number; para: number }) 
         </>
       )}
     </div>
+  )
+}
+
+type Uso = Awaited<ReturnType<typeof import('../core/services/precos').tabelaPreco>>['usos'][number]
+
+/** Uma venda/compra que usou a tabela: resumo numa linha; tocar abre o detalhe ali mesmo (sem trocar de tela). */
+function UsoTabela({ u, moeda }: { u: Uso; moeda: string }) {
+  const t = useT()
+  const { ir } = useApp()
+  const [aberto, setAberto] = useState(false)
+  const compra = u.tipo === 'compra'
+  return (
+    <li>
+      <button type="button" aria-expanded={aberto} onClick={() => setAberto((x) => !x)} className="flex w-full items-center gap-3 py-2.5 text-left hover:text-[var(--marca)]">
+        <span className={cx('h-8 w-1 shrink-0 rounded-full', compra ? 'bg-[var(--bom)]' : 'bg-[var(--marca)]')} aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">{t(compra ? 'Compra' : 'Venda')} {u.codigo ?? ''}{u.pessoa ? ` · ${u.pessoa}` : ''}</span>
+          <span className="block text-xs text-[var(--suave)]">{dataBR(u.data)} · {gramasTexto(u.gramas)} · {u.linhas} {t('linha(s)')}</span>
+        </span>
+        <span className="num shrink-0 text-right font-semibold">
+          {formatar(u.total, moeda)}
+          {u.desconto ? <span className="block text-xs font-normal text-[var(--suave)]">{t('desconto')} {formatar(u.desconto, moeda)}</span> : null}
+        </span>
+        <span className={cx('shrink-0 text-[var(--suave)] transition-transform', aberto && 'rotate-90')} aria-hidden>›</span>
+      </button>
+      {aberto && (
+        <div className="mb-3 ml-4 rounded-xl bg-[var(--fundo)] p-3">
+          <ul className="space-y-1.5">
+            {u.detalhe.map((l) => (
+              <li key={l.id} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span className="min-w-0">
+                  {l.medida !== undefined ? `${l.medida} cm` : l.descricao}
+                  <span className="num ml-2 text-xs text-[var(--suave)]">{gramasTexto(l.gramas)}{l.fator !== undefined ? ` × ${l.fator}` : ''}</span>
+                </span>
+                <span className="num">{formatar(l.total, moeda)}{l.desconto ? <span className="ml-1 text-xs text-[var(--suave)]">(−{formatar(l.desconto, moeda)})</span> : null}</span>
+              </li>
+            ))}
+          </ul>
+          <button type="button" onClick={() => ir(compra ? 'pedido' : 'venda', { id: u.id })} className="mt-2 text-sm font-semibold text-[var(--marca)]">
+            {t(compra ? 'Abrir a compra' : 'Abrir a venda')} →
+          </button>
+        </div>
+      )}
+    </li>
   )
 }

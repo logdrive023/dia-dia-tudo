@@ -38,6 +38,15 @@ body {
   color: var(--texto);
   -webkit-tap-highlight-color: transparent;
 }
+/* campo focado nunca fica embaixo da barra do celular nem das barras fixas (Separar, Salvar, seleção) */
+html {
+  scroll-padding-bottom: 10rem;
+}
+@media (min-width: 768px) {
+  html {
+    scroll-padding-bottom: 6rem;
+  }
+}
 #root {
   overflow-x: clip;
   min-height: 100vh;
@@ -67,3 +76,9 @@ body {
 /* faixas que rolam para o lado (abas, chips) sem barra de rolagem aparente */
 .sem-barra { scrollbar-width: none; }
 .sem-barra::-webkit-scrollbar { display: none; }
+
+/* Celular (Android com letra maior, campos de data/hora largos): nada empurra o cartão para fora da tela.
+   Itens de grade e flex podem encolher; campos de data/hora não impõem largura mínima; palavra longa quebra. */
+:where(.grid, .flex) > :where(*) { min-width: 0; }
+:where(input[type='date'], input[type='time'], input[type='datetime-local'], select) { min-width: 0; max-width: 100%; }
+:where(section, main) { overflow-wrap: break-word; }

@@ -17,6 +17,7 @@ Publicação: `https://logdrive023.github.io/dia-dia-tudo/` (após o primeiro pu
 | Atender/agendar no salão (unidade, cliente, serviço, quem atende) | **Vender › É serviço?** ou **Agenda** |
 | Registrar um pedido de compra com fotos/PDF e andar a triagem | **Comprar** |
 | Triar: juntar lotes/compras e separar (40 kg → 20 kg preto + 19,5 kg castanho), ver o que está pronto para vender | **Triagem** (quadro com colunas personalizáveis) |
+| Imprimir/reimprimir etiquetas, ver quais pacotes ainda não têm (filtro "Sem etiqueta", compra, medida, entrada) | **Etiquetas** (menu; também no pacote "🏷 Etiqueta", no ⋯ de cada lote, na compra, na Triagem e depois de separar) |
 | Ver cada grama: compra → triagem (T-…) → lote → venda | **Rastreio total** no lote, na compra, na venda e na triagem |
 | Saber de onde veio e para onde foi cada grama | **Estoque › lote › Rastrear** ou **Comprar › compra › Rastrear** |
 | Quem me deve / a quem devo, adiantamento, "falta" | **Pessoas e contas** |

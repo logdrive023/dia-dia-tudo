@@ -31,15 +31,18 @@ export interface ItemMenu {
 }
 
 export const MENU: ItemMenu[] = [
+  // dia a dia segue o caminho do cabelo: compra → triagem → estoque → venda → caixa
   { tela: 'painel', nome: 'Painel', grupo: 'Dia a dia', admin: true },
+  { tela: 'comprar', nome: 'Comprar', grupo: 'Dia a dia', admin: true, precisa: 'compra' },
+  { tela: 'triagem', nome: 'Triagem', grupo: 'Dia a dia', admin: true, precisa: 'estoque' },
+  { tela: 'estoque', nome: 'Estoque', grupo: 'Dia a dia', admin: true, precisa: 'estoque' },
   { tela: 'vender', nome: 'Vender', grupo: 'Dia a dia', precisa: 'venda' },
-  { tela: 'agenda', nome: 'Agenda', grupo: 'Dia a dia', precisa: 'agenda' },
   { tela: 'caixa', nome: 'Caixa', grupo: 'Dia a dia', admin: true },
-  { tela: 'triagem', nome: 'Triagem', grupo: 'Estoque e compras', admin: true, precisa: 'estoque' },
-  { tela: 'comprar', nome: 'Comprar', grupo: 'Estoque e compras', admin: true, precisa: 'compra' },
+  { tela: 'agenda', nome: 'Agenda', grupo: 'Dia a dia', precisa: 'agenda' },
+  // etiquetas dos pacotes: "Sem etiqueta" (os que acabaram de sair da separação) · "Já impressa" · reimprimir
+  { tela: 'etiquetas', nome: 'Etiquetas', grupo: 'Estoque e compras', admin: true, precisa: 'estoque' },
   // viagens de compra: admin sempre; funcionária só quando está numa viagem aberta (painel do viajante)
   { tela: 'viagens', nome: 'Viagens', grupo: 'Estoque e compras', precisa: 'compra' },
-  { tela: 'estoque', nome: 'Estoque', grupo: 'Estoque e compras', admin: true, precisa: 'estoque' },
   // livro do cabelo: todos os lançamentos de gramas e o fechamento de cada compra
   { tela: 'livro', nome: 'Livro do cabelo', curto: 'Livro', grupo: 'Estoque e compras', admin: true, precisa: 'cabelo' },
   { tela: 'precos', nome: 'Tabelas de preço', curto: 'Preços', grupo: 'Estoque e compras', admin: true, precisa: 'cabelo' },
@@ -51,6 +54,9 @@ export const MENU: ItemMenu[] = [
   { tela: 'relatorios', nome: 'Relatórios', grupo: 'Gestão', admin: true },
   { tela: 'config', nome: 'Configurações', curto: 'Ajustes', grupo: 'Gestão', admin: true },
 ]
+
+/** barra do celular, na ordem do dia: Agenda (e o resto) ficam no "Mais" */
+const CELULAR = ['painel', 'comprar', 'triagem', 'vender', 'caixa', 'agenda']
 
 export const GRUPOS = ['Dia a dia', 'Estoque e compras', 'Pessoas', 'Gestão'] as const
 
@@ -142,9 +148,10 @@ export function Shell({ children }: { children: ReactNode }) {
   }
   const grupos = GRUPOS.map((g) => ({ g, itens: menu.filter((m) => m.grupo === g) })).filter((x) => x.itens.length)
   const iniciais = (sessao.nome || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
-  // celular: os 4 primeiros destinos do perfil + Comprar SEMPRE (a compra é a alma do negócio) + "Mais"
-  const comprar = menu.find((m) => m.tela === 'comprar')
-  const principais = [...menu.filter((m) => m !== comprar).slice(0, 4), ...(comprar ? [comprar] : [])].sort((a, b) => menu.indexOf(a) - menu.indexOf(b))
+  // celular: 5 destinos nesta ordem (os que o perfil tem) + "Mais"; com 360px não cabem mais que 6 botões legíveis.
+  // Se o perfil tem menos, completa com os primeiros do menu (a funcionária vê Vender, Agenda…)
+  const preferidos = CELULAR.map((tela) => menu.find((m) => m.tela === tela)).filter((m): m is ItemMenu => !!m)
+  const principais = [...preferidos, ...menu.filter((m) => !preferidos.includes(m))].slice(0, 5)
   const telaAtualNoMais = !principais.some((m) => m.tela === nav.tela)
   const noMais = menu.filter((m) => !principais.includes(m)).map((m) => contadores[m.tela]).filter(Boolean) as Contador[]
   const seloMais = noMais.length ? { ...(noMais.find((c) => c.tom === 'urgente') ?? noMais.find((c) => c.tom === 'atencao') ?? noMais[0]), rotulo: noMais.map((c) => c.rotulo).join(' · ') } : undefined

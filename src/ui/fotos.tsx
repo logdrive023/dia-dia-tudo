@@ -157,7 +157,7 @@ export function useUrlFoto(foto?: Pick<FotoResumo, 'id' | 'miniatura'>, cheia = 
   return cheia ? url ?? foto?.miniatura : foto?.miniatura ?? url
 }
 
-const TAMANHOS = { xs: 'h-8 w-8 text-[9px]', sm: 'h-10 w-10 text-[10px]', md: 'h-14 w-14 text-xs', lg: 'h-24 w-24 text-sm' } as const
+const TAMANHOS = { xs: 'h-8 w-8 text-[9px]', sm: 'h-10 w-10 text-[10px]', md: 'h-14 w-14 text-xs', ficha: 'h-16 w-16 text-sm', lg: 'h-24 w-24 text-sm' } as const
 
 /** Texto do lugar da foto quando não tem: a medida ("60") ou as iniciais do nome. */
 export function marcadorLote(campos?: Record<string, unknown>, nome?: string) {
@@ -171,14 +171,18 @@ export function marcadorLote(campos?: Record<string, unknown>, nome?: string) {
  * sem foto → mostra a medida e um "sem foto" discreto, e o toque abre a CÂMERA (celular) para tirar a primeira.
  * Foto herdada (da compra ou do lote de origem) ganha um ↑ no canto.
  */
-export function MiniaturaLote({ itemId, foto, marcador, tamanho = 'md', semCamera, className }: { itemId: Id; foto?: FotoResumo; marcador?: string; tamanho?: keyof typeof TAMANHOS; semCamera?: boolean; className?: string }) {
+export function MiniaturaLote({ itemId, foto, marcador, tamanho = 'md', semCamera, className, iconeSemFoto }: { itemId: Id; foto?: FotoResumo; marcador?: string; tamanho?: keyof typeof TAMANHOS; semCamera?: boolean; className?: string; /** sem foto: só um ícone neutro de câmera (sem número nem "sem foto") */ iconeSemFoto?: boolean }) {
   const t = useT()
   const url = useUrlFoto(foto)
   const [ver, setVer] = useState(false)
   const { tirar, enviando } = useTirarFoto()
   const base = cx('relative shrink-0 overflow-hidden rounded-xl border border-[var(--borda)] bg-[var(--fundo)]', TAMANHOS[tamanho], className)
   if (!foto) {
-    const conteudo = (
+    const conteudo = iconeSemFoto ? (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 text-[var(--suave)] opacity-70" aria-hidden>
+        <path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z M12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" />
+      </svg>
+    ) : (
       <>
         <span className="num block font-black leading-none text-[var(--texto)]">{marcador ?? '?'}</span>
         {tamanho !== 'xs' && <span className="mt-0.5 block whitespace-nowrap text-[8px] font-semibold uppercase leading-none text-[var(--suave)]">{enviando ? '…' : t('sem foto')}</span>}

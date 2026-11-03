@@ -162,11 +162,11 @@ export function LinhaDoTempo({ id, prefixo = 'lt' }: { id: string; prefixo?: str
             <option value="">{t('Quem')}: {t('Todos')}</option>
             {pessoas.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
-          <label className="flex min-w-0 items-center gap-1 text-xs font-semibold text-[var(--suave)]">
+          <label className="col-span-2 flex min-w-0 items-center gap-1 text-xs font-semibold text-[var(--suave)] sm:col-span-1">
             {t('De')}
             <input type="date" value={de} max={ate || undefined} onChange={(e) => definir('De', e.target.value)} className={campo} />
           </label>
-          <label className="flex min-w-0 items-center gap-1 text-xs font-semibold text-[var(--suave)]">
+          <label className="col-span-2 flex min-w-0 items-center gap-1 text-xs font-semibold text-[var(--suave)] sm:col-span-1">
             {t('Até')}
             <input type="date" value={ate} min={de || undefined} onChange={(e) => definir('Ate', e.target.value)} className={campo} />
           </label>

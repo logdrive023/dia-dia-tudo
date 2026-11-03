@@ -40,6 +40,8 @@ export const comandos = {
   separarLote: estoque.separarLote,
   marcarLotes: estoque.marcarLotes,
   editarAtributosLote: estoque.editarAtributosLote,
+  marcarEtiquetasImpressas: estoque.marcarEtiquetasImpressas,
+  refazerEtiqueta: estoque.refazerEtiqueta,
   // códigos de compra e lote (Configurações › Códigos; trocar depois fica no log)
   salvarCodigos: codigos.salvarCodigos,
   salvarSigla: codigos.salvarSigla,

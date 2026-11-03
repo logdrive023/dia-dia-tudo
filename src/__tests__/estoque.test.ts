@@ -56,6 +56,60 @@ describe('estoque: atributos dos lotes', () => {
     expect((await b.consulta('diagnostico', {})).ok).toBe(true)
   })
 
+  it('marcarEtiquetasImpressas: guarda quando e quem; o filtro "sem etiqueta" só mostra os que nunca saíram', async () => {
+    const { b, sessao } = await comLotes()
+    Object.assign(sessao, { nome: 'Paula' })
+    const sem = async () => (await b.consulta('estoque', { moduloId: 'cabelo', somenteComSaldo: true, etiqueta: 'sem' })).map((i) => i.id).sort()
+    expect(await sem()).toEqual(['a', 'b'])
+    const r = await b.comando('marcarEtiquetasImpressas', { ids: ['a', 'a'] })
+    expect(r.marcados).toEqual(['a'])
+    expect(await sem()).toEqual(['b'])
+    const impressas = await b.consulta('estoque', { moduloId: 'cabelo', somenteComSaldo: true, etiqueta: 'impressa' })
+    expect(impressas.map((i) => [i.id, i.etiquetaImpressaPor, !!i.etiquetaImpressaEm])).toEqual([['a', 'Paula', true]])
+    expect((await b.consulta('estoque', { moduloId: 'cabelo', somenteComSaldo: true, etiqueta: 'todas' })).length).toBe(2)
+    // reimprimir atualiza a data e fica no log (uma linha por lote)
+    const antes = impressas[0].etiquetaImpressaEm!
+    await b.comando('marcarEtiquetasImpressas', { ids: ['a', 'b'] })
+    expect(await sem()).toEqual([])
+    expect((await b.consulta('fichaItem', { id: 'a' })).item.etiquetaImpressaEm! > antes).toBe(true)
+    const log = (await b.consulta('logDetalhado', { acao: 'marcarEtiquetasImpressas' })).linhas
+    expect(log).toHaveLength(3)
+    expect(log.some((l) => /impressa de novo/.test(l.resumo))).toBe(true)
+    await expect(b.comando('marcarEtiquetasImpressas', { ids: [] })).rejects.toThrow(/pelo menos um/)
+    await expect(b.comando('marcarEtiquetasImpressas', { ids: ['nada'] })).rejects.toThrow(/não encontrado/)
+    // funcionária não marca
+    Object.assign(sessao, { usuarioId: 'f1', nome: 'Funcionária 1', perfil: 'funcionario' })
+    await expect(b.comando('marcarEtiquetasImpressas', { ids: ['a'] })).rejects.toThrow(/permissão/)
+  })
+
+  it('refazerEtiqueta: cancela a antiga com motivo, nova via (mesmo código), volta para "sem etiqueta" e fica no histórico', async () => {
+    const { b, sessao } = await comLotes()
+    Object.assign(sessao, { nome: 'Paula' })
+    await b.comando('marcarEtiquetasImpressas', { ids: ['a'] })
+    const codigo = (await b.consulta('fichaItem', { id: 'a' })).item.codigo
+    const r = await b.comando('refazerEtiqueta', { id: 'a', motivo: 'Saiu errada' })
+    expect(r.via).toBe(2)
+    const item = (await b.consulta('fichaItem', { id: 'a' })).item
+    expect(item).toMatchObject({ codigo, etiquetaVia: 2, etiquetaImpressaEm: undefined, etiquetaCancelada: { motivo: 'Saiu errada', porNome: 'Paula', via: 1 } })
+    expect((await b.consulta('estoque', { moduloId: 'cabelo', somenteComSaldo: true, etiqueta: 'sem' })).map((i) => i.id)).toContain('a')
+    // a etiqueta nova mostra "2ª via"; o código (QR/barras) é o mesmo
+    const [e] = await b.consulta('etiquetas', { ids: ['a'] })
+    expect([e.codigo, e.via]).toEqual([codigo, 2])
+    expect((await b.consulta('etiquetas', { ids: ['b'] }))[0].via).toBeUndefined()
+    // histórico: log e histórico do pacote
+    const log = (await b.consulta('logDetalhado', { acao: 'refazerEtiqueta' })).linhas
+    expect(log[0].resumo).toMatch(/etiqueta cancelada \(Saiu errada\) · nova 2ª via gerada/)
+    const hist = await b.consulta('historicoPacote', { itemId: 'a' })
+    expect(hist.dias.flatMap((d) => d.movs).some((m) => /etiqueta cancelada/.test(m.descricao ?? ''))).toBe(true)
+    // imprimiu a nova → impressa de novo; outra vez → 3ª via
+    await b.comando('marcarEtiquetasImpressas', { ids: ['a'] })
+    expect((await b.consulta('fichaItem', { id: 'a' })).item.etiquetaImpressaEm).toBeTruthy()
+    expect((await b.comando('refazerEtiqueta', { id: 'a', motivo: 'Perdeu' })).via).toBe(3)
+    await expect(b.comando('refazerEtiqueta', { id: 'a', motivo: '  ' })).rejects.toThrow(/por que/)
+    Object.assign(sessao, { usuarioId: 'f1', nome: 'Funcionária 1', perfil: 'funcionario' })
+    await expect(b.comando('refazerEtiqueta', { id: 'a', motivo: 'Perdeu' })).rejects.toThrow(/permissão/)
+  })
+
   it('funcionária não muda atributos', async () => {
     const { b, sessao } = await comLotes()
     Object.assign(sessao, { usuarioId: 'f1', nome: 'Funcionária 1', perfil: 'funcionario' })

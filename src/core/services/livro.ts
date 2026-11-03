@@ -29,12 +29,13 @@ export interface RefLivro {
   rotulo: string
 }
 
-/** Tipo do lançamento pelo motivo do movimento (a conferência de peso e a lavagem se reconhecem pelo texto). */
-export function tipoDoMovimento(m: Pick<MovEstoque, 'motivo' | 'delta' | 'descricao'>): TipoLivro {
+/** Tipo do lançamento pelo motivo do movimento (a conferência de peso e a lavagem se reconhecem pelo texto).
+ *  deCompra: o movimento é ligado a uma compra (cancelar/recusar a compra é entrada desfeita, não venda). */
+export function tipoDoMovimento(m: Pick<MovEstoque, 'motivo' | 'delta' | 'descricao'>, deCompra = false): TipoLivro {
   const motivo = String(m.motivo)
   const d = m.descricao ?? ''
   if (motivo === 'diferenca' || ((motivo === 'ajuste' || motivo === 'perda') && /diferen[cç]a de peso|confer[eê]ncia/i.test(d))) return 'diferenca'
-  if (motivo === 'compra' || (motivo === 'cancelamento' && /compra cancelada/i.test(d))) return 'entrada'
+  if (motivo === 'compra' || (motivo === 'cancelamento' && (deCompra || /compra cancelada/i.test(d)))) return 'entrada'
   if (motivo === 'transformacao' || motivo === 'unificacao') return m.delta < 0 ? 'triagemSaida' : 'triagemEntrada'
   if (motivo === 'perda') return /lavagem/i.test(d) ? 'lavagem' : 'perda'
   if (motivo === 'venda' || motivo === 'uso' || motivo === 'cancelamento' || motivo === 'correcao') return 'venda'
@@ -59,6 +60,7 @@ async function leitorLivro(ctx: Ctx) {
     const k = chaveTriagem(i)
     if (k && !triagens.has(k)) triagens.set(k, i.triagem?.codigo ?? `T·${k.slice(-4).toUpperCase()}`)
   }
+  const tipoDe = (m: MovEstoque) => tipoDoMovimento(m, !!m.origemId && trans.get(m.origemId)?.tipo === 'compra')
   const codigoTransacao = (t?: Transacao) => t?.codigo ?? (t ? `${t.tipo === 'venda' ? 'V' : 'P'}·${t.id.slice(-4).toUpperCase()}` : '')
   /** de que triagem é este movimento de triagem */
   const triagemDoMov = (m: MovEstoque) => {
@@ -69,7 +71,7 @@ async function leitorLivro(ctx: Ctx) {
   }
   /** título, quem e a referência clicável de um movimento */
   const descrever = (m: MovEstoque) => {
-    const tipo = tipoDoMovimento(m)
+    const tipo = tipoDe(m)
     const i = porId.get(m.itemId)
     const t = m.origemId ? trans.get(m.origemId) : undefined
     const nomePessoa = t?.pessoaId ? pessoas.get(t.pessoaId) : undefined
@@ -96,7 +98,7 @@ async function leitorLivro(ctx: Ctx) {
     if (!ref && i) ref = { tela: 'lote', params: { id: i.id }, rotulo: `pacote ${i.codigo ?? i.nome}` }
     return { tipo, titulo, ref, por: m.porNome ?? usuarios.get(m.criadoPor) }
   }
-  return { itens, porId, movs, trans, pessoas, usuarios, descrever, codigoTransacao }
+  return { itens, porId, movs, trans, pessoas, usuarios, descrever, codigoTransacao, tipoDe }
 }
 
 // ---------- histórico do pacote (o "log do item", no formato do caixa do dia) ----------
@@ -106,6 +108,8 @@ const EVENTOS_PACOTE: Record<string, string> = {
   moverFaseTriagem: 'Mudou de coluna na triagem',
   editarAtributosLote: 'Atributos editados',
   marcarLotes: 'Atributos mudados em massa',
+  marcarEtiquetasImpressas: 'Etiqueta impressa',
+  refazerEtiqueta: 'Etiqueta cancelada · nova via',
   trocarCodigoLote: 'Código trocado',
 }
 
@@ -137,7 +141,7 @@ export async function historicoPacote(ctx: Ctx, p: { itemId: Id }) {
   const movs = L.movs.filter((m) => m.itemId === item.id).sort((a, b) => (a.criadoEm < b.criadoEm ? -1 : 1))
   // origem em gramas (compras) para o movimento de entrada da triagem; sem a origem calculada, as compras da genealogia
   let origem: OrigemCompra[] | undefined
-  if (movs.some((m) => tipoDoMovimento(m) === 'triagemEntrada')) {
+  if (movs.some((m) => L.tipoDe(m) === 'triagemEntrada')) {
     origem = await origemDoPacote(ctx, { itemId: item.id, gramas: item.quantidadeInicial ?? undefined }).catch(() => [])
     if (!origem.length) {
       const g = await genealogia(ctx, { itemId: item.id })
@@ -208,29 +212,7 @@ export async function livroCabelo(ctx: Ctx, p: { moduloId?: string; compraId?: I
   const lotes = L.itens.filter((i) => i.moduloId === moduloId && i.controlaEstoque && i.unidade === 'grama')
   const doModulo = new Set(lotes.map((i) => i.id))
   const movs = L.movs.filter((m) => doModulo.has(m.itemId)).sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1))
-  const compraCurta = (id: Id) => {
-    const t = L.trans.get(id)
-    return { id, codigo: t?.codigo, fornecedor: t?.pessoaId ? L.pessoas.get(t.pessoaId) : undefined, pessoaId: t?.pessoaId }
-  }
-  const todas: LinhaLivro[] = movs.map((m) => {
-    const i = L.porId.get(m.itemId)!
-    const d = L.descrever(m)
-    const cs = comprasDe(i).map(compraCurta)
-    const t = m.origemId ? L.trans.get(m.origemId) : undefined
-    const pessoas = [...cs.filter((c) => c.pessoaId).map((c) => ({ id: c.pessoaId!, nome: c.fornecedor })), ...(t?.tipo === 'venda' && t.pessoaId ? [{ id: t.pessoaId, nome: L.pessoas.get(t.pessoaId) }] : [])]
-    return { id: m.id, em: m.criadoEm, data: m.data, tipo: d.tipo, nomeTipo: NOMES_TIPO_LIVRO[d.tipo], titulo: d.titulo, delta: m.delta, antes: m.saldoAntes, depois: m.saldoDepois, por: d.por, ref: d.ref, descricao: m.descricao, lote: { id: i.id, codigo: i.codigo, nome: i.nome }, compras: cs.map(({ id, codigo, fornecedor }) => ({ id, codigo, fornecedor })), pessoas }
-  })
-  const linhas = todas.filter(
-    (l) =>
-      (!p.compraId || l.compras.some((c) => c.id === p.compraId)) &&
-      (!p.itemId || l.lote.id === p.itemId) &&
-      (!p.pessoaId || l.pessoas.some((x) => x.id === p.pessoaId)) &&
-      (!p.de || l.data >= p.de) &&
-      (!p.ate || l.data <= p.ate) &&
-      (!p.tipo || l.tipo === p.tipo),
-  )
-
-  // FECHAMENTO POR COMPRA: a parte de cada compra em cada lote (fração), e cada movimento conta pela parte da compra
+  // a parte de cada compra em cada lote (fração): origem das linhas e FECHAMENTO POR COMPRA (cada movimento conta pela parte da compra)
   const memo = new Map<Id, Map<Id, number>>()
   const deu = new Map<string, number>()
   for (const m of L.movs) if (m.motivo === 'unificacao' && m.delta < 0 && m.origemId) deu.set(`${m.itemId}>${m.origemId}`, (deu.get(`${m.itemId}>${m.origemId}`) ?? 0) - m.delta)
@@ -250,12 +232,37 @@ export async function livroCabelo(ctx: Ctx, p: { moduloId?: string; compraId?: I
     memo.set(id, r)
     return r
   }
+  const compraCurta = (id: Id) => {
+    const t = L.trans.get(id)!
+    return { id, codigo: L.codigoTransacao(t), fornecedor: t.pessoaId ? L.pessoas.get(t.pessoaId) : undefined, pessoaId: t.pessoaId }
+  }
+  /** compras de origem de um lote: as gravadas no lote + as da genealogia (lote juntado/separado herda das fontes);
+   *  só as que existem como compra (sem isso aparecia "🛒 ?": código vazio ou compra que não está mais na lista) */
+  const comprasDoLote = (i: Item) => [...new Set([...comprasDe(i), ...partes(i.id).keys()])].filter((c) => L.trans.get(c)?.tipo === 'compra')
+  const todas: LinhaLivro[] = movs.map((m) => {
+    const i = L.porId.get(m.itemId)!
+    const d = L.descrever(m)
+    const cs = comprasDoLote(i).map(compraCurta)
+    const t = m.origemId ? L.trans.get(m.origemId) : undefined
+    const pessoas = [...cs.filter((c) => c.pessoaId).map((c) => ({ id: c.pessoaId!, nome: c.fornecedor })), ...(t?.tipo === 'venda' && t.pessoaId ? [{ id: t.pessoaId, nome: L.pessoas.get(t.pessoaId) }] : [])]
+    return { id: m.id, em: m.criadoEm, data: m.data, tipo: d.tipo, nomeTipo: NOMES_TIPO_LIVRO[d.tipo], titulo: d.titulo, delta: m.delta, antes: m.saldoAntes, depois: m.saldoDepois, por: d.por, ref: d.ref, descricao: m.descricao, lote: { id: i.id, codigo: i.codigo, nome: i.nome }, compras: cs.map(({ id, codigo, fornecedor }) => ({ id, codigo, fornecedor })), pessoas }
+  })
+  const linhas = todas.filter(
+    (l) =>
+      (!p.compraId || l.compras.some((c) => c.id === p.compraId)) &&
+      (!p.itemId || l.lote.id === p.itemId) &&
+      (!p.pessoaId || l.pessoas.some((x) => x.id === p.pessoaId)) &&
+      (!p.de || l.data >= p.de) &&
+      (!p.ate || l.data <= p.ate) &&
+      (!p.tipo || l.tipo === p.tipo),
+  )
+
   const contas = new Map<Id, { comprado: number; emPacotes: number; vendido: number; perda: number; diferenca: number }>()
   const conta = (c: Id) => contas.get(c) ?? (contas.set(c, { comprado: 0, emPacotes: 0, vendido: 0, perda: 0, diferenca: 0 }), contas.get(c)!)
   for (const i of lotes) for (const [c, f] of partes(i.id)) conta(c).emPacotes += i.saldo * f
   for (const m of L.movs) {
     if (!doModulo.has(m.itemId)) continue
-    const tipo = tipoDoMovimento(m)
+    const tipo = L.tipoDe(m)
     for (const [c, f] of partes(m.itemId)) {
       const k = conta(c)
       if (tipo === 'entrada') k.comprado += m.delta * f

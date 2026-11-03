@@ -189,6 +189,8 @@ async function montar(b: BackendNoAparelho) {
       { id: l55t, quantidade: 2000, valorReferencia: '6,5', campos: { estado: 'Separado', comprimento: 55, categoria: 'Tinte', cor: 'Castanho claro' } },
     ],
   })
+  // os 4 pacotes já ganharam etiqueta (Etiquetas › Já impressa); os das compras seguintes ficam em "Sem etiqueta"
+  await c(38, 'marcarEtiquetasImpressas', { ids: [l60, l50, l40, l55t] }, 16)
   await c(36, 'registrarAcerto', { id: id(), pessoaId: iran, direcao: 'paguei', valor: bs(25000), moeda: 'BOB', forma: 'qr', descricao: 'Parte do que faltava' })
 
   // ---------- 2) adiantamento e compra da Cirila pela tabela (já separado por medida) ----------

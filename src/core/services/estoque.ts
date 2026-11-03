@@ -354,7 +354,13 @@ export function statusLote(i: Pick<Item, 'saldo' | 'campos' | 'quantidadeInicial
   return 'disponivel'
 }
 
-export async function estoque(ctx: Ctx, p: { moduloId?: string; somenteComSaldo?: boolean } = {}) {
+/** Filtro da tela Etiquetas: 'sem' = nunca impressa; 'impressa' = já saiu; 'todas' (ou nada) = todas. */
+export type FiltroEtiqueta = 'sem' | 'impressa' | 'todas'
+export function passaEtiqueta(i: Pick<Item, 'etiquetaImpressaEm'>, f?: string) {
+  return f === 'sem' ? !i.etiquetaImpressaEm : f === 'impressa' ? !!i.etiquetaImpressaEm : true
+}
+
+export async function estoque(ctx: Ctx, p: { moduloId?: string; somenteComSaldo?: boolean; etiqueta?: FiltroEtiqueta } = {}) {
   const itens = await ctx.repos.itens.listar(p.moduloId ? { moduloId: p.moduloId } : undefined)
   const porId = new Map(itens.map((i) => [i.id, i]))
   const compras = new Map((await ctx.repos.transacoes.listar({ tipo: 'compra' })).map((t) => [t.id, t]))
@@ -366,7 +372,7 @@ export async function estoque(ctx: Ctx, p: { moduloId?: string; somenteComSaldo?
   for (const t of await ctx.repos.transacoes.listar({ tipo: 'venda' }))
     if (t.etapa === 'concluido') for (const l of t.linhas) if (l.itemId) vendido.set(l.itemId, (vendido.get(l.itemId) ?? 0) + l.quantidade)
   return itens
-    .filter((i) => i.controlaEstoque && i.ativo && (!p.somenteComSaldo || i.saldo > 0))
+    .filter((i) => i.controlaEstoque && i.ativo && (!p.somenteComSaldo || i.saldo > 0) && passaEtiqueta(i, p.etiqueta))
     .map((i) => (ctx.sessao.perfil === 'admin' ? i : { ...i, custoPrincipal: undefined }))
     .map((i) => {
       const ideal = i.estoqueIdeal ?? 0
@@ -776,6 +782,53 @@ export async function editarAtributosLote(ctx: Ctx, d: { id: Id; campos: Campos;
   exigir(mudou, 'Nada mudou.')
   await auditar(ctx, 'editarAtributosLote', item.id, `${item.codigo ?? item.nome}: ${mudou.join('; ')}${d.motivo?.trim() ? ` · ${d.motivo.trim()}` : ''}`)
   return { id: item.id, nome: (await ctx.repos.itens.obter(item.id))!.nome }
+}
+
+/**
+ * Etiquetas impressas (chamado quando a pessoa manda imprimir): guarda quando e quem em cada lote, para a tela
+ * Etiquetas separar "Sem etiqueta" de "Já impressa". Reimprimir atualiza a data. Uma linha no log por lote.
+ */
+export async function marcarEtiquetasImpressas(ctx: Ctx, d: { ids: Id[] }) {
+  exigir(ctx.sessao.perfil === 'admin', 'Só o administrador marca etiquetas.')
+  exigir(d.ids?.length, 'Escolha pelo menos um lote.')
+  exigir(d.ids.length <= 500, 'No máximo 500 etiquetas de uma vez.')
+  const em = ctx.relogio.agora()
+  const marcados: Id[] = []
+  for (const id of new Set(d.ids)) {
+    const item = await ctx.repos.itens.obter(id)
+    exigir(item && item.controlaEstoque, 'Lote não encontrado.')
+    const antes = item.etiquetaImpressaEm
+    await ctx.repos.itens.salvar(tocar(ctx, { ...item, etiquetaImpressaEm: em, etiquetaImpressaPor: ctx.sessao.nome || undefined }))
+    await auditar(ctx, 'marcarEtiquetasImpressas', item.id, `${item.codigo ?? item.nome}: ${antes ? 'etiqueta impressa de novo' : 'etiqueta impressa'}`)
+    marcados.push(item.id)
+  }
+  return { marcados, em }
+}
+
+/**
+ * "Errou? Gerar nova": cancela a etiqueta impressa (motivo no histórico) e abre a próxima via (2ª, 3ª…). O código do
+ * lote (QR e barras) continua o mesmo, então a leitura não muda; o papel novo mostra "2ª via" para não confundir com o
+ * antigo. O lote volta para "Sem etiqueta" até a nova ser impressa (marcarEtiquetasImpressas).
+ */
+export async function refazerEtiqueta(ctx: Ctx, d: { id: Id; motivo: string }) {
+  exigir(ctx.sessao.perfil === 'admin', 'Só o administrador refaz etiquetas.')
+  const motivo = (d.motivo ?? '').trim()
+  exigir(motivo, 'Diga por que a etiqueta foi cancelada.')
+  exigir(motivo.length <= 200, 'Motivo muito longo (máx. 200 letras).')
+  const item = await ctx.repos.itens.obter(d.id)
+  exigir(item && item.controlaEstoque, 'Lote não encontrado.')
+  const antiga = item.etiquetaVia ?? 1
+  const via = antiga + 1
+  const em = ctx.relogio.agora()
+  await ctx.repos.itens.salvar(tocar(ctx, {
+    ...item,
+    etiquetaVia: via,
+    etiquetaCancelada: { motivo, em, porNome: ctx.sessao.nome || undefined, via: antiga },
+    etiquetaImpressaEm: undefined,
+    etiquetaImpressaPor: undefined,
+  }))
+  await auditar(ctx, 'refazerEtiqueta', item.id, `${item.codigo ?? item.nome}: etiqueta cancelada (${motivo}) · nova ${via}ª via gerada`)
+  return { id: item.id, via }
 }
 
 // ---------- cadeia: Compra(s) → Triagem(ns) → Venda(s) ----------

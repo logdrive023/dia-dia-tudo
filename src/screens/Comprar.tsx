@@ -7,7 +7,7 @@
 
 import { RastreioResumo } from '../ui/rastreioTotal'
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { formatar, multiplicarFator, fatorValido } from '../core/domain/dinheiro'
+import { formatar, multiplicarFator, fatorValido, moeda as moedaDe } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { CategoriaAnexo, Campos, Id, Linha, Transacao } from '../core/domain/tipos'
 import type { ModoCompra } from '../core/services/codigos'
@@ -16,7 +16,8 @@ import { fatorDaTabela } from '../core/services/precos'
 import { CATEGORIAS_CABELO } from '../modules/cabelo'
 import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Erro, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, ehToque } from '../ui/base'
 import { useApp, useAvisoSaida, useParamTela, useComando, useConsulta } from '../ui/contexto'
-import { EditorPagamentos, type PagamentoTela, SeletorPessoa } from '../ui/compartilhados'
+import { EditorPagamentos, type PagamentoTela, SeletorPessoa, ValoresConvertidos, useCotacoes } from '../ui/compartilhados'
+import { LinhaCotacao, PesoInput, ValorMoedaInput, converterDigitado, cotacaoSistema, moedasDoCampo } from '../ui/valorMoeda'
 import { AbaAnexos, AnexosCurtos } from '../ui/anexos'
 import { CamposDinamicos, resumoCampos } from '../ui/camposDinamicos'
 import { LinhaDoTempo } from '../ui/linhaTempo'
@@ -26,7 +27,6 @@ import { CampoCodigoCompra, CodigoSelo, TrocarCodigo } from '../ui/codigos'
 import { BuscaPessoa } from '../ui/buscaPessoa'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
-import { ImprimirEtiquetas } from '../ui/etiquetas'
 
 const ENCERRADAS = ['concluido', 'recusado', 'cancelado']
 const codigoDe = (c: { codigo?: string; id: string }) => c.codigo ?? `#${c.id.slice(-5)}`
@@ -223,8 +223,17 @@ interface LinhaNova {
   fator?: string
   /** fator da compra repetida (vale quando a tabela de hoje não tem fator para a medida) */
   fatorAntigo?: string
+  /** valor como foi digitado (bruto: o total; produto: o custo unitário), na moeda digitada */
+  digitado?: number
+  /** moeda em que o valor foi digitado (vazio = a do pedido); o total da linha fica convertido */
+  moedaDig?: string
+  /** cotação digitada "1 US$ = 6,96" (vazio = a do sistema) */
+  cotacao?: string
   campos: Campos
 }
+
+/** linha nova segue a moeda (e a cotação) digitada na anterior */
+const moedaDaAnterior = (ant?: LinhaNova) => (ant?.moedaDig ? { moedaDig: ant.moedaDig, cotacao: ant.cotacao } : {})
 
 /** Linhas de uma compra anterior (repetir): mesma medida, peso e valor; o fator vem da tabela de hoje. */
 function deLinhas(ls: Linha[], cabelo: boolean): LinhaNova[] {
@@ -236,6 +245,7 @@ function deLinhas(ls: Linha[], cabelo: boolean): LinhaNova[] {
       itemId: cabelo ? undefined : l.itemId,
       quantidade: l.quantidade,
       total: fator ? undefined : l.total,
+      digitado: fator ? undefined : !cabelo && l.quantidade > 0 ? Math.round(l.total / l.quantidade) : l.total,
       medida: typeof l.campos.comprimento === 'number' ? l.campos.comprimento : undefined,
       fatorAntigo: fator,
       campos: Object.fromEntries(Object.entries(l.campos).filter(([k]) => !CAMPOS_TIRAR.includes(k))),
@@ -303,10 +313,23 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
 
   const novaLinha = (cabelo: boolean, ant?: LinhaNova): LinhaNova =>
     cabelo
-      ? { id: novoId(), modo: ant?.modo === 'tabela' || ant?.modo === 'bruto' ? ant.modo : form.padroes.modoLinha, medida: ant?.modo === 'tabela' ? ant.medida : undefined, campos: { categoria: (ant?.campos.categoria as string | undefined) ?? 'Normal', ...(ant?.campos.cor ? { cor: ant.campos.cor } : {}) } }
-      : { id: novoId(), modo: 'item', campos: {} }
+      ? { id: novoId(), modo: ant?.modo === 'tabela' || ant?.modo === 'bruto' ? ant.modo : form.padroes.modoLinha, medida: ant?.modo === 'tabela' ? ant.medida : undefined, ...moedaDaAnterior(ant), campos: { categoria: (ant?.campos.categoria as string | undefined) ?? 'Normal', ...(ant?.campos.cor ? { cor: ant.campos.cor } : {}) } }
+      : { id: novoId(), modo: 'item', ...moedaDaAnterior(ant), campos: {} }
   const [linhas, setLinhas] = useState<LinhaNova[]>(() => (base ? deLinhas(base.linhas, ehCabelo) : [novaLinha(ehCabelo)]))
   const att = (i: number, d: Partial<LinhaNova>) => setLinhas((ls) => ls.map((l, k) => (k === i ? { ...l, ...d } : l)))
+  // VALOR EM OUTRA MOEDA: digita em US$/R$ (cotação de compra do sistema, dá para mudar) e a linha fica na moeda do pedido
+  const { cot: cotCompra, cfg: cfgMoedas } = useCotacoes('compra')
+  const moedasValor = moedasDoCampo(moeda, cfgMoedas?.moedasAtivas)
+  const moedaDig = (l: LinhaNova) => (l.moedaDig && moedasValor.includes(l.moedaDig) ? l.moedaDig : moeda)
+  const textoCot = (l: LinhaNova) => (moedaDig(l) === moeda ? '' : l.cotacao ?? cotacaoSistema(moedaDig(l), moeda, cotCompra))
+  /** total da linha (moeda do pedido) a partir do digitado: bruto = o valor; produto = custo unitário × quantidade */
+  const totalDigitado = (l: LinhaNova) => {
+    if (l.modo === 'tabela' || l.digitado === undefined) return l.total
+    const bruto = l.modo === 'item' ? (l.quantidade ? l.digitado * l.quantidade : undefined) : l.digitado
+    return bruto === undefined ? undefined : converterDigitado(bruto, moedaDig(l), moeda, textoCot(l), cotCompra)
+  }
+  /** muda peso/quantidade/valor/moeda/cotação e recalcula o total da linha */
+  const attValor = (i: number, d: Partial<LinhaNova>) => setLinhas((ls) => ls.map((l, k) => (k === i ? { ...l, ...d, total: totalDigitado({ ...l, ...d }) } : l)))
 
   const { dados: tabelas } = useConsulta('tabelasPreco', { moduloId: 'cabelo' })
   const { dados: catalogo } = useConsulta('catalogo', { moduloId })
@@ -454,6 +477,13 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     setTrocando(undefined)
   }
 
+  // valor digitado em outra moeda: o original e a cotação ficam na observação ("Linha 1: US$ 100,00 (1 US$ = 6,96 Bs)")
+  const notasMoeda = linhas.flatMap((l, i) => {
+    const m = moedaDig(l)
+    if (m === moeda || l.modo === 'tabela' || l.digitado === undefined) return []
+    const qtd = l.modo === 'item' && l.quantidade ? `${l.quantidade} × ` : ''
+    return [`${t('Linha {n}', { n: i + 1 })}: ${qtd}${formatar(l.digitado, m)} (1 ${moedaDe(m).simbolo} = ${textoCot(l)} ${moedaDe(moeda).simbolo})`]
+  })
   const salvar = async () => {
     if (!pode) {
       setTentou(true)
@@ -468,7 +498,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       modoCodigo: modoEscolhido,
       codigo: modoCodigo === 'manual' ? codigo.trim() || undefined : undefined,
       viagemId,
-      obs: [estado.length ? `${t('Estado na chegada')}: ${estado.map((x) => t(x)).join(', ')}` : '', obs.trim()].filter(Boolean).join(' · ') || undefined,
+      obs: [estado.length ? `${t('Estado na chegada')}: ${estado.map((x) => t(x)).join(', ')}` : '', obs.trim(), ...notasMoeda].filter(Boolean).join(' · ') || undefined,
       linhas: linhas.map((l) => {
         const fator = l.modo === 'tabela' ? fatorDaLinha(l) : undefined
         return {
@@ -504,7 +534,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     else void principal()
   }
 
-  const rotuloFalta = faltas.length ? `${t('Falta')}: ${faltas[0]}${faltas.length > 1 ? ` +${faltas.length - 1}` : ''}` : ''
+  const rotuloFalta = faltas.length ? `${t('Falta preencher: {x}', { x: faltas[0] })}${faltas.length > 1 ? ` ${t('(e mais {n})', { n: faltas.length - 1 })}` : ''}` : ''
   const botaoRegistrar = (extra?: string) => (
     <Botao grande aria-disabled={!pode} disabled={ocupado} onClick={salvar} className={cx('leading-tight', !pode && 'opacity-60', extra)} title={faltas.join(', ')}>
       {pode ? t('Registrar pedido') : rotuloFalta}
@@ -549,25 +579,44 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       else (s.add(l.id), s.delete(`-${l.id}`))
       setAttrAbertos(s)
     }
+    const mDig = moedaDig(l)
+    const outraMoeda = l.modo !== 'tabela' && mDig !== moeda
+    const campoValor = (rotulo: string) => (
+      <Campo rotulo={rotulo} ajuda={moedasValor.length > 1 ? 'Pagou em outra moeda? Toque no símbolo dentro do campo (Bs → US$ → R$): converte pela cotação de compra. Ex.: US$ 100 × 6,96 = Bs 696,00.' : undefined}>
+        <ValorMoedaInput rotulo={rotulo} moeda={mDig} moedas={moedasValor} valor={l.digitado} onChange={(v) => attValor(i, { digitado: v })} onMoeda={(m) => attValor(i, { moedaDig: m === moeda ? undefined : m, cotacao: undefined })} />
+      </Campo>
+    )
+    const tirar = linhas.length > 1 && <button type="button" className="ml-auto h-11 w-11 shrink-0 rounded-xl text-xl text-[var(--suave)] hover:bg-[var(--ruim)]/10 hover:text-[var(--ruim)]" aria-label={t('Tirar a linha {n}', { n: i + 1 })} onClick={() => setLinhas(linhas.filter((_, k) => k !== i))}>×</button>
+    const numero = <span aria-label={t('Linha {n}', { n: i + 1 })} className="num flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--marca-suave)] text-xs font-bold text-[var(--marca)]">{i + 1}</span>
     return (
-      <div key={l.id} className={cx('rounded-xl border p-3', tentou && faltam.length ? 'border-[var(--ruim)]/60' : 'border-[var(--borda)]')}>
-        <div className="mb-2 flex items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--marca-suave)] text-xs font-bold text-[var(--marca)]">{i + 1}</span>
-          {ehCabelo && (
-            <div role="radiogroup" aria-label={t('Como veio')} className="flex min-w-0 flex-1 gap-1 rounded-xl bg-[var(--marca-suave)] p-1 sm:flex-none">
-              {(['bruto', 'tabela'] as const).map((m) => (
-                <button key={m} type="button" role="radio" aria-checked={l.modo === m} onClick={() => att(i, { modo: m })} className={cx('min-h-9 flex-1 whitespace-nowrap rounded-lg px-3 text-sm font-semibold', l.modo === m ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
-                  {t(m === 'bruto' ? 'Bruto' : 'Pela tabela')}
-                </button>
-              ))}
-            </div>
-          )}
-          {ehCabelo && <Info texto="Bruto: veio tudo junto, separa depois. Pela tabela: já veio separado por medida. Ex.: 10 kg bruto · ou · 60 cm | 2 kg × 17,5." />}
-          {linhas.length > 1 && <button type="button" className="ml-auto h-11 w-11 shrink-0 rounded-xl text-xl hover:bg-[var(--fundo)]" aria-label={t('Tirar a linha {n}', { n: i + 1 })} onClick={() => setLinhas(linhas.filter((_, k) => k !== i))}>×</button>}
-        </div>
+      <div key={l.id} className={cx('space-y-3 rounded-xl border bg-[var(--cartao)] p-2.5 sm:p-3', tentou && faltam.length ? 'border-[var(--ruim)]/60' : 'border-[var(--borda)]')}>
+        {l.modo === 'item' ? (
+          <div className="flex items-end gap-2">
+            <span className="mb-2">{numero}</span>
+            <Campo rotulo="Produto" className="min-w-0 flex-1">
+              <Selecao valor={l.itemId} onChange={(v) => att(i, { itemId: v || undefined })} vazio="Escolha…" opcoes={(catalogo ?? []).map((x) => ({ id: x.id, nome: x.nome }))} />
+            </Campo>
+            {tirar}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            {numero}
+            {ehCabelo && (
+              <div role="radiogroup" aria-label={t('Como veio')} className="flex min-w-0 flex-1 gap-1 rounded-xl bg-[var(--marca-suave)] p-1 sm:flex-none">
+                {(['bruto', 'tabela'] as const).map((m) => (
+                  <button key={m} type="button" role="radio" aria-checked={l.modo === m} onClick={() => attValor(i, { modo: m })} className={cx('min-h-9 flex-1 whitespace-nowrap rounded-lg px-3 text-sm font-semibold', l.modo === m ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
+                    {t(m === 'bruto' ? 'Bruto' : 'Pela tabela')}
+                  </button>
+                ))}
+              </div>
+            )}
+            {ehCabelo && <Info texto="Bruto: veio tudo junto, separa depois. Pela tabela: já veio separado por medida. Ex.: 10 kg bruto · ou · 60 cm | 2 kg × 17,5." />}
+            {tirar}
+          </div>
+        )}
 
         {l.modo === 'tabela' && (
-          <div className="mb-2">
+          <div>
             <span className="mb-1 block text-sm font-semibold text-[var(--suave)]">{t('Medida (cm)')}</span>
             <div className="flex flex-wrap items-center gap-1.5">
               {form.medidas.map((m) => (
@@ -580,39 +629,55 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {l.modo === 'item' && (
-            <Campo rotulo="Item" className="col-span-2">
-              <Selecao valor={l.itemId} onChange={(v) => att(i, { itemId: v || undefined })} vazio="Escolha…" opcoes={(catalogo ?? []).map((x) => ({ id: x.id, nome: x.nome }))} />
+        {l.modo === 'item' ? (
+          <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-end gap-2 sm:grid-cols-[6rem_minmax(0,1fr)_minmax(0,0.8fr)]">
+            <Campo rotulo="Qtd">
+              <Entrada aria-label={t('Quantidade')} inputMode="numeric" className="num" placeholder="1" value={l.quantidade ?? ''} onChange={(e) => attValor(i, { quantidade: Number(e.target.value.replace(/\D/g, '')) || undefined })} />
             </Campo>
-          )}
-          {l.modo === 'tabela' && (
-            <Campo rotulo="Categoria">
-              <Selecao valor={String(l.campos.categoria ?? 'Normal')} onChange={(v) => att(i, { campos: { ...l.campos, categoria: v } })} opcoes={CATEGORIAS_CABELO.map((c) => ({ id: c, nome: c }))} />
+            {campoValor('Custo unitário')}
+            <div className="col-span-2 flex items-center justify-between gap-2 rounded-xl bg-[var(--fundo)] px-3 sm:col-span-1 sm:block sm:bg-transparent sm:px-0">
+              <span className="text-sm font-semibold text-[var(--suave)] sm:mb-1 sm:block">{t('Total')}</span>
+              <span className={cx('num flex min-h-11 items-center justify-end text-base font-black sm:rounded-xl sm:bg-[var(--fundo)] sm:px-3', tl === undefined && 'text-[var(--suave)]')} aria-live="polite">{tl !== undefined ? formatar(tl, moeda) : '—'}</span>
+            </div>
+          </div>
+        ) : (
+          <div className={cx('grid grid-cols-2 items-end gap-2', l.modo === 'tabela' && 'sm:grid-cols-3')}>
+            {l.modo === 'tabela' && (
+              <Campo rotulo="Categoria" className="col-span-2 sm:col-span-1">
+                <Selecao valor={String(l.campos.categoria ?? 'Normal')} onChange={(v) => att(i, { campos: { ...l.campos, categoria: v } })} opcoes={CATEGORIAS_CABELO.map((c) => ({ id: c, nome: c }))} />
+              </Campo>
+            )}
+            <Campo rotulo={ehCabelo ? 'Peso' : 'Quantidade'} ajuda={ehCabelo ? 'O peso total que veio, mesmo misturado. Toque no g para digitar em kg. Ex.: 10 kg bruto da Maria.' : undefined}>
+              {ehCabelo ? <PesoInput rotulo="Peso" valor={l.quantidade} onChange={(q) => attValor(i, { quantidade: q })} /> : <Entrada inputMode="numeric" value={l.quantidade ?? ''} onChange={(e) => attValor(i, { quantidade: Number(e.target.value.replace(/\D/g, '')) || undefined })} />}
             </Campo>
-          )}
-          <Campo rotulo={ehCabelo ? 'Peso' : 'Quantidade'} ajuda={ehCabelo ? 'O peso total que veio, mesmo misturado. Ex.: 10 kg bruto da Maria.' : undefined}>
-            {ehCabelo ? <GramasInput valor={l.quantidade} onChange={(q) => att(i, { quantidade: q })} /> : <Entrada inputMode="numeric" value={l.quantidade ?? ''} onChange={(e) => att(i, { quantidade: Number(e.target.value.replace(/\D/g, '')) || undefined })} />}
-          </Campo>
-          {l.modo === 'tabela' ? (
-            <Campo rotulo="Fator">
-              <Entrada inputMode="decimal" className={cx('num', l.fator?.trim() && !fatorValido(l.fator) && 'border-[var(--ruim)]')} value={l.fator ?? ''} placeholder={fatorTabela ?? l.fatorAntigo ?? '?'} onChange={(e) => att(i, { fator: e.target.value })} />
-            </Campo>
-          ) : (
-            <Campo rotulo="Valor total" className={l.modo === 'item' ? 'col-span-2 sm:col-span-1' : ''}><ValorInput moeda={moeda} valor={l.total} onChange={(v) => att(i, { total: v })} /></Campo>
-          )}
-        </div>
+            {l.modo === 'tabela' ? (
+              <Campo rotulo="Fator">
+                <Entrada inputMode="decimal" className={cx('num', l.fator?.trim() && !fatorValido(l.fator) && 'border-[var(--ruim)]')} value={l.fator ?? ''} placeholder={fatorTabela ?? l.fatorAntigo ?? '?'} onChange={(e) => att(i, { fator: e.target.value })} />
+              </Campo>
+            ) : (
+              campoValor('Valor total')
+            )}
+          </div>
+        )}
+
+        {outraMoeda && (
+          <LinhaCotacao moeda={mDig} principal={moeda} texto={textoCot(l)} sistema={cotacaoSistema(mDig, moeda, cotCompra)} resultado={tl} onChange={(c) => attValor(i, { cotacao: c })} />
+        )}
 
         {l.modo === 'tabela' && (l.medida || l.quantidade) ? (
-          <p className={cx('num mt-3 break-words text-xl font-black leading-tight sm:text-2xl', tl === undefined && 'text-[var(--suave)]')} aria-live="polite">
+          <p className={cx('num break-words text-xl font-black leading-tight sm:text-2xl', tl === undefined && 'text-[var(--suave)]')} aria-live="polite">
             {l.medida ?? '?'} | {l.quantidade ? l.quantidade.toLocaleString(loc()) : '?'} × {fator ?? '?'} = {tl !== undefined ? formatar(tl, moeda) : '?'}
           </p>
         ) : null}
-        {l.modo === 'tabela' && !l.fator?.trim() && !fatorTabela && l.fatorAntigo && <p className="mt-1 text-xs text-[var(--suave)]">{t('Fator da compra repetida (a tabela não tem esta medida).')}</p>}
-        {ehCabelo && l.quantidade && tl ? <p className="num mt-1 text-sm text-[var(--suave)]">{formatar(Math.round((tl * 1000) / l.quantidade), moeda)}/kg</p> : null}
+        {l.modo === 'tabela' && !l.fator?.trim() && !fatorTabela && l.fatorAntigo && <p className="text-xs text-[var(--suave)]">{t('Fator da compra repetida (a tabela não tem esta medida).')}</p>}
+        {ehCabelo && l.quantidade && tl ? (
+          <p className="num text-right text-sm text-[var(--suave)]">
+            = <b className="text-[var(--texto)]">{formatar(Math.round(tl / l.quantidade), moeda)}/g</b> · {formatar(Math.round((tl * 1000) / l.quantidade), moeda)}/kg
+          </p>
+        ) : null}
 
         {mostrarAttr && (
-          <div className="mt-2 rounded-xl bg-[var(--fundo)]">
+          <div className="rounded-xl bg-[var(--fundo)]">
             <button type="button" aria-expanded={attrAberto} onClick={alternarAttr} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm">
               <span aria-hidden className="text-xs">{attrAberto ? '▾' : '▸'}</span>
               <b className="shrink-0">{t('Atributos')}</b>
@@ -621,22 +686,27 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
             {attrAberto && <div className="px-3 pb-3"><CamposDinamicos campos={camposTipo} valores={l.campos} pular={CAMPOS_FIXOS} onChange={(v) => att(i, { campos: v })} /></div>}
           </div>
         )}
-        {tocado && faltam.length > 0 && (tentou || l.quantidade) ? <p data-falta={tentou ? '' : undefined} className={cx('mt-2 text-xs font-semibold', tentou ? 'text-[var(--ruim)]' : 'text-[var(--suave)]')}>{t('Falta')}: {faltam.map((x) => x.replace(` ${t('da linha {n}', { n: i + 1 })}`, '')).join(', ')}</p> : null}
+        {tocado && faltam.length > 0 && (tentou || l.quantidade) ? <p data-falta={tentou ? '' : undefined} className={cx('text-xs font-semibold', tentou ? 'text-[var(--ruim)]' : 'text-[var(--suave)]')}>{t('Falta')}: {faltam.map((x) => x.replace(` ${t('da linha {n}', { n: i + 1 })}`, '')).join(', ')}</p> : null}
       </div>
     )
   }
 
+  // SEÇÕES numeradas (sem passo a passo): 1 De quem · 2 O que veio · 3 Detalhes (o resto, aberto ou no "+")
+  const secoes = !passos.length
+  const PRINCIPAIS: CampoFormId[] = ['fornecedor', 'itens']
+  const numeroDe: Partial<Record<CampoFormId, number>> = {}
+  if (secoes) for (const c of campos) if (PRINCIPAIS.includes(c.id) && estaAberto(c.id)) numeroDe[c.id] = Object.keys(numeroDe).length + 1
   const campoTela = (c: CampoFormId): ReactNode => {
     switch (c) {
       case 'fornecedor':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]}>
             <BuscaPessoa rotulo={obrig('fornecedor') ? 'De quem? *' : 'De quem?'} valor={pessoaId} onChange={setPessoaId} papel="fornecedor" recentes={recentes} siglas={siglas} detalhe={detalheFornecedor} erro={tentou && obrig('fornecedor') && !pessoaId ? `${t('Falta')}: ${t('fornecedor')}` : undefined} />
           </Bloco>
         )
       case 'itens':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} titulo="O que veio" acao={<span className="num text-sm font-bold">{formatar(total, moeda)}</span>}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="O que veio" acao={<span className="num text-sm font-bold">{formatar(total, moeda)}</span>}>
             <div className="space-y-3">
               {linhas.map(linhaTela)}
               <Botao variante="secundario" className="min-h-11 w-full sm:w-auto" onClick={() => setLinhas([...linhas, novaLinha(ehCabelo, linhas[linhas.length - 1])])}>+ {t('Outra linha')}</Botao>
@@ -645,7 +715,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         )
       case 'codigo':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Código do pedido" acao={<Info texto="Como este pedido vai ser chamado (e os lotes dele). Escolha o tipo só para esta compra; a regra fica em Configurações › Códigos." />}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Código do pedido" acao={<Info texto="Como este pedido vai ser chamado (e os lotes dele). Escolha o tipo só para esta compra; a regra fica em Configurações › Códigos." />}>
             <CampoCodigoCompra
               modo={modoCodigo}
               onModo={(m) => (setModoEscolhido(m), setCodigo(''))}
@@ -659,20 +729,20 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         )
       case 'coluna':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Coluna da tabela" acao={<Info texto="Compra pela tabela: medida | gramas × fator da coluna do fornecedor. Vem a coluna ligada ao fornecedor (ou a da última compra dele)." />}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Coluna da tabela" acao={<Info texto="Compra pela tabela: medida | gramas × fator da coluna do fornecedor. Vem a coluna ligada ao fornecedor (ou a da última compra dele)." />}>
             <Selecao valor={col} onChange={setColuna} opcoes={(tabela?.colunas ?? []).map((x) => ({ id: x.id, nome: x.id === colunaUsual ? `${x.nome} · ${t('do fornecedor')}` : x.nome }))} />
           </Bloco>
         )
       case 'comprador':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]}>
             <SeletorPessoa rotulo={obrig('comprador') || porComprador ? 'Quem comprou? *' : 'Quem comprou?'} valor={compradorId} onChange={setCompradorId} papel="funcionario" opcional={!obrig('comprador') && !porComprador} />
             <Falta se={tentou && obrig('comprador') && !compradorId} texto={t('quem comprou')} />
           </Bloco>
         )
       case 'estado':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Estado na chegada">
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Estado na chegada">
             <div className="flex flex-wrap gap-2">
               {form.estados.map((e) => (
                 <button key={e} type="button" aria-pressed={estado.includes(e)} onClick={() => setEstado(estado.includes(e) ? estado.filter((x) => x !== e) : [...estado, e])} className={cx('min-h-11 rounded-full border px-3 text-sm', estado.includes(e) ? 'border-[var(--marca)] bg-[var(--marca)] font-semibold text-white' : 'border-[var(--borda)] hover:border-[var(--marca)]')}>
@@ -685,21 +755,21 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         )
       case 'obs':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Observação">
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Observação">
             <textarea rows={2} aria-label={t('Observação')} value={obs} onChange={(e) => setObs(e.target.value)} placeholder={t('Ex.: veio em 3 sacos, 1 com fios mais curtos.')} className="w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-base outline-none focus:border-[var(--marca)]" />
             <Falta se={tentou && obrig('obs') && !obs.trim()} texto={t('observação')} />
           </Bloco>
         )
       case 'fotos':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Fotos e arquivos">
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Fotos e arquivos">
             <AnexosCurtos donoId={id} categorias={CATEGORIAS_COMPRA} padrao="pedido" />
             <Falta se={tentou && obrig('fotos') && !anexos?.length} texto={t('fotos')} />
           </Bloco>
         )
       case 'viagem':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} titulo="Viagem" acao={<Info texto="Compra feita numa viagem de compra: os gastos da viagem são divididos entre as compras dela e o resultado da viagem conta com esta." />}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Viagem" acao={<Info texto="Compra feita numa viagem de compra: os gastos da viagem são divididos entre as compras dela e o resultado da viagem conta com esta." />}>
             <Selecao valor={viagemId ?? ''} onChange={(v) => setViagemEscolhida(v)} vazio={t('Sem viagem')} opcoes={viagensAbertas.map((v) => ({ id: v.id, nome: nomeViagem(v) }))} />
             {viagemSugerida && viagemId === viagemSugerida.id && viagemEscolhida === undefined && <p className="mt-1 text-xs text-[var(--suave)]">{t('Escolhida porque quem comprou está nesta viagem.')}</p>}
             <Falta se={tentou && obrig('viagem') && !viagemId} texto={t('viagem')} />
@@ -719,6 +789,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     return `+ ${t(CAMPOS_FORM[c].nome)}`
   }
 
+  const principais: ReactNode[] = []
   const partes: ReactNode[] = []
   let fechados: CampoFormId[] = []
   const soltar = () => {
@@ -727,7 +798,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     partes.push(
       <div key={`mais-${ids.join('-')}`} className="flex flex-wrap gap-2">
         {ids.map((c) => (
-          <button key={c} type="button" data-campo-fechado={c} onClick={() => abrir(c)} className={cx('min-h-11 max-w-full truncate rounded-full border border-dashed px-4 text-sm font-semibold', c === 'codigo' ? 'font-mono' : '', 'border-[var(--borda)] text-[var(--marca)] hover:border-[var(--marca)] hover:bg-[var(--marca-suave)]')}>
+          <button key={c} type="button" data-campo-fechado={c} onClick={() => abrir(c)} className={cx('min-h-11 max-w-full truncate rounded-full border border-dashed bg-[var(--cartao)] px-4 text-sm font-semibold', c === 'codigo' ? 'font-mono' : '', 'border-[var(--borda)] text-[var(--marca)] hover:border-[var(--marca)] hover:bg-[var(--marca-suave)]')}>
             {c === 'comprador' && compradorId ? <NomeComprador id={compradorId} /> : rotuloFechado(c)}
           </button>
         ))}
@@ -736,12 +807,30 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     fechados = []
   }
   for (const c of campos.filter((x) => noPasso(x.id))) {
-    if (estaAberto(c.id)) {
+    if (numeroDe[c.id]) principais.push(<Fragment key={c.id}>{campoTela(c.id)}</Fragment>)
+    else if (estaAberto(c.id)) {
       soltar()
       partes.push(<Fragment key={c.id}>{campoTela(c.id)}</Fragment>)
     } else fechados.push(c.id)
   }
   soltar()
+  const detalhesObrigatorios = campos.some((c) => !numeroDe[c.id] && c.obrigatorio)
+  const corpo: ReactNode = !secoes ? partes : (
+    <>
+      {principais}
+      {partes.length > 0 && (
+        <section aria-label={t('Detalhes')} className="rounded-2xl border border-[var(--borda)] bg-[var(--fundo)] p-3 sm:p-4">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold">
+            <NumeroSecao n={Object.keys(numeroDe).length + 1} />
+            {t('Detalhes')}
+            {!detalhesObrigatorios && <span className="font-normal text-[var(--suave)]">({t('opcional')})</span>}
+            <Info texto="Quem comprou, código, estado, fotos e observação. Toque no + para abrir só o que precisar. Ex.: + Fotos para anexar a foto do pedido." />
+          </h2>
+          <div className="space-y-3">{partes}</div>
+        </section>
+      )}
+    </>
+  )
 
   const linhasResumo = linhas.map((l) => ({ id: l.id, texto: descLinha(l), qtd: ehCabelo ? gramasTexto(l.quantidade ?? 0) : String(l.quantidade ?? 0), valor: totalLinha(l) }))
   const nomeFornecedor = ultima?.pessoa ?? (pessoaId ? conta?.pessoa?.nome : undefined)
@@ -807,7 +896,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
               </ul>
             </Cartao>
           ) : (
-            partes
+            corpo
           )}
 
           {passos.length > 0 && (
@@ -852,6 +941,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
               {ehCabelo && <div className="flex justify-between"><dt className="text-[var(--suave)]">{t('Peso')}</dt><dd className="num">{gramasTexto(pesoTotal)}</dd></div>}
               {custoKg !== undefined && <div className="flex justify-between"><dt className="text-[var(--suave)]">{t('Custo por kg')}</dt><dd className="num">{formatar(custoKg, moeda)}</dd></div>}
               <div className="flex justify-between border-t border-[var(--borda)] pt-2 text-lg font-black"><dt>{t('Total')}</dt><dd className="num">{formatar(total, moeda)}</dd></div>
+              {total > 0 && <div className="flex justify-end"><ValoresConvertidos valor={total} moeda={moeda} uso="compra" /></div>}
             </dl>
             <div className="mt-4 flex flex-col gap-2">
               {botaoPrincipal('w-full')}
@@ -889,19 +979,32 @@ function LigarViagem({ compraId, onFechar }: { compraId: Id; onFechar(): void })
 }
 
 /** Um campo do formulário de compra (cartão com título; * quando obrigatório). */
-function Bloco({ campo, titulo, obrigatorio, children, acao }: { campo: CampoFormId; titulo?: string; obrigatorio?: boolean; children: ReactNode; acao?: ReactNode }) {
+function Bloco({ campo, titulo, obrigatorio, children, acao, numero, plano }: { campo: CampoFormId; titulo?: string; obrigatorio?: boolean; children: ReactNode; acao?: ReactNode; numero?: number; plano?: boolean }) {
   const t = useT()
+  // número sem título (ex.: "De quem?", que tem o rótulo próprio): o número fica ao lado do campo
+  if (numero && !titulo)
+    return (
+      <section data-campo={campo} className="flex gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 sm:p-4">
+        <NumeroSecao n={numero} />
+        <div className="min-w-0 flex-1">{children}</div>
+      </section>
+    )
   return (
-    <section data-campo={campo} className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 sm:p-4">
+    <section data-campo={campo} className={plano ? 'rounded-xl bg-[var(--cartao)] p-3' : 'rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 sm:p-4'}>
       {(titulo || acao) && (
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-bold">{titulo && t(titulo)}{titulo && obrigatorio && <span className="text-[var(--ruim)]"> *</span>}</h2>
+        <div className={cx('flex flex-wrap items-center justify-between gap-2', numero ? 'mb-3' : 'mb-2')}>
+          <h2 className={cx('flex items-center gap-2 font-bold', numero ? 'text-base' : 'text-sm')}>{numero && <NumeroSecao n={numero} />}<span>{titulo && t(titulo)}{titulo && obrigatorio && <span className="text-[var(--ruim)]"> *</span>}</span></h2>
           {acao}
         </div>
       )}
       {children}
     </section>
   )
+}
+
+/** Número da seção da nova compra (1 De quem · 2 O que veio · 3 Detalhes). */
+function NumeroSecao({ n }: { n: number }) {
+  return <span aria-hidden className="num flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-black text-white bg-[var(--marca)]">{n}</span>
 }
 
 /** "Falta: …" embaixo do campo (aparece depois da primeira tentativa de registrar). */
@@ -950,18 +1053,21 @@ function AvisoRegistrada({ dados, onFechar }: { dados: DadosPedido; onFechar(): 
   // em viagem (ou quem registrou está viajando): só a confirmação e "Ver na Triagem"
   const emViagem = dados.viagem?.status === 'aberta' || (!!sessao.pessoaId && dados.comprador?.id === sessao.pessoaId && !!dados.viagem)
   return (
-    <div role="status" className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--bom)]/40 bg-[var(--bom)]/10 p-3 text-sm">
-      <span className="min-w-0 flex-1 font-semibold">
-        {brutos.length ? t('Compra registrada ✓ · o cabelo ficou na Triagem, esperando para separar') : t('Compra registrada ✓')}
-        {brutos.length > 0 && <Info texto="Pode separar quando voltar; o cabelo fica esperando na Triagem. Ex.: comprou na viagem, separa em casa." />}
-      </span>
+    // texto em cima (largura toda), botões embaixo (quebram) e o × no canto: no celular nada vira coluna estreita
+    <div role="status" className="mb-4 rounded-2xl border border-[var(--bom)]/40 bg-[var(--bom)]/10 p-3 text-sm">
+      <div className="flex items-start gap-2">
+        <p className="min-w-0 flex-1 pt-2 font-semibold">
+          {brutos.length ? t('Compra registrada ✓ · o cabelo ficou na Triagem, esperando para separar') : t('Compra registrada ✓')}
+          {brutos.length > 0 && <Info texto="Pode separar quando voltar; o cabelo fica esperando na Triagem. Ex.: comprou na viagem, separa em casa." />}
+        </p>
+        <button type="button" aria-label={t('Fechar')} onClick={onFechar} className="-mr-1 -mt-1 h-10 w-10 shrink-0 rounded-xl text-lg hover:bg-[var(--fundo)]">×</button>
+      </div>
       {brutos.length > 0 && (
-        <span className="flex flex-wrap gap-1">
+        <div className="mt-2 flex flex-wrap gap-2">
           {!emViagem && <Botao variante="secundario" onClick={() => irSeparar(ir, brutos.map((l) => l.id))}>✂ {t('Separar agora')}</Botao>}
           <Botao variante="leve" onClick={() => ir('triagem')}>{t('Ver na Triagem')}</Botao>
-        </span>
+        </div>
       )}
-      <button type="button" aria-label={t('Fechar')} onClick={onFechar} className="h-10 w-10 shrink-0 rounded-xl text-lg hover:bg-[var(--fundo)]">×</button>
     </div>
   )
 }
@@ -1025,7 +1131,6 @@ export function Pedido() {
   const [trocar, setTrocar] = useState(false)
   const [trocarLote, setTrocarLote] = useState<{ id: Id; codigo?: string }>()
   const [conferir, setConferir] = useState<Linha>()
-  const [etiquetas, setEtiquetas] = useState<Id[]>()
   const [ligarViagem, setLigarViagem] = useState(false)
   // sub-abas (no endereço: #/pedidos/P1?aba=anexos): Resumo · Anexos (N) · Histórico
   const [aba, setAba] = useParamTela<'resumo' | 'anexos' | 'historico'>('aba', 'resumo')
@@ -1084,7 +1189,6 @@ export function Pedido() {
       {trocar && <TrocarCodigo tipo="compra" id={c.id} atual={c.codigo} onFechar={() => setTrocar(false)} />}
       {trocarLote && <TrocarCodigo tipo="lote" id={trocarLote.id} atual={trocarLote.codigo} onFechar={() => setTrocarLote(undefined)} />}
       {conferir && <ConferirPeso compraId={c.id} linha={conferir} onFechar={() => setConferir(undefined)} />}
-      {etiquetas && <ImprimirEtiquetas ids={etiquetas} onFechar={() => setEtiquetas(undefined)} />}
       {ligarViagem && <LigarViagem compraId={c.id} onFechar={() => setLigarViagem(false)} />}
 
       {/* a conta fecha: comprado = em pacotes + vendido + perda + diferença */}
@@ -1185,7 +1289,7 @@ export function Pedido() {
         <aside className="h-fit space-y-4 lg:sticky lg:top-4">
           {dados.lotes.length > 0 && (
             // o único lugar dos códigos dos lotes: "#" troca o código de cada um (admin)
-            <Cartao titulo={t('Lotes deste pedido')} acao={<Botao variante="leve" onClick={() => setEtiquetas(dados.lotes.map((l) => l.id))}>🏷 {t('Etiquetas')}</Botao>}>
+            <Cartao titulo={t('Lotes deste pedido')} acao={<Botao variante="leve" onClick={() => ir('etiquetas', { f: 'todas', compra: codigoDe(c), sel: (dados.lotes.some((l) => l.saldo > 0) ? dados.lotes.filter((l) => l.saldo > 0) : dados.lotes).map((l) => l.id).join(',') })}>🏷 {t('Etiquetas')}</Botao>}>
               <ul className="space-y-2 text-sm">
                 {dados.lotes.map((l) => (
                   <li key={l.id}>

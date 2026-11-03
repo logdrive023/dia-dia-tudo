@@ -123,6 +123,8 @@ export interface Etiqueta {
   /** compras de origem ("P-0003 + P-0007") */
   compras?: string
   foto?: FotoResumo
+  /** via da etiqueta (2 = "2ª via", depois de cancelar a antiga); sem = 1ª */
+  via?: number
 }
 
 /** Dados das ETIQUETAS dos lotes (na ordem pedida): o QR leva o endereço do lote (#/lotes/<id>), montado na tela. */
@@ -151,6 +153,7 @@ export async function etiquetas(ctx: Ctx, p: { ids: Id[] }): Promise<Etiqueta[]>
       data: i.criadoEm.slice(0, 10),
       compras: comprasDe(i).map((c) => compras.get(c)?.codigo).filter(Boolean).join(' + ') || undefined,
       foto: F.principal(i.id),
+      via: i.etiquetaVia && i.etiquetaVia > 1 ? i.etiquetaVia : undefined,
     }
   })
 }

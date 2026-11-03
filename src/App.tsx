@@ -21,6 +21,7 @@ import { Entrar } from './screens/Entrar'
 import { Emprestimos, FichaEmprestimo, NovoEmprestimo } from './screens/Emprestimos'
 import { Equipe } from './screens/Equipe'
 import { Estoque, FichaLote, Rastreio, SepararTela } from './screens/Estoque'
+import { Etiquetas } from './screens/Etiquetas'
 import { Painel } from './screens/Painel'
 import { Triagem } from './screens/Triagem'
 import { Livro } from './screens/Livro'
@@ -42,6 +43,7 @@ const TELAS: Record<string, () => JSX.Element> = {
   pedido: Pedido,
   novaCompra: NovaCompraTela,
   triagem: Triagem,
+  etiquetas: Etiquetas,
   livro: Livro,
   estoque: Estoque,
   lote: FichaLote,
@@ -210,8 +212,9 @@ export default function App() {
         {saida && (
           <Confirmar titulo="Sair sem salvar?" texto="O que você digitou nesta tela ainda não foi salvo e vai ser perdido." rotulo="Sair sem salvar" perigo onConfirmar={() => saida()} onFechar={() => setSaida(undefined)} />
         )}
+        {/* aviso no ALTO (abaixo da faixa da demonstração): nunca cobre os botões das barras fixas nem das folhas de baixo */}
         {aviso && (
-          <div role="status" className={`fixed inset-x-4 bottom-24 z-50 mx-auto max-w-md rounded-2xl p-3 text-center font-semibold text-white shadow-lg md:bottom-6 ${aviso.tipo === 'erro' ? 'bg-[var(--ruim)]' : 'bg-[var(--bom)]'}`} onClick={() => setAviso(undefined)}>
+          <div role="status" className={`nao-imprimir fixed inset-x-4 top-[calc(env(safe-area-inset-top)+2.25rem)] z-50 mx-auto max-w-md rounded-2xl px-3 py-2 text-center text-sm font-semibold text-white shadow-lg ${aviso.tipo === 'erro' ? 'bg-[var(--ruim)]' : 'bg-[var(--bom)]'}`} onClick={() => setAviso(undefined)}>
             <Traduz texto={aviso.texto} />
           </div>
         )}
@@ -293,11 +296,21 @@ function NovaVersao() {
       })
       .catch(() => undefined)
   }, [])
+  const [indo, setIndo] = useState(false)
   if (!atualizar) return null
+  // pede para a versão nova assumir; se o navegador não recarregar sozinho (outra aba aberta, desktop), força o recarregamento
+  const clicar = async () => {
+    setIndo(true)
+    atualizar()
+    const reg = await navigator.serviceWorker?.getRegistration().catch(() => undefined)
+    reg?.waiting?.postMessage({ type: 'SKIP_WAITING' })
+    setTimeout(() => window.location.reload(), 1500)
+  }
   return (
-    <div className="fixed inset-x-4 top-3 z-50 mx-auto flex max-w-md items-center justify-between gap-2 rounded-2xl bg-[var(--marca)] p-3 text-white shadow-lg">
+    // embaixo (acima do menu no celular, no canto no computador): não cobre título nem botões
+    <div className="fixed inset-x-4 bottom-24 z-50 mx-auto flex max-w-md items-center justify-between gap-2 rounded-2xl bg-[var(--marca)] p-3 text-white shadow-lg md:inset-x-auto md:bottom-4 md:right-4">
       <span className="text-sm font-semibold">🆕 {t('Nova versão disponível')}</span>
-      <Botao variante="secundario" onClick={atualizar}>{t('Atualizar')}</Botao>
+      <Botao variante="secundario" disabled={indo} onClick={clicar}>{indo ? t('Atualizando…') : t('Atualizar')}</Botao>
     </div>
   )
 }
