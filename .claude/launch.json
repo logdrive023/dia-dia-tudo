@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "tudo-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "5174", "--strictPort"], "port": 5174 }
+    { "name": "tudo-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "5174", "--strictPort"], "port": 5174 },
+    { "name": "tudo-preview", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "preview", "--base", "/dia-dia-tudo/", "--port", "4173", "--strictPort"], "port": 4173 }
   ]
 }

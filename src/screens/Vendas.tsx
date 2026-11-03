@@ -1,6 +1,6 @@
 // LISTA DE VENDAS (a lista que forma os números do painel: a soma é o cartão) e DETALHE da venda com linha do tempo.
 
-import { type LinhaRastreio, ListaRastreio, RastreioResumo } from '../ui/rastreioTotal'
+import { type LinhaRastreio, ListaRastreio, RastreioTotal } from '../ui/rastreioTotal'
 import { useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../core/domain/dinheiro'
 import type { Id, Transacao } from '../core/domain/tipos'
@@ -298,6 +298,7 @@ function PreviaCorrecao({ linha: l, c, moeda }: { linha: Transacao['linhas'][num
 function OrigemDaVenda({ vendaId, admin }: { vendaId: Id; admin: boolean }) {
   const t = useT()
   const { ir } = useApp()
+  const [completo, setCompleto] = useState(false)
   const { dados: origem } = useConsulta('origemDaVenda', { vendaId })
   const { dados } = useConsulta('genealogia', { vendaId }, admin)
   const temRastreio = admin && !!dados?.lotes.length
@@ -309,9 +310,16 @@ function OrigemDaVenda({ vendaId, admin }: { vendaId: Id; admin: boolean }) {
     detalhe: o.fornecedor,
     onClick: admin ? () => ir('pedido', { id: o.compraId }) : undefined,
   }))
+  // simples: só as compras desta venda; a conta da compra inteira (estoque, vendido, perda) fica no rastreio completo
   return (
     <Cartao titulo={t('De onde veio este cabelo')} ajuda="As compras que formaram este cabelo, em gramas. Ex.: 1,5 kg da Maria + 1 kg do Celso.">
-      {temRastreio && dados ? <RastreioResumo g={dados} linhas={linhas} /> : <ListaRastreio linhas={linhas} />}
+      <ListaRastreio linhas={linhas} />
+      {temRastreio && dados && (
+        <>
+          <button type="button" aria-expanded={completo} onClick={() => setCompleto(!completo)} className="min-h-10 text-sm font-semibold text-[var(--marca)] hover:underline">{completo ? t('Fechar o rastreio') : t('Ver rastreio completo →')}</button>
+          {completo && <div className="mt-2"><RastreioTotal g={dados} /></div>}
+        </>
+      )}
     </Cartao>
   )
 }

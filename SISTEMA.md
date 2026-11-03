@@ -127,7 +127,11 @@ Toque no **i** de qualquer item ou número: explicação + **quadro de exemplo**
   calculada; não dá para tirar coluna com lote). Arrastar o cartão muda de coluna (ou "⋯ › Mover para…"); entrar numa
   coluna "pronto para venda" marca o lote como Separado. Cada **triagem** (juntar e/ou separar, num passo só) ganha um
   número **T-0001** com quem, quando, peso bruto → líquido e perda; uma compra pode ir para várias triagens e uma triagem
-  pode misturar várias compras. "Pronto para vender" mostra lote a lote a origem, o preço pela tabela, a margem e Vender.
+  pode misturar várias compras. A tela tem duas seções numeradas: **① Para separar** (uma linha por pacote, botão
+  principal) e **② Prontos para vender**, uma **tabela por grupo** (Medida | Lotes | Peso | Valor | ⋯, com Total) em que
+  cada linha abre os lotes com a origem, o preço pela tabela, a margem e Vender.
+  **Triagens feitas**: números do que está filtrado (triagens, entrou, saiu, perda %), filtros no endereço (período, busca,
+  quem, compra, perda acima de X%, ordenar) e uma linha por triagem que abre no lugar (compras → pacotes → vendas, rastreio).
 - **Rastreio total** (`genealogia`): a partir de qualquer compra, lote, triagem ou venda mostra o grafo inteiro
   (compras → triagens → lotes → vendas) com as gramas de cada ligação e a conta "entrou = vendido + estoque + perda" ✓.
   A barra **Caminho** ("você está aqui") e o menu **⋯** levam a compra, fornecedor, lote de origem, rastreio e venda.
@@ -337,7 +341,7 @@ HTTPS (use os dois) e, sem `VITE_API_CHAVE_PUBLICA`, alguém no meio com um cert
 
 ## 6. Testes
 ```bash
-npm test          # 114 testes: regras, contrato (memória × IndexedDB × API simulada), dados de exemplo, telas
+npm test          # 147 testes: regras, contrato (memória × IndexedDB × API simulada), dados de exemplo, telas
 npm run build     # tipos + build de produção (PWA)
 npm run dev       # http://localhost:5173
 ```
@@ -395,7 +399,8 @@ Lendo os pedidos e o caderno real (PDF de contas), apareceram coisas que nenhum 
   A proteção completa vem com a API (o contrato e o adaptador já estão prontos).
 - **Sincronizar aparelhos**: a fila de saída já existe; falta o servidor/sincronizador.
 - **Devolução parcial** de produto (hoje: corrigir a quantidade ou cancelar).
-- ~~Etiqueta do lote~~: feito (foto + código + QR, 50×30 mm ou folha A4).
+- ~~Etiqueta do lote~~: feito (foto + código + QR, rolo 50×30 mm ou folha A4 com 21 por folha). Na impressão: cópias de
+  cada pacote, "começar na etiqueta N" (folha já usada), prévia folha a folha e limite de 210 (A4) / 200 (rolo) por vez.
 - **Leitura de QR/código de barras dentro do sistema no iPhone (Safari) e no Firefox**: hoje a leitura pela câmera usa o
   recurso do navegador (Chrome/Android e computador); nos outros, a câmera normal do celular lê o QR e abre o pacote. Próximo passo:
   incluir uma biblioteca de leitura própria (≈ 1 dia), no mesmo botão "📷 Ler".

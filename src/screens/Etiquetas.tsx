@@ -67,7 +67,19 @@ export function Etiquetas() {
   )
   const selecionados = (dados ?? []).filter((i) => sel.has(i.id))
   const todos = lista.length > 0 && lista.every((i) => sel.has(i.id))
-  const alternar = (id: Id) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const semNaLista = lista.filter((i) => !i.etiquetaImpressaEm)
+  const gSel = selecionados.reduce((s, i) => s + i.saldo, 0)
+  // Shift + clique: marca (ou desmarca) do último tocado até este, como o primeiro ficou
+  const [ultimo, setUltimo] = useState<number>()
+  const marcarAte = (k: number, intervalo?: boolean) => {
+    const id = lista[k].id
+    if (intervalo && ultimo !== undefined && lista[ultimo]) {
+      const valor = sel.has(lista[ultimo].id)
+      const [a, b] = ultimo < k ? [ultimo, k] : [k, ultimo]
+      setSel((s) => { const n = new Set(s); for (const i of lista.slice(a, b + 1)) if (valor) n.add(i.id); else n.delete(i.id); return n })
+    } else setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+    setUltimo(k)
+  }
   const avancados = FILTROS.filter((k) => k !== 'busca' && p(k)).length
   const limpar = () => ajustarParams(Object.fromEntries(FILTROS.map((k) => [k, undefined])))
   const impressoOk = () => (setSel(new Set()), ajustarParams({ sel: undefined }))
@@ -117,21 +129,33 @@ export function Etiquetas() {
         )
       ) : (
         <>
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+          {/* seleção em lote: todos os filtrados, só os sem etiqueta, limpar; no computador Shift+clique marca um intervalo */}
+          <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-3 py-1 text-sm">
             <label className="flex min-h-10 items-center gap-2 font-semibold">
               <input type="checkbox" className="h-5 w-5 cursor-pointer" checked={todos} onChange={() => setSel((s) => { const n = new Set(s); for (const i of lista) if (todos) n.delete(i.id); else n.add(i.id); return n })} />
               {t('Selecionar todos os filtrados')} <span className="num font-normal text-[var(--suave)]">({lista.length})</span>
             </label>
+            {filtro !== 'sem' && semNaLista.length > 0 && semNaLista.length < lista.length && (
+              <button type="button" onClick={() => setSel(new Set(semNaLista.map((i) => i.id)))} className="min-h-10 rounded-lg px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t('Só os sem etiqueta ({n})', { n: semNaLista.length })}</button>
+            )}
+            {selecionados.length > 0 && (
+              <span className="num ml-auto flex items-center gap-1 text-[var(--suave)]">
+                {/* no computador a contagem já está na barra de baixo */}
+                <span className="sm:hidden"><b className="text-[var(--texto)]">{t('{n} selecionado(s)', { n: selecionados.length })}</b> · {fmt(gSel, 'gramas')}</span>
+                <button type="button" onClick={impressoOk} className="min-h-10 rounded-lg px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t('Limpar')}</button>
+              </span>
+            )}
+            <span className="hidden w-full pb-1 text-xs text-[var(--suave)] lg:block">{t('Toque no pacote para marcar. Shift + clique marca todos entre dois.')}</span>
           </div>
           <ul id="lista-etiquetas" className="grid gap-2 lg:grid-cols-2">
-            {lista.map((i) => <LinhaEtiqueta key={i.id} i={i} marcado={sel.has(i.id)} onAlternar={() => alternar(i.id)} onAbrir={() => ir('lote', { id: i.id })} onImprimir={() => setImprimir([i.id])} onRefazer={() => ajustarParams({ refazer: i.id })} />)}
+            {lista.map((i, k) => <LinhaEtiqueta key={i.id} i={i} marcado={sel.has(i.id)} onAlternar={(intervalo) => marcarAte(k, intervalo)} onAbrir={() => ir('lote', { id: i.id })} onImprimir={() => setImprimir([i.id])} onRefazer={() => ajustarParams({ refazer: i.id })} />)}
           </ul>
         </>
       )}
 
       {selecionados.length > 0 && (
         <div className="fixed inset-x-2 bottom-20 z-30 mx-auto flex max-w-3xl items-center gap-2 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-2 shadow-xl md:bottom-4" role="region" aria-label={t('Ações em massa')}>
-          <b className="hidden min-w-0 flex-1 truncate px-2 text-sm sm:block">{t('{n} selecionado(s)', { n: selecionados.length })}</b>
+          <b className="num hidden min-w-0 flex-1 truncate px-2 text-sm sm:block">{t('{n} selecionado(s)', { n: selecionados.length })} · {fmt(gSel, 'gramas')}</b>
           <Botao className="min-w-0 flex-1 px-3 sm:flex-none" onClick={() => setImprimir(selecionados.map((i) => i.id))}>🏷 {t(selecionados.length === 1 ? 'Imprimir 1 etiqueta' : 'Imprimir {n} etiquetas', { n: selecionados.length })}</Botao>
           <Botao variante="leve" className="shrink-0 px-2" aria-label={t('Limpar seleção')} onClick={() => (setSel(new Set()), ajustarParams({ sel: undefined }))}>×</Botao>
         </div>
@@ -144,14 +168,14 @@ export function Etiquetas() {
 }
 
 /** Uma linha: marcar, foto, código grande, rótulo, peso, compra de origem e a situação da etiqueta; Imprimir/Reimprimir. */
-function LinhaEtiqueta({ i, marcado, onAlternar, onAbrir, onImprimir, onRefazer }: { i: Linha; marcado: boolean; onAlternar(): void; onAbrir(): void; onImprimir(): void; onRefazer(): void }) {
+function LinhaEtiqueta({ i, marcado, onAlternar, onAbrir, onImprimir, onRefazer }: { i: Linha; marcado: boolean; onAlternar(intervalo?: boolean): void; onAbrir(): void; onImprimir(): void; onRefazer(): void }) {
   const t = useT()
   const parar = (e: React.SyntheticEvent) => e.stopPropagation()
   const origem = i.compras.map((c) => [c.codigo, c.fornecedor].filter(Boolean).join(' · ')).join(' + ')
   return (
-    <li onClick={onAlternar} className={cx('flex min-w-0 cursor-pointer items-center gap-2 rounded-2xl border bg-[var(--cartao)] p-2 pr-3 shadow-sm', marcado ? 'border-[var(--marca)] ring-2 ring-[var(--marca-suave)]' : 'border-[var(--borda)]')}>
+    <li onClick={(e) => onAlternar(e.shiftKey)} className={cx('flex min-w-0 cursor-pointer select-none items-center gap-2 rounded-2xl border p-2 pr-3 shadow-sm', marcado ? 'border-[var(--marca)] bg-[var(--marca-suave)] ring-2 ring-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)]')}>
       <span className="flex min-h-10 min-w-8 shrink-0 items-center justify-center">
-        <input type="checkbox" className="h-5 w-5 cursor-pointer" aria-label={`${t('Selecionar')} ${i.codigo ?? i.nome}`} checked={marcado} onChange={onAlternar} onClick={parar} />
+        <input type="checkbox" className="h-5 w-5 cursor-pointer" aria-label={`${t('Selecionar')} ${i.codigo ?? i.nome}`} checked={marcado} onChange={() => undefined} onClick={(e) => (parar(e), onAlternar(e.shiftKey))} />
       </span>
       <span onClick={parar}><MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} /></span>
       <div className="min-w-0 flex-1">

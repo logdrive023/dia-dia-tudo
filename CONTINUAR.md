@@ -6,7 +6,7 @@
 > visão do fluxo compra → triagem → venda em [PROMPT-compra-triagem-venda.md](PROMPT-compra-triagem-venda.md);
 > desenho original em [DESENHO.md](DESENHO.md).
 >
-> Atualizado em 03/11/2026.
+> Atualizado em 03/11/2026 (tarde).
 
 ---
 
@@ -18,7 +18,7 @@ tabela de preço), salão (agenda, equipe, comissões), caixa, contas de pessoas
 - React 18 + TypeScript strict + Vite 5 + Tailwind 3 + PWA (vite-plugin-pwa, `registerType: 'prompt'`).
 - Local-first: IndexedDB com Dexie 4 (schema v5). Pronto para virar API trocando `VITE_STORAGE=api` + `VITE_API_URL`
   (envelope criptografado `/v1/k` e `/v1/r`; contrato em `api-contract/openapi.yaml`).
-- Testes: Vitest + fake-indexeddb + Testing Library (30 arquivos, 144 testes em 03/11/2026).
+- Testes: Vitest + fake-indexeddb + Testing Library (31 arquivos, 147 testes em 03/11/2026).
 - Publicação: push na `main` → GitHub Actions roda `npm test` e `npm run build` → GitHub Pages
   (`https://logdrive023.github.io/dia-dia-tudo/`). Se um teste falhar, não publica.
 
@@ -123,15 +123,34 @@ npm run build
   (medida, gramas × fator, valor) e link para abrir a venda/compra.
 - **Página da venda no celular**: proteções globais de largura (datas/selects/grids) para não cortar à direita.
 
+### Rodada de 03/11/2026 (tarde)
+
+- **Triagem**: seções numeradas (① Para separar · ② Prontos para vender) separadas por linha. "Prontos para vender" virou
+  tabela (Medida | Lotes | Peso | Valor | ⋯, linha de Total); no celular a coluna Lotes vai para baixo da medida.
+  Na lista "Para separar" do celular, o botão principal fica embaixo, com a largura toda ("Ver quadro" fica no ⚙).
+- **Triagens feitas**: 4 números (Triagens, Entrou, Saiu, Perda %) do que está filtrado; filtros no endereço
+  (`tp` período 7/30 dias/mês, `tb` busca, e em ⚙ Filtros: `tq` quem, `tc` compra, `tperda` perda acima de X%, `to` ordenar);
+  uma linha por triagem (T-0001 · data · quem · bruto → líquido · perda % · pacotes · etiquetas) que abre no lugar com a
+  cadeia e o rastreio.
+- **Impressão de etiquetas** (`ImprimirEtiquetas`): no visual do sistema (painel à esquerda/em cima, prévia à direita,
+  rodapé com o total). **Cópias de cada** (todas ou por pacote; 0 tira do papel e não marca como impressa). Papel
+  Rolo 50 × 30 ou Folha A4 (**21 por folha**, 3 × 7) com prévia folha a folha e **Começar na etiqueta N** (folha já usada).
+  Rodapé: "40 etiqueta(s) · 3 folhas A4 (10 + 21 + 9) · sobram 12 na última". **Limite por vez**: 210 na A4 (10 folhas) e
+  200 no rolo (`LIMITE_IMPRESSAO`); acima disso o Imprimir fica desligado com o aviso. O papel escolhido fica lembrado.
+- **Tela Etiquetas**: seleção em lote mais clara (Selecionar todos os filtrados · Só os sem etiqueta · Limpar, contagem e
+  peso), linha marcada destacada, Shift + clique marca um intervalo no computador.
+- **Comprar (celular)**: linha curta por pedido (fornecedor · total · código · etapa · "2 pendências") que abre no lugar
+  (progresso, data, itens, peso, parada, pendências, "Abrir pedido →"). A tabela continua no computador. "O que falta"
+  e "⚙ Etapas e regras" na mesma linha, os filtros embaixo com a largura toda.
+- **Venda › De onde veio este cabelo**: só as compras desta venda; a conta da compra inteira foi para "Ver rastreio completo".
+- **Conferido no navegador (item 2 da fila antiga)**: página da venda em 360 px com fonte 115–175% sem passar da tela;
+  "Separar" do rodapé da separação responde ao clique de mouse; aviso de nova versão aparece no canto (build + `vite preview`)
+  e "Atualizar" recarrega na versão nova. Para repetir: `.claude/launch.json` › `tudo-preview` (precisa de `--base /dia-dia-tudo/`).
+
 ## 7. O que falta (fila)
 
-1. **Triagem**: segmentar melhor, divisões claras; bloco "Prontos para vender" mais legível (grupos tipo tabela:
-   Medida | Lotes | Peso | Valor | ⋯, com totais); aba **Triagens feitas** com números de resumo e filtros
-   (período, quem, compra, perda acima de X%, busca, ordenar) e uma linha clara por triagem com detalhes.
-2. **Conferir no celular de verdade**:
-   - página da venda com fonte grande no Android (não pode cortar à direita);
-   - botão "Separar" no rodapé da separação (num navegador de teste o clique de mouse não respondia);
-   - aviso de nova versão e o botão Atualizar no computador.
+1. **Conferir num Android de verdade** (o navegador de teste só simula): fonte grande do sistema e o "Separar" com o dedo.
+2. Outras telas no celular com o mesmo padrão "linha curta que abre no lugar" (Vendas, Estoque, Pessoas), se o dono pedir.
 3. Pendências maiores (de [SISTEMA.md](SISTEMA.md) §7): servidor/API e sincronização entre aparelhos, segurança no servidor,
    devolução parcial de produto, leitura de QR própria para iPhone/Firefox, testes de longa duração.
 

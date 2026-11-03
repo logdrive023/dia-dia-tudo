@@ -10,7 +10,7 @@ import { novoId } from '../core/domain/ids'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { COLUNA_VENDIDO, type ColunaTriagem, camposUnificados } from '../core/services/triagem'
-import { Abas, Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, GramasInput, Info, Janela, Pilula, Selecao, cx, dataBR, fmt, gramasTexto, moedaPadrao } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Confirmar, Entrada, Escolha, ErroTela, GramasInput, Info, Janela, Pilula, Selecao, cx, dataBR, fmt, gramasTexto, moedaPadrao } from '../ui/base'
 import { resumoCampos } from '../ui/camposDinamicos'
 import { clicavel } from '../ui/compartilhados'
 import { type Params, useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
@@ -32,6 +32,7 @@ const NAO_ID = 'Não identificado'
 const precisaSeparar = (l: { campos: { estado?: unknown } }) => l.campos.estado === 'Bruto' || l.campos.estado === NAO_ID
 const DICA_JUNTAR = 'Junta pacotes de compras diferentes; a origem de cada grama fica guardada. Ex.: 2 kg do P3 (compra da Maria) + 4 kg da compra do Celso → P4 com 6 kg.'
 const DICA_SEPARAR = 'Digite o peso e o que é cada parte; o que sobrar é perda. Ex.: 10 kg bruto → 2 kg loiro + 2 kg moreno + 6 kg para depois.'
+const DICA_PRONTOS = 'Lotes já triados, agrupados por medida, com o preço pela tabela. Ex.: 60 cm · 4 lotes · 9 kg · Bs 137.000. Toque na linha para ver os lotes.'
 const DICA_LAVAGEM = 'Opcional. Se lavar, digite o peso depois. Ex.: 6.000 g → 5.700 g (−300 g).'
 
 type Dados = ResultadoConsulta<'triagem'>
@@ -40,6 +41,9 @@ type T = ReturnType<typeof useT>
 
 const MAX_COLUNA = 20
 const MAX_PRONTOS = 12
+/** colunas da tabela "Prontos para vender": grupo | lotes | peso | valor | ⋯ (iguais no cabeçalho, nas linhas e no total) */
+const GRADE_PRONTOS = 'grid grid-cols-[minmax(0,1fr)_3.75rem_6rem_2.5rem] items-center gap-x-1.5 sm:grid-cols-[minmax(0,1fr)_3.5rem_6rem_8rem_2.75rem] sm:gap-x-3'
+const NOME_GRUPO: Record<string, string> = { medida: 'Medida', faixa: 'Faixa', categoria: 'Categoria', cor: 'Cor' }
 const corDe = (c?: ColunaTriagem) => c?.cor ?? 'var(--marca)'
 const rolarPara = (id: string) => {
   try {
@@ -254,16 +258,7 @@ export function Triagem() {
 
       <Abas variante="sublinhado" atual={aba} onChange={setAba} abas={[{ id: 'quadro', nome: 'Lotes' }, { id: 'triagens', nome: 'Triagens feitas' }]} />
       {aba === 'triagens' ? (
-        <ListaTriagens
-          aberta={nav.params.t as string | undefined}
-          resumo={
-            <p className="num text-sm text-[var(--suave)]">
-              {t('Triado nesta semana')}: <b className="text-[var(--texto)]">{gramasTexto(tt.triadoSemana)}</b>
-              {' · '}{t('Perda no mês')}: <b className={tt.perdaMesBp > 500 ? 'text-[var(--ruim)]' : 'text-[var(--texto)]'}>{fmt(tt.perdaMesBp, 'percentual')}</b>
-              {tt.usadoMes > 0 && <> ({t('{p} de {u} separados', { p: gramasTexto(tt.perdaMes), u: gramasTexto(tt.usadoMes) })})</>}
-            </p>
-          }
-        />
+        <ListaTriagens aberta={nav.params.t as string | undefined} />
       ) : <>
 
       {/* três chips que filtram / levam ao lugar */}
@@ -285,12 +280,14 @@ export function Triagem() {
       {/* a lista principal (ou o quadro, para quem escolher) */}
       <section id="triagem-separar" aria-label={t(visao === 'quadro' ? 'Quadro' : 'Para separar')} className="scroll-mt-4">
         <div className="mb-2 flex items-center gap-1">
+          {visao !== 'quadro' && <NumeroSecao n={1} />}
           <h2 className="min-w-0 truncate text-lg font-bold">{t(visao === 'quadro' ? 'Quadro' : 'Para separar')}</h2>
           {visao !== 'quadro' && <Info texto={DICA_SEPARAR} />}
           {/* os dois botões nunca quebram no meio da palavra ("Seleciona / r") no celular */}
           <span className="ml-auto flex shrink-0 items-center [&>button]:whitespace-nowrap [&>button]:px-2 sm:[&>button]:px-3">
             <Botao variante="leve" className="px-3" aria-pressed={comSelecao} onClick={() => { if (comSelecao) limparSel(); setSelecionando(!comSelecao) }}>{t(comSelecao ? 'Cancelar' : 'Selecionar')}</Botao>
-            <Botao variante="leve" className="px-3" onClick={alternarQuadro}>{t(visao === 'quadro' ? 'Ver lista' : 'Ver quadro')}</Botao>
+            {/* no celular "Ver quadro" fica no ⚙ do topo (o título precisa do espaço) */}
+            <Botao variante="leve" className="hidden px-3 sm:inline-flex" onClick={alternarQuadro}>{t(visao === 'quadro' ? 'Ver lista' : 'Ver quadro')}</Botao>
           </span>
         </div>
 
@@ -317,7 +314,8 @@ export function Triagem() {
                 const acao = acaoDe(l)
                 const fornecedores = [...new Set(l.compras.map((c) => c.fornecedor).filter(Boolean))]
                 return (
-                  <li key={l.id} className={cx('flex items-center gap-2 px-3 py-3 sm:gap-3', sel.has(l.id) && 'bg-[var(--marca-suave)]')}>
+                  // celular: foto · código e peso · ⋯ em cima, o botão principal com a largura toda embaixo
+                  <li key={l.id} className={cx('flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-3 sm:flex-nowrap sm:gap-3', sel.has(l.id) && 'bg-[var(--marca-suave)]')}>
                     {comSelecao && <input type="checkbox" className="h-5 w-5 shrink-0" checked={sel.has(l.id)} onChange={(e) => marcar(l.id, e.target.checked)} aria-label={t('Selecionar {c}', { c: l.codigo ?? l.nome })} />}
                     <FotoOuIcone l={l} />
                     <div {...clicavel(() => ir('lote', { id: l.id }))} className="min-w-0 flex-1 cursor-pointer rounded-lg outline-none focus-visible:bg-[var(--marca-suave)]">
@@ -335,8 +333,8 @@ export function Triagem() {
                         {fornecedores.length > 0 && <span className="block min-w-0 truncate"><span className="hidden sm:inline">· </span>{fornecedores.join(', ')}</span>}
                       </div>
                     </div>
-                    {acao && <Botao className="min-h-12 shrink-0 px-3 text-base sm:px-6" disabled={ocupado} onClick={acao.f}>{t(acao.rotulo)}</Botao>}
-                    <MenuAcoes acoes={menuDe(l)} />
+                    <MenuAcoes className="sm:order-last" acoes={menuDe(l)} />
+                    {acao && <Botao className="order-last min-h-11 w-full shrink-0 text-base sm:order-none sm:min-h-12 sm:w-auto sm:px-6" disabled={ocupado} onClick={acao.f}>{t(acao.rotulo)}</Botao>}
                   </li>
                 )
               })}
@@ -442,7 +440,13 @@ function ProntoParaVender({ aberto: secaoAberta, onAlternar, lotes, total, valor
   // em "fechados" fica o que o usuário inverteu (fechou quando abre sozinho; abriu quando começa fechado)
   const alternar = (k: string) => setFechados(() => { const n = new Set(fechadosAgora); if (n.has(k)) n.delete(k); else n.add(k); return { por: filtro.f.agrupar + filtro.f.passo, k: n } })
   return (
-    <section id="triagem-pronto" aria-label={t('Pronto para vender')} className="scroll-mt-4 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+    <section id="triagem-pronto" aria-label={t('Pronto para vender')} className="scroll-mt-4 border-t border-[var(--borda)] pt-5">
+      <div className="mb-2 flex items-center gap-1">
+        <NumeroSecao n={2} />
+        <h2 className="min-w-0 truncate text-lg font-bold">{t('Prontos para vender')}</h2>
+        <Info texto={DICA_PRONTOS} />
+      </div>
+      <div className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
       <button type="button" aria-expanded={secaoAberta} onClick={onAlternar} className="num flex min-h-14 w-full items-center gap-2 rounded-2xl px-4 text-left hover:bg-[var(--marca-suave)]">
         <span className="min-w-0 flex-1 truncate text-base">
           ✅ <b>{t('{g} prontos', { g: gramasTexto(total) })}</b>
@@ -467,7 +471,17 @@ function ProntoParaVender({ aberto: secaoAberta, onAlternar, lotes, total, valor
       {imprimir && <ImprimirEtiquetas ids={imprimir} onImpresso={() => setSoSem('')} onFechar={() => setImprimir(undefined)} />}
       {semPreco > 0 && <p className="mb-2 rounded-xl bg-[var(--alerta)]/10 p-2 text-sm font-semibold text-[var(--alerta)]">⚠️ {t('{n} lote(s) triado(s) sem preço na tabela', { n: semPreco })}</p>}
       {!lotes.length ? <p className="text-sm text-[var(--suave)]">{t('Nada triado ainda: separe um lote para começar a vender.')}</p> : !filtrados.length ? <p className="rounded-xl border border-dashed border-[var(--borda)] p-4 text-center text-sm text-[var(--suave)]">{t('Nenhum lote com esses filtros.')}</p> : (
-        <div className="space-y-2">
+        // tabela por grupo: Medida | Lotes | Peso | Valor | ⋯ (cabeçalho em cima, total embaixo); tocar na linha abre os lotes
+        <div className="overflow-hidden rounded-xl border border-[var(--borda)]">
+          {filtro.f.agrupar !== 'nenhum' && (
+            <div aria-hidden className={cx(GRADE_PRONTOS, 'bg-[var(--fundo)] px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]')}>
+              <span className="truncate pl-3.5 sm:pl-5">{t(NOME_GRUPO[filtro.f.agrupar] ?? 'Grupo')}</span>
+              <span className="hidden text-right sm:block">{t('Lotes')}</span>
+              <span className="text-right">{t('Peso')}</span>
+              <span className="text-right">{t('Valor')}</span>
+              <span aria-hidden />
+            </div>
+          )}
           {ordem.map(({ chave: med, rotulo, medida, lotes: ls }) => {
             const aberto = abertos.has(med)
             const semCabecalho = filtro.f.agrupar === 'nenhum'
@@ -475,15 +489,15 @@ function ProntoParaVender({ aberto: secaoAberta, onAlternar, lotes, total, valor
             const g = ls.reduce((s, l) => s + l.saldo, 0)
             const v = ls.reduce((s, l) => s + (l.preco?.valorPrincipal ?? 0), 0)
             return (
-              <div key={med} className="rounded-xl border border-[var(--borda)]">
-                {!semCabecalho && <div className="flex items-center gap-1 rounded-xl bg-[var(--fundo)] pl-2">
-                  <button type="button" aria-expanded={aberto} onClick={() => alternar(med)} className="flex min-h-11 min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0 py-1 text-left text-sm">
-                    <span className="flex items-center gap-2">
-                      <span aria-hidden className={cx('inline-block text-[var(--suave)] transition-transform', aberto && 'rotate-90')}>›</span>
-                      <b className="whitespace-nowrap text-base">{rotulo}</b>
-                    </span>
-                    <span className="num text-[var(--suave)]"><span className="whitespace-nowrap">{t('{n} lote(s)', { n: ls.length })}</span> · <span className="whitespace-nowrap">{gramasTexto(g)}</span> · <b className="whitespace-nowrap text-[var(--texto)]">{v ? formatar(v, m) : '—'}</b></span>
+              <div key={med} className="border-t border-[var(--borda)] first:border-t-0">
+                {!semCabecalho && <div className={cx(GRADE_PRONTOS, 'num px-2 text-sm', aberto ? 'bg-[var(--marca-suave)]' : 'hover:bg-[var(--marca-suave)]')}>
+                  <button type="button" aria-expanded={aberto} onClick={() => alternar(med)} className="flex min-h-11 min-w-0 items-center gap-1 text-left sm:gap-2">
+                    <span aria-hidden className={cx('inline-block w-2.5 shrink-0 text-[var(--suave)] transition-transform', aberto && 'rotate-90')}>›</span>
+                    <span className="min-w-0"><b className="block truncate text-sm sm:text-base">{rotulo}</b><span className="block text-xs text-[var(--suave)] sm:hidden">{t('{n} lote(s)', { n: ls.length })}</span></span>
                   </button>
+                  <span className="hidden text-right sm:block">{ls.length}</span>
+                  <span className="whitespace-nowrap text-right">{gramasTexto(g)}</span>
+                  <b className="whitespace-nowrap text-right">{v ? formatar(v, m) : '—'}</b>
                   <MenuAcoes acoes={[
                     { rotulo: aberto ? 'Esconder os lotes' : 'Mostrar os lotes', icone: aberto ? '▴' : '▾', onClick: () => alternar(med) },
                     ...(medida ? [
@@ -494,7 +508,7 @@ function ProntoParaVender({ aberto: secaoAberta, onAlternar, lotes, total, valor
                   ]} />
                 </div>}
                 {(aberto || semCabecalho) && (
-                  <ul className="divide-y divide-[var(--borda)]">
+                  <ul className={cx('divide-y divide-[var(--borda)]', !semCabecalho && 'border-t border-[var(--borda)] sm:pl-5')}>
                     {mostrar.map((l) => {
                       const pct = l.preco && l.margem !== undefined && l.preco.valorPrincipal ? Math.round((l.margem * 10000) / l.preco.valorPrincipal) : undefined
                       return (
@@ -527,11 +541,27 @@ function ProntoParaVender({ aberto: secaoAberta, onAlternar, lotes, total, valor
               </div>
             )
           })}
+          {/* total de tudo o que está na tabela */}
+          {ordem.length > 1 && (
+            <div className={cx(GRADE_PRONTOS, 'num border-t-2 border-[var(--borda)] bg-[var(--fundo)] px-2 py-2 text-sm font-bold')}>
+              <span className="min-w-0 pl-3.5 sm:pl-5">{t('Total')}<span className="block text-xs font-normal text-[var(--suave)] sm:hidden">{t('{n} lote(s)', { n: filtrados.length })}</span></span>
+              <span className="hidden text-right sm:block">{filtrados.length}</span>
+              <span className="whitespace-nowrap text-right">{gramasTexto(filtrados.reduce((s, l) => s + l.saldo, 0))}</span>
+              <span className="whitespace-nowrap text-right">{formatar(filtrados.reduce((s, l) => s + (l.preco?.valorPrincipal ?? 0), 0), m)}</span>
+              <span aria-hidden />
+            </div>
+          )}
         </div>
       )}
       </div>}
+      </div>
     </section>
   )
+}
+
+/** Número da seção (1 Para separar · 2 Prontos para vender), como nas seções da Nova compra. */
+function NumeroSecao({ n }: { n: number }) {
+  return <span aria-hidden className="num mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--marca)] text-xs font-bold text-white">{n}</span>
 }
 
 function Coluna({ col, lotes, children, alvo, lista, rodape, ...zona }: { col: ColunaTriagem; lotes: Lote[]; children(ls: Lote[]): ReactNode; alvo?: boolean; lista?: boolean; rodape?: ReactNode; onDragOver?(e: DragEvent): void; onDragLeave?(): void; onDrop?(e: DragEvent): void }) {
@@ -734,53 +764,144 @@ function Unificar({ lotes, campos, onFechar, onFeito }: { lotes: Lote[]; campos:
   )
 }
 
-/** TRIAGENS FEITAS: cada T-id com data, quem, compras que entraram, lotes que saíram, perda e as vendas depois. */
-function ListaTriagens({ aberta, resumo }: { aberta?: string; resumo?: ReactNode }) {
+type TriagemFeita = ResultadoConsulta<'triagens'>[number]
+const PERIODOS = [{ id: '7', nome: '7 dias' }, { id: '30', nome: '30 dias' }, { id: 'mes', nome: 'Mês' }, { id: '', nome: 'Tudo' }] as const
+const ORDENS = [{ id: '', nome: 'Mais recentes' }, { id: 'perda', nome: 'Mais perda (%)' }, { id: 'peso', nome: 'Mais peso' }]
+const AJUDA_PERDA = 'Perda = o que entrou − o que saiu. Ex.: 10 kg → 9,6 kg = 400 g (4%).'
+
+/** "o que se busca" de uma triagem: código, quem, compras (código e fornecedor) e pacotes que saíram */
+const buscaTriagem = (x: TriagemFeita) => [x.codigo, x.por, ...x.compras.flatMap((c) => [c.codigo, c.fornecedor]), ...x.saidas.map((s) => s.codigo)].filter(Boolean).join(' ').toLowerCase()
+
+/**
+ * TRIAGENS FEITAS: números de resumo (do que está filtrado), filtros (período, quem, compra, perda acima de X%,
+ * busca, ordenar; tudo no endereço) e UMA linha por triagem — T-0003 · 03/11 · Paula · 10 kg → 9,6 kg · perda 4% ·
+ * 3 pacotes · etiquetas. Tocar abre no lugar: compras → pacotes → vendas e o rastreio em gramas.
+ */
+function ListaTriagens({ aberta }: { aberta?: string }) {
   const t = useT()
   const { ir, ajustarParams } = useApp()
   const { dados } = useConsulta('triagens', { moduloId: 'cabelo' })
+  const [periodo, setPeriodo] = useParamTela('tp', '')
+  const [quem, setQuem] = useParamTela('tq', '')
+  const [compra, setCompra] = useParamTela('tc', '')
+  const [perdaMin, setPerdaMin] = useParamTela('tperda', '')
+  const [busca, setBusca] = useParamTela('tb', '')
+  const [ordem, setOrdem] = useParamTela('to', '')
+  const [maisFiltros, setMaisFiltros] = useState(!!(quem || compra || perdaMin))
+  const [imprimir, setImprimir] = useState<Id[]>()
   if (!dados) return <Carregando />
-  return <div className="space-y-3">{resumo}<ListaTriagensItens dados={dados} aberta={aberta} t={t} ir={ir} ajustarParams={ajustarParams} /></div>
+  if (!dados.length) return <p className="rounded-xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nenhuma triagem ainda. Selecione lotes no quadro e toque em “Separar” ou “Juntar e separar”.')}</p>
+
+  const agora = new Date()
+  const desde = periodo === 'mes' ? new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString() : periodo ? new Date(agora.getTime() - Number(periodo) * 86400000).toISOString() : ''
+  const pessoas = [...new Set(dados.map((x) => x.por).filter((p): p is string => !!p))].sort()
+  const termo = busca.trim().toLowerCase()
+  const termoCompra = compra.trim().toLowerCase()
+  const minBp = perdaMin ? Math.round(Number(perdaMin.replace(',', '.')) * 100) : undefined
+  const lista = dados
+    .filter((x) =>
+      (!desde || x.em >= desde) &&
+      (!quem || x.por === quem) &&
+      (!termoCompra || x.compras.some((c) => [c.codigo, c.fornecedor].filter(Boolean).join(' ').toLowerCase().includes(termoCompra))) &&
+      (minBp === undefined || !Number.isFinite(minBp) || x.perdaPct > minBp) &&
+      (!termo || buscaTriagem(x).includes(termo)))
+    .sort((a, b) => (ordem === 'perda' ? b.perdaPct - a.perdaPct : ordem === 'peso' ? b.pesoEntrada - a.pesoEntrada : 0) || (a.em < b.em ? 1 : -1))
+  const entrou = lista.reduce((s, x) => s + x.pesoEntrada, 0)
+  const saiu = lista.reduce((s, x) => s + x.pesoSaida, 0)
+  const perdaBp = entrou ? Math.round(((entrou - saiu) * 10000) / entrou) : 0
+  const ativos = [quem, compra, perdaMin].filter(Boolean).length
+  const limpar = () => ajustarParams({ tp: undefined, tq: undefined, tc: undefined, tperda: undefined, tb: undefined, to: undefined })
+
+  return (
+    <div className="space-y-3">
+      {imprimir && <ImprimirEtiquetas ids={imprimir} onFechar={() => setImprimir(undefined)} />}
+      {/* resumo do que está filtrado */}
+      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+        <NumeroTriagem rotulo="Triagens" valor={String(lista.length)} />
+        <NumeroTriagem rotulo="Entrou" valor={gramasTexto(entrou)} />
+        <NumeroTriagem rotulo="Saiu" valor={gramasTexto(saiu)} />
+        <NumeroTriagem rotulo="Perda" ajuda={AJUDA_PERDA} valor={fmt(perdaBp, 'percentual')} detalhe={gramasTexto(entrou - saiu)} ruim={perdaBp > 500} />
+      </div>
+
+      {/* filtros: período e busca à mão; quem, compra, perda e ordem em "Filtros" */}
+      <div className="space-y-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-0 flex-1 [&_button]:whitespace-nowrap [&_button]:px-1 sm:[&_button]:px-3"><Escolha rotulo="Período" valor={periodo} onChange={setPeriodo} opcoes={[...PERIODOS]} /></div>
+          <Botao variante={maisFiltros || ativos ? 'secundario' : 'leve'} className="shrink-0 px-3" aria-label={t('Filtros')} aria-expanded={maisFiltros} onClick={() => setMaisFiltros(!maisFiltros)}>⚙︎<span className="hidden sm:inline"> {t('Filtros')}</span>{ativos ? ` · ${ativos}` : ''}</Botao>
+        </div>
+        <Entrada type="search" className="w-full" aria-label={t('Buscar triagem')} placeholder={t('T-0003, compra, fornecedor, pacote…')} value={busca} onChange={(e) => setBusca(e.target.value)} />
+        {maisFiltros && (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <Campo rotulo="Quem triou"><Selecao valor={quem} onChange={setQuem} vazio="Todos" opcoes={pessoas.map((p) => ({ id: p, nome: p }))} /></Campo>
+            <Campo rotulo="Compra"><Entrada placeholder={t('Ex.: P-0003 ou Maria')} value={compra} onChange={(e) => setCompra(e.target.value)} /></Campo>
+            <Campo rotulo="Perda acima de (%)"><Entrada inputMode="decimal" placeholder={t('Ex.: 5')} value={perdaMin} onChange={(e) => setPerdaMin(e.target.value.replace(/[^\d,.]/g, ''))} /></Campo>
+            <Campo rotulo="Ordenar"><Selecao valor={ordem} onChange={setOrdem} opcoes={ORDENS} /></Campo>
+          </div>
+        )}
+        {(periodo || ativos > 0 || termo || ordem) && (
+          <button type="button" onClick={limpar} className="min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">✕ {t('Limpar filtros')}</button>
+        )}
+      </div>
+
+      {!lista.length ? (
+        <p className="rounded-xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nenhuma triagem com esses filtros.')}</p>
+      ) : (
+        <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+          {lista.map((x) => <LinhaTriagem key={x.id} x={x} aberta={aberta === x.id} t={t} ir={ir} onAlternar={() => ajustarParams({ t: aberta === x.id ? undefined : x.id })} onImprimir={setImprimir} />)}
+        </ul>
+      )}
+    </div>
+  )
 }
 
-function ListaTriagensItens({ dados, aberta, t, ir, ajustarParams }: { dados: ResultadoConsulta<'triagens'>; aberta?: string; t: T; ir: ReturnType<typeof useApp>['ir']; ajustarParams: ReturnType<typeof useApp>['ajustarParams'] }) {
-  const [imprimir, setImprimir] = useState<Id[]>()
-  if (!dados.length) return <p className="rounded-xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nenhuma triagem ainda. Selecione lotes no quadro e toque em “Separar” ou “Juntar e separar”.')}</p>
+function NumeroTriagem({ rotulo, valor, detalhe, ajuda, ruim }: { rotulo: string; valor: string; detalhe?: string; ajuda?: string; ruim?: boolean }) {
+  const t = useT()
   return (
-    <>
-    {imprimir && <ImprimirEtiquetas ids={imprimir} onFechar={() => setImprimir(undefined)} />}
-    <ul className="space-y-2">
-      {dados.map((x) => {
-        const abrir = aberta === x.id
-        // etiquetas desta separação: '3 de 4 com etiqueta' e imprimir as que faltam (só das que ainda têm peso)
-        const faltam = x.saidas.filter((s) => !s.etiquetaImpressaEm && s.saldo > 0)
-        const com = x.saidas.filter((s) => s.etiquetaImpressaEm).length
-        return (
-          <li key={x.id} className={cx('rounded-2xl border bg-[var(--cartao)] p-3 shadow-sm', abrir ? 'border-[var(--marca)]' : 'border-[var(--borda)]')}>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <b className="text-lg">✂️ {x.codigo}</b>
-              <span className="text-sm text-[var(--suave)]">{dataBR(x.em)}{x.por ? ` · ${x.por}` : ''}</span>
-              <span className="num ml-auto whitespace-nowrap text-sm"><b>{gramasTexto(x.pesoEntrada)}</b> → <b>{gramasTexto(x.pesoSaida)}</b> · <span className={x.perda > 0 ? 'text-[var(--ruim)]' : 'text-[var(--suave)]'}>{t('perda')} {gramasTexto(x.perda)} ({fmt(x.perdaPct, 'percentual')})</span></span>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-1 text-sm">
-              <CadeiaChips cadeia={{ compras: x.compras, triagens: [], vendas: [] }} max={4} />
-              <span aria-hidden className="text-[var(--suave)]">→</span>
-              {x.saidas.map((s) => <button key={s.id} type="button" onClick={() => ir('lote', { id: s.id })} title={s.etiquetaImpressaEm ? t('Etiqueta') : t('Sem etiqueta')} className="min-h-8 rounded-full bg-[var(--fundo)] px-2 text-xs font-semibold hover:bg-[var(--marca-suave)]">📦 {s.codigo} · <span className="num">{gramasTexto(s.g)}</span> <span aria-hidden className={s.etiquetaImpressaEm ? 'text-[var(--bom)]' : 'text-[var(--alerta)]'}>{s.etiquetaImpressaEm ? '✓' : '🏷'}</span></button>)}
-              {x.vendas.length > 0 && <><span aria-hidden className="text-[var(--suave)]">→</span><CadeiaChips cadeia={{ compras: [], triagens: [], vendas: x.vendas }} max={4} /></>}
-            </div>
-            {x.saidas.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                <span className={cx('font-semibold', faltam.length ? 'text-[var(--alerta)]' : 'text-[var(--bom)]')}>{faltam.length ? '🏷' : '✓'} {t('{c} de {n} com etiqueta', { c: com, n: x.saidas.length })}</span>
-                {faltam.length > 0 && <Botao variante="secundario" onClick={() => setImprimir(faltam.map((s) => s.id))}>🖨 {t(faltam.length === 1 ? 'Imprimir a que falta' : 'Imprimir as {n} que faltam', { n: faltam.length })}</Botao>}
-              </div>
-            )}
-            <button type="button" aria-expanded={abrir} onClick={() => ajustarParams({ t: abrir ? undefined : x.id })} className="mt-2 min-h-10 text-sm font-semibold text-[var(--marca)]">{abrir ? t('Fechar o rastreio') : t('Ver o rastreio completo (gramas)')}</button>
-            {abrir && <RastreioDaTriagem id={x.id} />}
-          </li>
-        )
-      })}
-    </ul>
-    </>
+    <div className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-2 py-2 sm:p-3">
+      <div className="flex items-center truncate text-xs text-[var(--suave)]">{t(rotulo)}{ajuda && <Info texto={ajuda} />}</div>
+      <div className={cx('num truncate text-base font-bold sm:text-xl', ruim && 'text-[var(--ruim)]')}>{valor}{detalhe && <span className="ml-1 hidden text-sm font-normal text-[var(--suave)] sm:inline">{detalhe}</span>}</div>
+    </div>
+  )
+}
+
+/** Uma triagem numa linha; tocar abre no lugar (compras → pacotes → vendas, etiquetas e rastreio). */
+function LinhaTriagem({ x, aberta, t, ir, onAlternar, onImprimir }: { x: TriagemFeita; aberta: boolean; t: T; ir: ReturnType<typeof useApp>['ir']; onAlternar(): void; onImprimir(ids: Id[]): void }) {
+  // etiquetas desta separação: '3 de 4 com etiqueta' e imprimir as que faltam (só das que ainda têm peso)
+  const faltam = x.saidas.filter((s) => !s.etiquetaImpressaEm && s.saldo > 0)
+  const com = x.saidas.filter((s) => s.etiquetaImpressaEm).length
+  const fornecedores = [...new Set(x.compras.map((c) => c.fornecedor).filter(Boolean))]
+  const rotuloImprimir = t(faltam.length === 1 ? 'Imprimir a que falta' : 'Imprimir as {n} que faltam', { n: faltam.length })
+  return (
+    <li className={cx(aberta && 'bg-[var(--marca-suave)]/40')}>
+      <div className="flex items-center gap-2 px-3 py-2">
+        <div {...clicavel(onAlternar)} aria-expanded={aberta} className="min-w-0 flex-1 cursor-pointer rounded-lg outline-none focus-visible:bg-[var(--marca-suave)]">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span aria-hidden className={cx('inline-block w-3 text-[var(--suave)] transition-transform', aberta && 'rotate-90')}>›</span>
+            <b className="font-mono text-base">{x.codigo}</b>
+            <span className="text-sm text-[var(--suave)]">{dataBR(x.em)}{x.por ? ` · ${x.por}` : ''}</span>
+          </div>
+          <div className="num mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-5 text-sm">
+            <span className="whitespace-nowrap"><b>{gramasTexto(x.pesoEntrada)}</b> → <b>{gramasTexto(x.pesoSaida)}</b></span>
+            <span className={cx('whitespace-nowrap font-semibold', x.perdaPct > 500 ? 'text-[var(--ruim)]' : x.perda > 0 ? 'text-[var(--alerta)]' : 'text-[var(--suave)]')}>{t('perda')} {fmt(x.perdaPct, 'percentual')}{aberta && x.perda > 0 ? ` · ${gramasTexto(x.perda)}` : ''}</span>
+            <span className="whitespace-nowrap text-[var(--suave)]">· {t('{n} pacote(s)', { n: x.saidas.length })}</span>
+            {x.saidas.length > 0 && <span className={cx('whitespace-nowrap font-semibold', faltam.length ? 'text-[var(--alerta)]' : 'text-[var(--bom)]')}>{faltam.length ? '🏷' : '✓'} {t('{c} de {n} com etiqueta', { c: com, n: x.saidas.length })}</span>}
+            {fornecedores.length > 0 && <span className="min-w-0 truncate text-[var(--suave)]">· {fornecedores.join(', ')}</span>}
+          </div>
+        </div>
+        {faltam.length > 0 && <Botao variante="secundario" className="shrink-0 px-3" aria-label={rotuloImprimir} title={rotuloImprimir} onClick={() => onImprimir(faltam.map((s) => s.id))}>🖨<span className="hidden sm:inline"> {rotuloImprimir}</span></Botao>}
+      </div>
+      {aberta && (
+        <div className="space-y-2 px-3 pb-3 pl-8">
+          <div className="flex flex-wrap items-center gap-1 text-sm">
+            <CadeiaChips cadeia={{ compras: x.compras, triagens: [], vendas: [] }} max={4} />
+            <span aria-hidden className="text-[var(--suave)]">→</span>
+            {x.saidas.map((s) => <button key={s.id} type="button" onClick={() => ir('lote', { id: s.id })} title={s.etiquetaImpressaEm ? t('Etiqueta') : t('Sem etiqueta')} className="min-h-8 rounded-full bg-[var(--fundo)] px-2 text-xs font-semibold hover:bg-[var(--marca-suave)]">📦 {s.codigo} · <span className="num">{gramasTexto(s.g)}</span> <span aria-hidden className={s.etiquetaImpressaEm ? 'text-[var(--bom)]' : 'text-[var(--alerta)]'}>{s.etiquetaImpressaEm ? '✓' : '🏷'}</span></button>)}
+            {x.vendas.length > 0 && <><span aria-hidden className="text-[var(--suave)]">→</span><CadeiaChips cadeia={{ compras: [], triagens: [], vendas: x.vendas }} max={4} /></>}
+          </div>
+          <RastreioDaTriagem id={x.id} />
+        </div>
+      )}
+    </li>
   )
 }
 

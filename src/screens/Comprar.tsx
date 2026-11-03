@@ -27,6 +27,7 @@ import { CampoCodigoCompra, CodigoSelo, TrocarCodigo } from '../ui/codigos'
 import { BuscaPessoa } from '../ui/buscaPessoa'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
+import { useLargo } from '../ui/calendario'
 
 const ENCERRADAS = ['concluido', 'recusado', 'cancelado']
 const codigoDe = (c: { codigo?: string; id: string }) => c.codigo ?? `#${c.id.slice(-5)}`
@@ -77,6 +78,10 @@ export function Comprar() {
   const setOrdem = (o: { por: Ordem; desc: boolean }) => setOrdemTxt(`${o.por}-${o.desc ? 'desc' : 'asc'}`)
   const { dados: fila } = useConsulta('filaTriagem', { incluirEncerradas: true })
   const { dados: cfg } = useConsulta('configuracoes', {})
+  // celular: lista de linhas curtas que abrem no lugar; computador/tablet: a tabela
+  const largo = useLargo()
+  const [abertos, setAbertos] = useState<Set<Id>>(new Set())
+  const alternarAberto = (id: Id) => setAbertos((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   if (nav.params.id) return <Pedido />
   const etapasDo = (moduloId: string) => cfg?.modulos.find((m) => m.id === moduloId)?.etapas ?? []
   const todas = fila ?? []
@@ -123,11 +128,11 @@ export function Comprar() {
         <Botao grande onClick={() => ir('novaCompra')}>+ {t('Nova compra')}</Botao>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         {resumo.map((r) => (
-          <button key={r.nome} type="button" onClick={r.abrir} className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left hover:border-[var(--marca)]">
-            <div className="text-xs text-[var(--suave)]">{t(r.nome)}</div>
-            <div className="num text-xl font-bold">{r.valor}</div>
+          <button key={r.nome} type="button" onClick={r.abrir} className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-3 py-2 text-left hover:border-[var(--marca)] sm:p-3">
+            <div className="truncate text-xs text-[var(--suave)]">{t(r.nome)}</div>
+            <div className="num truncate text-lg font-bold sm:text-xl">{r.valor}</div>
           </button>
         ))}
       </div>
@@ -144,13 +149,14 @@ export function Comprar() {
           </div>
           <Entrada type="search" className="w-full sm:ml-auto sm:w-72" placeholder={t('Buscar código (atual ou antigo), sigla, fornecedor, item…')} value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('O que falta')}</span>
-          <div className="min-w-0 flex-1">
+        {/* celular: "O que falta" e "⚙ Etapas e regras" numa linha, os chips embaixo com a largura toda; computador: tudo numa linha */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="order-1 whitespace-nowrap text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('O que falta')}</span>
+          <div className="order-3 w-full min-w-0 sm:order-2 sm:w-auto sm:flex-1">
             <FiltroPendencia valor={pendencia} onChange={setPendencia} contagem={contagem} opcoes={opcoesPend.filter((o) => contagem[o.id] || pendencia === o.id)} />
           </div>
           {sessao.perfil === 'admin' && (
-            <button type="button" onClick={() => ir('config', { aba: 'etapas' })} className="min-h-10 rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Etapas e regras')}</button>
+            <button type="button" onClick={() => ir('config', { aba: 'etapas' })} className="order-2 ml-auto min-h-10 whitespace-nowrap rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)] sm:order-3 sm:ml-0">⚙ {t('Etapas e regras')}</button>
           )}
         </div>
       </div>
@@ -159,6 +165,43 @@ export function Comprar() {
         <Carregando />
       ) : !lista.length ? (
         <Vazio texto="Nenhum pedido com esse filtro." />
+      ) : !largo ? (
+        // celular: uma linha curta por pedido (quem · total · código · etapa · "2 pendências"); tocar abre o resto no lugar
+        <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
+          {lista.map((c) => {
+            const aberto = abertos.has(c.id)
+            const gramas = c.linhas.reduce((s, l) => s + l.quantidade, 0)
+            const urgente = c.pendencias.some((p) => p.nivel === 'urgente')
+            return (
+              <li key={c.id} className={cx(aberto && 'bg-[var(--marca-suave)]/40')}>
+                <button type="button" aria-expanded={aberto} onClick={() => alternarAberto(c.id)} className="flex w-full min-w-0 items-center gap-2 px-3 py-2.5 text-left">
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      <b className="min-w-0 flex-1 truncate">{c.pessoa ?? t('Sem fornecedor')}</b>
+                      <b className="num shrink-0 whitespace-nowrap">{formatar(c.totalPrincipal, c.moedaPrincipal)}</b>
+                    </span>
+                    <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 text-xs">
+                      <span className="font-mono font-bold text-[var(--marca)]">{codigoDe(c)}</span>
+                      <span className={cx('font-semibold', c.etapa === 'concluido' ? 'text-[var(--bom)]' : ENCERRADAS.includes(c.etapa) ? 'text-[var(--ruim)]' : 'text-[var(--marca)]')}>{t(c.nomeEtapa)}</span>
+                      {c.pendencias.length > 0
+                        ? <span className={cx('font-semibold', urgente ? 'text-[var(--ruim)]' : 'text-[var(--alerta)]')}>{urgente ? '●' : '○'} {t(c.pendencias.length === 1 ? '1 pendência' : '{n} pendências', { n: c.pendencias.length })}</span>
+                        : <span className="font-semibold text-[var(--bom)]">✓ {t('Completa')}</span>}
+                    </span>
+                  </span>
+                  <span aria-hidden className={cx('shrink-0 text-lg text-[var(--suave)] transition-transform', aberto && 'rotate-90')}>›</span>
+                </button>
+                {aberto && (
+                  <div className="space-y-2 px-3 pb-3 text-sm">
+                    <Progresso etapas={etapasDo(c.moduloId)} atual={c.etapa} mini />
+                    <p className="num text-xs text-[var(--suave)]">{dataBR(c.data)} · {c.linhas.length} {t('item(ns)')} · {gramasTexto(gramas)}{ENCERRADAS.includes(c.etapa) ? '' : ` · ${t('parada há {n} d', { n: c.diasParada })}`}</p>
+                    {c.pendencias.length > 0 && <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} />}
+                    <Botao className="w-full" onClick={() => ir('pedido', { id: c.id })}>{t('Abrir pedido')} →</Botao>
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
           <table className="w-full text-sm">
