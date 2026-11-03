@@ -41,6 +41,10 @@ describe('toda ação com o usuário', () => {
     expect(log.linhas[0].usuarioNome).toBe('Funcionária 1')
     const tempo = await b.consulta('linhaDoTempo', { id: 'v' })
     expect(tempo.some((e) => e.por === 'Funcionária 1')).toBe(true)
+    // detalhes: pagamentos no registro e caixa com antes → depois
+    expect(tempo.find((e) => e.pagamentos)?.pagamentos?.[0]).toMatchObject({ moeda: 'BOB', valor: bs(80) })
+    const cx = tempo.find((e) => e.tipo === 'caixa')!
+    expect(cx.saldo!.depois - cx.saldo!.antes).toBe(bs(80))
     const lista = await b.consulta('vendas', { usuarioId: 'f1' })
     expect(lista).toHaveLength(1)
     expect(lista[0].feitoPor).toBe('Funcionária 1')

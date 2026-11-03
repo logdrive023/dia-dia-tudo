@@ -49,7 +49,7 @@ describe('tabela de preço (tela)', () => {
     const proxima = botao.textContent!.replace('Publicar ', '')
     fireEvent.click(botao)
     await waitFor(() => expect(publicar()).toBeNull(), { timeout: 10000 })
-    await screen.findByRole('button', { name: '60 cm · Helena: 17' })
+    await screen.findByRole('button', { name: '60 cm · Helena: 17' }, { timeout: 10000 })
 
     fireEvent.click(screen.getByRole('tab', { name: /Histórico/ }))
     await screen.findByText('“Subiu 60 cm Helena”', {}, { timeout: 10000 })

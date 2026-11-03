@@ -1,8 +1,18 @@
 // LOG DETALHADO e LINHA DO TEMPO: tudo o que aconteceu, quem fez e quando.
 // "Pedido entrou dia X com Y, Z · fulana conferiu · ciclana pagou · entrou no estoque · vendido para…"
 
-import type { Id } from '../domain/tipos'
+import type { Cotacao } from '../domain/dinheiro'
+import type { Id, Unidade } from '../domain/tipos'
+import { NOMES_TIPO_CAIXA } from './caixa'
 import { type Ctx, lerConfig } from './contexto'
+
+/** Referência clicável dentro dos detalhes do evento (lote, venda, compra, triagem, viagem, adiantamento…). */
+export interface LinkEvento {
+  tipo: 'lote' | 'venda' | 'compra' | 'triagem' | 'viagem' | 'adiantamento' | 'pessoa' | 'emprestimo' | 'caixa'
+  tela: string
+  params?: Record<string, string>
+  rotulo: string
+}
 
 export interface EventoTempo {
   em: string
@@ -20,6 +30,59 @@ export interface EventoTempo {
   valor?: { valor: number; moeda: string; forma?: string }
   motivo?: string
   ajustes?: string[]
+  // ---- DETALHES (opcionais; a tela mostra em "detalhes ▾") ----
+  /** chave estável do evento (abrir/fechar os detalhes) */
+  chave?: string
+  /** correção, estorno, ajuste, conferência, cancelamento ou troca de código: entra também no filtro "Correções" */
+  correcao?: boolean
+  /** subtipo legível: "Compra", "Ajuste", "Recebimento"… */
+  categoria?: string
+  /** antes → movimentou → depois (estoque do lote, caixa da moeda, conta da pessoa, total da venda corrigida) */
+  saldo?: { rotulo: string; antes: number; delta: number; depois: number; unidade?: Unidade; moeda?: string }
+  /** pagamentos do registro (forma, moeda, valor, cotação usada) */
+  pagamentos?: { forma: string; moeda: string; valor: number; cotacao?: string; valorPrincipal?: number; moedaPrincipal?: string }[]
+  anexo?: { nome: string; mime?: string; tamanho?: number; categoria?: string }
+  links?: LinkEvento[]
+  /** texto completo do registro (resumo do log / descrição do movimento) */
+  texto?: string
+}
+
+const ACOES_CORRECAO = new Set([
+  'corrigirVenda', 'conferirPesoCompra', 'estornarLancamento', 'ajustarEstoque', 'ajustarConta', 'trocarCodigoCompra', 'trocarCodigoLote',
+  'anularDespesaViagem', 'ajustarFinanciamento', 'removerAnexo', 'cancelarCompra', 'cancelarVenda', 'precoAlterado', 'insumoAjustado', 'cotacaoManual',
+])
+
+const NOMES_MOTIVO_ESTOQUE: Record<string, string> = {
+  compra: 'Compra', venda: 'Venda', uso: 'Uso', ajuste: 'Ajuste', perda: 'Perda', cancelamento: 'Cancelamento', transformacao: 'Triagem', correcao: 'Correção', unificacao: 'Unificação',
+}
+const NOMES_TIPO_CONTA: Record<string, string> = {
+  venda: 'Venda', compra: 'Compra', recebimento: 'Recebimento', pagamento: 'Pagamento', adiantamento: 'Adiantamento', ajuste: 'Ajuste', estorno: 'Estorno', comissao: 'Comissão',
+}
+
+const porData = <T extends { criadoEm: string; id: string }>(a: T, b: T) => (a.criadoEm < b.criadoEm ? -1 : a.criadoEm > b.criadoEm ? 1 : a.id < b.id ? -1 : 1)
+
+function textoCotacao(c: Cotacao | undefined, principal: string) {
+  return c ? `1 ${c.moeda} = ${c.valor} ${c.contra ?? principal}` : undefined
+}
+
+/** Descobre o que é um id (para virar link): compra, venda, lote, pessoa, viagem, adiantamento, empréstimo. */
+async function linkDe(ctx: Ctx, id: Id, cache: Map<Id, LinkEvento | null>): Promise<LinkEvento | undefined> {
+  if (cache.has(id)) return cache.get(id) ?? undefined
+  let l: LinkEvento | undefined
+  const tr = await ctx.repos.transacoes.obter(id)
+  if (tr) l = tr.tipo === 'compra' ? { tipo: 'compra', tela: 'pedido', params: { id }, rotulo: tr.codigo ?? 'Compra' } : { tipo: 'venda', tela: 'venda', params: { id }, rotulo: tr.codigo ?? 'Venda' }
+  const it = l ? undefined : await ctx.repos.itens.obter(id)
+  if (it) l = { tipo: 'lote', tela: 'lote', params: { id }, rotulo: it.codigo ?? it.nome }
+  const pe = l ? undefined : await ctx.repos.pessoas.obter(id)
+  if (pe) l = { tipo: 'pessoa', tela: 'pessoa', params: { id }, rotulo: pe.nome }
+  const vg = l ? undefined : await ctx.repos.viagens.obter(id)
+  if (vg) l = { tipo: 'viagem', tela: 'viagem', params: { id }, rotulo: vg.codigo }
+  const fi = l ? undefined : await ctx.repos.financiamentos.obter(id)
+  if (fi) l = { tipo: 'adiantamento', tela: 'financiamento', params: { id }, rotulo: fi.codigo }
+  const em = l ? undefined : await ctx.repos.emprestimos.obter(id)
+  if (em) l = { tipo: 'emprestimo', tela: 'emprestimo', params: { id }, rotulo: 'Empréstimo' }
+  cache.set(id, l ?? null)
+  return l
 }
 
 const NOMES_ACAO: Record<string, string> = {
@@ -107,15 +170,40 @@ export async function linhaDoTempo(ctx: Ctx, p: { id: Id }) {
   const eventos: EventoTempo[] = []
   const t = await ctx.repos.transacoes.obter(p.id)
   const log = (await ctx.repos.auditoria.listar()).filter((a) => a.alvoId === p.id || a.ligados?.includes(p.id))
+  const cache = new Map<Id, LinkEvento | null>()
+  const usuarios = new Map((await ctx.repos.usuarios.listar()).map((u) => [u.id, u.nome]))
+  const cfg = await lerConfig(ctx)
+  const nomeForma = new Map(cfg.formas.map((f) => [f.id, f.nome]))
+  const linksDe = async (ids: (Id | undefined)[]) => {
+    const r: LinkEvento[] = []
+    for (const id of [...new Set(ids.filter((x): x is Id => !!x && x !== p.id))]) {
+      const l = await linkDe(ctx, id, cache)
+      if (l) r.push(l)
+    }
+    return r
+  }
   if (t) {
     const nomesEtapa = new Map<string, string>()
     if (ctx.modulos.tem(t.moduloId)) for (const e of ctx.modulos.obter(t.moduloId).compra?.etapas ?? []) nomesEtapa.set(e.id, e.nome)
     const nomeEtapa = (id: string) =>
       nomesEtapa.get(id) ?? ({ agendado: 'Agendado', concluido: 'Concluído', cancelado: 'Cancelado', recusado: 'Recusado' } as Record<string, string>)[id] ?? id
     const unidadeDe = async (itemId?: Id) => (itemId ? (await ctx.repos.itens.obter(itemId))?.unidade : undefined)
-    for (const h of t.historico) {
+    const pagamentos = t.pagamentos.map((pg) => ({
+      forma: nomeForma.get(pg.forma) ?? pg.forma,
+      moeda: pg.moeda,
+      valor: pg.valor,
+      cotacao: pg.moeda !== t.moedaPrincipal ? textoCotacao(pg.cotacao, t.moedaPrincipal) : undefined,
+      valorPrincipal: pg.moeda !== t.moedaPrincipal ? pg.valorPrincipal : undefined,
+      moedaPrincipal: t.moedaPrincipal,
+    }))
+    const linksBase = await linksDe([t.pessoaId, t.viagemId, t.financiamentoId])
+    let comPagamentos = false
+    for (const [k, h] of t.historico.entries()) {
       const correcao = h.tipo === 'correcao'
       const entrada = !h.de && !correcao
+      // os pagamentos aparecem no registro (ou na conclusão da venda), uma vez só
+      const levaPagamentos = !comPagamentos && !correcao && pagamentos.length > 0 && (entrada || h.para === 'concluido')
+      if (levaPagamentos) comPagamentos = true
       eventos.push({
         em: h.em,
         tipo: 'etapa',
@@ -128,14 +216,40 @@ export async function linhaDoTempo(ctx: Ctx, p: { id: Id }) {
         detalhe: correcao && h.totalAntes !== undefined ? `antes:${h.totalAntes}` : undefined,
         motivo: h.motivo,
         ajustes: h.ajustes,
+        chave: `h${k}`,
+        correcao: correcao || h.para === 'cancelado' || undefined,
+        categoria: correcao ? 'Correção' : entrada ? 'Registro' : 'Etapa',
+        saldo:
+          correcao && h.totalAntes !== undefined && h.totalDepois !== undefined
+            ? { rotulo: 'Total', antes: h.totalAntes, delta: h.totalDepois - h.totalAntes, depois: h.totalDepois, moeda: t.moedaPrincipal }
+            : undefined,
+        pagamentos: levaPagamentos ? pagamentos : undefined,
+        links: entrada || correcao || levaPagamentos ? [...linksBase, ...(await linksDe(t.linhas.map((l) => l.itemId)))] : undefined,
       })
     }
-    const cfg = await lerConfig(ctx)
-    const nomeForma = new Map(cfg.formas.map((f) => [f.id, f.nome]))
-    for (const m of await ctx.repos.movCaixa.listar({ origemId: t.id }))
-      eventos.push({ em: m.criadoEm, tipo: 'caixa', titulo: m.delta > 0 ? 'Dinheiro entrou' : 'Dinheiro saiu', detalhe: m.descricao, valor: { valor: m.delta, moeda: m.moeda, forma: nomeForma.get(m.forma) ?? m.forma } })
+    // caixa: saldo da moeda (todas as formas) antes e depois de cada movimento
+    const doCaixa = await ctx.repos.movCaixa.listar({ origemId: t.id })
+    const todosCaixa = doCaixa.length ? (await ctx.repos.movCaixa.listar()).sort(porData) : []
+    for (const m of doCaixa) {
+      const antes = todosCaixa.slice(0, Math.max(0, todosCaixa.findIndex((x) => x.id === m.id))).filter((x) => x.moeda === m.moeda).reduce((s, x) => s + x.delta, 0)
+      eventos.push({
+        em: m.criadoEm,
+        tipo: 'caixa',
+        titulo: m.delta > 0 ? 'Dinheiro entrou' : 'Dinheiro saiu',
+        detalhe: m.descricao,
+        valor: { valor: m.delta, moeda: m.moeda, forma: nomeForma.get(m.forma) ?? m.forma },
+        por: usuarios.get(m.criadoPor),
+        chave: `c${m.id}`,
+        correcao: m.tipo === 'estorno' || m.tipo === 'correcao' || !!m.estornadoPor || undefined,
+        categoria: NOMES_TIPO_CAIXA[m.tipo] ?? m.tipo,
+        saldo: { rotulo: `Caixa ${m.moeda}`, antes, delta: m.delta, depois: antes + m.delta, moeda: m.moeda },
+        texto: m.descricao,
+        links: [{ tipo: 'caixa', tela: 'caixa', params: { data: m.data }, rotulo: `${m.data.split('-').reverse().join('/')}` }, ...(await linksDe([m.pessoaId, m.viagemId]))],
+      })
+    }
     for (const m of await ctx.repos.movEstoque.listar({ origemId: t.id })) {
       const item = await ctx.repos.itens.obter(m.itemId)
+      const lk = await linkDe(ctx, m.itemId, cache)
       eventos.push({
         em: m.criadoEm,
         tipo: 'estoque',
@@ -143,6 +257,13 @@ export async function linhaDoTempo(ctx: Ctx, p: { id: Id }) {
         itens: [{ texto: `${item?.codigo ?? ''} · ${item?.nome ?? ''}`, quantidade: m.delta, unidade: item?.unidade }],
         detalhe: `saldo:${m.saldoAntes}:${m.saldoDepois}`,
         ref: { tela: 'lote', id: m.itemId },
+        por: m.porNome ?? usuarios.get(m.criadoPor),
+        chave: `e${m.id}`,
+        correcao: m.motivo === 'correcao' || m.motivo === 'ajuste' || !!m.corrigeId || undefined,
+        categoria: NOMES_MOTIVO_ESTOQUE[m.motivo] ?? m.motivo,
+        saldo: { rotulo: item?.codigo ? `Saldo do lote ${item.codigo}` : 'Saldo do lote', antes: m.saldoAntes, delta: m.delta, depois: m.saldoDepois, unidade: item?.unidade },
+        texto: m.descricao,
+        links: [...(lk ? [lk] : []), ...(item?.triagem ? [{ tipo: 'triagem' as const, tela: 'triagem', rotulo: item.triagem.codigo }] : [])],
       })
     }
     // vendas que saíram dos lotes desta compra (destino)
@@ -162,13 +283,55 @@ export async function linhaDoTempo(ctx: Ctx, p: { id: Id }) {
           detalhe: v.codigo ? `Venda ${v.codigo}` : undefined,
           por: quem,
           ref: { tela: 'venda', id: v.id },
+          chave: `v${v.id}`,
+          categoria: 'Venda',
+          links: await linksDe([v.id, v.pessoaId, ...daqui.map((l) => l.itemId)]),
         })
       }
     }
   }
-  for (const a of log.filter((x) => !(t && (x.acao === 'avancarTriagem' || x.acao === 'criarCompra' || x.acao === 'concluirVenda' || x.acao === 'agendar' || x.acao === 'corrigirVenda'))))
-    eventos.push({ em: a.criadoEm, tipo: a.acao === 'anexar' ? 'anexo' : 'acao', titulo: nomeAcao(a.acao), detalhe: a.acao === 'tabelaPrecoAnterior' || a.acao === 'tabelaPrecoVersao' ? undefined : a.resumo, por: a.usuarioNome })
-  for (const an of await ctx.repos.anexos.listar({ donoId: p.id })) if (!log.some((a) => a.acao === 'anexar' && a.resumo.endsWith(an.nome))) eventos.push({ em: an.criadoEm, tipo: 'anexo', titulo: 'Arquivo anexado', detalhe: an.nome })
+  // conta corrente do registro: saldo da pessoa antes e depois (+ = a pessoa me deve)
+  for (const m of await ctx.repos.movConta.listar({ origemId: p.id })) {
+    const daPessoa = (await ctx.repos.movConta.listar({ pessoaId: m.pessoaId })).sort(porData)
+    const antes = daPessoa.slice(0, Math.max(0, daPessoa.findIndex((x) => x.id === m.id))).reduce((s, x) => s + x.delta, 0)
+    const pessoa = await linkDe(ctx, m.pessoaId, cache)
+    eventos.push({
+      em: m.criadoEm,
+      tipo: 'conta',
+      titulo: 'Movimento na conta',
+      detalhe: m.descricao,
+      valor: { valor: m.delta, moeda: m.moeda, forma: m.forma ? nomeForma.get(m.forma) ?? m.forma : undefined },
+      por: usuarios.get(m.criadoPor),
+      chave: `k${m.id}`,
+      correcao: m.tipo === 'ajuste' || m.tipo === 'estorno' || undefined,
+      categoria: NOMES_TIPO_CONTA[m.tipo] ?? m.tipo,
+      saldo: { rotulo: pessoa ? `Conta · ${pessoa.rotulo}` : 'Conta', antes, delta: m.delta, depois: antes + m.delta, moeda: m.moeda },
+      texto: m.descricao,
+      links: pessoa ? [pessoa] : undefined,
+    })
+  }
+  const anexos = await ctx.repos.anexos.listar({ donoId: p.id })
+  const fichaAnexo = (an: (typeof anexos)[number]) => ({ nome: an.nome, mime: an.mime, tamanho: an.tamanho, categoria: an.categoria })
+  for (const a of log.filter((x) => !(t && (x.acao === 'avancarTriagem' || x.acao === 'criarCompra' || x.acao === 'concluirVenda' || x.acao === 'agendar' || x.acao === 'corrigirVenda')))) {
+    const an = a.acao === 'anexar' ? anexos.find((x) => a.resumo.endsWith(x.nome)) : undefined
+    const semResumo = a.acao === 'tabelaPrecoAnterior' || a.acao === 'tabelaPrecoVersao'
+    eventos.push({
+      em: a.criadoEm,
+      tipo: a.acao === 'anexar' ? 'anexo' : 'acao',
+      titulo: nomeAcao(a.acao),
+      detalhe: semResumo ? undefined : a.resumo,
+      por: a.usuarioNome,
+      chave: `a${a.id}`,
+      correcao: ACOES_CORRECAO.has(a.acao) || undefined,
+      categoria: a.acao === 'anexar' ? 'Arquivo' : 'Ação',
+      anexo: an ? fichaAnexo(an) : undefined,
+      texto: semResumo ? undefined : a.resumo || undefined,
+      links: await linksDe([a.alvoId, ...(a.ligados ?? [])]),
+    })
+  }
+  for (const an of anexos)
+    if (!log.some((a) => a.acao === 'anexar' && a.resumo.endsWith(an.nome)))
+      eventos.push({ em: an.criadoEm, tipo: 'anexo', titulo: 'Arquivo anexado', detalhe: an.nome, por: usuarios.get(an.criadoPor), chave: `n${an.id}`, categoria: 'Arquivo', anexo: fichaAnexo(an) })
   return eventos.sort((a, b) => (a.em < b.em ? -1 : 1))
 }
 
