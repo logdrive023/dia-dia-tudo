@@ -194,9 +194,12 @@ export async function tabelaPreco(ctx: Ctx, p: { id: Id }) {
     .filter((x) => x.etapa !== 'cancelado' && x.linhas.some((l) => l.campos.tabelaId === t.id))
     .map((x) => {
       const ls = x.linhas.filter((l) => l.campos.tabelaId === t.id)
+      // versão que valia quando foi feita (a mais nova publicada antes dela) e as colunas (compradores) usadas
+      const versao = versoes.find((v) => v.em <= x.criadoEm)?.numero ?? versoes[versoes.length - 1]?.numero
+      const colunas = [...new Set(ls.map((l) => t.colunas.find((c) => c.id === l.campos.colunaId)?.nome).filter((n): n is string => !!n))]
       // desconto das linhas desta tabela (a linha com desconto continua ligada à tabela, com o fator que usou)
       return {
-        id: x.id, tipo: x.tipo, data: x.data, codigo: x.codigo, total: x.totalPrincipal, linhas: ls.length,
+        id: x.id, tipo: x.tipo, data: x.data, codigo: x.codigo, total: x.totalPrincipal, linhas: ls.length, versao, colunas,
         desconto: ls.reduce((s, l) => s + (l.descontoPrincipal ?? 0), 0),
         pessoa: x.pessoaId ? pessoas.get(x.pessoaId) : undefined,
         gramas: ls.reduce((s, l) => s + l.quantidade, 0),
@@ -209,7 +212,8 @@ export async function tabelaPreco(ctx: Ctx, p: { id: Id }) {
     })
     .sort((a, b) => (a.data < b.data ? 1 : -1))
   return {
-    tabela: t, versoes, atual: versoes[0]?.numero ?? 1, usos: usos.slice(0, 20), totalUsos: usos.length,
+    // a tela filtra (tipo, período, pessoa, versão, busca): vão até 300, os mais novos primeiro
+    tabela: t, versoes, atual: versoes[0]?.numero ?? 1, usos: usos.slice(0, 300), totalUsos: usos.length,
     // para a lista ("usada em 8 vendas · 2 compras")
     totalVendas: usos.filter((u) => u.tipo !== 'compra').length,
     totalCompras: usos.filter((u) => u.tipo === 'compra').length,

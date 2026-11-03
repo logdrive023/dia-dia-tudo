@@ -95,6 +95,10 @@ export interface Item extends Base {
   /** etiqueta: quando foi impressa pela última vez e por quem (Etiquetas › "Sem etiqueta" / "Já impressa") */
   etiquetaImpressaEm?: string
   etiquetaImpressaPor?: string
+  /** RESERVA: cliente pediu e o pacote fica guardado para ela (aparece 🔒 no estoque e um aviso ao vender para outra) */
+  reserva?: { para: string; ate?: string; obs?: string; em: string; porNome?: string }
+  /** peso impresso na etiqueta (o saldo na hora): vendeu parte depois → a etiqueta ficou velha, pede reimprimir */
+  etiquetaPeso?: number
   /** via da etiqueta (1, 2, 3…): sobe quando a antiga é cancelada ("Errou? Gerar nova"); o código do lote não muda */
   etiquetaVia?: number
   /** a última etiqueta cancelada: por quê, quando e quem */

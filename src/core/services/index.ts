@@ -42,6 +42,7 @@ export const comandos = {
   editarAtributosLote: estoque.editarAtributosLote,
   marcarEtiquetasImpressas: estoque.marcarEtiquetasImpressas,
   refazerEtiqueta: estoque.refazerEtiqueta,
+  reservarLote: estoque.reservarLote,
   // códigos de compra e lote (Configurações › Códigos; trocar depois fica no log)
   salvarCodigos: codigos.salvarCodigos,
   salvarSigla: codigos.salvarSigla,
@@ -52,6 +53,7 @@ export const comandos = {
   moverFaseTriagem: triagem.moverFaseTriagem,
   salvarFluxoTriagem: triagem.salvarFluxoTriagem,
   triarLotes: triagem.triarLotes,
+  desfazerTriagem: triagem.desfazerTriagem,
   // tabelas de preço
   salvarTabelaPreco: precos.salvarTabelaPreco,
   // conta corrente
@@ -62,6 +64,7 @@ export const comandos = {
   avancarTriagem: compras.avancarTriagem,
   cancelarCompra: compras.cancelarCompra,
   conferirPesoCompra: compras.conferirPesoCompra,
+  definirValorCompra: compras.definirValorCompra,
   salvarFormCompra: formCompra.salvarFormCompra,
   // vendas e atendimentos
   concluirVenda: vendas.concluirVenda,

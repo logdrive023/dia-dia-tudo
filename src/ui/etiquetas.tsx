@@ -63,7 +63,8 @@ export const AJUDA_TIPO_ETIQUETA = 'QR + barras: para leitor de balcão. Só QR:
 export interface MedidasEtiqueta { w: number; h: number; qr: number; foto: number; codigo: number; texto: number; barras: number }
 const limitar = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 export function medidasEtiqueta(w: number, h: number): MedidasEtiqueta {
-  const qr = Math.max(8, Math.min(h - 3, w * 0.45))
+  // etiqueta baixa (tag enrolada no pacote, < 25 mm): o QR ocupa mais da largura e o texto fica só com o código
+  const qr = Math.max(8, Math.min(h - 3, w * (h < 25 ? 0.6 : 0.45)))
   return { w, h, qr, foto: h >= 25 ? limitar(h * 0.34, 8, 18) : 0, codigo: limitar(h * 0.17, 3, 9), texto: limitar(h * 0.08, 1.8, 3.4), barras: limitar(h * 0.15, 3.5, 9) }
 }
 /** QR menor que isso: a câmera do celular pode não ler (impressora térmica de 203 dpi ≈ 3 pontos por quadradinho). */

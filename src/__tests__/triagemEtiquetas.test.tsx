@@ -49,7 +49,7 @@ describe('triagem: etiqueta à vista', () => {
 
     // triagens feitas: 2 de 2 depois de imprimir; desmarca uma (gera nova via) → "1 de 2" e "Imprimir a que falta"
     await b.comando('refazerEtiqueta', { id: 'b', motivo: 'Perdeu' })
-    fireEvent.click(screen.getByRole('tab', { name: 'Triagens feitas' }))
+    fireEvent.click(screen.getByRole('tab', { name: /Triagens feitas/ }))
     await screen.findByText('🏷 1 de 2 com etiqueta', { exact: false }, { timeout: 10000 })
     fireEvent.click(screen.getByRole('button', { name: /Imprimir a que falta/ }))
     await screen.findByRole('dialog', { name: 'Imprimir etiquetas' })

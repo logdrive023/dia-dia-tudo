@@ -40,16 +40,25 @@ export function CamposDinamicos({ campos, valores, onChange, pular = [], princip
   }
   const aVista = principais ? mostrar.filter((c) => principais.includes(c.id)) : mostrar
   const resto = principais ? mostrar.filter((c) => !principais.includes(c.id)) : []
-  const abrirResto = mais || resto.some((c) => valores[c.id] !== undefined && valores[c.id] !== '' && valores[c.id] !== false)
+  // fechado: o botão "+ mais" mostra o que já tem valor ("Textura: Lisa"); aberto: "− menos" recolhe de novo
+  const preenchidos = resto.filter((c) => valores[c.id] !== undefined && valores[c.id] !== '' && valores[c.id] !== false)
+  const textoResto = preenchidos.length
+    ? preenchidos.map((c) => `${t(c.nome)}: ${c.tipo === 'simNao' ? t('sim') : t(String(valores[c.id]))}`).join(' · ')
+    : resto.map((c) => t(c.nome)).join(', ')
   return (
     <>
       <div className={cx('grid gap-2 sm:grid-cols-3', principais && 'grid-cols-2')}>{aVista.map(desenhar)}</div>
-      {resto.length > 0 && !abrirResto && (
-        <button type="button" onClick={() => setMais(true)} className="min-h-10 max-w-full truncate rounded-lg px-1 text-left text-sm font-semibold text-[var(--marca)] hover:underline">
-          + {t('mais')} <span className="font-normal text-[var(--suave)]">({resto.map((c) => t(c.nome)).join(', ')})</span>
+      {resto.length > 0 && !mais && (
+        <button type="button" aria-expanded={false} onClick={() => setMais(true)} className="min-h-10 max-w-full truncate rounded-lg px-1 text-left text-sm font-semibold text-[var(--marca)] hover:underline">
+          + {t('mais')} <span className={cx('font-normal', preenchidos.length ? 'text-[var(--texto)]' : 'text-[var(--suave)]')}>({textoResto})</span>
         </button>
       )}
-      {resto.length > 0 && abrirResto && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{resto.map(desenhar)}</div>}
+      {resto.length > 0 && mais && (
+        <>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{resto.map(desenhar)}</div>
+          <button type="button" aria-expanded onClick={() => setMais(false)} className="min-h-10 rounded-lg px-1 text-left text-sm font-semibold text-[var(--marca)] hover:underline">− {t('menos')}</button>
+        </>
+      )}
     </>
   )
 }

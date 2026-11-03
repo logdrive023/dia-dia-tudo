@@ -399,14 +399,108 @@ async function lancarConferencia(ctx: Ctx, compra: Transacao, linhaId: Id, pesad
  * CONFERÊNCIA DE PESO (opcional, de um toque, vale mesmo depois de pago): pesou na chegada e deu diferente → lança a
  * diferença no lote, com motivo, sem mudar o que foi comprado. Ex.: comprou 10.000 g, pesou 9.850 g → −150 g.
  */
-export async function conferirPesoCompra(ctx: Ctx, d: { compraId: Id; linhaId: Id; pesado: number; motivo: string }) {
+export async function conferirPesoCompra(ctx: Ctx, d: { compraId: Id; linhaId?: Id; itemId?: Id; pesado: number; motivo: string }) {
   const t = await ctx.repos.transacoes.obter(d.compraId)
   exigir(t && t.tipo === 'compra', 'Compra não encontrada.')
   exigir(t.etapa !== ETAPA_CANCELADO && t.etapa !== ETAPA_RECUSADO, 'Essa compra foi cancelada.')
   exigir(Number.isSafeInteger(d.pesado) && d.pesado >= 0, 'Peso conferido inválido.', 'pesado')
   exigir(d.motivo?.trim(), 'Diga o motivo da diferença.', 'motivo')
-  await lancarConferencia(ctx, t, d.linhaId, d.pesado, d.motivo.trim())
+  // na triagem (passo 1 do Separar) vem o pacote, não a linha
+  const linhaId = d.linhaId ?? t.linhas.find((l) => l.itemId && l.itemId === d.itemId)?.id
+  exigir(linhaId, 'Linha não encontrada.')
+  await lancarConferencia(ctx, t, linhaId, d.pesado, d.motivo.trim())
   return { id: t.id }
+}
+
+/**
+ * VALOR DEPOIS / CORRIGIR O VALOR (vale mesmo já pago, separado ou vendido): muda o valor de uma linha e a DIFERENÇA
+ * segue o cabelo — o custo do pacote da compra, dos pacotes que saíram dele na triagem (pela mesma divisão de antes; se
+ * antes era 0, pelo peso) e o custo das vendas que já levaram esse cabelo. A conta do fornecedor também acompanha.
+ * Ex.: comprou 3 kg "sem valor", separou em 2 + 1 kg e vendeu 500 g; pôs Bs 3.000 → pacotes Bs 2.000 e 1.000,
+ * a venda passa a ter custo Bs 500.
+ */
+export async function definirValorCompra(ctx: Ctx, d: { compraId: Id; linhaId: Id; total: number; motivo: string }) {
+  const t = await ctx.repos.transacoes.obter(d.compraId)
+  exigir(t && t.tipo === 'compra', 'Compra não encontrada.')
+  exigir(t.etapa !== ETAPA_CANCELADO && t.etapa !== ETAPA_RECUSADO, 'Essa compra foi cancelada.')
+  exigirInteiroPositivo(d.total, 'Valor', true)
+  const motivo = (d.motivo ?? '').trim()
+  exigir(motivo, 'Diga o motivo (ex.: chegou a nota, valor combinado).', 'motivo')
+  const compra: Transacao = { ...t, linhas: t.linhas.map((l) => ({ ...l })) }
+  const l = compra.linhas.find((x) => x.id === d.linhaId)
+  exigir(l, 'Linha não encontrada.')
+  exigir(d.total !== l.total, 'O valor já é esse.')
+  const conv = await paraPrincipal(ctx, d.total, l.moeda, 'compra')
+  const delta = conv.valorPrincipal - l.totalPrincipal
+  const antes = l.total
+  l.total = d.total
+  l.totalPrincipal = conv.valorPrincipal
+  l.cotacao = conv.cotacao
+  compra.totalPrincipal = compra.linhas.reduce((s, x) => s + x.totalPrincipal, 0)
+  if (compra.totalPrincipal > 0 && compra.campos.semValor) compra.campos = { ...compra.campos, semValor: false }
+  // conta do fornecedor: só se a compra já lançou nela (depois da etapa de pagamento)
+  if (compra.pessoaId && (await ctx.repos.movConta.listar()).some((m) => m.origemId === compra.id))
+    await moverConta(ctx, { pessoaId: compra.pessoaId, delta: -delta, tipo: 'compra', origemId: compra.id, descricao: `Valor corrigido · ${l.descricao} · ${motivo}` })
+  const lotes = l.itemId ? await espalharCusto(ctx, l.itemId, delta) : []
+  compra.historico = [
+    ...compra.historico,
+    { de: compra.etapa, para: compra.etapa, tipo: 'correcao', em: ctx.relogio.agora(), por: ctx.sessao.usuarioId, porNome: ctx.sessao.nome, motivo, ajustes: [`${l.descricao}: valor ${formatar(antes, l.moeda)} → ${formatar(d.total, l.moeda)}`] },
+  ]
+  await ctx.repos.transacoes.salvar(tocar(ctx, compra))
+  await auditar(ctx, 'definirValorCompra', compra.id, `${compra.codigo ?? ''} · ${l.descricao}: ${formatar(antes, l.moeda)} → ${formatar(d.total, l.moeda)} · ${motivo}`, lotes)
+  return { id: compra.id, lotes: lotes.length }
+}
+
+/**
+ * Soma `delta` ao custo do lote e passa a parte dele adiante: separação (pela fração usada, dividida entre as partes
+ * como o custo já estava; custo 0 → pelo peso), unificação (pela fração que entrou) e vendas (custo da linha).
+ */
+async function espalharCusto(ctx: Ctx, raizId: Id, delta: number) {
+  if (!delta) return []
+  const itens = (await ctx.repos.itens.listar()).filter((i) => !i.campos.triagemDesfeita)
+  const porId = new Map(itens.map((i) => [i.id, i]))
+  const movs = await ctx.repos.movEstoque.listar()
+  const vendas = (await ctx.repos.transacoes.listar({ tipo: 'venda' })).filter((v) => v.etapa !== 'cancelado')
+  const recebe = new Map<Id, number>([[raizId, delta]])
+  const fila = [raizId]
+  const mexidos: Id[] = []
+  const proporcao = (v: number, a: number, b: number) => (b ? Math.round((v * a) / b) : 0)
+  while (fila.length) {
+    const id = fila.shift()!
+    const dl = recebe.get(id) ?? 0
+    const lote = porId.get(id)
+    if (!lote || !dl) continue
+    recebe.delete(id)
+    const ini = lote.quantidadeInicial ?? 0
+    await ctx.repos.itens.salvar(tocar(ctx, { ...lote, custoPrincipal: (lote.custoPrincipal ?? 0) + dl }))
+    mexidos.push(id)
+    for (const m of movs.filter((x) => x.itemId === id && x.delta < 0 && !!x.origemId)) {
+      const parte = proporcao(dl, -m.delta, ini)
+      if (!parte) continue
+      if (m.motivo === 'unificacao' && porId.has(m.origemId!)) {
+        recebe.set(m.origemId!, (recebe.get(m.origemId!) ?? 0) + parte)
+        fila.push(m.origemId!)
+      } else if (m.motivo === 'transformacao') {
+        const filhos = itens.filter((i) => i.campos.separacaoId === m.origemId && i.origem?.id === id)
+        const somaCusto = filhos.reduce((s, f) => s + (f.custoPrincipal ?? 0), 0)
+        const somaPeso = filhos.reduce((s, f) => s + (f.quantidadeInicial ?? 0), 0)
+        let resto = parte
+        filhos.forEach((f, k) => {
+          const v = k === filhos.length - 1 ? resto : somaCusto ? proporcao(parte, f.custoPrincipal ?? 0, somaCusto) : proporcao(parte, f.quantidadeInicial ?? 0, somaPeso)
+          resto -= v
+          recebe.set(f.id, (recebe.get(f.id) ?? 0) + v)
+          fila.push(f.id)
+        })
+      }
+    }
+    // vendas que já levaram deste pacote: o custo da linha acompanha (o lucro do relatório fica certo)
+    for (const v of vendas.filter((x) => x.linhas.some((y) => y.itemId === id))) {
+      const nova = { ...v, linhas: v.linhas.map((y) => (y.itemId === id ? { ...y, custoPrincipal: (y.custoPrincipal ?? 0) + proporcao(dl, y.quantidade, ini) } : y)) }
+      await ctx.repos.transacoes.salvar(tocar(ctx, nova))
+      Object.assign(v, nova)
+    }
+  }
+  return mexidos
 }
 
 /** Cancela: devolve o dinheiro (estorno) e, se já entrou no estoque, tira de volta (só se o lote não foi mexido). */

@@ -27,6 +27,9 @@ import { BuscaPessoa } from '../ui/buscaPessoa'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
 import { useLargo } from '../ui/calendario'
+import { NumeroGrande, type Selo } from '../ui/numeroGrande'
+import { Passo } from '../ui/passoAPasso'
+import { BarraFiltros, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
 
 const ENCERRADAS = ['concluido', 'recusado', 'cancelado']
 const codigoDe = (c: { codigo?: string; id: string }) => c.codigo ?? `#${c.id.slice(-5)}`
@@ -80,6 +83,7 @@ export function Comprar() {
   // celular: lista de linhas curtas que abrem no lugar; computador/tablet: a tabela
   const largo = useLargo()
   const [abertos, setAbertos] = useState<Set<Id>>(new Set())
+  const [verFiltros, setVerFiltros] = useState(false)
   const alternarAberto = (id: Id) => setAbertos((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   if (nav.params.id) return <Pedido />
   const etapasDo = (moduloId: string) => cfg?.modulos.find((m) => m.id === moduloId)?.etapas ?? []
@@ -87,8 +91,13 @@ export function Comprar() {
   const daAba = todas.filter((c) => (aba === 'todas' ? true : aba === 'abertas' ? !ENCERRADAS.includes(c.etapa) : ENCERRADAS.includes(c.etapa)))
   const tem = (c: (typeof daAba)[number], id: string) => (id === 'qualquer' ? c.pendencias.length > 0 : c.pendencias.some((x) => x.id === id))
   const b = busca.trim().toLowerCase()
+  const forn = nav.params.forn === undefined ? '' : String(nav.params.forn)
+  const de = nav.params.de === undefined ? '' : String(nav.params.de)
+  const ate = nav.params.ate === undefined ? '' : String(nav.params.ate)
+  const fornecedores = [...new Set(todas.map((c) => c.pessoa).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const lista = daAba
     .filter((c) => !pendencia || tem(c, pendencia))
+    .filter((c) => (!forn || c.pessoa === forn) && (!de || c.data >= de) && (!ate || c.data <= ate))
     .filter((c) => !b || `${codigoDe(c)} ${c.busca} ${c.linhas.map((l) => l.descricao).join(' ')} ${c.obs ?? ''}`.toLowerCase().includes(b))
     .sort((x, y) => {
       const v = ordem.por === 'total' ? x.totalPrincipal - y.totalPrincipal : ordem.por === 'parada' ? x.diasParada - y.diasParada : x.data + x.criadoEm < y.data + y.criadoEm ? -1 : 1
@@ -98,11 +107,23 @@ export function Comprar() {
   const contagem = Object.fromEntries([['', daAba.length], ['qualquer', daAba.filter((c) => tem(c, 'qualquer')).length], ...opcoesPend.map((o) => [o.id, daAba.filter((c) => tem(c, o.id)).length])])
   const abertas = todas.filter((c) => !ENCERRADAS.includes(c.etapa))
   const filtrar = (a: typeof aba, p: string) => ajustarParams({ aba: a === 'abertas' ? undefined : a, pendencia: p || undefined })
-  const resumo = [
-    { nome: 'Em aberto', valor: String(abertas.length), abrir: () => filtrar('abertas', '') },
-    { nome: 'Valor em aberto', valor: formatar(abertas.reduce((s, c) => s + c.totalPrincipal, 0), cfg?.config.moedaPrincipal ?? moedaPadrao()), abrir: () => filtrar('abertas', '') },
-    { nome: 'Peso em aberto', valor: gramasTexto(abertas.reduce((s, c) => s + c.linhas.reduce((x, l) => x + l.quantidade, 0), 0)), abrir: () => filtrar('abertas', '') },
-    { nome: 'Com pendência', valor: String(todas.filter((c) => c.pendencias.length).length), abrir: () => filtrar('todas', 'qualquer') },
+  const moedaP = cfg?.config.moedaPrincipal ?? moedaPadrao()
+  const comPend = todas.filter((c) => c.pendencias.length)
+  const urgentes = comPend.filter((c) => c.pendencias.some((p) => p.nivel === 'urgente')).length
+  const pesoAberto = abertas.reduce((s, c) => s + c.linhas.reduce((x, l) => x + l.quantidade, 0), 0)
+  const valorAberto = abertas.reduce((s, c) => s + c.totalPrincipal, 0)
+  const paradas = abertas.filter((c) => c.pendencias.some((p) => p.id === 'paradaTriagem')).length
+  const resumo: { nome: string; valor: string; selos: Selo[]; icone: string; cor: string; tom?: boolean; ativo: boolean; abrir(): void }[] = [
+    { nome: 'Em aberto', valor: String(abertas.length), selos: paradas ? [{ texto: `⏰ ${t('{n} parada(s) na triagem', { n: paradas })}`, tom: 'ruim' }] : [{ texto: t('nada parado'), tom: 'bom' }], icone: '🛒', cor: 'var(--marca)', ativo: aba === 'abertas' && !pendencia, abrir: () => filtrar('abertas', '') },
+    { nome: 'Valor em aberto', valor: formatar(valorAberto, moedaP), selos: pesoAberto ? [{ texto: `${formatar(Math.round((valorAberto * 1000) / pesoAberto), moedaP)}/kg`, tom: 'bom' }] : [], icone: '💵', cor: 'var(--bom)', ativo: false, abrir: () => filtrar('abertas', '') },
+    { nome: 'Peso em aberto', valor: gramasTexto(pesoAberto), selos: [{ texto: t('{n} pedido(s)', { n: abertas.length }), tom: 'alerta' }], icone: '⚖️', cor: 'var(--alerta)', ativo: false, abrir: () => filtrar('abertas', '') },
+    { nome: 'Com pendência', valor: String(comPend.length), selos: urgentes ? [{ texto: `● ${t('{n} urgente(s)', { n: urgentes })}`, tom: 'ruim' }] : [{ texto: t('nada urgente'), tom: 'bom' }], icone: '⚠️', cor: urgentes ? 'var(--ruim)' : 'var(--alerta)', tom: urgentes > 0, ativo: pendencia === 'qualquer', abrir: () => filtrar('todas', 'qualquer') },
+  ]
+  const nomePend = (id: string) => (id === 'qualquer' ? 'Com pendência' : opcoesPend.find((o) => o.id === id)?.nome ?? id)
+  const ativosCompra = [
+    ...(pendencia ? [{ k: 'pendencia', rotulo: `⚠️ ${t(nomePend(pendencia))}` }] : []),
+    ...(forn ? [{ k: 'forn', rotulo: `👤 ${forn}` }] : []),
+    ...(de || ate ? [{ k: 'de,ate', rotulo: `📅 ${de ? dataBR(de) : '…'} – ${ate ? dataBR(ate) : '…'}` }] : []),
   ]
   const contaAba = { abertas: abertas.length, encerradas: todas.length - abertas.length, todas: todas.length }
   const Th = ({ por, children, direita }: { por?: Ordem; children: ReactNode; direita?: boolean }) => (
@@ -127,37 +148,39 @@ export function Comprar() {
         <Botao grande onClick={() => ir('novaCompra')}>+ {t('Nova compra')}</Botao>
       </div>
 
+      {/* BIG NUMBERS: ícone + número grande + detalhe; tocar filtra (o que está ligado fica destacado) */}
       <div className="mb-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        {resumo.map((r) => (
-          <button key={r.nome} type="button" onClick={r.abrir} className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-3 py-2 text-left hover:border-[var(--marca)] sm:p-3">
-            <div className="truncate text-xs text-[var(--suave)]">{t(r.nome)}</div>
-            <div className="num truncate text-lg font-bold sm:text-xl">{r.valor}</div>
-          </button>
-        ))}
+        {resumo.map((r) => <NumeroGrande key={r.nome} rotulo={r.nome} icone={r.icone} cor={r.cor} valor={r.valor} selos={r.selos} colorirValor={r.tom} ativo={r.ativo} onClick={r.abrir} />)}
       </div>
 
-      {/* um bloco de filtros: situação + busca em cima, pendências embaixo (as regras do que falta são configuráveis) */}
-      <div className="mb-3 space-y-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3">
+      {/* FILTRO PADRÃO: situação à vista (segmentos) + busca + ⚙ Filtros (o que falta, fornecedor, período) → chips ✕ */}
+      <div className="mb-3 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <div role="tablist" aria-label={t('Situação')} className="flex gap-1 rounded-xl bg-[var(--marca-suave)] p-1">
+          <div role="tablist" aria-label={t('Situação')} className="grid grid-cols-3 gap-1 rounded-xl bg-[var(--marca-suave)] p-1 sm:flex">
             {([['abertas', 'Em aberto'], ['encerradas', 'Encerradas'], ['todas', 'Todas']] as const).map(([id, nome]) => (
               <button key={id} type="button" role="tab" aria-selected={aba === id} onClick={() => setAba(id)} className={cx('min-h-10 rounded-lg px-3 text-sm font-semibold', aba === id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
                 {t(nome)} <span className="num opacity-70">{contaAba[id]}</span>
               </button>
             ))}
           </div>
-          <Entrada type="search" className="w-full sm:ml-auto sm:w-72" placeholder={t('Buscar código (atual ou antigo), sigla, fornecedor, item…')} value={busca} onChange={(e) => setBusca(e.target.value)} />
+          {sessao.perfil === 'admin' && <button type="button" onClick={() => ir('config', { aba: 'etapas' })} className="ml-auto min-h-10 whitespace-nowrap rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Etapas e regras')}</button>}
         </div>
-        {/* celular: "O que falta" e "⚙ Etapas e regras" numa linha, os chips embaixo com a largura toda; computador: tudo numa linha */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="order-1 whitespace-nowrap text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('O que falta')}</span>
-          <div className="order-3 w-full min-w-0 sm:order-2 sm:w-auto sm:flex-1">
-            <FiltroPendencia valor={pendencia} onChange={setPendencia} contagem={contagem} opcoes={opcoesPend.filter((o) => contagem[o.id] || pendencia === o.id)} />
-          </div>
-          {sessao.perfil === 'admin' && (
-            <button type="button" onClick={() => ir('config', { aba: 'etapas' })} className="order-2 ml-auto min-h-10 whitespace-nowrap rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)] sm:order-3 sm:ml-0">⚙ {t('Etapas e regras')}</button>
-          )}
-        </div>
+        <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar código (atual ou antigo), sigla, fornecedor, item…" ativos={ativosCompra.length} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
+        <ChipsFiltros itens={ativosCompra} onTirar={(k) => ajustarParams(Object.fromEntries(k.split(',').map((x) => [x, undefined])))} onLimpar={() => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined, busca: undefined })} />
+        {verFiltros && (
+          <PainelFiltros resultados={lista.length} temAtivos={ativosCompra.length > 0} onLimpar={() => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined })} onFechar={() => setVerFiltros(false)}>
+            <GrupoFiltro titulo="O que falta" icone="⚠️">
+              <div className="col-span-2 lg:col-span-4"><FiltroPendencia valor={pendencia} onChange={setPendencia} contagem={contagem} opcoes={opcoesPend.filter((o) => contagem[o.id] || pendencia === o.id)} /></div>
+            </GrupoFiltro>
+            <GrupoFiltro titulo="De quem e quando" icone="👤">
+              <Campo rotulo="Fornecedor"><Selecao valor={forn} onChange={(v) => ajustarParams({ forn: v || undefined })} vazio="Todos" opcoes={fornecedores.map((x) => ({ id: x, nome: x }))} /></Campo>
+              <CampoFaixa rotulo="Data da compra">
+                <Entrada type="date" aria-label={t('De')} value={de} onChange={(e) => ajustarParams({ de: e.target.value || undefined })} />
+                <Entrada type="date" aria-label={t('Até')} value={ate} onChange={(e) => ajustarParams({ ate: e.target.value || undefined })} />
+              </CampoFaixa>
+            </GrupoFiltro>
+          </PainelFiltros>
+        )}
       </div>
 
       {!fila ? (
@@ -370,6 +393,12 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   const [abertos, setAbertos] = useState<Set<CampoFormId>>(() => new Set(form.campos.filter((c) => c.aberto || c.obrigatorio).map((c) => c.id)))
   const [focarCampo, setFocarCampo] = useState<CampoFormId>()
   const [attrAbertos, setAttrAbertos] = useState<Set<Id>>(new Set())
+  // PASSO A PASSO (como o Separar): 1 Fornecedor · 2 O que veio · 3 Detalhes; repetir compra já começa no 2
+  const [passosAbertos, setPassosAbertos] = useState<Set<number>>(() => new Set([base?.pessoaId ? 2 : 1]))
+  const alternarPasso = (n: number) => setPassosAbertos((s) => { const x = new Set(s); if (x.has(n)) x.delete(n); else x.add(n); return x })
+  const irPasso = (n: number) => setPassosAbertos(new Set([n]))
+  // com várias linhas, só uma fica aberta (as outras numa linha: "2 · Bruto · 2 kg · Bs 3.000")
+  const [linhaAberta, setLinhaAberta] = useState<Id>()
 
   const novaLinha = (cabelo: boolean, ant?: LinhaNova): LinhaNova =>
     cabelo
@@ -511,6 +540,9 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     }
     if (p) ultimoFornecedor.current = p
     aplicarPessoa(p)
+    // escolheu: o passo 1 fecha (fica o nome no resumo) e abre "O que veio"
+    const k = listaPassos.findIndex((x) => x.id === 'itens')
+    if (p && secoes && k >= 0) irPasso(k + 1)
   }
   const trocarModulo = (m: string) => {
     if (m === moduloId) return
@@ -548,7 +580,14 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   const salvar = async () => {
     if (!pode) {
       setTentou(true)
-      document.querySelector<HTMLElement>('[data-falta]')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+      // abre o passo onde está o que falta e rola até ele
+      const alvo = obrig('fornecedor') && !pessoaId ? 'fornecedor' : !linhas.length || linhas.some((l, i) => faltasLinha(l, i).length) ? 'itens' : 'detalhes'
+      const k = listaPassos.findIndex((p) => p.id === alvo)
+      if (secoes && k >= 0) irPasso(k + 1)
+      // a linha com falta abre (as outras ficam fechadas)
+      const lf = linhas.find((l, i) => faltasLinha(l, i).length)
+      if (lf) setLinhaAberta(lf.id)
+      setTimeout(() => document.querySelector<HTMLElement>('[data-falta]')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }), 50)
       return
     }
     const r = await executar('criarCompra', {
@@ -650,6 +689,17 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     )
     const tirar = linhas.length > 1 && <button type="button" className="ml-auto h-11 w-11 shrink-0 rounded-xl text-xl text-[var(--suave)] hover:bg-[var(--ruim)]/10 hover:text-[var(--ruim)]" aria-label={t('Tirar a linha {n}', { n: i + 1 })} onClick={() => setLinhas(linhas.filter((_, k) => k !== i))}>×</button>
     const numero = <span aria-label={t('Linha {n}', { n: i + 1 })} className="num flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--marca-suave)] text-xs font-bold text-[var(--marca)]">{i + 1}</span>
+    // várias linhas: só a aberta mostra os campos; as outras ficam numa linha (tocar abre)
+    const aberta = linhas.length < 2 || (linhaAberta ?? linhas[linhas.length - 1].id) === l.id
+    if (!aberta)
+      return (
+        <button key={l.id} type="button" aria-expanded={false} onClick={() => setLinhaAberta(l.id)} className={cx('flex min-h-12 w-full items-center gap-2 rounded-xl border bg-[var(--cartao)] px-2.5 text-left text-sm', tentou && faltam.length ? 'border-[var(--ruim)]/60' : 'border-[var(--borda)]')}>
+          <span aria-hidden className={cx('num flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold', faltam.length ? 'bg-[var(--marca-suave)] text-[var(--marca)]' : 'bg-[var(--bom)] text-white')}>{faltam.length ? i + 1 : '✓'}</span>
+          <span className="min-w-0 flex-1 truncate font-semibold">{descLinha(l)}</span>
+          <span className="num shrink-0">{ehCabelo ? gramasTexto(l.quantidade ?? 0) : l.quantidade ?? 0} · <b>{semValor ? t('sem valor') : tl !== undefined ? formatar(tl, moeda) : '—'}</b></span>
+          <span aria-hidden className="shrink-0 text-[var(--suave)]">›</span>
+        </button>
+      )
     return (
       <div key={l.id} className={cx('space-y-3 rounded-xl border bg-[var(--cartao)] p-2.5 sm:p-3', tentou && faltam.length ? 'border-[var(--ruim)]/60' : 'border-[var(--borda)]')}>
         {l.modo === 'item' ? (
@@ -758,32 +808,54 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   const PRINCIPAIS: CampoFormId[] = ['fornecedor', 'itens']
   const numeroDe: Partial<Record<CampoFormId, number>> = {}
   if (secoes) for (const c of campos) if (PRINCIPAIS.includes(c.id) && estaAberto(c.id)) numeroDe[c.id] = Object.keys(numeroDe).length + 1
+  // DETALHES: cada campo aberto pelo "+" tem ✕ (fecha e limpa) e um exemplo do que é; obrigatório e o que a regra
+  // abriu sozinho (quem comprou para o código por pessoa, viagem sugerida) ficam sem ✕
+  const EXEMPLO: Partial<Record<CampoFormId, string>> = {
+    codigo: 'Ex.: P-0008 (incremental) · M3 (sigla da Maria + 3ª compra dela) · ou um código digitado à mão.',
+    coluna: 'Ex.: coluna P.W. → 60 cm | 2.008 g × 17,5 = Bs 35.140. Muda o preço das linhas pela tabela.',
+    comprador: 'Ex.: Paula comprou na viagem → a compra fica no nome dela (código por pessoa e o que ela trouxe).',
+    estado: 'Ex.: Úmido · Embaraçado → fica no histórico e explica a perda na triagem.',
+    obs: 'Ex.: veio em 3 sacos, 1 com fios mais curtos.',
+    fotos: 'Ex.: foto do pedido, do cabelo e o comprovante de origem (nota ou recibo de quem vendeu).',
+    viagem: 'Ex.: viagem a Cochabamba → os gastos da viagem são divididos entre as compras dela.',
+  }
+  const forcado = (c: CampoFormId) => (c === 'comprador' && porComprador) || (c === 'viagem' && !!viagemSugerida && viagemEscolhida === undefined)
+  const fechar = (c: CampoFormId) => {
+    setAbertos((s) => { const n = new Set(s); n.delete(c); return n })
+    if (c === 'comprador') setCompradorId(undefined)
+    else if (c === 'estado') setEstado([])
+    else if (c === 'obs') setObs('')
+    else if (c === 'viagem') setViagemEscolhida('')
+    else if (c === 'codigo') (setCodigo(''), setModoEscolhido(form.padroes.modoCodigo))
+    else if (c === 'coluna') setColuna(undefined)
+  }
+  const fechoEExemplo = (c: CampoFormId) => (secoes && !numeroDe[c] ? { exemplo: EXEMPLO[c], onFechar: !obrig(c) && !forcado(c) ? () => fechar(c) : undefined } : {})
   const campoTela = (c: CampoFormId): ReactNode => {
     switch (c) {
       case 'fornecedor':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)}>
             <BuscaPessoa rotulo={obrig('fornecedor') ? 'De quem? *' : 'De quem?'} valor={pessoaId} onChange={setPessoaId} papel="fornecedor" recentes={recentes} siglas={siglas} detalhe={detalheFornecedor} erro={tentou && obrig('fornecedor') && !pessoaId ? `${t('Falta')}: ${t('fornecedor')}` : undefined} />
           </Bloco>
         )
       case 'itens':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="O que veio" acao={<span className="num text-sm font-bold">{formatar(total, moeda)}</span>}>
-            <div className="space-y-3">
-              {/* SEM VALOR: cabelo que já tínhamos ou que ainda não sabemos quanto custou — registra só o peso e segue */}
-              <label className={cx('flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm', semValor ? 'border-[var(--alerta)] bg-[var(--alerta)]/10' : 'border-[var(--borda)]')}>
-                <input type="checkbox" className="h-5 w-5" checked={semValor} onChange={(e) => setSemValor(e.target.checked)} />
-                <span className="min-w-0 flex-1"><b>{t('Sem valor (já temos / valor depois)')}</b><span className="block text-xs text-[var(--suave)]">{t('Registra só o peso. Fica "Sem valor" no que falta até você pôr o valor.')}</span></span>
-                <Info texto="Use para cabelo que já estava com você ou quando ainda não sabe o preço. Ex.: 3 kg do estoque antigo → registra 3 kg, valor fica para depois." />
-              </label>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="O que veio" acao={<span className="num text-sm font-bold">{formatar(total, moeda)}</span>}>
+            <div className="space-y-2">
               {linhas.map(linhaTela)}
-              <Botao variante="secundario" className="min-h-11 w-full sm:w-auto" onClick={() => setLinhas([...linhas, novaLinha(ehCabelo, linhas[linhas.length - 1])])}>+ {t('Outra linha')}</Botao>
+              <Botao variante="secundario" className="min-h-11 w-full sm:w-auto" onClick={() => { const n = novaLinha(ehCabelo, linhas[linhas.length - 1]); setLinhas([...linhas, n]); setLinhaAberta(n.id) }}>+ {t('Outra linha')}</Botao>
+              {/* SEM VALOR (embaixo, discreto): cabelo que já tínhamos ou preço ainda não combinado — registra só o peso */}
+              <label className={cx('flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2 py-1 text-sm', semValor ? 'bg-[var(--alerta)]/10 font-semibold text-[var(--alerta)]' : 'text-[var(--suave)]')}>
+                <input type="checkbox" className="h-5 w-5" checked={semValor} onChange={(e) => setSemValor(e.target.checked)} />
+                <span className="min-w-0 flex-1">{t('Ainda não sei o valor (pôr depois)')}</span>
+                <Info texto="Use para cabelo que já estava com você ou quando ainda não sabe o preço. Registra só o peso e fica 'Sem valor' no que falta. Depois, no pedido: ✎ Pôr o valor — o custo vai para os pacotes, mesmo já separados. Ex.: 3 kg do estoque antigo → registra 3 kg, valor fica para depois." />
+              </label>
             </div>
           </Bloco>
         )
       case 'codigo':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Código do pedido" acao={<Info texto="Como este pedido vai ser chamado (e os lotes dele). Escolha o tipo só para esta compra; a regra fica em Configurações › Códigos." />}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Código do pedido" acao={<Info texto="Como este pedido vai ser chamado (e os lotes dele). Escolha o tipo só para esta compra; a regra fica em Configurações › Códigos." />}>
             <CampoCodigoCompra
               modo={modoCodigo}
               onModo={(m) => (setModoEscolhido(m), setCodigo(''))}
@@ -797,20 +869,20 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         )
       case 'coluna':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Coluna da tabela" acao={<Info texto="Compra pela tabela: medida | gramas × fator da coluna do fornecedor. Vem a coluna ligada ao fornecedor (ou a da última compra dele)." />}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Coluna da tabela" acao={<Info texto="Compra pela tabela: medida | gramas × fator da coluna do fornecedor. Vem a coluna ligada ao fornecedor (ou a da última compra dele)." />}>
             <Selecao valor={col} onChange={setColuna} opcoes={(tabela?.colunas ?? []).map((x) => ({ id: x.id, nome: x.id === colunaUsual ? `${x.nome} · ${t('do fornecedor')}` : x.nome }))} />
           </Bloco>
         )
       case 'comprador':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)}>
             <SeletorPessoa rotulo={obrig('comprador') || porComprador ? 'Quem comprou? *' : 'Quem comprou?'} valor={compradorId} onChange={setCompradorId} papel="funcionario" opcional={!obrig('comprador') && !porComprador} />
             <Falta se={tentou && obrig('comprador') && !compradorId} texto={t('quem comprou')} />
           </Bloco>
         )
       case 'estado':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Estado na chegada">
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Estado na chegada">
             <div className="flex flex-wrap gap-2">
               {form.estados.map((e) => (
                 <button key={e} type="button" aria-pressed={estado.includes(e)} onClick={() => setEstado(estado.includes(e) ? estado.filter((x) => x !== e) : [...estado, e])} className={cx('min-h-11 rounded-full border px-3 text-sm', estado.includes(e) ? 'border-[var(--marca)] bg-[var(--marca)] font-semibold text-white' : 'border-[var(--borda)] hover:border-[var(--marca)]')}>
@@ -823,21 +895,21 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         )
       case 'obs':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Observação">
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Observação">
             <textarea rows={2} aria-label={t('Observação')} value={obs} onChange={(e) => setObs(e.target.value)} placeholder={t('Ex.: veio em 3 sacos, 1 com fios mais curtos.')} className="w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-base outline-none focus:border-[var(--marca)]" />
             <Falta se={tentou && obrig('obs') && !obs.trim()} texto={t('observação')} />
           </Bloco>
         )
       case 'fotos':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Fotos e arquivos">
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Fotos e arquivos">
             <AnexosCurtos donoId={id} categorias={CATEGORIAS_COMPRA} padrao="pedido" />
             <Falta se={tentou && obrig('fotos') && !anexos?.length} texto={t('fotos')} />
           </Bloco>
         )
       case 'viagem':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} titulo="Viagem" acao={<Info texto="Compra feita numa viagem de compra: os gastos da viagem são divididos entre as compras dela e o resultado da viagem conta com esta." />}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Viagem" acao={<Info texto="Compra feita numa viagem de compra: os gastos da viagem são divididos entre as compras dela e o resultado da viagem conta com esta." />}>
             <Selecao valor={viagemId ?? ''} onChange={(v) => setViagemEscolhida(v)} vazio={t('Sem viagem')} opcoes={viagensAbertas.map((v) => ({ id: v.id, nome: nomeViagem(v) }))} />
             {viagemSugerida && viagemId === viagemSugerida.id && viagemEscolhida === undefined && <p className="mt-1 text-xs text-[var(--suave)]">{t('Escolhida porque quem comprou está nesta viagem.')}</p>}
             <Falta se={tentou && obrig('viagem') && !viagemId} texto={t('viagem')} />
@@ -874,8 +946,9 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     )
     fechados = []
   }
+  const principalDe: Partial<Record<CampoFormId, ReactNode>> = {}
   for (const c of campos.filter((x) => noPasso(x.id))) {
-    if (numeroDe[c.id]) principais.push(<Fragment key={c.id}>{campoTela(c.id)}</Fragment>)
+    if (numeroDe[c.id]) (principais.push(<Fragment key={c.id}>{campoTela(c.id)}</Fragment>), (principalDe[c.id] = campoTela(c.id)))
     else if (estaAberto(c.id)) {
       soltar()
       partes.push(<Fragment key={c.id}>{campoTela(c.id)}</Fragment>)
@@ -883,21 +956,49 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   }
   soltar()
   const detalhesObrigatorios = campos.some((c) => !numeroDe[c.id] && c.obrigatorio)
+  // PASSO A PASSO (aprendido no Separar): cada passo fecha numa linha com o resumo; o aberto explica para que serve
+  const nomeForn = pessoaId ? (ultima?.pessoa ?? conta?.pessoa?.nome) : undefined
+  const linhasOk = linhas.length > 0 && linhas.every((l, i) => !faltasLinha(l, i).length)
+  const preenchidosDetalhe = [
+    mostrarCodigo && codigoMostrado ? `# ${codigoMostrado}` : '',
+    viagemAtual ? `✈️ ${viagemAtual.codigo}` : '',
+    estado.length ? estado.map((x) => t(x)).join(', ') : '',
+    obs.trim() ? `“${obs.trim()}”` : '',
+    anexos?.length ? `📎 ${anexos.length}` : '',
+  ].filter(Boolean)
+  const faltaDetalhe = faltas.some((x) => ![t('fornecedor'), t('o que veio')].includes(x) && !linhas.some((l, i) => faltasLinha(l, i).includes(x)))
+  const listaPassos: { id: CampoFormId | 'detalhes'; titulo: string; resumo: ReactNode; ajuda: string; exemplo?: string; feito: boolean; opcional?: boolean; falta?: boolean; conteudo: ReactNode }[] = [
+    ...(principalDe.fornecedor ? [{
+      id: 'fornecedor' as const, titulo: 'Fornecedor', opcional: !obrig('fornecedor'), feito: !!pessoaId, falta: tentou && obrig('fornecedor') && !pessoaId,
+      resumo: nomeForn ? [nomeForn, sigla, conta ? (saldo < 0 ? `${t('Devo')} ${formatar(-saldo, conta.moeda)}` : saldo > 0 ? `${t('Me deve')} ${formatar(saldo, conta.moeda)}` : t('Conta em dia')) : ''].filter(Boolean).join(' · ') : t('ninguém escolhido'),
+      ajuda: 'De quem você comprou. Mostra a sigla, quanto você deve a ela e a última compra (dá para repetir).',
+      exemplo: 'Ex.: Helena · HE · Devo Bs 1.000 → ⟳ Repetir a última',
+      conteudo: principalDe.fornecedor,
+    }] : []),
+    ...(principalDe.itens ? [{
+      id: 'itens' as const, titulo: 'O que veio', feito: linhasOk, falta: tentou && !linhasOk,
+      resumo: `${t('{n} linha(s)', { n: linhas.length })} · ${ehCabelo ? gramasTexto(pesoTotal) : `${linhas.length} ${t('item(ns)')}`} · ${semValor ? t('sem valor') : formatar(total, moeda)}`,
+      ajuda: ehCabelo ? 'O cabelo que chegou: cada linha vira um pacote que vai para a triagem. Bruto = veio misturado (separa depois). Pela tabela = já veio por medida.' : 'O que chegou: cada linha é um produto, com a quantidade e o custo.',
+      exemplo: ehCabelo ? 'Ex.: 10 kg bruto por Bs 30.000 · ou · 60 cm | 2 kg × 17,5 = Bs 35.000' : 'Ex.: 12 × shampoo a Bs 45 = Bs 540',
+      conteudo: principalDe.itens,
+    }] : []),
+    ...(partes.length ? [{
+      id: 'detalhes' as const, titulo: 'Detalhes', opcional: !detalhesObrigatorios, feito: preenchidosDetalhe.length > 0 && !faltaDetalhe, falta: tentou && faltaDetalhe,
+      resumo: preenchidosDetalhe.length ? preenchidosDetalhe.join(' · ') : t('nada — toque para abrir'),
+      ajuda: 'Só se precisar: quem comprou, código, viagem, estado na chegada, fotos e observação. Toque no + do que quiser.',
+      exemplo: 'Ex.: + Fotos para anexar a foto do pedido · + Estado na chegada: Úmido',
+      conteudo: <div className="space-y-3">{partes}</div>,
+    }] : []),
+  ]
   const corpo: ReactNode = !secoes ? partes : (
-    <>
-      {principais}
-      {partes.length > 0 && (
-        <section aria-label={t('Detalhes')} className="rounded-2xl border border-[var(--borda)] bg-[var(--fundo)] p-3 sm:p-4">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold">
-            <NumeroSecao n={Object.keys(numeroDe).length + 1} />
-            {t('Detalhes')}
-            {!detalhesObrigatorios && <span className="font-normal text-[var(--suave)]">({t('opcional')})</span>}
-            <Info texto="Quem comprou, código, estado, fotos e observação. Toque no + para abrir só o que precisar. Ex.: + Fotos para anexar a foto do pedido." />
-          </h2>
-          <div className="space-y-3">{partes}</div>
-        </section>
-      )}
-    </>
+    <ol className="space-y-3" aria-label={t('Passos da compra')}>
+      {listaPassos.map((p, k) => (
+        <Passo key={p.id} n={k + 1} de={listaPassos.length} titulo={p.titulo} resumo={p.resumo} ajuda={p.ajuda} exemplo={p.exemplo} feito={p.feito} opcional={p.opcional} falta={p.falta} aberto={passosAbertos.has(k + 1)} onAlternar={() => alternarPasso(k + 1)}>
+          {p.conteudo}
+          {k < listaPassos.length - 1 && <div className="flex justify-end"><Botao variante="secundario" onClick={() => irPasso(k + 2)}>{t('Próximo')}: {t(listaPassos[k + 1].titulo)} →</Botao></div>}
+        </Passo>
+      ))}
+    </ol>
   )
 
   const linhasResumo = linhas.map((l) => ({ id: l.id, texto: descLinha(l), qtd: ehCabelo ? gramasTexto(l.quantidade ?? 0) : String(l.quantidade ?? 0), valor: totalLinha(l) }))
@@ -1047,16 +1148,26 @@ function LigarViagem({ compraId, onFechar }: { compraId: Id; onFechar(): void })
 }
 
 /** Um campo do formulário de compra (cartão com título; * quando obrigatório). */
-function Bloco({ campo, titulo, obrigatorio, children, acao, numero, plano }: { campo: CampoFormId; titulo?: string; obrigatorio?: boolean; children: ReactNode; acao?: ReactNode; numero?: number; plano?: boolean }) {
+/**
+ * Um campo da nova compra. `onFechar`: ✕ no canto (campo opcional aberto pelo "+": fecha e limpa o que tinha).
+ * `exemplo`: uma linha "Ex.: …" embaixo, dizendo para que serve em um caso real.
+ */
+function Bloco({ campo, titulo, obrigatorio, children, acao, numero, plano, onFechar, exemplo }: { campo: CampoFormId; titulo?: string; obrigatorio?: boolean; children: ReactNode; acao?: ReactNode; numero?: number; plano?: boolean; onFechar?(): void; exemplo?: string }) {
   const t = useT()
-  // número sem título (ex.: "De quem?", que tem o rótulo próprio): o número fica ao lado do campo
-  if (numero && !titulo)
+  if (plano && (onFechar || exemplo))
     return (
-      <section data-campo={campo} className="flex gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 sm:p-4">
-        <NumeroSecao n={numero} />
-        <div className="min-w-0 flex-1">{children}</div>
+      <section data-campo={campo} className="relative rounded-xl bg-[var(--cartao)] p-3">
+        <div className={cx('mb-2 flex items-center gap-2', !titulo && !acao && onFechar && 'absolute right-2 top-2 mb-0')}>
+          {titulo && <h2 className="min-w-0 flex-1 text-sm font-bold">{t(titulo)}{obrigatorio && <span className="text-[var(--ruim)]"> *</span>}</h2>}
+          {acao}
+          {onFechar && <button type="button" onClick={onFechar} aria-label={`${t('Tirar')} ${t(titulo ?? CAMPOS_FORM[campo].nome)}`} title={t('Tirar este campo (limpa o que foi preenchido)')} className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg text-[var(--suave)] hover:bg-[var(--fundo)] hover:text-[var(--ruim)]">✕</button>}
+        </div>
+        <div className={cx(!titulo && !acao && onFechar && 'pr-10')}>{children}</div>
+        {exemplo && <p className="mt-2 text-xs text-[var(--suave)]">💡 {t(exemplo)}</p>}
       </section>
     )
+  // campo principal (numerado): já está dentro do passo, que tem o número e o título — só o conteúdo
+  if (numero) return <section data-campo={campo}>{children}</section>
   return (
     <section data-campo={campo} className={plano ? 'rounded-xl bg-[var(--cartao)] p-3' : 'rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 sm:p-4'}>
       {(titulo || acao) && (
@@ -1093,7 +1204,7 @@ function NomeComprador({ id }: { id: Id }) {
  * ITENS DA COMPRA (peça própria): um cartão por linha — o que é, peso em destaque, a conta (60 | 2.008 × 17,5) e o
  * custo por kg; as conferências de peso aparecem dentro da própria linha; total embaixo.
  */
-function ItensCompra({ dados, admin, cancelada, onConferir }: { dados: DadosPedido; admin: boolean; cancelada: boolean; onConferir(l: Linha): void }) {
+function ItensCompra({ dados, admin, cancelada, onConferir, onAjustarValor }: { dados: DadosPedido; admin: boolean; cancelada: boolean; onConferir(l: Linha): void; onAjustarValor?(l: Linha): void }) {
   const t = useT()
   const c = dados.compra
   const m = c.moedaPrincipal
@@ -1104,6 +1215,12 @@ function ItensCompra({ dados, admin, cancelada, onConferir }: { dados: DadosPedi
         <span>🧺 {t('Itens')}</span>
         <span className="num text-sm font-normal text-[var(--suave)]">{t('{n} item(ns)', { n: c.linhas.length })}</span>
       </h2>
+      {/* dá para corrigir aqui: o peso (pesou diferente na chegada) e o valor (enquanto não pagou) */}
+      {admin && !cancelada && (
+        <p className="border-b border-[var(--borda)] bg-[var(--marca-suave)] px-4 py-2 text-xs text-[var(--marca)]">
+          ✎ {t('Errou? Corrija aqui: ⚖ peso (pesou diferente) e ✎ valor (mesmo depois de pagar ou separar: o custo dos pacotes acompanha).')}
+        </p>
+      )}
       <ul className="divide-y divide-[var(--borda)]">
         {c.linhas.map((l) => {
           const lote = loteDaLinha(l)
@@ -1125,8 +1242,11 @@ function ItensCompra({ dados, admin, cancelada, onConferir }: { dados: DadosPedi
               {confs.map((x) => (
                 <p key={x.id} className={cx('num mt-2 rounded-lg px-2 py-1 text-xs', x.delta < 0 ? 'bg-[var(--ruim)]/10 text-[var(--ruim)]' : 'bg-[var(--bom)]/10 text-[var(--bom)]')}>⚖ {dataBR(x.data)} · {x.descricao}</p>
               ))}
-              {lote && !cancelada && admin && (
-                <button type="button" onClick={() => onConferir(l)} className="mt-1 inline-flex min-h-9 items-center gap-1 rounded-lg px-1 text-xs font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚖ {t('Conferir peso')}<Info texto="Pesou na chegada e deu diferente? Ex.: comprou 10.000 g, pesou 9.850 g → 150 g de diferença." /></button>
+              {!cancelada && admin && (lote || onAjustarValor) && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {lote && <button type="button" onClick={() => onConferir(l)} title={t('Pesou na chegada e deu diferente? Ex.: comprou 10.000 g, pesou 9.850 g → 150 g de diferença.')} className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-[var(--marca)]/40 bg-[var(--cartao)] px-3 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚖ {t('Corrigir peso')}</button>}
+                  {onAjustarValor && <button type="button" onClick={() => onAjustarValor(l)} title={t('Ex.: combinou Bs 9.500 em vez de 10.000. Vale mesmo depois de pagar ou separar.')} className={cx('inline-flex min-h-10 items-center gap-1 rounded-xl border px-3 text-sm font-semibold hover:bg-[var(--marca-suave)]', l.total ? 'border-[var(--marca)]/40 bg-[var(--cartao)] text-[var(--marca)]' : 'border-[var(--alerta)] bg-[var(--alerta)]/10 text-[var(--alerta)]')}>✎ {t(l.total ? 'Corrigir valor' : 'Pôr o valor')}</button>}
+                </div>
               )}
             </li>
           )
@@ -1269,6 +1389,31 @@ function ConferirPeso({ compraId, linha, onFechar }: { compraId: Id; linha: Linh
   )
 }
 
+const AJUDA_VALOR =
+  'Corrigir o valor (ou pôr o valor de uma compra "sem valor"): vale mesmo depois de pagar, separar ou vender. A diferença segue o cabelo: o custo dos pacotes que saíram dele e das vendas que já levaram parte. Se já lançou na conta do fornecedor, a conta acompanha. Ex.: entrou 3 kg sem valor, separou 2 + 1 kg; pôs Bs 3.000 → os pacotes ficam com Bs 2.000 e Bs 1.000.'
+
+function CorrigirValor({ compraId, linha, onFechar }: { compraId: Id; linha: Linha; onFechar(): void }) {
+  const t = useT()
+  const { executar, ocupado } = useComando()
+  const [valor, setValor] = useState<number | undefined>(linha.total || undefined)
+  const [motivo, setMotivo] = useState('')
+  const pode = valor !== undefined && valor !== linha.total && !!motivo.trim() && !ocupado
+  const porKg = valor && linha.quantidade ? Math.round((valor * 1000) / linha.quantidade) : 0
+  return (
+    <Janela aberta titulo={<span className="flex items-center">{t(linha.total ? 'Corrigir valor' : 'Pôr o valor')}<Info texto={AJUDA_VALOR} /></span>} onFechar={onFechar} rodape={
+      <Botao grande className="w-full" disabled={!pode} onClick={async () => (await executar('definirValorCompra', { compraId, linhaId: linha.id, total: valor ?? 0, motivo }, t('Valor corrigido: o custo dos pacotes acompanhou.'))) && onFechar()}>✎ {t('Salvar valor')}</Botao>
+    }>
+      <div className="space-y-3">
+        <p className="text-sm">{linha.descricao} · <b className="num">{gramasTexto(linha.quantidade)}</b> · {t('antes')}: <b className="num">{formatar(linha.total, linha.moeda)}</b></p>
+        <Campo rotulo="Valor certo"><ValorInput moeda={linha.moeda} valor={valor} onChange={setValor} /></Campo>
+        {porKg > 0 && <p className="num text-xs text-[var(--suave)]">= {formatar(porKg, linha.moeda)}/kg</p>}
+        <Campo rotulo="Motivo *"><Entrada value={motivo} placeholder={t('Ex.: chegou a nota, valor combinado')} onChange={(e) => setMotivo(e.target.value)} /></Campo>
+        <p className="text-xs text-[var(--suave)]">{t('Os pacotes e as vendas deste cabelo recebem o custo novo. Fica no histórico.')}</p>
+      </div>
+    </Janela>
+  )
+}
+
 export function Pedido() {
   const t = useT()
   const { nav, ir, voltar, sessao, ajustarParams } = useApp()
@@ -1281,6 +1426,7 @@ export function Pedido() {
   const [trocar, setTrocar] = useState(false)
   const [trocarLote, setTrocarLote] = useState<{ id: Id; codigo?: string }>()
   const [conferir, setConferir] = useState<Linha>()
+  const [corrigirValor, setCorrigirValor] = useState<Linha>()
   const [ligarViagem, setLigarViagem] = useState(false)
   // sub-abas (no endereço: #/pedidos/P1?aba=anexos): Resumo · Anexos (N) · Histórico
   const [aba, setAba] = useParamTela<'resumo' | 'pagamento' | 'conta' | 'anexos' | 'historico'>('aba', 'resumo')
@@ -1296,9 +1442,13 @@ export function Pedido() {
   const loteDaLinha = (l: Linha) => dados.lotes.find((x) => x.daCompra && x.linhaId === l.id)
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Botao variante="leve" onClick={voltar}>← {t('Voltar')}</Botao>
-      </div>
+      {/* ONDE ESTOU: "← 🛒 Compras › Pedido P-0007" — forte, no alto (Compras leva à lista) */}
+      <nav aria-label={t('Caminho')} className="mb-3 flex min-w-0 items-center gap-1 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-2 py-1.5 text-sm shadow-sm">
+        <button type="button" onClick={voltar} aria-label={t('Voltar')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-[var(--marca)] hover:bg-[var(--marca-suave)]">←</button>
+        <button type="button" onClick={() => ir('comprar')} className="min-h-10 shrink-0 rounded-xl px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">🛒 {t('Compras')}</button>
+        <span aria-hidden className="text-[var(--suave)]">›</span>
+        <span className="min-w-0 truncate px-1"><span className="text-[var(--suave)]">{t('Pedido')}</span> <b className="font-mono">{codigoDe(c)}</b>{dados.pessoa ? <span className="text-[var(--suave)]"> · {dados.pessoa.nome}</span> : null}</span>
+      </nav>
 
       {nav.params.registrada && !cancelada && <AvisoRegistrada dados={dados} onFechar={() => ajustarParams({ registrada: undefined })} />}
 
@@ -1338,6 +1488,7 @@ export function Pedido() {
       {trocar && <TrocarCodigo tipo="compra" id={c.id} atual={c.codigo} onFechar={() => setTrocar(false)} />}
       {trocarLote && <TrocarCodigo tipo="lote" id={trocarLote.id} atual={trocarLote.codigo} onFechar={() => setTrocarLote(undefined)} />}
       {conferir && <ConferirPeso compraId={c.id} linha={conferir} onFechar={() => setConferir(undefined)} />}
+      {corrigirValor && <CorrigirValor compraId={c.id} linha={corrigirValor} onFechar={() => setCorrigirValor(undefined)} />}
       {ligarViagem && <LigarViagem compraId={c.id} onFechar={() => setLigarViagem(false)} />}
 
       {/* ABAS: Resumo (itens + para onde foi) · Pagamento · Conta · Anexos · Histórico */}
@@ -1354,7 +1505,7 @@ export function Pedido() {
 
       {aba === 'resumo' && (
         <div className="grid items-start gap-4 lg:grid-cols-2">
-          <ItensCompra dados={dados} admin={admin} cancelada={cancelada} onConferir={setConferir} />
+          <ItensCompra dados={dados} admin={admin} cancelada={cancelada} onConferir={setConferir} onAjustarValor={setCorrigirValor} />
           {!cancelada && <DestinoCompra dados={dados} admin={admin} onTrocarLote={setTrocarLote} />}
         </div>
       )}
@@ -1446,7 +1597,7 @@ function EtapasCompra(p: {
   cancelar(motivo?: string): void
 }) {
   const t = useT()
-  const { ir, sessao } = useApp()
+  const { ir, sessao, nav } = useApp()
   const admin = sessao.perfil === 'admin'
   const { dados: cfg } = useConsulta('configuracoes', {})
   const c = p.compra
@@ -1474,7 +1625,7 @@ function EtapasCompra(p: {
       {!encerrada && prox && (
         <div className="space-y-3">
           {!c.pagamentos.length && (
-            <details>
+            <details open={!!nav.params.ajustar}>
               <summary className="cursor-pointer text-sm font-semibold text-[var(--marca)]">{t('Ajustar o valor (antes de pagar)')}</summary>
               <div className="mt-2 space-y-2">
                 {c.linhas.map((l) => (

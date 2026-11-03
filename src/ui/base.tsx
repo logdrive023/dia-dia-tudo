@@ -97,7 +97,7 @@ export function Cartao({ titulo, acao, children, className, ajuda }: { titulo?: 
 /** Onde o balão cabe: abaixo do ⓘ (ou acima, se não couber), sempre dentro da tela, com 8 px de folga das bordas. */
 function posicaoBalao(botao: DOMRect, alturaBalao: number) {
   const margem = 8
-  const largura = Math.min(288, window.innerWidth - margem * 2)
+  const largura = Math.min(320, window.innerWidth - margem * 2)
   const centro = botao.left + botao.width / 2
   const left = Math.min(Math.max(centro - largura / 2, margem), window.innerWidth - largura - margem)
   const cabeAbaixo = botao.bottom + 8 + alturaBalao <= window.innerHeight - margem
@@ -111,22 +111,28 @@ export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
   const botao = useRef<HTMLButtonElement>(null)
   const balao = useRef<HTMLSpanElement>(null)
   const t = useT()
+  const [meuId] = useState(() => Math.random().toString(36).slice(2))
   useEffect(() => {
     if (!aberto) return
     const fechar = () => setAberto(false)
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && setAberto(false)
+    // só um balão aberto por vez: quando outro abre, este fecha
+    const outro = (e: Event) => (e as CustomEvent<string>).detail !== meuId && setAberto(false)
+    window.dispatchEvent(new CustomEvent('tudo:info-abriu', { detail: meuId }))
     setTimeout(() => window.addEventListener('click', fechar), 0)
     window.addEventListener('keydown', esc)
+    window.addEventListener('tudo:info-abriu', outro)
     // rolou a tela ou girou o celular: o balão fecha (não fica solto fora do lugar)
     window.addEventListener('scroll', fechar, true)
     window.addEventListener('resize', fechar)
     return () => {
       window.removeEventListener('click', fechar)
       window.removeEventListener('keydown', esc)
+      window.removeEventListener('tudo:info-abriu', outro)
       window.removeEventListener('scroll', fechar, true)
       window.removeEventListener('resize', fechar)
     }
-  }, [aberto])
+  }, [aberto, meuId])
   // mede depois de desenhar: encaixa na tela (celular estreito, ⓘ encostado na borda)
   useLayoutEffect(() => {
     if (!aberto || !botao.current) return setPos(undefined)
@@ -148,7 +154,7 @@ export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
           role="tooltip"
           onClick={(e) => e.stopPropagation()}
           style={pos ? { position: 'fixed', left: pos.left, top: pos.top, width: pos.width } : { position: 'fixed', left: -9999, top: 0, width: 288 }}
-          className="z-[80] rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left text-sm font-normal normal-case leading-snug text-[var(--texto)] shadow-xl"
+          className="z-[80] max-h-[70vh] overflow-y-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 text-left text-sm font-normal normal-case leading-relaxed text-[var(--texto)] shadow-xl"
         >
           <Explicacao texto={explicacao} />
           {ex && <ExemploDica texto={ex} rotulo={t('Exemplo')} />}
@@ -160,14 +166,14 @@ export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
 
 // ---------- formato padrão do tooltip ----------
 // Frases separadas em ". " antes de letra maiúscula (não corta "7.000" nem "3,5").
-const frases = (s: string) => s.split(/\.\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9])/).map((x) => x.trim().replace(/\.$/, '')).filter(Boolean)
+const frases = (s: string) => s.split(/\.\s+(?=[^a-zà-ÿ\s])/).map((x) => x.trim().replace(/\.$/, '')).filter(Boolean)
 
 /** Explicação: uma frase por linha; "Termo: descrição" vira termo em negrito (ex.: "Só QR: para celular"). */
 function Explicacao({ texto }: { texto: string }) {
   const fs = frases(texto)
   if (fs.length <= 1) return <span className="block">{texto}</span>
   return (
-    <span className="block space-y-1">
+    <span className="block space-y-2">
       {fs.map((f, k) => {
         const m = /^([^:]{1,32}):\s+(.+)$/.exec(f)
         return (
@@ -186,24 +192,43 @@ function Explicacao({ texto }: { texto: string }) {
  * o resultado em negrito; as frases seguintes ("Toque na linha…") viram uma dica pequena embaixo.
  */
 function ExemploDica({ texto, rotulo }: { texto: string; rotulo: string }) {
-  const [primeira, ...resto] = frases(texto)
-  const partes = primeira.split(' · ')
-  const conta = primeira.lastIndexOf(' = ')
-  return (
-    <span className="mt-2 block overflow-hidden rounded-xl border border-[var(--marca-suave)]">
-      <span className="block bg-[var(--marca-suave)] px-2.5 py-2 text-[var(--marca)]">
-        <b className="mb-1 block text-[11px] uppercase tracking-wide opacity-80">{rotulo}</b>
-        {partes.length > 1 ? (
-          <span className="num flex flex-wrap gap-1">
-            {partes.map((p, k) => <span key={k} className="rounded-md bg-[var(--cartao)] px-1.5 py-0.5 font-semibold text-[var(--texto)]">{p}</span>)}
-          </span>
-        ) : conta > 0 ? (
-          <span className="num block font-semibold">{primeira.slice(0, conta)} = <b className="whitespace-nowrap text-[var(--texto)]">{primeira.slice(conta + 3)}</b></span>
-        ) : (
-          <span className="num block font-semibold">{primeira}</span>
-        )}
+  const t = useT()
+  // VÁRIOS exemplos ("Ex.: … Ex.: …"): cada um numa linha própria, com espaço entre eles (nada amontoado num parágrafo);
+  // o que não é exemplo (frases depois da conta) vira a dica pequena embaixo
+  const blocos = texto.split(/\s*\b(?:Ex\.|Ej\.):?\s*/).map((x) => x.trim()).filter(Boolean)
+  const exemplos: string[] = []
+  const dicas: string[] = []
+  for (const b of blocos) {
+    const [primeira, ...resto] = frases(b)
+    if (primeira) exemplos.push(primeira)
+    dicas.push(...resto)
+  }
+  const umExemplo = (ex: string) => {
+    const partes = ex.split(' · ')
+    // "… = X" só vira conta quando X é curto (um número: "Bs 7.000"); frase longa depois do "=" fica como texto
+    const idxIgual = ex.lastIndexOf(' = ')
+    const conta = idxIgual > 0 && ex.length - idxIgual - 3 <= 18 ? idxIgual : -1
+    return partes.length > 1 ? (
+      <span className="num flex flex-wrap gap-1">
+        {partes.map((p, k) => <span key={k} className="rounded-md bg-[var(--cartao)] px-1.5 py-0.5 font-semibold text-[var(--texto)]">{p}</span>)}
       </span>
-      {resto.length > 0 && <span className="block px-2.5 py-1.5 text-xs text-[var(--suave)]">💡 {resto.join('. ')}.</span>}
+    ) : conta > 0 ? (
+      <span className="num block font-semibold">{ex.slice(0, conta)} = <b className="whitespace-nowrap text-[var(--texto)]">{ex.slice(conta + 3)}</b></span>
+    ) : (
+      <span className="num block font-semibold">{ex}</span>
+    )
+  }
+  return (
+    <span className="mt-3 block overflow-hidden rounded-xl border border-[var(--marca-suave)]">
+      <span className="block bg-[var(--marca-suave)] px-3 py-2.5 text-[var(--marca)]">
+        <b className="mb-1.5 block text-[11px] uppercase tracking-wide opacity-80">{exemplos.length > 1 ? t('{n} exemplos', { n: exemplos.length }) : rotulo}</b>
+        {exemplos.length > 1 ? (
+          <span className="block divide-y divide-[var(--marca)]/15">
+            {exemplos.map((ex, k) => <span key={k} className="flex gap-2 py-1.5 first:pt-0 last:pb-0"><span aria-hidden className="num shrink-0 text-xs font-bold opacity-60">{k + 1}</span><span className="min-w-0">{umExemplo(ex)}</span></span>)}
+          </span>
+        ) : exemplos[0] ? umExemplo(exemplos[0]) : null}
+      </span>
+      {dicas.length > 0 && <span className="block space-y-1 px-3 py-2 text-xs leading-relaxed text-[var(--suave)]">{dicas.map((d, k) => <span key={k} className="block">💡 {d}.</span>)}</span>}
     </span>
   )
 }

@@ -17,12 +17,18 @@ import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
 import { useT } from '../ui/i18n'
 import { useCamposModulo } from './Estoque'
+import { NumeroGrande, type Selo } from '../ui/numeroGrande'
 import { BarraFiltros, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
 
 type Linha = ResultadoConsulta<'estoque'>[number]
 type Filtro = 'sem' | 'impressa' | 'todas'
 
-const AJUDA_SEM = 'Sem etiqueta: pacotes que ainda não ganharam etiqueta. Ex.: os 3 que você acabou de separar.'
+const AJUDA_SEM = 'Sem etiqueta: pacotes que ainda não ganharam etiqueta. Ex.: os 3 que você acabou de separar. Também volta para cá o pacote que vendeu parte depois de imprimir (⚖ peso mudou). Ex.: a etiqueta diz 18 kg, vendeu 2 kg → reimprima com 16 kg.'
+const CARTOES_ETIQUETA: { f: Filtro; rotulo: string; icone: string; cor: string }[] = [
+  { f: 'sem', rotulo: 'Sem etiqueta', icone: '🏷', cor: 'var(--alerta)' },
+  { f: 'impressa', rotulo: 'Já impressa', icone: '✓', cor: 'var(--bom)' },
+  { f: 'todas', rotulo: 'Todas', icone: '📦', cor: 'var(--marca)' },
+]
 const FILTROS = ['compra', 'lote', 'pessoa', 'quem', 'impr', 'medida', 'pmin', 'pmax', 'de', 'ate', 'busca']
 
 /** "03/11" (dia/mês no formato do idioma) */
@@ -124,17 +130,24 @@ export function Etiquetas() {
     <div className={cx(selecionados.length > 0 && 'pb-24')}>
       <Titulo subtitulo={t('Imprima, reimprima e veja quais pacotes ainda não têm etiqueta.')}>🏷 {t('Etiquetas')}</Titulo>
 
-      {/* três filtros sempre inteiros (também em 320 px): nome em cima, quantos embaixo */}
-      <div className="mb-3 flex items-center gap-1">
-        <div role="tablist" aria-label={t('Etiqueta')} className="grid min-w-0 flex-1 grid-cols-3 gap-1 rounded-xl bg-[var(--marca-suave)] p-1">
-          {(['sem', 'impressa', 'todas'] as const).map((f) => (
-            <button key={f} type="button" role="tab" aria-selected={filtro === f} onClick={() => setFiltro(f)} className={cx('min-h-11 rounded-lg px-1 text-center text-sm font-semibold leading-tight', filtro === f ? 'bg-[var(--cartao)] text-[var(--marca)] shadow-sm' : 'text-[var(--suave)]')}>
-              <span className="block truncate">{t(f === 'sem' ? 'Sem etiqueta' : f === 'impressa' ? 'Já impressa' : 'Todas')}</span>
-              {dados && <span className="num block text-xs font-normal">{conta(f)}</span>}
-            </button>
-          ))}
+      {/* três NÚMEROS GRANDES (mesmo padrão de Compras, Triagem e Estoque): tocar troca a lista; selos dizem o peso e o que pede atenção */}
+      <div className="mb-3">
+        <div className="mb-1 flex items-center justify-end"><Info texto={AJUDA_SEM} /></div>
+        <div role="tablist" aria-label={t('Etiqueta')} className="grid grid-cols-3 gap-2">
+          {CARTOES_ETIQUETA.map((c) => {
+            const n = conta(c.f)
+            const g = base.filter((i) => passaEtiqueta(i, c.f)).reduce((s, i) => s + i.saldo, 0)
+            const selos: Selo[] = [{ texto: fmt(g, 'gramas') }]
+            if (c.f === 'sem') selos.push(n ? { texto: `🖨 ${t('falta imprimir')}`, tom: 'alerta' } : { texto: `✓ ${t('tudo em dia')}`, tom: 'bom' })
+            const velhas = c.f === 'sem' ? base.filter((i) => i.etiquetaVelha).length : 0
+            if (velhas) selos.push({ texto: `⚖ ${t('{n} peso mudou', { n: velhas })}`, tom: 'ruim' })
+            if (c.f === 'impressa') {
+              const hoje = base.filter((i) => i.etiquetaImpressaEm?.slice(0, 10) === new Date().toISOString().slice(0, 10)).length
+              if (hoje) selos.push({ texto: t('{n} hoje', { n: hoje }), tom: 'marca' })
+            }
+            return <NumeroGrande key={c.f} role="tab" rotulo={c.rotulo} icone={c.icone} cor={c.cor} valor={dados ? String(n) : '…'} selos={dados ? selos : undefined} colorirValor={c.f === 'sem' && n > 0} ativo={filtro === c.f} onClick={() => setFiltro(c.f)} />
+          })}
         </div>
-        <Info texto={AJUDA_SEM} />
       </div>
 
       {/* FILTRO PADRÃO: busca + ⚙ Filtros · N → chips ✕ → painel em grupos com "Ver N resultados" */}
@@ -238,7 +251,9 @@ function LinhaEtiqueta({ i, marcado, onAlternar, onAbrir, onImprimir, onRefazer 
           {origem && <> · 🛒 {origem}</>}
         </div>
         <div className="mt-0.5 text-xs">
-          {i.etiquetaImpressaEm
+          {i.etiquetaVelha
+            ? <Pilula tom="alerta">⚖ {t('Peso mudou: a etiqueta diz {g}', { g: fmt(i.etiquetaPeso ?? 0, 'gramas') })}</Pilula>
+            : i.etiquetaImpressaEm
             ? <span className="text-[var(--bom)]">✓ {i.etiquetaImpressaPor ? t('impressa em {d} por {p}', { d: diaMes(i.etiquetaImpressaEm), p: i.etiquetaImpressaPor }) : t('impressa em {d}', { d: diaMes(i.etiquetaImpressaEm) })}</span>
             : <Pilula tom="alerta">{t('Sem etiqueta')}</Pilula>}
           {(i.etiquetaVia ?? 1) > 1 && <span className="ml-1 text-[var(--suave)]" title={i.etiquetaCancelada ? t('antiga cancelada: {m}', { m: i.etiquetaCancelada.motivo }) : undefined}>· {t('{n}ª via', { n: i.etiquetaVia! })}{i.etiquetaCancelada ? ` · ${t('antiga cancelada: {m}', { m: i.etiquetaCancelada.motivo })}` : ''}</span>}

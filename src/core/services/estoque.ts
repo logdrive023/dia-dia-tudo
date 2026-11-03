@@ -356,8 +356,15 @@ export function statusLote(i: Pick<Item, 'saldo' | 'campos' | 'quantidadeInicial
 
 /** Filtro da tela Etiquetas: 'sem' = nunca impressa; 'impressa' = já saiu; 'todas' (ou nada) = todas. */
 export type FiltroEtiqueta = 'sem' | 'impressa' | 'todas'
-export function passaEtiqueta(i: Pick<Item, 'etiquetaImpressaEm'>, f?: string) {
-  return f === 'sem' ? !i.etiquetaImpressaEm : f === 'impressa' ? !!i.etiquetaImpressaEm : true
+export function passaEtiqueta(i: Pick<Item, 'etiquetaImpressaEm' | 'etiquetaPeso' | 'saldo'>, f?: string) {
+  // etiqueta VELHA (vendeu parte e o peso impresso não bate) volta para "Sem etiqueta": precisa reimprimir
+  const velha = etiquetaVelha(i)
+  return f === 'sem' ? !i.etiquetaImpressaEm || velha : f === 'impressa' ? !!i.etiquetaImpressaEm && !velha : true
+}
+
+/** A etiqueta diz um peso e o pacote tem outro (vendeu ou ajustou parte depois de imprimir). Ex.: diz 18 kg, tem 16 kg. */
+export function etiquetaVelha(i: Pick<Item, 'etiquetaImpressaEm' | 'etiquetaPeso' | 'saldo'>) {
+  return !!i.etiquetaImpressaEm && i.etiquetaPeso !== undefined && i.saldo > 0 && i.saldo !== i.etiquetaPeso
 }
 
 export async function estoque(ctx: Ctx, p: { moduloId?: string; somenteComSaldo?: boolean; etiqueta?: FiltroEtiqueta } = {}) {
@@ -392,6 +399,7 @@ export async function estoque(ctx: Ctx, p: { moduloId?: string; somenteComSaldo?
         fornecedor: (i.origem?.pessoaId ? pessoas.get(i.origem.pessoaId) : undefined) ?? (nomes.join(', ') || undefined),
         /** quem gerou o pacote (usuário que registrou a compra / fez a separação) */
         criadoPorNome: usuarios.get(i.criadoPor),
+        etiquetaVelha: etiquetaVelha(i),
         pai: pai ? { id: pai.id, codigo: pai.codigo, nome: pai.nome } : undefined,
         unificadoDe: i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).map((id) => porId.get(id)?.codigo ?? id) : undefined,
         cadeia: L.cadeia(i.id),
@@ -801,11 +809,34 @@ export async function marcarEtiquetasImpressas(ctx: Ctx, d: { ids: Id[] }) {
     const item = await ctx.repos.itens.obter(id)
     exigir(item && item.controlaEstoque, 'Lote não encontrado.')
     const antes = item.etiquetaImpressaEm
-    await ctx.repos.itens.salvar(tocar(ctx, { ...item, etiquetaImpressaEm: em, etiquetaImpressaPor: ctx.sessao.nome || undefined }))
+    await ctx.repos.itens.salvar(tocar(ctx, { ...item, etiquetaImpressaEm: em, etiquetaImpressaPor: ctx.sessao.nome || undefined, etiquetaPeso: item.saldo }))
     await auditar(ctx, 'marcarEtiquetasImpressas', item.id, `${item.codigo ?? item.nome}: ${antes ? 'etiqueta impressa de novo' : 'etiqueta impressa'}`)
     marcados.push(item.id)
   }
   return { marcados, em }
+}
+
+/**
+ * RESERVAR um pacote para uma cliente (encomenda): fica 🔒 no estoque e a venda avisa se for para outra pessoa.
+ * Sem `para` (ou `tirar`) = tira a reserva. Ex.: Ana pediu 60 cm Preto para sexta → reserva L-0004 para Ana até sexta.
+ */
+export async function reservarLote(ctx: Ctx, d: { id: Id; para?: string; ate?: string; obs?: string; tirar?: boolean }) {
+  const item = await ctx.repos.itens.obter(d.id)
+  exigir(item && item.controlaEstoque, 'Lote não encontrado.')
+  const para = (d.para ?? '').trim()
+  if (d.tirar || !para) {
+    if (!item.reserva) return { id: item.id }
+    await ctx.repos.itens.salvar(tocar(ctx, { ...item, reserva: undefined }))
+    await auditar(ctx, 'reservarLote', item.id, `${item.codigo ?? item.nome}: reserva para ${item.reserva.para} tirada`)
+    return { id: item.id }
+  }
+  exigir(item.saldo > 0, 'Este pacote não tem mais peso para reservar.')
+  exigir(para.length <= 80, 'Nome muito longo.')
+  exigir(!d.ate || /^\d{4}-\d{2}-\d{2}$/.test(d.ate), 'Data inválida.', 'ate')
+  const reserva = { para, ate: d.ate || undefined, obs: d.obs?.trim() || undefined, em: ctx.relogio.agora(), porNome: ctx.sessao.nome || undefined }
+  await ctx.repos.itens.salvar(tocar(ctx, { ...item, reserva }))
+  await auditar(ctx, 'reservarLote', item.id, `${item.codigo ?? item.nome}: reservado para ${para}${reserva.ate ? ` até ${reserva.ate}` : ''}${reserva.obs ? ` · ${reserva.obs}` : ''}`)
+  return { id: item.id }
 }
 
 /**
@@ -848,7 +879,8 @@ export interface Cadeia {
  * pode ir para várias triagens, e uma triagem pode misturar várias compras.
  */
 export async function leitorCadeia(ctx: Ctx) {
-  const itens = await ctx.repos.itens.listar()
+  // pacotes de triagem DESFEITA não fazem parte da cadeia (o peso já voltou para o pacote de entrada)
+  const itens = (await ctx.repos.itens.listar()).filter((i) => !i.campos.triagemDesfeita)
   const porId = new Map(itens.map((i) => [i.id, i]))
   const filhos = new Map<Id, Id[]>()
   for (const i of itens) for (const o of lotesDeOrigem(i)) filhos.set(o, [...(filhos.get(o) ?? []), i.id])

@@ -214,10 +214,10 @@ export function Triagem() {
   const buscaNaLista = (abaReal === 'separar' || abaReal === 'depois') && visao !== 'quadro'
   const irAba = (id: string) => ajustarParams({ aba: id === 'separar' ? undefined : id, f: undefined, m: undefined, t: undefined, ...Object.fromEntries(PARAMS_PRONTOS.map((k) => [k, undefined])) })
   const aguardando = dados.lotes.filter(naFila)
-  const gAguardando = aguardando.reduce((s, l) => s + l.saldo, 0)
   // "para separar" e "para depois" (não identificado) são abas diferentes
   const separarTodos = aguardando.filter((l) => l.campos.estado !== NAO_ID)
   const gSeparar = separarTodos.reduce((s, l) => s + l.saldo, 0)
+  const paradosN = separarTodos.filter((l) => l.atrasado).length
   const daAba = abaReal === 'depois' ? aguardando.filter((l) => l.campos.estado === NAO_ID) : separarTodos
   // filtro padrão das abas Para separar / Para depois (no endereço): fornecedor, compra, parado há N dias, etiqueta
   const fp = (k: string) => (nav.params[k] === undefined ? '' : String(nav.params[k]))
@@ -249,12 +249,8 @@ export function Triagem() {
       {/* topo: o que fazer agora */}
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
+          {/* o resumo (quantos para separar, quanto pesa) fica nos cartões logo abaixo — sem repetir aqui */}
           <h1 className="text-2xl font-bold">{t('Triagem')}</h1>
-          <p className="num mt-0.5 text-base text-[var(--suave)]">
-            {aguardando.length
-              ? <><b className="text-[var(--texto)]">{aguardando.length === 1 ? t('1 pacote para separar') : t('{n} pacotes para separar', { n: aguardando.length })}</b> <span className="whitespace-nowrap">· {gramasTexto(gAguardando)}</span></>
-              : <b className="text-[var(--bom)]">{t('Tudo separado ✓')}</b>}
-          </p>
         </div>
         <div className="flex shrink-0 items-center">
           {!buscaNaLista && <button type="button" className={icone} aria-pressed={buscaAberta || !!busca} aria-label={t('Buscar')} title={t('Buscar')} onClick={() => { if (buscaAberta && busca) setBusca(''); setBuscaAberta(!(buscaAberta || !!busca)) }}>🔍</button>}
@@ -287,18 +283,25 @@ export function Triagem() {
         <Entrada type="search" autoFocus={buscaAberta && !busca} focoSempre className="w-full" aria-label={t('Buscar lote por código (atual ou antigo), compra, sigla ou fornecedor')} placeholder={t('Código, compra ou fornecedor')} value={busca} onChange={(e) => setBusca(e.target.value)} onKeyDown={pistola.onKeyDown} />
       )}
 
-      {/* ABAS DE VERDADE: cada uma carrega só o que é dela (separar · prontos · para depois · triagens feitas) */}
-      <div role="tablist" aria-label={t('Triagem')} className="-mx-1 flex gap-1 overflow-x-auto border-b border-[var(--borda)] px-1 [scrollbar-width:none]">
+      {/* abas como CARTÕES: ícone, número grande e os detalhes em SELOS coloridos (pacotes · parados · valor) */}
+      <div role="tablist" aria-label={t('Triagem')} className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {([
-          { id: 'separar', nome: 'Para separar', icone: '⏳', valor: gramasTexto(gSeparar), n: separarTodos.length },
-          { id: 'prontos', nome: 'Prontos', icone: '✅', valor: gramasTexto(tt.pronto), n: dados.lotes.filter(ehPronto).length },
-          { id: 'depois', nome: 'Para depois', icone: '❓', valor: gramasTexto(tt.naoIdentificado.g), n: tt.naoIdentificado.n },
-          { id: 'triagens', nome: 'Triagens feitas', icone: '✂️' },
-        ] as const).map((a) => (
+          { id: 'separar', nome: 'Para separar', icone: '⏳', cor: paradosN ? 'var(--ruim)' : 'var(--alerta)', valor: separarTodos.length ? gramasTexto(gSeparar) : t('Tudo separado ✓'), selos: separarTodos.length ? [{ texto: t('{n} pacote(s)', { n: separarTodos.length }) }, ...(paradosN ? [{ texto: `⏰ ${t('{n} parado(s)', { n: paradosN })}`, tom: 'ruim' }] : [])] : [{ texto: t('nada esperando'), tom: 'bom' }] },
+          { id: 'prontos', nome: 'Prontos', icone: '✅', cor: 'var(--bom)', valor: gramasTexto(tt.pronto), selos: [{ texto: t('{n} pacote(s)', { n: dados.lotes.filter(ehPronto).length }) }, ...(tt.prontoValor ? [{ texto: formatar(tt.prontoValor, moedaPadrao()), tom: 'bom' }] : [])] },
+          { id: 'depois', nome: 'Para depois', icone: '❓', cor: '#a78bfa', valor: gramasTexto(tt.naoIdentificado.g), selos: [{ texto: t('{n} pacote(s)', { n: tt.naoIdentificado.n }), ...(tt.naoIdentificado.n ? { tom: 'alerta' } : {}) }] },
+          { id: 'triagens', nome: 'Triagens feitas', icone: '✂️', cor: 'var(--marca)', valor: gramasTexto(tt.triadoSemana), selos: [{ texto: t('nesta semana'), tom: 'marca' }] },
+        ] as { id: string; nome: string; icone: string; cor: string; valor: string; selos: { texto: string; tom?: string }[] }[]).map((a) => (
           <button key={a.id} type="button" role="tab" aria-selected={abaReal === a.id} onClick={() => irAba(a.id)}
-            className={cx('-mb-px flex min-h-14 shrink-0 flex-col items-start justify-center border-b-2 px-3 text-left', abaReal === a.id ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}>
-            <span className="whitespace-nowrap text-sm font-semibold"><span aria-hidden>{a.icone}</span> {t(a.nome)}</span>
-            {'valor' in a && <span className={cx('num whitespace-nowrap text-xs', abaReal === a.id ? 'font-bold' : '')}>{a.n} · {a.valor}</span>}
+            className={cx('relative min-w-0 overflow-hidden rounded-2xl border bg-[var(--cartao)] p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-4', abaReal === a.id ? 'border-[var(--marca)] ring-2 ring-[var(--marca-suave)]' : 'border-[var(--borda)]')}>
+            <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: a.cor }} />
+            <span className="flex items-center gap-2 text-xs font-semibold text-[var(--suave)]"><span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm" style={{ background: `color-mix(in srgb, ${a.cor} 15%, transparent)` }}>{a.icone}</span><span className="truncate">{t(a.nome)}</span></span>
+            <span className={cx('num mt-1.5 block truncate text-xl font-bold sm:text-2xl', abaReal === a.id && 'text-[var(--marca)]')}>{a.valor}</span>
+            <span className="mt-1.5 flex flex-wrap gap-1">
+              {a.selos.map((s, k) => (
+                <span key={k} className={cx('num inline-flex max-w-full items-center truncate rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                  s.tom === 'ruim' ? 'bg-[var(--ruim)]/15 text-[var(--ruim)]' : s.tom === 'bom' ? 'bg-[var(--bom)]/15 text-[var(--bom)]' : s.tom === 'alerta' ? 'bg-[var(--alerta)]/15 text-[var(--alerta)]' : s.tom === 'marca' ? 'bg-[var(--marca-suave)] text-[var(--marca)]' : 'bg-[var(--fundo)] text-[var(--suave)]')}>{s.texto}</span>
+              ))}
+            </span>
           </button>
         ))}
       </div>
@@ -332,6 +335,8 @@ export function Triagem() {
         <div className="mb-2 flex items-center gap-1">
           <h2 className="min-w-0 truncate text-lg font-bold">{t(visao === 'quadro' ? 'Quadro' : abaReal === 'depois' ? 'Para depois' : 'Para separar')}</h2>
           {visao !== 'quadro' && <Info texto={DICA_SEPARAR} />}
+          {/* LEGENDA dos selos da lista (parado, etiqueta, para depois) */}
+          {visao !== 'quadro' && <span className="ml-1 inline-flex items-center text-xs font-semibold text-[var(--suave)]">{t('Legenda')}<Info texto={t('parado: esperando para separar há mais de {n} dias (muda em Configurações › Etapas da compra). ✓ Etiqueta: já foi impressa (toque para ver ou reimprimir). 🏷 Sem etiqueta: ainda não imprimiu (toque para imprimir). ❓ para depois: ficou sem identificar numa separação. Ex.: “parado” + há 12 dias = está esperando faz tempo, separe primeiro.', { n: dados.diasParado })} /></span>}
           {/* os dois botões nunca quebram no meio da palavra ("Seleciona / r") no celular */}
           <span className="ml-auto flex shrink-0 items-center [&>button]:whitespace-nowrap [&>button]:px-2 sm:[&>button]:px-3">
             <Botao variante="leve" className="px-3" aria-pressed={comSelecao} onClick={() => { if (comSelecao) limparSel(); setSelecionando(!comSelecao) }}>{t(comSelecao ? 'Cancelar' : 'Selecionar')}</Botao>
@@ -340,6 +345,18 @@ export function Triagem() {
           </span>
         </div>
 
+        {/* MISTURAR COMPRAS: com 2+ pacotes, mostra como juntar (ex.: compra 1 + compra 2 numa separação só); a origem
+            de cada grama fica guardada (a ligação aparece no pacote novo e na triagem feita) */}
+        {visao !== 'quadro' && daAba.length >= 2 && !comSelecao && (
+          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-[var(--marca)] bg-[var(--marca-suave)] px-3 py-2.5">
+            <span className="min-w-0 flex-1 text-sm">
+              <b className="block">🔗 {t('Misturar compras numa separação só?')}</b>
+              <span className="block text-xs text-[var(--suave)]">{t('Marque 2 ou mais pacotes e toque em “Juntar e separar”. Ex.: 2 kg da compra P-0005 + 4 kg da P-0007 → uma separação, cada grama sabe de onde veio.')}</span>
+            </span>
+            <Botao variante="secundario" className="shrink-0" onClick={() => setSelecionando(true)}>🔗 {t('Juntar pacotes')}</Botao>
+          </div>
+        )}
+        {comSelecao && sel.size < 2 && daAba.length >= 2 && <p className="mb-2 rounded-xl bg-[var(--marca-suave)] px-3 py-2 text-sm text-[var(--marca)]">☑ {t('Marque os pacotes que vão juntos (2 ou mais). A barra de baixo mostra “Juntar e separar”.')}</p>}
         {/* FILTRO PADRÃO (mesmo visual de Etiquetas): busca + ⚙ Filtros · N → chips ✕ → painel em grupos */}
         {visao !== 'quadro' && daAba.length > 0 && (
           <div className="mb-3 space-y-2">
@@ -391,7 +408,7 @@ export function Triagem() {
                       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="font-mono text-base font-bold">{l.codigo ?? '—'}</span>
                         <span className="min-w-0 truncate text-base">{rotuloCurto(l, t)}</span>
-                        {l.atrasado && <Pilula tom="ruim">{t('parado')}</Pilula>}
+                        {l.atrasado && <span title={t('Esperando para separar há mais de {n} dias', { n: dados.diasParado })}><Pilula tom="ruim">⏰ {t('parado')}</Pilula></span>}
                         {l.campos.estado === NAO_ID && <Pilula tom="alerta">❓ {t('para depois')}</Pilula>}
                         {col && !col.entrada && <Pilula>{t(col.nome)}</Pilula>}
                         <SeloEtiqueta id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} />
@@ -908,7 +925,7 @@ function ListaTriagens({ aberta }: { aberta?: string }) {
       {!lista.length ? (
         <p className="rounded-xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nenhuma triagem com esses filtros.')}</p>
       ) : (
-        <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+        <ul className="space-y-3">
           {lista.map((x) => <LinhaTriagem key={x.id} x={x} aberta={aberta === x.id} t={t} ir={ir} onAlternar={() => ajustarParams({ t: aberta === x.id ? undefined : x.id })} onImprimir={setImprimir} />)}
         </ul>
       )}
@@ -933,37 +950,116 @@ function LinhaTriagem({ x, aberta, t, ir, onAlternar, onImprimir }: { x: Triagem
   const com = x.saidas.filter((s) => s.etiquetaImpressaEm).length
   const fornecedores = [...new Set(x.compras.map((c) => c.fornecedor).filter(Boolean))]
   const rotuloImprimir = t(faltam.length === 1 ? 'Imprimir a que falta' : 'Imprimir as {n} que faltam', { n: faltam.length })
+  const [verRastreio, setVerRastreio] = useState(false)
+  const corPerda = x.perdaPct > 500 ? 'text-[var(--ruim)]' : x.perda > 0 ? 'text-[var(--alerta)]' : 'text-[var(--suave)]'
+  const titulo = (s: string) => <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t(s)}</h4>
   return (
-    <li className={cx(aberta && 'bg-[var(--marca-suave)]/40')}>
-      <div className="flex items-center gap-2 px-3 py-2">
-        <div {...clicavel(onAlternar)} aria-expanded={aberta} className="min-w-0 flex-1 cursor-pointer rounded-lg outline-none focus-visible:bg-[var(--marca-suave)]">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span aria-hidden className={cx('inline-block w-3 text-[var(--suave)] transition-transform', aberta && 'rotate-90')}>›</span>
-            <b className="font-mono text-base">{x.codigo}</b>
-            <span className="text-sm text-[var(--suave)]">{dataBR(x.em)}{x.por ? ` · ${x.por}` : ''}</span>
-          </div>
-          <div className="num mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-5 text-sm">
-            <span className="whitespace-nowrap"><b>{gramasTexto(x.pesoEntrada)}</b> → <b>{gramasTexto(x.pesoSaida)}</b></span>
-            <span className={cx('whitespace-nowrap font-semibold', x.perdaPct > 500 ? 'text-[var(--ruim)]' : x.perda > 0 ? 'text-[var(--alerta)]' : 'text-[var(--suave)]')}>{t('perda')} {fmt(x.perdaPct, 'percentual')}{aberta && x.perda > 0 ? ` · ${gramasTexto(x.perda)}` : ''}</span>
-            <span className="whitespace-nowrap text-[var(--suave)]">· {t('{n} pacote(s)', { n: x.saidas.length })}</span>
-            {x.saidas.length > 0 && <span className={cx('whitespace-nowrap font-semibold', faltam.length ? 'text-[var(--alerta)]' : 'text-[var(--bom)]')}>{faltam.length ? '🏷' : '✓'} {t('{c} de {n} com etiqueta', { c: com, n: x.saidas.length })}</span>}
-            {fornecedores.length > 0 && <span className="min-w-0 truncate text-[var(--suave)]">· {fornecedores.join(', ')}</span>}
-          </div>
+    // cada triagem é um CARTÃO próprio (espaço entre um e outro): cabeçalho, 3 números e, aberto, seções com título
+    <li className={cx('overflow-hidden rounded-2xl border bg-[var(--cartao)] shadow-sm', aberta ? 'border-[var(--marca)]' : 'border-[var(--borda)]')}>
+      <div {...clicavel(onAlternar)} aria-expanded={aberta} className="cursor-pointer px-4 py-3 outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
+        <div className="flex min-w-0 items-center gap-2">
+          <span aria-hidden className={cx('inline-block w-3 shrink-0 text-[var(--suave)] transition-transform', aberta && 'rotate-90')}>›</span>
+          <b className="font-mono text-base">{x.codigo}</b>
+          <span className="min-w-0 flex-1 truncate text-right text-xs text-[var(--suave)]">{dataBR(x.em)}{x.por ? ` · ${x.por}` : ''}</span>
         </div>
-        {faltam.length > 0 && <Botao variante="secundario" className="shrink-0 px-3" aria-label={rotuloImprimir} title={rotuloImprimir} onClick={() => onImprimir(faltam.map((s) => s.id))}>🖨<span className="hidden sm:inline"> {rotuloImprimir}</span></Botao>}
+        <div className="num mt-2 grid grid-cols-3 gap-1.5 text-center">
+          <span className="rounded-xl bg-[var(--fundo)] px-1 py-1.5"><span className="block text-[11px] text-[var(--suave)]">{t('Entrou')}</span><b className="block whitespace-nowrap text-sm">{gramasTexto(x.pesoEntrada)}</b></span>
+          <span className="rounded-xl bg-[var(--fundo)] px-1 py-1.5"><span className="block text-[11px] text-[var(--suave)]">{t('Saiu')}</span><b className="block whitespace-nowrap text-sm">{gramasTexto(x.pesoSaida)}</b></span>
+          <span className="rounded-xl bg-[var(--fundo)] px-1 py-1.5"><span className="block text-[11px] text-[var(--suave)]">{t('Perda')}</span><b className={cx('block whitespace-nowrap text-sm', corPerda)}>{fmt(x.perdaPct, 'percentual')}</b>{x.perda > 0 && <span className={cx('block text-[11px]', corPerda)}>{gramasTexto(x.perda)}</span>}</span>
+        </div>
+        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+          <span className="text-[var(--suave)]">{t('{n} pacote(s)', { n: x.saidas.length })}</span>
+          {x.saidas.length > 0 && <span className={cx('font-semibold', faltam.length ? 'text-[var(--alerta)]' : 'text-[var(--bom)]')}>{faltam.length ? '🏷' : '✓'} {t('{c} de {n} com etiqueta', { c: com, n: x.saidas.length })}</span>}
+          {fornecedores.length > 0 && <span className="min-w-0 truncate text-[var(--suave)]">· {fornecedores.join(', ')}</span>}
+        </div>
       </div>
+      {faltam.length > 0 && (
+        <div className="border-t border-[var(--borda)] px-4 py-2">
+          <Botao variante="secundario" className="w-full sm:w-auto" onClick={() => onImprimir(faltam.map((s) => s.id))}>🖨 {rotuloImprimir}</Botao>
+        </div>
+      )}
       {aberta && (
-        <div className="space-y-2 px-3 pb-3 pl-8">
-          <div className="flex flex-wrap items-center gap-1 text-sm">
-            <CadeiaChips cadeia={{ compras: x.compras, triagens: [], vendas: [] }} max={4} />
-            <span aria-hidden className="text-[var(--suave)]">→</span>
-            {x.saidas.map((s) => <button key={s.id} type="button" onClick={() => ir('lote', { id: s.id })} title={s.etiquetaImpressaEm ? t('Etiqueta') : t('Sem etiqueta')} className="min-h-8 rounded-full bg-[var(--fundo)] px-2 text-xs font-semibold hover:bg-[var(--marca-suave)]">📦 {s.codigo} · <span className="num">{gramasTexto(s.g)}</span> <span aria-hidden className={s.etiquetaImpressaEm ? 'text-[var(--bom)]' : 'text-[var(--alerta)]'}>{s.etiquetaImpressaEm ? '✓' : '🏷'}</span></button>)}
-            {x.vendas.length > 0 && <><span aria-hidden className="text-[var(--suave)]">→</span><CadeiaChips cadeia={{ compras: [], triagens: [], vendas: x.vendas }} max={4} /></>}
-          </div>
-          <RastreioDaTriagem id={x.id} />
+        <div className="space-y-4 border-t border-[var(--borda)] bg-[var(--fundo)] px-4 py-3">
+          <section>
+            {titulo('Veio de')}
+            <CadeiaChips cadeia={{ compras: x.compras, triagens: [], vendas: [] }} max={6} />
+          </section>
+          <section>
+            {titulo('Virou')}
+            <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-xl border border-[var(--borda)] bg-[var(--cartao)]">
+              {x.saidas.map((s) => (
+                <li key={s.id}>
+                  <button type="button" onClick={() => ir('lote', { id: s.id })} className="num flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-[var(--fundo)]">
+                    <b className="font-mono text-[var(--marca)]">{s.codigo}</b>
+                    <span className="min-w-0 flex-1 truncate text-xs text-[var(--suave)]">{s.nome}</span>
+                    <b className="whitespace-nowrap">{gramasTexto(s.g)}</b>
+                    <span aria-label={t(s.etiquetaImpressaEm ? 'Etiqueta' : 'Sem etiqueta')} className={s.etiquetaImpressaEm ? 'text-[var(--bom)]' : 'text-[var(--alerta)]'}>{s.etiquetaImpressaEm ? '✓' : '🏷'}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+          {x.vendasLista.length > 0 && (
+            <section>
+              {/* cada venda numa linha (como o "Virou"): data, cliente, de quais pacotes, quanto e por quanto; total embaixo */}
+              <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                {titulo('Vendido em')}
+                <span className="num text-xs text-[var(--suave)]">{t('{n} venda(s)', { n: x.vendasLista.length })} · <b className="text-[var(--bom)]">{gramasTexto(x.vendasLista.reduce((s, v) => s + v.g, 0))}</b> {t('de {g}', { g: gramasTexto(x.pesoSaida) })}</span>
+              </div>
+              <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-xl border border-[var(--borda)] bg-[var(--cartao)]">
+                {x.vendasLista.map((v) => (
+                  <li key={v.id}>
+                    <button type="button" onClick={() => ir('venda', { id: v.id })} className="num flex min-h-12 w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-[var(--fundo)]">
+                      <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bom)]/15 text-sm">💰</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-baseline gap-2"><b className="font-mono text-[var(--bom)]">{v.codigo}</b><span className="text-xs text-[var(--suave)]">{dataBR(v.data)}</span></span>
+                        <span className="block truncate text-xs text-[var(--suave)]">{v.cliente ?? t('Sem cliente')}{v.lotes.length ? ` · ${v.lotes.join(', ')}` : ''}</span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <b className="block whitespace-nowrap">{gramasTexto(v.g)}</b>
+                        {v.valor > 0 && <span className="block whitespace-nowrap text-xs text-[var(--suave)]">{formatar(v.valor, v.moeda)}</span>}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          <button type="button" aria-expanded={verRastreio} onClick={() => setVerRastreio(!verRastreio)} className="min-h-10 text-sm font-semibold text-[var(--marca)] hover:underline">{verRastreio ? `▾ ${t('Fechar o rastreio')}` : `▸ ${t('Ver rastreio completo (gramas)')}`}</button>
+          {verRastreio && <RastreioDaTriagem id={x.id} />}
+          <DesfazerTriagem x={x} t={t} />
         </div>
       )}
     </li>
+  )
+}
+
+const AJUDA_DESFAZER =
+  'Desfazer: volta tudo como era antes da triagem. O peso volta para o pacote de entrada e os pacotes que saíram somem (ficam no histórico como desfeitos). Use quando pesou ou separou errado. Ex.: separou 10 kg, mas eram 9,5 kg → desfaz, corrige o peso na compra e separa de novo. Só dá enquanto nada que saiu foi vendido, separado de novo ou ajustado.'
+
+/** "Errei a triagem": desfaz (só se nada do que saiu foi mexido); senão explica o caminho (ajustar o pacote que sobrou). */
+function DesfazerTriagem({ x, t }: { x: TriagemFeita; t: T }) {
+  const { executar } = useComando()
+  const [aberto, setAberto] = useState(false)
+  const comEtiqueta = x.saidas.filter((s) => s.etiquetaImpressaEm).map((s) => s.codigo)
+  if (!x.podeDesfazer)
+    return <p className="flex items-center text-xs text-[var(--suave)]">{t('Errou? Já venderam ou mexeram num pacote desta triagem: corrija pelo pacote (⋯ › Ajustar).')}<Info texto={AJUDA_DESFAZER} /></p>
+  return (
+    <div className="flex items-center border-t border-[var(--borda)] pt-3">
+      <Botao variante="leve" onClick={() => setAberto(true)}>↩ {t('Errou? Desfazer esta triagem')}</Botao>
+      <Info texto={AJUDA_DESFAZER} />
+      {aberto && (
+        <Confirmar
+          perigo
+          pedirMotivo
+          titulo="Desfazer a triagem?"
+          texto={`${t('{g} voltam para o pacote de entrada e {n} pacote(s) somem da lista.', { g: gramasTexto(x.pesoEntrada), n: x.saidas.length })}${comEtiqueta.length ? ` ${t('Jogue fora as etiquetas de {c}.', { c: comEtiqueta.join(', ') })}` : ''}`}
+          rotulo="Desfazer"
+          onConfirmar={(motivo) => executar('desfazerTriagem', { triagemId: x.id, motivo }, t('Triagem desfeita: o peso voltou para separar.'))}
+          onFechar={() => setAberto(false)}
+        />
+      )}
+    </div>
   )
 }
 

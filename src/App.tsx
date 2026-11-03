@@ -108,14 +108,21 @@ export default function App() {
   // voltar: pelo histórico; se a tela foi aberta direto por um link, vai para a lista "pai" (nunca sai do app)
   const pilhaRef = useRef(pilha)
   pilhaRef.current = pilha
+  // regra: veio de uma LISTA (tela sem "pai") → volta para ela (com os filtros); veio de um formulário ou de outro
+  // detalhe (ex.: Nova compra → Pedido) → vai para a lista da área (Pedido → Compras), nunca para o formulário enviado
   const voltar = useCallback(() => {
-    if (pilhaRef.current.length > 1) history.back()
-    else {
-      const atual = pilhaRef.current[pilhaRef.current.length - 1]
-      const n = { tela: PAI[atual.tela] ?? 'painel', params: {} }
-      setPilha([n])
-      history.replaceState(null, '', navParaHash(n))
+    const pl = pilhaRef.current
+    const atual = pl[pl.length - 1]
+    const anterior = pl[pl.length - 2]
+    const pai = PAI[atual.tela]
+    if (anterior && (!PAI[anterior.tela] || !pai)) return history.back()
+    if (pai) {
+      // a lista já está mais atrás no histórico: volta até ela (mantém filtros)
+      for (let k = pl.length - 2; k >= 0; k--) if (pl[k].tela === pai && !pl[k].params.id) return history.go(k - (pl.length - 1))
     }
+    const n = { tela: pai ?? 'painel', params: {} }
+    setPilha((p) => [...p.slice(0, -1), n])
+    history.replaceState(null, '', navParaHash(n))
   }, [])
   const avisar = useCallback((texto: string, tipo: 'ok' | 'erro' = 'ok') => setAviso({ texto, tipo }), [])
   const ajustarParams = useCallback((p: Params) => {

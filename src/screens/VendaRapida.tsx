@@ -11,6 +11,7 @@ import type { Id, TabelaPreco } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { fatorDaTabela } from '../core/services/precos'
 import { Botao, Campo, Entrada, Escolha, Info, Janela, Selecao, ValorInput, cx, gramasTexto, loc, moedaPadrao, ehToque } from '../ui/base'
+import { SeloReserva, reservado } from '../ui/reserva'
 import { useApp, useAvisoSaida, useComando, useConsulta } from '../ui/contexto'
 import { EditorPagamentos, type PagamentoTela, SeletorPessoa, conv, cotacaoDigitada, cotacaoTexto, lerCotacaoTexto, linkWhatsApp, textoCotacaoPagamento, useCotacoes } from '../ui/compartilhados'
 import { LeitorCodigo, StatusBadge } from '../ui/estoqueUi'
@@ -490,6 +491,7 @@ export function VendaRapida() {
               <button type="button" onClick={() => adicionar(l)} className="flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--marca-suave)]">
                 <span className="min-w-0 truncate"><b className="font-mono">{l.codigo ?? '—'}</b> · {l.nome}</span>
                 <span className="flex shrink-0 items-center gap-2">
+                  {reservado(l) && <span aria-label={t('Reservado')} title={l.reserva?.para}>🔒</span>}
                   {l.status !== 'disponivel' && l.status !== 'parcial' && <StatusBadge status={l.status} />}
                   <span className="num text-[var(--suave)]">{l.unidade === 'grama' ? gramasTexto(l.saldo) : l.saldo}</span>
                 </span>
@@ -528,6 +530,8 @@ export function VendaRapida() {
       <span className="min-w-0">
         <span className="block font-mono text-lg font-black leading-tight">{l.item.codigo ?? '—'} <span className="text-sm font-semibold text-[var(--marca)]">🔎</span></span>
         <span className="block truncate text-sm">{l.item.nome}</span>
+        {/* encomenda: está guardado para alguém — confira se é para esta cliente */}
+        <SeloReserva i={l.item} />
         {origemCurta(l.item) && <span className="block truncate text-xs text-[var(--suave)]">{t('de')} {origemCurta(l.item)}</span>}
       </span>
     </button>

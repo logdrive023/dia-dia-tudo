@@ -443,6 +443,8 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
     lotes,
     colunas,
     vendidosOcultos,
+    /** depois de quantos dias esperando o pacote fica "parado" (Configurações › Etapas da compra) */
+    diasParado: diasAviso,
     diasAviso,
     colunasPreco: (padrao?.colunas ?? []).map((c) => ({ id: c.id, nome: c.nome })),
     colunaPrecoId: padrao?.colunas.find((c) => c.id === p.colunaId)?.id ?? padrao?.colunas[0]?.id,
@@ -500,7 +502,53 @@ export async function triarLotes(ctx: Ctx, d: { id: Id; ids: Id[]; quantidadeUsa
 export interface Ligacao { id: Id; codigo?: string; g: number; tipo: 'compra' | 'triagem' | 'lote' | 'venda' }
 
 /** chave da triagem de um lote (lotes separados antes do id de triagem usam a separação) */
-const chaveTriagem = (i: Item) => i.triagem?.id ?? (i.origem?.tipo === 'transformacao' ? (i.campos.separacaoId as string | undefined) : undefined)
+const dataCurta = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')
+const chaveTriagem = (i: Item) => (i.campos.triagemDesfeita ? undefined : i.triagem?.id ?? (i.origem?.tipo === 'transformacao' ? (i.campos.separacaoId as string | undefined) : undefined))
+
+/**
+ * DESFAZER A TRIAGEM (separou errado, pesou errado): volta tudo como estava antes — o peso volta para o(s) pacote(s)
+ * de entrada e os pacotes que saíram somem da lista (ficam no histórico como "desfeito"). Só quando NENHUM pacote que
+ * saiu foi vendido, separado de novo ou ajustado; senão o certo é ajustar o pacote que sobrou.
+ * Ex.: T-0007 separou 10 kg em 6 + 4 kg, mas eram 9,5 kg → desfaz, corrige o peso na compra e separa de novo.
+ */
+export async function desfazerTriagem(ctx: Ctx, d: { triagemId: Id; motivo: string }) {
+  const motivo = (d.motivo ?? '').trim()
+  exigir(motivo, 'Diga por que vai desfazer (ex.: pesei errado).', 'motivo')
+  const itens = await ctx.repos.itens.listar()
+  const S = itens.filter((i) => chaveTriagem(i) === d.triagemId)
+  exigir(S.length, 'Triagem não encontrada (ou já desfeita).')
+  const ids = new Set(S.map((i) => i.id))
+  const seps = new Set(S.map((i) => i.campos.separacaoId as string | undefined).filter((x): x is string => !!x))
+  const movs = await ctx.repos.movEstoque.listar()
+  // o que esta triagem fez: entrada/saída dos pacotes dela e o que tirou dos pacotes de entrada
+  const primeiro = new Map<Id, string>()
+  for (const m of [...movs].sort((a, b) => (a.criadoEm < b.criadoEm ? -1 : 1))) if (ids.has(m.itemId) && !primeiro.has(m.itemId)) primeiro.set(m.itemId, m.id)
+  const nasceu = (m: (typeof movs)[number]) => primeiro.get(m.itemId) === m.id && m.delta > 0 && (m.motivo === 'transformacao' || m.motivo === 'unificacao')
+  const R = movs.filter((m) => nasceu(m) || (!!m.origemId && (ids.has(m.origemId) || seps.has(m.origemId) || m.origemId === d.triagemId)))
+  const doR = new Set(R.map((m) => m.id))
+  // venda CANCELADA não conta (saiu e voltou: dá zero)
+  const canceladas = new Set((await ctx.repos.transacoes.listar({ tipo: 'venda' })).filter((v) => v.etapa === 'cancelado').map((v) => v.id))
+  const mexidos = S.filter((i) => movs.some((m) => m.itemId === i.id && !doR.has(m.id) && !(m.origemId && canceladas.has(m.origemId))))
+  exigir(!mexidos.length, `Já mexeram em ${mexidos.map((i) => i.codigo ?? i.nome).join(', ')} (venda, nova separação ou ajuste): não dá para desfazer. Ajuste o pacote que sobrou.`)
+  const tg = S.find((i) => i.triagem)?.triagem
+  const codigo = tg?.codigo ?? `T·${d.triagemId.slice(-4).toUpperCase()}`
+  const texto = `Triagem ${codigo} desfeita · ${motivo}`
+  // devolve aos pacotes de entrada (do mais novo para o mais antigo)
+  for (const m of [...R].sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1))) {
+    if (ids.has(m.itemId)) continue
+    await moverEstoque(ctx, { itemId: m.itemId, delta: -m.delta, motivo: 'cancelamento', origemId: d.triagemId, descricao: texto })
+  }
+  const desfeita = `${codigo} · ${dataCurta(ctx.relogio.agora())} · ${ctx.sessao.nome} · ${motivo}`
+  for (const i of S) {
+    const atual = (await ctx.repos.itens.obter(i.id))!
+    if (atual.saldo) await moverEstoque(ctx, { itemId: i.id, delta: -atual.saldo, motivo: 'cancelamento', origemId: d.triagemId, descricao: texto })
+    const depois = (await ctx.repos.itens.obter(i.id))!
+    await ctx.repos.itens.salvar(tocar(ctx, { ...depois, ativo: false, campos: { ...depois.campos, triagemDesfeita: desfeita } }))
+  }
+  const etiquetas = S.filter((i) => i.etiquetaImpressaEm).map((i) => i.codigo ?? i.nome)
+  await auditar(ctx, 'desfazerTriagem', d.triagemId, `${texto}${etiquetas.length ? ` · etiquetas para jogar fora: ${etiquetas.join(', ')}` : ''}`, [...ids])
+  return { id: d.triagemId, codigo, etiquetasParaJogarFora: etiquetas }
+}
 
 /**
  * GENEALOGIA: o grafo inteiro ligado a uma compra, lote, venda ou triagem — compras → triagens → lotes → vendas —
@@ -682,5 +730,29 @@ async function genealogiaTriagem(ctx: Ctx, L: Awaited<ReturnType<typeof leitorCa
     perda: gIn - gOut,
     perdaPct: gIn ? Math.round(((gIn - gOut) * 10000) / gIn) : 0,
     vendas: L.vendasDosLotes(descend),
+    vendasLista: vendasDaTriagem(L, descend),
+    /** nada do que saiu foi vendido, separado de novo nem ajustado: dá para desfazer (o servidor confere de novo) */
+    podeDesfazer: descend.size === saidas.length && saidas.every((i) => i.saldo === (i.quantidadeInicial ?? 0)),
   }
+}
+
+/** cada venda que levou cabelo desta triagem: data, cliente e quanto (gramas e valor) saiu DESTES pacotes */
+function vendasDaTriagem(L: Awaited<ReturnType<typeof leitorCadeia>>, lotes: Set<Id>) {
+  const vs = new Map<Id, Transacao>()
+  for (const x of lotes) for (const t of L.vendasDe.get(x) ?? []) vs.set(t.id, t)
+  return [...vs.values()]
+    .sort((a, b) => (a.data + a.criadoEm < b.data + b.criadoEm ? 1 : -1))
+    .map((t) => {
+      const ls = t.linhas.filter((l) => l.itemId && lotes.has(l.itemId))
+      return {
+        id: t.id,
+        codigo: L.codigoVenda(t),
+        data: t.data,
+        cliente: t.pessoaId ? L.pessoas.get(t.pessoaId) : undefined,
+        g: ls.reduce((s, l) => s + l.quantidade, 0),
+        valor: ls.reduce((s, l) => s + l.totalPrincipal, 0),
+        moeda: t.moedaPrincipal,
+        lotes: [...new Set(ls.map((l) => L.porId.get(l.itemId!)?.codigo).filter(Boolean))] as string[],
+      }
+    })
 }

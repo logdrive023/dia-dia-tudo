@@ -118,6 +118,7 @@ export interface LoteMenu {
   vendavel?: boolean
   /** a etiqueta já foi impressa: aparece "Errou? Gerar nova" (cancela a antiga, nova via) */
   etiquetaImpressa?: boolean
+  reservado?: boolean
 }
 
 /**
@@ -126,7 +127,7 @@ export interface LoteMenu {
  */
 export function acoesLote(
   l: LoteMenu,
-  o: { ir(tela: string, p?: Params): void; t(s: string, v?: Record<string, string | number>): string; admin: boolean; extras?: Acao[]; separarParams?: Params; onAjustar?(): void; onTrocarCodigo?(): void; semAbrir?: boolean; onRefazerEtiqueta?(): void },
+  o: { ir(tela: string, p?: Params): void; t(s: string, v?: Record<string, string | number>): string; admin: boolean; extras?: Acao[]; separarParams?: Params; onAjustar?(): void; onTrocarCodigo?(): void; semAbrir?: boolean; onRefazerEtiqueta?(): void; onReservar?(): void },
 ): Acao[] {
   const { ir, t, admin } = o
   const acoes: Acao[] = []
@@ -140,6 +141,8 @@ export function acoesLote(
   acoes.push({ rotulo: 'Rastrear origem e destino', icone: '🔎', onClick: () => ir('rastreio', { itemId: l.id }), separar: true })
   acoes.push({ rotulo: 'Vendas deste lote', icone: '🧾', onClick: () => ir('rastreio', { itemId: l.id }) })
   if (l.saldo > 0 && l.vendavel !== false) acoes.push({ rotulo: 'Vender', icone: '💰', onClick: () => ir('vender', { modulo: 'cabelo', lote: l.id }), separar: true })
+  // encomenda: guarda o pacote para uma cliente (🔒 no estoque; a venda avisa se for para outra)
+  if (l.saldo > 0 && l.vendavel !== false && o.onReservar) acoes.push({ rotulo: l.reservado ? 'Mudar ou tirar reserva' : 'Reservar para uma cliente', icone: '🔒', onClick: o.onReservar })
   if (admin && l.saldo > 0) acoes.push({ rotulo: 'Separar', icone: '✂️', onClick: () => ir('separar', { id: l.id, ...(o.separarParams ?? {}) }) })
   if (admin && l.saldo > 0 && o.onAjustar) acoes.push({ rotulo: 'Ajustar', icone: '±', onClick: o.onAjustar })
   // etiqueta: abre a tela Etiquetas com este lote já marcado (lá também ficam os outros sem etiqueta)
