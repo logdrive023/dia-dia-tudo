@@ -148,17 +148,62 @@ export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
           role="tooltip"
           onClick={(e) => e.stopPropagation()}
           style={pos ? { position: 'fixed', left: pos.left, top: pos.top, width: pos.width } : { position: 'fixed', left: -9999, top: 0, width: 288 }}
-          className="z-50 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left text-sm font-normal normal-case leading-snug text-[var(--texto)] shadow-xl"
+          className="z-[80] rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left text-sm font-normal normal-case leading-snug text-[var(--texto)] shadow-xl"
         >
-          <span className="block">{explicacao}</span>
-          {ex && (
-            <span className="mt-2 block rounded-xl bg-[var(--marca-suave)] p-2 text-[var(--marca)]">
-              <b className="mb-0.5 block text-[11px] uppercase tracking-wide">{t('Exemplo')}</b>
-              {ex}
-            </span>
-          )}
+          <Explicacao texto={explicacao} />
+          {ex && <ExemploDica texto={ex} rotulo={t('Exemplo')} />}
         </span>
         , document.body)}
+    </span>
+  )
+}
+
+// ---------- formato padrão do tooltip ----------
+// Frases separadas em ". " antes de letra maiúscula (não corta "7.000" nem "3,5").
+const frases = (s: string) => s.split(/\.\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9])/).map((x) => x.trim().replace(/\.$/, '')).filter(Boolean)
+
+/** Explicação: uma frase por linha; "Termo: descrição" vira termo em negrito (ex.: "Só QR: para celular"). */
+function Explicacao({ texto }: { texto: string }) {
+  const fs = frases(texto)
+  if (fs.length <= 1) return <span className="block">{texto}</span>
+  return (
+    <span className="block space-y-1">
+      {fs.map((f, k) => {
+        const m = /^([^:]{1,32}):\s+(.+)$/.exec(f)
+        return (
+          <span key={k} className="flex gap-1.5">
+            <span aria-hidden className="mt-[0.45rem] h-1 w-1 shrink-0 rounded-full bg-[var(--suave)]" />
+            <span>{m ? <><b>{m[1]}</b>: {m[2]}</> : f}</span>
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
+/**
+ * Exemplo: a 1ª frase é o exemplo (números), em destaque — "a · b · c" vira etiquetas lado a lado e "… = X" deixa
+ * o resultado em negrito; as frases seguintes ("Toque na linha…") viram uma dica pequena embaixo.
+ */
+function ExemploDica({ texto, rotulo }: { texto: string; rotulo: string }) {
+  const [primeira, ...resto] = frases(texto)
+  const partes = primeira.split(' · ')
+  const conta = primeira.lastIndexOf(' = ')
+  return (
+    <span className="mt-2 block overflow-hidden rounded-xl border border-[var(--marca-suave)]">
+      <span className="block bg-[var(--marca-suave)] px-2.5 py-2 text-[var(--marca)]">
+        <b className="mb-1 block text-[11px] uppercase tracking-wide opacity-80">{rotulo}</b>
+        {partes.length > 1 ? (
+          <span className="num flex flex-wrap gap-1">
+            {partes.map((p, k) => <span key={k} className="rounded-md bg-[var(--cartao)] px-1.5 py-0.5 font-semibold text-[var(--texto)]">{p}</span>)}
+          </span>
+        ) : conta > 0 ? (
+          <span className="num block font-semibold">{primeira.slice(0, conta)} = <b className="whitespace-nowrap text-[var(--texto)]">{primeira.slice(conta + 3)}</b></span>
+        ) : (
+          <span className="num block font-semibold">{primeira}</span>
+        )}
+      </span>
+      {resto.length > 0 && <span className="block px-2.5 py-1.5 text-xs text-[var(--suave)]">💡 {resto.join('. ')}.</span>}
     </span>
   )
 }
@@ -219,16 +264,19 @@ export function Titulo({ children, acao, subtitulo }: { children: ReactNode; aca
 
 export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { id: string; nome: string; extra?: ReactNode }[]; atual: string; onChange(id: string): void; variante?: 'pilula' | 'sublinhado' }) {
   const t = useT()
-  if (variante === 'sublinhado')
+  if (variante === 'sublinhado') {
+    // até 4 abas: dividem a largura (cabem em 360 px, sem barra de rolar); mais que isso: rolam, sem barra aparente
+    const cabe = abas.length <= 4
     return (
-      <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-[var(--borda)]">
+      <div role="tablist" style={cabe ? { gridTemplateColumns: `repeat(${abas.length}, minmax(0, 1fr))` } : undefined} className={cx('mb-4 gap-1 overflow-y-hidden border-b border-[var(--borda)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', cabe ? 'grid sm:flex' : 'flex overflow-x-auto')}>
         {abas.map((a) => (
-          <button key={a.id} role="tab" aria-selected={a.id === atual} type="button" onClick={() => onChange(a.id)} className={cx('-mb-px min-h-11 shrink-0 border-b-2 px-3 text-sm font-semibold', a.id === atual ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}>
+          <button key={a.id} role="tab" aria-selected={a.id === atual} type="button" onClick={() => onChange(a.id)} className={cx('-mb-px min-h-11 min-w-0 border-b-2 px-2 text-sm font-semibold sm:shrink-0 sm:px-3', cabe ? 'py-1 text-center leading-tight' : 'shrink-0', a.id === atual ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}>
             {t(a.nome)} {a.extra}
           </button>
         ))}
       </div>
     )
+  }
   return (
     <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto rounded-xl bg-[var(--marca-suave)] p-1">
       {abas.map((a) => (

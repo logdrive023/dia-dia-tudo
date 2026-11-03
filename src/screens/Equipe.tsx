@@ -12,6 +12,7 @@ import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { useCotacoes } from '../ui/compartilhados'
 import { SeletorPeriodo, useLembrado, usePeriodo } from '../ui/filtros'
 import { useT } from '../ui/i18n'
+import { useLargo } from '../ui/calendario'
 
 const PERIODOS = { mes: 'por mês', semana: 'por semana', dia: 'por dia' } as const
 
@@ -35,11 +36,7 @@ export function Equipe() {
       <Abas atual={aba} onChange={(v) => setAba(v as typeof aba)} abas={[{ id: 'organograma', nome: 'Organograma' }, { id: 'comissoes', nome: 'Comissões' }, { id: 'unidades', nome: 'Entradas × saídas por unidade' }]} />
       {aba === 'organograma' ? (
         !org ? <Carregando /> : !org.raizes.length ? <Vazio texto="Ninguém na equipe desta unidade ainda." /> : (
-          <div className="overflow-x-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4">
-            <div className="flex min-w-max justify-center gap-6">
-              {org.raizes.map((n) => <NoArvore key={n.pessoa.id} n={n} nivel={0} onClick={setResumo} />)}
-            </div>
-          </div>
+          <OrganogramaVisual raizes={org.raizes} onClick={setResumo} />
         )
       ) : aba === 'comissoes' ? (
         <Comissoes de={periodo.de} ate={periodo.ate} />
@@ -52,27 +49,95 @@ export function Equipe() {
   )
 }
 
-const CORES_NIVEL = ['bg-[#1f2937] text-white', 'bg-[#94a3b8] text-white', 'bg-[var(--marca)] text-white', 'bg-[var(--marca-suave)] text-[var(--marca)]']
+// ORGANOGRAMA (minimalista, para ler informação): cartão branco, avatar com a cor do nível, nome, cargo e os dois
+// números do período (atendimentos · faturado). Computador: árvore com linhas finas; celular: lista em níveis.
+const COR_NIVEL = ['#1f2937', '#64748b', 'var(--marca)', '#a78bfa']
+const corNivel = (nivel: number) => COR_NIVEL[Math.min(nivel, COR_NIVEL.length - 1)]
+const contar = (ns: NoOrganograma[]): { pessoas: number; atend: number; fat: number } =>
+  ns.reduce((s, n) => { const f = contar(n.subordinados); return { pessoas: s.pessoas + 1 + f.pessoas, atend: s.atend + n.atendimentos + f.atend, fat: s.fat + n.faturamento + f.fat } }, { pessoas: 0, atend: 0, fat: 0 })
+
+function OrganogramaVisual({ raizes, onClick }: { raizes: NoOrganograma[]; onClick(id: Id): void }) {
+  const t = useT()
+  const largo = useLargo()
+  const tot = contar(raizes)
+  const m = moedaPadrao()
+  return (
+    <div className="space-y-3">
+      {/* resumo da equipe no período */}
+      <div className="grid grid-cols-3 gap-2">
+        {[{ r: 'Pessoas', v: String(tot.pessoas) }, { r: 'Atendimentos', v: String(tot.atend) }, { r: 'Faturado', v: formatar(tot.fat, m) }].map((x) => (
+          <div key={x.r} className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-3 py-2">
+            <div className="truncate text-xs text-[var(--suave)]">{t(x.r)}</div>
+            <div className="num truncate text-lg font-bold">{x.v}</div>
+          </div>
+        ))}
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-[var(--borda)] bg-[var(--fundo)] p-3 sm:p-6 [scrollbar-width:thin]">
+        {largo ? (
+          <div className="flex min-w-max justify-center gap-8">
+            {raizes.map((n) => <NoArvore key={n.pessoa.id} n={n} nivel={0} onClick={onClick} />)}
+          </div>
+        ) : (
+          <ul className="space-y-2">{raizes.map((n) => <NoLista key={n.pessoa.id} n={n} nivel={0} onClick={onClick} />)}</ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CartaoPessoa({ n, nivel, onClick, largura }: { n: NoOrganograma; nivel: number; onClick(id: Id): void; largura?: string }) {
+  const t = useT()
+  const m = moedaPadrao()
+  const cor = corNivel(nivel)
+  return (
+    <button type="button" onClick={() => onClick(n.pessoa.id)} className={cx('group flex items-center gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--marca)] hover:shadow-md', largura)}>
+      <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-bold text-white" style={{ background: cor }}>{n.pessoa.nome.slice(0, 1)}</span>
+      <span className="min-w-0 flex-1">
+        <b className="block truncate">{n.pessoa.nome}</b>
+        <span className="block truncate text-xs text-[var(--suave)]">{n.pessoa.cargo ?? '—'}</span>
+        <span className="num mt-1 flex gap-1.5 text-[11px]">
+          <span className="rounded-md bg-[var(--fundo)] px-1.5 py-0.5"><b>{n.atendimentos}</b> {t('atend.')}</span>
+          {n.faturamento > 0 && <span className="truncate rounded-md bg-[var(--fundo)] px-1.5 py-0.5"><b>{formatar(n.faturamento, m)}</b></span>}
+        </span>
+      </span>
+    </button>
+  )
+}
 
 function NoArvore({ n, nivel, onClick }: { n: NoOrganograma; nivel: number; onClick(id: Id): void }) {
-  const t = useT()
   return (
     <div className="flex flex-col items-center">
-      <button type="button" onClick={() => onClick(n.pessoa.id)} className={cx('w-40 rounded-2xl p-3 text-center shadow-sm transition hover:scale-105', CORES_NIVEL[Math.min(nivel, 3)])}>
-        <div className="mx-auto mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-white/30 text-lg font-bold">{n.pessoa.nome.slice(0, 1)}</div>
-        <div className="font-bold">{n.pessoa.nome}</div>
-        <div className="text-xs opacity-90">{n.pessoa.cargo ?? ''}</div>
-        <div className="mt-1 text-xs opacity-90">{n.atendimentos} {t('atend.')}</div>
-      </button>
+      <CartaoPessoa n={n} nivel={nivel} onClick={onClick} largura="w-56" />
       {n.subordinados.length > 0 && (
         <>
-          <div className="h-5 w-0.5 bg-[var(--borda)]" />
-          <div className="relative flex gap-4 border-t-2 border-[var(--borda)] pt-5">
-            {n.subordinados.map((s) => <NoArvore key={s.pessoa.id} n={s} nivel={nivel + 1} onClick={onClick} />)}
+          <div className="h-6 w-px bg-[var(--suave)]/40" />
+          <div className="flex gap-4">
+            {n.subordinados.map((s, k) => (
+              // traço horizontal só entre o primeiro e o último filho (cantos limpos)
+              <div key={s.pessoa.id} className="relative flex flex-col items-center pt-6">
+                <span aria-hidden className={cx('absolute top-0 h-px bg-[var(--suave)]/40', n.subordinados.length === 1 ? 'hidden' : k === 0 ? 'left-1/2 right-[-0.5rem]' : k === n.subordinados.length - 1 ? 'left-[-0.5rem] right-1/2' : '-left-2 -right-2')} />
+                <span aria-hidden className="absolute left-1/2 top-0 h-6 w-px bg-[var(--suave)]/40" />
+                <NoArvore n={s} nivel={nivel + 1} onClick={onClick} />
+              </div>
+            ))}
           </div>
         </>
       )}
     </div>
+  )
+}
+
+/** celular: a mesma árvore como lista em níveis (linha fina à esquerda mostra quem responde a quem) */
+function NoLista({ n, nivel, onClick }: { n: NoOrganograma; nivel: number; onClick(id: Id): void }) {
+  return (
+    <li>
+      <CartaoPessoa n={n} nivel={nivel} onClick={onClick} largura="w-full" />
+      {n.subordinados.length > 0 && (
+        <ul className="ml-5 mt-2 space-y-2 border-l border-[var(--suave)]/40 pl-3">
+          {n.subordinados.map((s) => <NoLista key={s.pessoa.id} n={s} nivel={nivel + 1} onClick={onClick} />)}
+        </ul>
+      )}
+    </li>
   )
 }
 

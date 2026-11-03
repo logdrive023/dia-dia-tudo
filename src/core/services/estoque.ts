@@ -365,6 +365,7 @@ export async function estoque(ctx: Ctx, p: { moduloId?: string; somenteComSaldo?
   const porId = new Map(itens.map((i) => [i.id, i]))
   const compras = new Map((await ctx.repos.transacoes.listar({ tipo: 'compra' })).map((t) => [t.id, t]))
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x.nome]))
+  const usuarios = new Map((await ctx.repos.usuarios.listar()).map((u) => [u.id, u.nome]))
   const L = await leitorCadeia(ctx)
   const F = await leitorFotos(ctx, { porId: L.porId, compras })
   const siglas = await siglasPorPessoa(ctx)
@@ -389,6 +390,8 @@ export async function estoque(ctx: Ctx, p: { moduloId?: string; somenteComSaldo?
         compraCodigo: cs.map((t) => t.codigo).filter(Boolean).join(', ') || undefined,
         compras: cs.map((t) => ({ id: t.id, codigo: t.codigo, fornecedor: t.pessoaId ? pessoas.get(t.pessoaId) : undefined, fornecedorId: t.pessoaId })),
         fornecedor: (i.origem?.pessoaId ? pessoas.get(i.origem.pessoaId) : undefined) ?? (nomes.join(', ') || undefined),
+        /** quem gerou o pacote (usuário que registrou a compra / fez a separação) */
+        criadoPorNome: usuarios.get(i.criadoPor),
         pai: pai ? { id: pai.id, codigo: pai.codigo, nome: pai.nome } : undefined,
         unificadoDe: i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).map((id) => porId.get(id)?.codigo ?? id) : undefined,
         cadeia: L.cadeia(i.id),

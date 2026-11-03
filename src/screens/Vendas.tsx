@@ -4,11 +4,12 @@ import { type LinhaRastreio, ListaRastreio, RastreioTotal } from '../ui/rastreio
 import { useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../core/domain/dinheiro'
 import type { Id, Transacao } from '../core/domain/tipos'
-import { Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, ErroTela, gramasTexto, loc, moedaPadrao } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, ErroTela, gramasTexto, loc, moedaPadrao } from '../ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { cotacaoDoPagamento, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { AnexosCurtos } from '../ui/anexos'
 import { LinhaDoTempo } from '../ui/linhaTempo'
+import { MenuAcoes } from '../ui/menuAcoes'
 import { useT } from '../ui/i18n'
 import { MemoriaLinha } from '../ui/linhaServico'
 import { dividir, memoriaCalculo, pct } from '../core/domain/comissao'
@@ -109,6 +110,7 @@ export function DetalheVenda() {
   const [cancelar, setCancelar] = useState(false)
   const [corrigir, setCorrigir] = useState(false)
   const [motivo, setMotivo] = useState('')
+  const [aba, setAba] = useParamTela<'resumo' | 'tempo' | 'arquivos' | 'correcoes'>('aba', 'resumo')
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
   const v = dados.venda
@@ -139,7 +141,42 @@ export function DetalheVenda() {
         {v.etapa === 'concluido' && (
           <SeloPendencias moeda={v.moedaPrincipal} pendencias={[...(faltaReceber ? [{ id: 'faltaReceber' as const, texto: 'Falta receber', valor: faltaReceber, nivel: 'urgente' as const }] : []), ...(semComprovante ? [{ id: 'semComprovante' as const, texto: 'Sem comprovante do pagamento', nivel: 'atencao' as const }] : [])]} />
         )}
-        {v.linhas.some((l) => l.itemId) && <OrigemDaVenda vendaId={v.id} admin={sessao.perfil === 'admin'} />}
+        {/* TOTAL + AÇÕES no alto (como no pacote): o que importa e o que fazer, sem rolar */}
+        <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 shadow-sm">
+          <div className="min-w-0">
+            <div className="text-xs text-[var(--suave)]">{t('Total')}</div>
+            <div className="num text-2xl font-bold">{formatar(v.totalPrincipal, v.moedaPrincipal)}</div>
+            <div className="truncate text-sm text-[var(--suave)]">{t('Pago')}: {v.pagamentos.map((p) => `${formatar(p.valor, p.moeda)} (${nomeForma(p.forma)})`).join(' + ') || '—'}</div>
+          </div>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <a className="flex min-h-11 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-[#25d366] px-3 text-sm font-semibold text-white sm:flex-none" href={linkWhatsApp(texto, dados.cliente?.telefone)} target="_blank" rel="noreferrer" aria-label={t('Recibo no WhatsApp')}>📲 <span className="sm:hidden">{t('Recibo')}</span><span className="hidden sm:inline">{t('Recibo no WhatsApp')}</span></a>
+            {sessao.perfil === 'admin' && (v.etapa === 'concluido' || v.etapa === 'agendado') && <Botao variante="secundario" onClick={() => setCorrigir(true)}>✏️ {t('Corrigir')}</Botao>}
+            {sessao.perfil === 'admin' && v.etapa !== 'cancelado' && <MenuAcoes acoes={[{ rotulo: 'Cancelar venda', icone: '✕', onClick: () => setCancelar(true) }]} />}
+          </div>
+        </div>
+        <Abas variante="sublinhado" atual={aba} onChange={(a) => setAba(a as typeof aba)} abas={[
+          { id: 'resumo', nome: 'Resumo' },
+          { id: 'tempo', nome: 'Linha do tempo' },
+          { id: 'arquivos', nome: 'Arquivos', extra: dados.anexos.length ? <span className="num text-xs opacity-70">{dados.anexos.length}</span> : undefined },
+          ...(correcoes.length ? [{ id: 'correcoes', nome: 'Correções', extra: <span className="num text-xs opacity-70">{correcoes.length}</span> }] : []),
+        ]} />
+        {aba === 'tempo' ? (
+          <Cartao titulo={t('Linha do tempo')}><LinhaDoTempo id={v.id} /></Cartao>
+        ) : aba === 'arquivos' ? (
+          <Cartao titulo={t('Fotos e comprovantes')}><AnexosCurtos donoId={v.id} categorias={['comprovante', 'pedido', 'resultado']} padrao="comprovante" /></Cartao>
+        ) : aba === 'correcoes' && correcoes.length ? (
+          <Cartao titulo={`${t('Correções')} (${correcoes.length})`} ajuda="Cada correção guarda antes → depois, quem corrigiu e o motivo. Nada é apagado. Ex.: 1.200 g → 1.180 g · Bs 7.800 → Bs 7.670 · Paula · na balança deu menos.">
+            <ul className="space-y-2 text-sm">
+              {correcoes.map((h, i) => (
+                <li key={i} className="rounded-xl bg-[var(--fundo)] p-2">
+                  <div className="text-xs text-[var(--suave)]">{new Date(h.em).toLocaleString(loc())} · <b>{h.porNome}</b> · {h.motivo}</div>
+                  {h.ajustes?.map((a) => <div key={a} className="num">{a}</div>)}
+                  {h.totalAntes !== undefined && <div className="num font-semibold">{formatar(h.totalAntes, v.moedaPrincipal)} → {formatar(h.totalDepois!, v.moedaPrincipal)}</div>}
+                </li>
+              ))}
+            </ul>
+          </Cartao>
+        ) : <>
         <div className="grid gap-4 md:grid-cols-2">
           <Cartao titulo={t('Itens')}>
             <ul className="divide-y divide-[var(--borda)] text-sm">
@@ -154,31 +191,13 @@ export function DetalheVenda() {
               ))}
             </ul>
             {descontoVenda && <p className="num mt-2 text-sm font-semibold text-[var(--bom)]">{descontoVenda.charAt(0).toUpperCase() + descontoVenda.slice(1)}</p>}
-            <div className="mt-2 flex justify-between gap-2 text-lg font-bold"><span>{t('Total')}</span><span className="num">{formatar(v.totalPrincipal, v.moedaPrincipal)}</span></div>
-            <p className="text-sm text-[var(--suave)]">{t('Pago')}: {v.pagamentos.map((p) => `${formatar(p.valor, p.moeda)} (${nomeForma(p.forma)})${comCotacao(p)}`).join(' + ') || '—'}</p>
+            <div className="mt-2 flex justify-between gap-2 border-t border-[var(--borda)] pt-2 font-bold"><span>{t('Total')}</span><span className="num">{formatar(v.totalPrincipal, v.moedaPrincipal)}</span></div>
+            {v.pagamentos.some((p) => comCotacao(p)) && <p className="num text-xs text-[var(--suave)]">{v.pagamentos.map((p) => `${formatar(p.valor, p.moeda)}${comCotacao(p)}`).join(' + ')}</p>}
             {v.campos.cobranca ? <p className="text-sm font-semibold">💱 {String(v.campos.cobranca)}</p> : null}
-            <div className="mt-3 flex flex-wrap gap-2">
-              <a className="min-h-10 rounded-xl bg-[#25d366] px-3 py-2 text-sm font-semibold text-white" href={linkWhatsApp(texto, dados.cliente?.telefone)} target="_blank" rel="noreferrer">{t('Recibo no WhatsApp')}</a>
-              {sessao.perfil === 'admin' && (v.etapa === 'concluido' || v.etapa === 'agendado') && <Botao variante="secundario" onClick={() => setCorrigir(true)}>✏️ {t('Corrigir')}</Botao>}
-              {sessao.perfil === 'admin' && v.etapa !== 'cancelado' && <Botao variante="leve" onClick={() => setCancelar(true)}>{t('Cancelar venda')}</Botao>}
-            </div>
           </Cartao>
-          <Cartao titulo={t('Linha do tempo')}><LinhaDoTempo id={v.id} /></Cartao>
-          {correcoes.length > 0 && (
-            <Cartao titulo={`${t('Correções')} (${correcoes.length})`} ajuda="Cada correção guarda antes → depois, quem corrigiu e o motivo. Nada é apagado. Ex.: 1.200 g → 1.180 g · Bs 7.800 → Bs 7.670 · Paula · na balança deu menos.">
-              <ul className="space-y-2 text-sm">
-                {correcoes.map((h, i) => (
-                  <li key={i} className="rounded-xl bg-[var(--fundo)] p-2">
-                    <div className="text-xs text-[var(--suave)]">{new Date(h.em).toLocaleString(loc())} · <b>{h.porNome}</b> · {h.motivo}</div>
-                    {h.ajustes?.map((a) => <div key={a} className="num">{a}</div>)}
-                    {h.totalAntes !== undefined && <div className="num font-semibold">{formatar(h.totalAntes, v.moedaPrincipal)} → {formatar(h.totalDepois!, v.moedaPrincipal)}</div>}
-                  </li>
-                ))}
-              </ul>
-            </Cartao>
-          )}
-          <Cartao titulo={t('Fotos e comprovantes')}><AnexosCurtos donoId={v.id} categorias={['comprovante', 'pedido', 'resultado']} padrao="comprovante" /></Cartao>
+          {v.linhas.some((l) => l.itemId) && <OrigemDaVenda vendaId={v.id} admin={sessao.perfil === 'admin'} />}
         </div>
+        </>}
       </div>
       {corrigir && <CorrigirVenda venda={v} temCliente={!!v.pessoaId} onFechar={() => setCorrigir(false)} />}
       <Janela aberta={cancelar} titulo={t('Cancelar venda')} onFechar={() => (!motivo || window.confirm(t('Sair sem salvar?'))) && (setCancelar(false), setMotivo(''))} rodape={<Botao variante="perigo" grande className="w-full" disabled={ocupado || !motivo} onClick={async () => (await executar('cancelarVenda', { id, motivo }, t('Venda cancelada: estoque e dinheiro voltaram.'))) && setCancelar(false)}>{t('Cancelar venda')}</Botao>}>

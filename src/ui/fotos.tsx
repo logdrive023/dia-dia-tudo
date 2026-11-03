@@ -9,7 +9,7 @@ import { novoId } from '../core/domain/ids'
 import type { CategoriaAnexo, Id } from '../core/domain/tipos'
 import type { FotoLote, FotoResumo } from '../core/services/fotos'
 import { Carregando, cx, dataBR } from './base'
-import { useApp, useConsulta } from './contexto'
+import { useApp, useComando, useConsulta } from './contexto'
 import { useT } from './i18n'
 
 // ---------- reduzir e guardar ----------
@@ -250,6 +250,8 @@ export function VisorFotos({ fotos: dadas, itemId, inicio = 0, onFechar, titulo 
   const atual = fotos[Math.min(k, Math.max(0, fotos.length - 1))]
   const url = useUrlFoto(atual, true)
   const { tirar, enviando } = useTirarFoto()
+  const { executar, ocupado } = useComando()
+  const [remover, setRemover] = useState(false)
   const fechar = useRef(onFechar)
   fechar.current = onFechar
   const total = useRef(fotos.length)
@@ -347,8 +349,18 @@ export function VisorFotos({ fotos: dadas, itemId, inicio = 0, onFechar, titulo 
           {fotos.length > 0 && <div className="num text-xs text-white/70">{Math.min(k, fotos.length - 1) + 1} / {fotos.length}</div>}
         </div>
         {fotos.length > 0 && <button type="button" onClick={alternarZoom} aria-label={t(zoom > 1 ? 'Diminuir' : 'Ampliar')} className="h-11 w-11 shrink-0 rounded-full text-lg hover:bg-white/15">{zoom > 1 ? '－' : '🔍'}</button>}
+        {/* remover: só a foto que é DESTE registro (a herdada da compra se remove lá) */}
+        {atual && (atual.propria || !itemId) && <button type="button" disabled={ocupado} onClick={() => setRemover(true)} aria-label={t('Remover esta foto')} title={t('Remover esta foto')} className="h-11 w-11 shrink-0 rounded-full text-lg hover:bg-white/15">🗑</button>}
         {itemId && <button type="button" disabled={enviando} onClick={() => tirar(itemId)} className="min-h-11 shrink-0 rounded-full bg-white/15 px-3 text-sm font-semibold hover:bg-white/25">📷 <span className="hidden sm:inline">{t('Tirar foto')}</span><span className="sr-only sm:hidden">{t('Tirar foto')}</span></button>}
       </div>
+      {remover && atual && (
+        // confirmação no próprio visor (2 toques): fica no histórico como "Anexo removido"
+        <div role="alertdialog" aria-label={t('Remover esta foto')} className="mx-2 mb-2 flex flex-wrap items-center gap-2 rounded-2xl bg-white/10 p-3 text-sm">
+          <span className="min-w-0 flex-1">{t('Remover esta foto? Fica no histórico.')}</span>
+          <button type="button" onClick={() => setRemover(false)} className="min-h-10 rounded-xl px-3 font-semibold hover:bg-white/15">{t('Não')}</button>
+          <button type="button" disabled={ocupado} onClick={async () => { if (await executar('removerAnexo', { id: atual.id }, t('Foto removida.'))) { setRemover(false); if (fotos.length <= 1) fechar.current(); else ir(0) } }} className="min-h-10 rounded-xl bg-[var(--ruim)] px-3 font-semibold text-white">{t('Sim, remover')}</button>
+        </div>
+      )}
       <div
         className="relative flex min-h-0 flex-1 touch-none select-none items-center justify-center overflow-hidden"
         onPointerDown={down}

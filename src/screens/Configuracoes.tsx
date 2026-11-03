@@ -7,6 +7,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { Titulo, Vazio, cx } from '../ui/base'
 import { useApp, useComando, useConsulta } from '../ui/contexto'
 import { useT } from '../ui/i18n'
+import { type Tema, TEMAS, lerTema, salvarTema } from '../ui/tema'
 import { GRUPOS_CONFIG, type SecaoConfig, buscarSecoes, grupoConfig, secaoConfig } from './configSecoes'
 
 export function Config() {
@@ -94,7 +95,7 @@ function Indice() {
   const abrir = (s?: SecaoConfig) => s && ir('configSecao', { id: s.id })
   return (
     <div className="mx-auto max-w-5xl">
-      <Titulo acao={<Idioma />}>{t('Configurações')}</Titulo>
+      <Titulo acao={<div className="flex flex-wrap justify-end gap-2"><TemaEscolha /><Idioma /></div>}>{t('Configurações')}</Titulo>
       <div className="mb-5 lg:max-w-xl">
         <CaixaBusca busca={busca} onEnter={() => abrir(achadas[0])} />
       </div>
@@ -122,6 +123,21 @@ function Indice() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/** Tema claro / escuro / automático, ao lado do idioma (vale para este aparelho). */
+function TemaEscolha() {
+  const t = useT()
+  const [atual, setAtual] = useState<Tema>(lerTema)
+  return (
+    <div role="radiogroup" aria-label={t('Tema')} title={t('Vale para este aparelho')} className="flex gap-1 rounded-xl bg-[var(--marca-suave)] p-1">
+      {TEMAS.map((x) => (
+        <button key={x.id} type="button" role="radio" aria-checked={atual === x.id} aria-label={t(x.nome)} title={t(x.nome)} onClick={() => (salvarTema(x.id), setAtual(x.id))} className={cx('min-h-11 rounded-lg px-3 text-sm font-semibold', atual === x.id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
+          <span aria-hidden>{x.icone}</span><span className="hidden sm:inline"> {t(x.nome)}</span>
+        </button>
+      ))}
     </div>
   )
 }

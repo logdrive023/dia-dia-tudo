@@ -18,7 +18,8 @@ import { usePistola } from '../ui/leitorPistola'
 import { useLembrado } from '../ui/filtros'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { HistoricoPacote } from '../ui/historicoPacote'
-import { CadeiaChips, Caminho, RastreioResumo, RastreioTotal } from '../ui/rastreioTotal'
+import { CadeiaChips, Caminho, RastreioTotal } from '../ui/rastreioTotal'
+import { LinhaDaVida } from '../ui/linhaVida'
 import { MenuAcoes, acoesLote } from '../ui/menuAcoes'
 import { CampoCodigo, CodigoSelo, TrocarCodigo } from '../ui/codigos'
 import { useT } from '../ui/i18n'
@@ -377,26 +378,25 @@ export function Estoque() {
           </table>
         </div>
       ) : (
-        <ul id="lista-estoque" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <ul id="lista-estoque" className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           {lista.map((i) => {
             const extras = visiveis.filter((c) => !['origem', 'peso', 'status'].includes(c.id)).map((c) => [c, c.texto(i)] as const).filter(([, v]) => v)
             return (
               // cartão: [☐ foto | nome (linha toda) | ⋯] · embaixo código + status à esquerda e o peso à direita · de onde veio, pequeno
               <li key={i.id} {...clicavel(() => ir('lote', { id: i.id }))} className={cx('min-w-0 cursor-pointer rounded-2xl border bg-[var(--cartao)] p-2.5 shadow-sm outline-none transition hover:border-[var(--marca)] focus-visible:border-[var(--marca)]', sel.has(i.id) ? 'border-[var(--marca)] bg-[var(--marca-suave)]' : 'border-[var(--borda)]', i.saldo <= 0 && 'text-[var(--suave)]')}>
-                <div className="flex items-start gap-2">
+                {/* em cima: seleção · foto · nome · ⋯ ; embaixo, com a largura TODA do cartão: código · situação · peso e de onde veio */}
+                <div className="flex items-center gap-2">
                   <div className="flex h-10 shrink-0 items-center">{caixa(i)}</div>
                   <MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} tamanho="sm" iconeSemFoto />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex min-h-10 items-center">{nomeLote(i, true)}</div>
-                    <div className="flex items-start gap-2">
-                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1"><CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /><StatusPonto status={i.status} /></div>
-                      <Peso i={i} />
-                    </div>
-                    <VeioDe i={i} />
-                    {extras.length > 0 && <p className="text-xs text-[var(--suave)] [overflow-wrap:anywhere]">{extras.map(([c, v]) => `${t(c.nome)}: ${v}`).join(' · ')}</p>}
-                  </div>
+                  <div className="flex min-h-10 min-w-0 flex-1 items-center">{nomeLote(i, true)}</div>
                   <div className="-mr-1 shrink-0">{acoes(i)}</div>
                 </div>
+                <div className="mt-2 flex items-start gap-2 border-t border-[var(--borda)] pt-2">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1"><CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /><StatusPonto status={i.status} /></div>
+                  <Peso i={i} />
+                </div>
+                <div className="mt-1"><VeioDe i={i} /></div>
+                {extras.length > 0 && <p className="mt-1 text-xs text-[var(--suave)] [overflow-wrap:anywhere]">{extras.map(([c, v]) => `${t(c.nome)}: ${v}`).join(' · ')}</p>}
               </li>
             )
           })}
@@ -491,8 +491,10 @@ export function SepararTela() {
   const seguir = (feitos: Id[]) => {
     marcarSujo(false)
     const novos = feitos.length ? feitos.join(',') : undefined
-    if (daTriagem) ir('triagem', { novos })
-    else ir('lote', { id: feitos.length === 1 ? feitos[0] : ids[0], novos })
+    // 1 pacote novo (vindo do pacote ou da compra): abre ele; senão a Triagem, onde estão todos os novos — nunca o
+    // bruto que acabou de zerar (0 g · Esgotado confundia)
+    if (daTriagem || feitos.length !== 1) ir('triagem', { novos })
+    else ir('lote', { id: feitos[0], novos })
   }
   return <Separar ids={ids} onFechar={voltar} voltarRotulo={daTriagem ? 'Voltar à triagem' : undefined} onSeparou={seguir} />
 }
@@ -600,7 +602,8 @@ function Separar({ ids, onFechar, onSeparou, voltarRotulo }: { ids: Id[]; onFech
               <Campo rotulo="Peso"><GramasInput valor={p.quantidade} placeholder={exemploPeso} onChange={(q) => att(i, { quantidade: q })} /></Campo>
               <Botao variante="leve" disabled={partes.length === 1} onClick={() => setPartes(partes.filter((_, k) => k !== i))}>{t('Tirar')}</Botao>
             </div>
-            <CamposDinamicos campos={campos} valores={p.campos} onChange={(v) => att(i, { campos: v })} pular={['estado']} />
+            {/* à vista só o que muda o preço e o nome (medida, categoria, cor); o resto em "+ mais" */}
+            <CamposDinamicos campos={campos} valores={p.campos} onChange={(v) => att(i, { campos: v })} pular={['estado']} principais={['comprimento', 'categoria', 'cor']} />
             {avancado && porValor && <Campo rotulo="Valor de referência" ajuda="Vem da tabela (medida × coluna escolhida). Pode mudar."><Entrada inputMode="decimal" value={p.ref ?? ''} placeholder={refDe(p) ?? '?'} onChange={(e) => att(i, { ref: e.target.value })} /></Campo>}
             {digitar && <CampoCodigo tipo="lote" rotulo="Código deste lote" valor={p.codigo ?? ''} onChange={(v) => att(i, { codigo: v })} contexto={{ paiId: juntar ? undefined : lotes[0].id, posicao: i }} onEstado={(ok) => marcarCodigo(p.id, ok)} />}
           </div>
@@ -659,6 +662,9 @@ function Ajustar({ itemId, onFechar }: { itemId: Id; onFechar(): void }) {
 }
 
 
+/** Todas as situações do pacote, na ordem da vida dele (vai no ⓘ ao lado da situação). */
+const AJUDA_SITUACAO = 'Bruto: chegou da compra, ainda não foi separado. Preparando: bruto numa etapa da triagem (ex.: lavagem). Não identificado: ficou para depois na separação. Disponível: separado e inteiro, pronto para vender. Parcial: já vendeu uma parte e ainda tem peso. Esgotado: não tem mais peso (vendido ou separado em outros pacotes). Ex.: entrou 18 kg, vendeu 9,7 kg = Parcial (8,3 kg).'
+
 /** PRONTUÁRIO do lote: entrada (compra) → triagem (separação) → destino (vendas), atributos, arquivos e linha do tempo. */
 export function FichaLote() {
   const t = useT()
@@ -672,6 +678,7 @@ export function FichaLote() {
   const [editar, setEditar] = useState(false)
   const [trocar, setTrocar] = useState(false)
   const [refazer, setRefazer] = useState(false)
+  const [aba, setAba] = useParamTela<'resumo' | 'detalhes' | 'historico' | 'fotos'>('aba', 'resumo')
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
   const i = dados.item
@@ -682,10 +689,16 @@ export function FichaLote() {
   const atributos = resumoCampos(campos, i.campos)
   const bruto = ehBruto(dados.status)
   const separar = () => ir('separar', { id: i.id })
-  const vender = () => ir('vender', { modulo: 'cabelo', lote: i.id })
-  const verRastreio = () => document.getElementById('rastreio-total')?.scrollIntoView?.({ behavior: 'smooth' })
+  // Vender do pacote = modo caixa com o pacote já dentro (total na hora, fecha com um toque na forma de pagamento);
+  // o formulário longo de Vender continua no menu
+  const vender = () => ir('vendaRapida', { lote: i.id })
+  const verRastreio = () => ir('rastreio', { itemId: i.id })
   // PRÓXIMO PASSO (um só, destacado): bruto → Separar; vendável → Vender; acabou → ver para onde foi
-  const proximo = !admin ? undefined : i.saldo > 0 && bruto ? { rotulo: '✂️ Separar', f: separar } : i.saldo > 0 ? { rotulo: '💰 Vender', f: vender } : { rotulo: '📊 Ver para onde foi', f: verRastreio }
+  // separações que saíram deste pacote (ele é a entrada) → os pacotes novos
+  const viraram = i.saldo > 0 ? [] : (gen?.triagens ?? []).filter((x) => x.separou && x.entradas.some((e) => e.id === i.id) && x.saidas.length > 0)
+  // só foi separado (nada vendido direto dele): vendido/lucro aqui seriam sempre 0 e confundem
+  const soSeparado = f.separado > 0 && !dados.vendido
+  const proximo = !admin ? undefined : i.saldo > 0 && bruto ? { rotulo: '✂️ Separar', f: separar } : i.saldo > 0 ? { rotulo: '💰 Vender', f: vender } : viraram.length ? undefined : { rotulo: '📊 Ver para onde foi', f: verRastreio }
   return (
     <div className="space-y-4">
       <Botao variante="leve" onClick={voltar}>← {t('Voltar')}</Botao>
@@ -698,7 +711,7 @@ export function FichaLote() {
             <h1 className="text-xl font-bold leading-tight [overflow-wrap:anywhere] sm:text-2xl">{i.nome}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--suave)]">
               <CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} />
-              <StatusBadge status={dados.status} />
+              <span className="inline-flex items-center"><StatusBadge status={dados.status} /><Info texto={AJUDA_SITUACAO} /></span>
               <span className="whitespace-nowrap text-xs">{t('desde')} {dataBR(i.criadoEm)}</span>
               {!!i.codigosAnteriores?.length && <span className="text-xs">{t('antes')}: <span className="font-mono">{i.codigosAnteriores.join(', ')}</span></span>}
             </div>
@@ -717,53 +730,125 @@ export function FichaLote() {
           )} />
         </div>
       </header>
-      {/* o caminho sem os botões (Vender/Separar já estão no alto) e o link do rastreio completo */}
-      <div className="space-y-1">
-        {gen && <Caminho g={gen} />}
-        <button type="button" onClick={() => ir('rastreio', { itemId: i.id })} className="min-h-10 text-sm font-semibold text-[var(--marca)] hover:underline">🔎 {t('Rastrear origem e destino')}</button>
+      {/* JÁ SEPARADO (bruto que zerou): a primeira coisa é em que pacotes ele virou, com o atalho para cada um */}
+      {viraram.length > 0 && (
+        <section aria-label={t('Virou')} className="rounded-2xl border-2 border-[var(--marca)] bg-[var(--marca-suave)] p-3">
+          <p className="text-sm font-bold">✂️ {t('Este pacote já foi separado')}{viraram.length === 1 ? ` · ${viraram[0].codigo}` : ''}</p>
+          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+            {viraram.flatMap((x) => x.saidas).map((s) => (
+              <li key={s.id}>
+                <button type="button" onClick={() => ir('lote', { id: s.id })} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl bg-[var(--cartao)] px-3 text-left shadow-sm hover:ring-2 hover:ring-[var(--marca)]">
+                  <b className="font-mono">📦 {s.codigo ?? '—'}</b><span className="num font-semibold">{q(s.g)} ›</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* ABAS: Resumo (a vida do pacote + números) · Detalhes · Histórico · Fotos e arquivos — como no pedido */}
+      <Abas variante="sublinhado" atual={aba} onChange={(a) => setAba(a as typeof aba)} abas={[
+        { id: 'resumo', nome: 'Resumo' },
+        { id: 'detalhes', nome: 'Detalhes' },
+        { id: 'historico', nome: 'Histórico' },
+        { id: 'fotos', nome: 'Arquivos', extra: dados.fotos.length ? <span className="num text-xs opacity-70">{dados.fotos.length}</span> : undefined },
+      ]} />
+      {aba === 'historico' ? (
+        <Cartao titulo={t('Histórico do pacote')} ajuda="Tudo o que entrou e saiu deste pacote, dia a dia. Ex.: 6.000 → 4.500 g na venda V-9.">
+          <HistoricoPacote id={i.id} />
+        </Cartao>
+      ) : aba === 'fotos' ? (
+        <div className="space-y-4">
+          <Cartao titulo={`${t('Fotos do lote')}${dados.fotos.length ? ` · ${dados.fotos.length}` : ''}`}><FotosDoLote itemId={i.id} codigo={i.codigo} /></Cartao>
+          <Cartao titulo={t('Arquivos')}><AnexosCurtos donoId={i.id} categorias={['outro']} esconderFotos /></Cartao>
+        </div>
+      ) : aba === 'resumo' ? (
+      <div className="space-y-4">
+        {/* A VIDA DO PACOTE: compra → triagem → etiqueta → venda, cada passo leva direto ao registro */}
+        <VidaDoPacote i={i} gen={gen} compras={dados.dna.compras} onEtiqueta={() => ir('etiquetas', { f: 'todas', sel: i.id })} />
+        {/* números: peso e dinheiro; bruto já separado não mostra "vendido 0 / lucro 0" (o custo foi para os pacotes) */}
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <Cartao><div className="text-xs text-[var(--suave)]">{t('Agora')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{q(i.saldo)}</div>{f.inicial !== i.saldo && <div className="num text-xs text-[var(--suave)]">{t('entrou')} {q(f.inicial)}</div>}</Cartao>
+          <Cartao><div className="text-xs text-[var(--suave)]">{t('Custo do lote')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{formatar(i.custoPrincipal ?? 0, m)}</div>{soSeparado && <div className="text-xs text-[var(--suave)]">{t('dividido entre os pacotes')}</div>}</Cartao>
+          {!soSeparado && <BotaoNumero rotulo={t('Vendido')} onClick={verRastreio}>{formatar(dados.vendido, m)}</BotaoNumero>}
+          {!soSeparado && <BotaoNumero rotulo={t('Lucro (vendido − custo)')} onClick={verRastreio} className={dados.lucro < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{formatar(dados.lucro, m)}</BotaoNumero>}
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <Cartao><div className="text-xs text-[var(--suave)]">{t('Agora')}</div><div className="num text-xl font-bold">{q(i.saldo)}</div></Cartao>
-        <Cartao><div className="text-xs text-[var(--suave)]">{t('Custo do lote')}</div><div className="num text-xl font-bold">{formatar(i.custoPrincipal ?? 0, m)}</div></Cartao>
-        <BotaoNumero rotulo={t('Vendido')} onClick={verRastreio}>{formatar(dados.vendido, m)}</BotaoNumero>
-        <BotaoNumero rotulo={t('Lucro (vendido − custo)')} onClick={verRastreio} className={dados.lucro < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{formatar(dados.lucro, m)}</BotaoNumero>
-      </div>
+      ) : <>
+      {/* DETALHES: números completos, caminho, cada grama e atributos */}
+      <section aria-label={t('Números')} className="space-y-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('Números')}</h2>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <Cartao><div className="text-xs text-[var(--suave)]">{t('Agora')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{q(i.saldo)}</div>{f.inicial !== i.saldo && <div className="num text-xs text-[var(--suave)]">{t('entrou')} {q(f.inicial)}</div>}</Cartao>
+          <Cartao><div className="text-xs text-[var(--suave)]">{t('Custo do lote')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{formatar(i.custoPrincipal ?? 0, m)}</div>{soSeparado && <div className="text-xs text-[var(--suave)]">{t('dividido entre os pacotes')}</div>}</Cartao>
+          {!soSeparado && <BotaoNumero rotulo={t('Vendido')} onClick={verRastreio}>{formatar(dados.vendido, m)}</BotaoNumero>}
+          {!soSeparado && <BotaoNumero rotulo={t('Lucro (vendido − custo)')} onClick={verRastreio} className={dados.lucro < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{formatar(dados.lucro, m)}</BotaoNumero>}
+        </div>
+      </section>
+
+      {/* LINHA DA VIDA: cada grama (barra) + a timeline compra → triagem → etiqueta → vendas/separações, cada passo clicável */}
+      <Cartao titulo={`${t('Linha da vida do pacote')} · ${t('entrou')} ${q(f.inicial)}`} ajuda="De onde veio e para onde foi cada grama, na ordem. Ex.: 18 kg entrou · V-0006 −1,5 kg · separado em L-0025 3 kg (60 cm). Toque num passo para abrir.">
+        {i.unidade === 'grama' && (
+          <div className="mb-3">
+            <BarraFluxo total={f.inicial} partes={[
+              { nome: 'Vendido', valor: f.vendido, cor: 'var(--bom)' },
+              { nome: 'Separado em lotes', valor: f.separado, cor: 'var(--marca)' },
+              ...(f.unificado ? [{ nome: 'Unificado em outro lote', valor: f.unificado, cor: '#8b5cf6' }] : []),
+              { nome: 'Perda', valor: f.perda, cor: 'var(--ruim)' },
+              { nome: 'Em estoque', valor: f.saldo, cor: 'var(--alerta)' },
+            ].filter((x) => x.valor > 0)} />
+          </div>
+        )}
+        {gen ? <LinhaDaVida gen={gen} item={i} /> : <Carregando />}
+        <button type="button" onClick={() => ir('rastreio', { itemId: i.id })} className="mt-2 min-h-10 text-sm font-semibold text-[var(--marca)] hover:underline">🔎 {t('Rastreio completo (todas as compras e pacotes ligados)')}</button>
+      </Cartao>
+
+      <Cartao titulo={t('Atributos')} acao={admin && campos.length > 0 ? <Botao variante="secundario" onClick={() => setEditar(true)}>✎ {t('Editar atributos')}</Botao> : undefined}>
+        {!atributos.length ? <p className="text-sm text-[var(--suave)]">{t('Nenhum atributo preenchido.')}</p> : (
+          <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-sm">
+            {atributos.map((a) => <div key={a.id} className="contents"><dt className="text-[var(--suave)]">{t(a.nome)}</dt><dd className="font-semibold [overflow-wrap:anywhere]">{t(a.valor)}</dd></div>)}
+          </dl>
+        )}
+      </Cartao>
+      </>}
+      {/* janelas do ⋯ (valem em qualquer aba) */}
       {ajustar && <Ajustar itemId={i.id} onFechar={() => setAjustar(false)} />}
       {editar && <EditarAtributos id={i.id} campos={campos} valores={i.campos} onFechar={() => setEditar(false)} />}
       {trocar && <TrocarCodigo tipo="lote" id={i.id} atual={i.codigo} onFechar={() => setTrocar(false)} />}
       {refazer && <RefazerEtiqueta id={i.id} codigo={i.codigo} onFechar={() => setRefazer(false)} />}
-
-      {i.unidade === 'grama' && (
-        <Cartao titulo={`${t('Cada grama deste lote')} · ${t('entrou')} ${q(f.inicial)}`}>
-          <BarraFluxo total={f.inicial} partes={[
-            { nome: 'Vendido', valor: f.vendido, cor: 'var(--bom)' },
-            { nome: 'Separado em lotes', valor: f.separado, cor: 'var(--marca)' },
-            ...(f.unificado ? [{ nome: 'Unificado em outro lote', valor: f.unificado, cor: '#8b5cf6' }] : []),
-            { nome: 'Perda', valor: f.perda, cor: 'var(--ruim)' },
-            { nome: 'Em estoque', valor: f.saldo, cor: 'var(--alerta)' },
-          ]} />
-        </Cartao>
-      )}
-
-      <Cartao titulo={<span id="rastreio-total">{t('Rastreio total: de onde veio e para onde foi cada grama')}</span>}>
-        {gen ? <RastreioResumo g={gen} admin={admin} /> : <Carregando />}
-      </Cartao>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Cartao titulo={t('Atributos')} acao={admin && campos.length > 0 ? <Botao variante="secundario" onClick={() => setEditar(true)}>✎ {t('Editar atributos')}</Botao> : undefined}>
-          {!atributos.length ? <p className="text-sm text-[var(--suave)]">{t('Nenhum atributo preenchido.')}</p> : (
-            <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-sm">
-              {atributos.map((a) => <div key={a.id} className="contents"><dt className="text-[var(--suave)]">{t(a.nome)}</dt><dd className="font-semibold [overflow-wrap:anywhere]">{t(a.valor)}</dd></div>)}
-            </dl>
-          )}
-        </Cartao>
-        <Cartao titulo={`${t('Fotos do lote')}${dados.fotos.length ? ` · ${dados.fotos.length}` : ''}`}><FotosDoLote itemId={i.id} codigo={i.codigo} /></Cartao>
-        <Cartao titulo={t('Arquivos')}><AnexosCurtos donoId={i.id} categorias={['outro']} esconderFotos /></Cartao>
-      </div>
-      <Cartao titulo={t('Histórico do pacote')} ajuda="Tudo o que entrou e saiu deste pacote, dia a dia. Ex.: 6.000 → 4.500 g na venda V-9.">
-        <HistoricoPacote id={i.id} />
-      </Cartao>
     </div>
+  )
+}
+
+/**
+ * A VIDA DO PACOTE em 4 passos (a vida do negócio): 🛒 Compra → ✂️ Triagem → 🏷 Etiqueta → 💰 Venda. Cada passo é um
+ * botão que leva direto ao registro (a compra, a triagem, a etiqueta usada, a venda); passo que ainda não aconteceu
+ * fica apagado ("ainda não"). Celular: 2 × 2; computador: 4 numa linha.
+ */
+function VidaDoPacote({ i, gen, compras, onEtiqueta }: { i: ResultadoConsulta<'fichaItem'>['item']; gen?: ResultadoConsulta<'genealogia'>; compras: ResultadoConsulta<'fichaItem'>['dna']['compras']; onEtiqueta(): void }) {
+  const t = useT()
+  const { ir } = useApp()
+  const triagem = gen?.triagens.find((x) => x.saidas.some((s) => s.id === i.id)) ?? gen?.triagens.find((x) => x.entradas.some((e) => e.id === i.id))
+  const meu = gen?.lotes.find((l) => l.id === i.id)
+  const vendas = (meu?.para ?? []).filter((p) => p.tipo === 'venda').map((p) => ({ ...p, cliente: gen?.vendas.find((v) => v.id === p.id)?.cliente }))
+  const c = compras[0]
+  const passo = (p: { icone: string; nome: string; feito: boolean; titulo?: string; sub?: string; onClick?(): void }) => (
+    <button type="button" disabled={!p.onClick} onClick={p.onClick}
+      className={cx('flex min-h-20 min-w-0 flex-col justify-between rounded-2xl border p-3 text-left transition', p.feito ? 'border-[var(--borda)] bg-[var(--cartao)] shadow-sm hover:border-[var(--marca)]' : 'border-dashed border-[var(--borda)] text-[var(--suave)]')}>
+      <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]"><span aria-hidden className="text-base">{p.icone}</span>{t(p.nome)}</span>
+      <span className="min-w-0">
+        <b className={cx('block truncate font-mono text-base', p.feito ? 'text-[var(--marca)]' : 'font-sans font-normal')}>{p.titulo ?? t('ainda não')}</b>
+        {p.sub && <span className="block truncate text-xs text-[var(--suave)]">{p.sub}</span>}
+      </span>
+    </button>
+  )
+  return (
+    <section aria-label={t('A vida do pacote')} className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      {passo({ icone: '🛒', nome: 'Compra', feito: !!c, titulo: c?.codigo ?? undefined, sub: [c?.fornecedor?.nome, compras.length > 1 ? `+${compras.length - 1}` : ''].filter(Boolean).join(' · ') || undefined, onClick: c ? () => ir('pedido', { id: c.id }) : undefined })}
+      {passo({ icone: '✂️', nome: 'Triagem', feito: !!triagem, titulo: triagem?.codigo, sub: triagem ? `${dataBR(triagem.em)}${triagem.por ? ` · ${triagem.por}` : ''}` : undefined, onClick: triagem ? () => ir('triagem', { aba: 'triagens', t: triagem.id }) : undefined })}
+      {passo({ icone: '🏷', nome: 'Etiqueta', feito: !!i.etiquetaImpressaEm, titulo: i.etiquetaImpressaEm ? `${i.codigo ?? ''}${(i.etiquetaVia ?? 1) > 1 ? ` · ${t('{n}ª via', { n: i.etiquetaVia! })}` : ''}` : t('Sem etiqueta'), sub: i.etiquetaImpressaEm ? `${dataBR(i.etiquetaImpressaEm)}${i.etiquetaImpressaPor ? ` · ${i.etiquetaImpressaPor}` : ''}` : t('Toque para imprimir'), onClick: onEtiqueta })}
+      {passo({ icone: '💰', nome: 'Venda', feito: vendas.length > 0, titulo: vendas[0]?.codigo, sub: vendas.length ? [vendas[0].cliente, vendas.length > 1 ? `+${vendas.length - 1}` : ''].filter(Boolean).join(' · ') || undefined : undefined, onClick: vendas.length ? () => ir('venda', { id: vendas[0].id }) : undefined })}
+    </section>
   )
 }
 
@@ -810,9 +895,9 @@ export function Rastreio() {
 /** Número que leva à origem (toque abre de onde ele vem). */
 function BotaoNumero({ rotulo, children, onClick, className }: { rotulo: ReactNode; children: ReactNode; onClick(): void; className?: string }) {
   return (
-    <button type="button" onClick={onClick} className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 text-left shadow-sm hover:border-[var(--marca)]">
+    <button type="button" onClick={onClick} className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left shadow-sm hover:border-[var(--marca)] sm:p-4">
       <span className="block text-xs text-[var(--suave)]">{rotulo}</span>
-      <span className={cx('num block text-xl font-bold', className)}>{children}</span>
+      <span className={cx('num block whitespace-nowrap text-lg font-bold sm:text-xl', className)}>{children}</span>
     </button>
   )
 }

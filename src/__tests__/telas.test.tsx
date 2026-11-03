@@ -10,6 +10,8 @@ import { MENU } from '../ui/Shell'
 beforeEach(() => {
   Dexie.dependencies.indexedDB = new IDBFactory()
   Dexie.dependencies.IDBKeyRange = IDBKeyRange
+  // o menu abre com os grupos secundários fechados: o teste navega por todos, então abre todos
+  localStorage.setItem('tudo.menu.gruposAbertos', JSON.stringify(['Dinheiro e agenda', 'Cabelo', 'Pessoas', 'Gestão']))
 })
 
 afterEach(() => {
@@ -46,8 +48,10 @@ describe('telas (com os dados de exemplo)', () => {
     // fichas: lote, rastreio, pessoa
     irPara('Estoque')
     fireEvent.click((await screen.findAllByText(/60 cm · Normal · Preto/, {}, { timeout: 10000 }))[0])
-    await screen.findByText('Para onde foi', {}, { timeout: 10000 })
-    fireEvent.click(screen.getByText(/Rastrear origem e destino/))
+    // resumo do pacote: a vida (compra → triagem → etiqueta → venda); o rastreio completo fica em Detalhes
+    await screen.findByRole('region', { name: 'A vida do pacote' }, { timeout: 10000 })
+    fireEvent.click(screen.getByRole('tab', { name: 'Detalhes' }))
+    fireEvent.click(await screen.findByText(/Rastreio completo/, {}, { timeout: 10000 }))
     await waitFor(() => expect(screen.queryByText('Carregando…')).toBeNull(), { timeout: 10000 })
     const q = screen.queryByText('Algo deu errado nesta tela.')
     expect(q ? q.parentElement?.textContent : null).toBeNull()
@@ -92,11 +96,10 @@ describe('telas (com os dados de exemplo)', () => {
   it('pedido: aba Anexos, "+ Anexar" abre a janela com o tipo e sobe; rastreio compacto', async () => {
     await abrirComDemo()
     window.location.hash = '#/pedidos/c-wilson'
-    // a compra mostra o resumo do rastreio (uma linha + lotes) e o grafo só sob demanda
-    await screen.findByText('Para onde foi esta compra', {}, { timeout: 10000 })
+    // a compra mostra "Para onde foi" (barra + números + pacotes); o grafo inteiro só no rastreio completo
+    await screen.findByRole('region', { name: 'Para onde foi esta compra' }, { timeout: 10000 })
+    expect(screen.getByText(/Pacotes desta compra/)).toBeTruthy()
     expect(screen.queryByText('onde está agora', { exact: false })).toBeNull()
-    fireEvent.click(screen.getByText('Ver rastreio completo →'))
-    await screen.findByText('Lotes')
     fireEvent.click(screen.getByRole('tab', { name: /Anexos/ }))
     await screen.findByText(/Nenhum anexo ainda/)
     fireEvent.click(screen.getByRole('button', { name: '+ Anexar' }))
@@ -108,7 +111,7 @@ describe('telas (com os dados de exemplo)', () => {
     fireEvent.change(within(janela).getByText('Arquivo PDF').parentElement!.querySelector('input')!, { target: { files: [pdf] } })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 10000 })
     await screen.findByText('pix-maria.pdf', {}, { timeout: 10000 })
-    await waitFor(() => expect(screen.getByRole('tab', { name: /Anexos/ }).textContent).toContain('(1)'), { timeout: 10000 })
+    await waitFor(() => expect(screen.getByRole('tab', { name: /Anexos/ }).textContent).toMatch(/Anexos\s*1/), { timeout: 10000 })
   }, 120000)
 
   it('troca para espanhol', async () => {

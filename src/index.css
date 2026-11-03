@@ -2,7 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Cores básicas (poucas e com função): marca, texto, fundo, bom, alerta, ruim. Tema escuro automático. */
+/* Cores básicas (poucas e com função): marca, texto, fundo, bom, alerta, ruim.
+   Tema (Configurações › Aparência): automático segue o aparelho; <html data-tema="claro|escuro"> força um dos dois. */
 :root {
   --fundo: #f7f6fb;
   --cartao: #ffffff;
@@ -17,7 +18,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema='claro']) {
     --fundo: #14131a;
     --cartao: #1e1c27;
     --texto: #f1f0f7;
@@ -30,6 +31,19 @@
     --ruim: #f87171;
     color-scheme: dark;
   }
+}
+:root[data-tema='escuro'] {
+  --fundo: #14131a;
+  --cartao: #1e1c27;
+  --texto: #f1f0f7;
+  --suave: #a7a3bd;
+  --borda: #2f2c3d;
+  --marca: #a78bfa;
+  --marca-suave: #2a2340;
+  --bom: #4ade80;
+  --alerta: #fbbf24;
+  --ruim: #f87171;
+  color-scheme: dark;
 }
 
 html,

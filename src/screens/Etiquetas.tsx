@@ -16,12 +16,14 @@ import { ImprimirEtiquetas, RefazerEtiqueta } from '../ui/etiquetas'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
 import { useT } from '../ui/i18n'
+import { useCamposModulo } from './Estoque'
+import { BarraFiltros, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
 
 type Linha = ResultadoConsulta<'estoque'>[number]
 type Filtro = 'sem' | 'impressa' | 'todas'
 
 const AJUDA_SEM = 'Sem etiqueta: pacotes que ainda não ganharam etiqueta. Ex.: os 3 que você acabou de separar.'
-const FILTROS = ['compra', 'medida', 'de', 'ate', 'busca']
+const FILTROS = ['compra', 'lote', 'pessoa', 'quem', 'impr', 'medida', 'pmin', 'pmax', 'de', 'ate', 'busca']
 
 /** "03/11" (dia/mês no formato do idioma) */
 const diaMes = (iso: string) => new Date(iso).toLocaleDateString(loc(), { day: '2-digit', month: '2-digit' })
@@ -33,6 +35,7 @@ export function Etiquetas() {
   const p = (k: string) => (nav.params[k] === undefined ? '' : String(nav.params[k]))
   const setP = (k: string, v: string) => ajustarParams({ [k]: v || undefined })
   const { dados } = useConsulta('estoque', { moduloId: 'cabelo', somenteComSaldo: true })
+  const camposLote = useCamposModulo('cabelo', 'lote')
   // já marcados quando vem de um pacote, da compra, da triagem ou do estoque (?sel=a,b)
   const selUrl = p('sel')
   const [sel, setSel] = useState<Set<Id>>(() => new Set(selUrl.split(',').filter(Boolean)))
@@ -46,11 +49,25 @@ export function Etiquetas() {
 
   const termo = p('busca').trim().toLowerCase()
   const compra = p('compra').trim().toLowerCase()
+  const lote = p('lote').trim().toLowerCase()
+  // atributos do cabelo que são lista (categoria, cor, textura… e os criados pela tela): um filtro para cada um
+  const atributos = camposLote.filter((c) => c.tipo === 'lista' && c.id !== 'comprimento')
+  const filtrosAttr = atributos.map((c) => `a.${c.id}`)
+  const pmin = Number(p('pmin')) || 0
+  const pmax = Number(p('pmax')) || 0
+  const doLote = (i: Linha) => [i.codigo, ...(i.codigosAnteriores ?? []), i.pai?.codigo, ...(i.unificadoDe ?? [])].filter(Boolean).join(' ').toLowerCase()
   const base = (dados ?? []).filter(
     (i) =>
       (!termo || i.busca.includes(termo) || i.nome.toLowerCase().includes(termo)) &&
       (!compra || i.busca.includes(compra)) &&
+      (!lote || doLote(i).includes(lote)) &&
+      (!p('pessoa') || i.compras.some((c) => c.fornecedor === p('pessoa'))) &&
+      (!p('quem') || i.criadoPorNome === p('quem')) &&
+      (!p('impr') || i.etiquetaImpressaPor === p('impr')) &&
       (!p('medida') || String(i.campos.comprimento ?? '') === p('medida')) &&
+      atributos.every((c) => !p(`a.${c.id}`) || String(i.campos[c.id] ?? '') === p(`a.${c.id}`)) &&
+      (!pmin || i.saldo >= pmin) &&
+      (!pmax || i.saldo <= pmax) &&
       (!p('de') || i.entrada >= p('de')) &&
       (!p('ate') || i.entrada <= p('ate')),
   )
@@ -80,8 +97,27 @@ export function Etiquetas() {
     } else setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
     setUltimo(k)
   }
-  const avancados = FILTROS.filter((k) => k !== 'busca' && p(k)).length
-  const limpar = () => ajustarParams(Object.fromEntries(FILTROS.map((k) => [k, undefined])))
+  const todosFiltros = [...FILTROS, ...filtrosAttr]
+  const avancados = todosFiltros.filter((k) => k !== 'busca' && p(k)).length
+  const limpar = () => ajustarParams(Object.fromEntries(todosFiltros.map((k) => [k, undefined])))
+  // opções só com o que existe nos pacotes (nada de escolher e dar lista vazia)
+  const valores = (f: (i: Linha) => unknown) => [...new Set((dados ?? []).map(f).filter((v) => v !== undefined && v !== null && v !== '').map(String))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const todasPessoas = [...new Set((dados ?? []).flatMap((i) => i.compras.map((c) => c.fornecedor).filter((x): x is string => !!x)))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const quemGerou = valores((i) => i.criadoPorNome)
+  const quemImprimiu = valores((i) => i.etiquetaImpressaPor)
+  // o que está ligado, em chips com ✕ (bater o olho e ver por que a lista está assim)
+  const ativos: { k: string; rotulo: string }[] = [
+    ...(p('compra') ? [{ k: 'compra', rotulo: `🛒 ${p('compra')}` }] : []),
+    ...(p('lote') ? [{ k: 'lote', rotulo: `📦 ${p('lote')}` }] : []),
+    ...(p('pessoa') ? [{ k: 'pessoa', rotulo: `👤 ${p('pessoa')}` }] : []),
+    ...(p('quem') ? [{ k: 'quem', rotulo: `${t('gerou')}: ${p('quem')}` }] : []),
+    ...(p('impr') ? [{ k: 'impr', rotulo: `${t('imprimiu')}: ${p('impr')}` }] : []),
+    ...(p('medida') ? [{ k: 'medida', rotulo: `${p('medida')} cm` }] : []),
+    ...atributos.filter((c) => p(`a.${c.id}`)).map((c) => ({ k: `a.${c.id}`, rotulo: `${t(c.nome)}: ${t(p(`a.${c.id}`))}` })),
+    ...(p('pmin') || p('pmax') ? [{ k: 'pmin,pmax', rotulo: `${p('pmin') ? fmt(pmin, 'gramas') : '0'} – ${p('pmax') ? fmt(pmax, 'gramas') : '∞'}` }] : []),
+    ...(p('de') || p('ate') ? [{ k: 'de,ate', rotulo: `📅 ${p('de') ? diaMes(p('de')) : '…'} – ${p('ate') ? diaMes(p('ate')) : '…'}` }] : []),
+  ]
+  const tirar = (k: string) => ajustarParams(Object.fromEntries(k.split(',').map((x) => [x, undefined])))
   const impressoOk = () => (setSel(new Set()), ajustarParams({ sel: undefined }))
 
   return (
@@ -101,23 +137,39 @@ export function Etiquetas() {
         <Info texto={AJUDA_SEM} />
       </div>
 
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Entrada type="search" aria-label={t('Buscar código, nome ou compra')} className="w-auto min-w-0 flex-1 basis-48" placeholder={t('Buscar código, nome ou compra')} value={p('busca')} onChange={(e) => setP('busca', e.target.value)} />
-        <Botao variante={abrirFiltros || avancados ? 'secundario' : 'leve'} aria-expanded={abrirFiltros} onClick={() => setAbrirFiltros(!abrirFiltros)}>⚙︎ {t('Filtros')}{avancados ? ` · ${avancados}` : ''}</Botao>
+      {/* FILTRO PADRÃO: busca + ⚙ Filtros · N → chips ✕ → painel em grupos com "Ver N resultados" */}
+      <div className="mb-2 space-y-2">
+        <BarraFiltros busca={p('busca')} onBusca={(v) => setP('busca', v)} placeholder="Buscar código, nome ou compra" ativos={avancados} aberto={abrirFiltros} onAlternar={() => setAbrirFiltros(!abrirFiltros)} />
+        <ChipsFiltros itens={ativos} onTirar={tirar} onLimpar={limpar} />
+        {abrirFiltros && (
+          <PainelFiltros resultados={lista.length} temAtivos={avancados > 0} onLimpar={limpar} onFechar={() => setAbrirFiltros(false)}>
+            <GrupoFiltro titulo="De onde veio" icone="🛒">
+              <Campo rotulo="Compra (código)"><Entrada placeholder={t('Ex.: P-0003')} value={p('compra')} onChange={(e) => setP('compra', e.target.value)} /></Campo>
+              <Campo rotulo="Lote (ou lote de origem)"><Entrada placeholder={t('Ex.: L-0012')} value={p('lote')} onChange={(e) => setP('lote', e.target.value)} /></Campo>
+              <Campo rotulo="Fornecedor / cliente"><Selecao valor={p('pessoa')} onChange={(v) => setP('pessoa', v)} vazio="Todos" opcoes={todasPessoas.map((x) => ({ id: x, nome: x }))} /></Campo>
+              <CampoFaixa rotulo="Entrada (período)">
+                <Entrada type="date" aria-label={t('De')} value={p('de')} onChange={(e) => setP('de', e.target.value)} />
+                <Entrada type="date" aria-label={t('Até')} value={p('ate')} onChange={(e) => setP('ate', e.target.value)} />
+              </CampoFaixa>
+            </GrupoFiltro>
+            <GrupoFiltro titulo="Quem" icone="👤">
+              <Campo rotulo="Quem gerou o pacote"><Selecao valor={p('quem')} onChange={(v) => setP('quem', v)} vazio="Todos" opcoes={quemGerou.map((x) => ({ id: x, nome: x }))} /></Campo>
+              <Campo rotulo="Quem imprimiu"><Selecao valor={p('impr')} onChange={(v) => setP('impr', v)} vazio="Todos" opcoes={quemImprimiu.map((x) => ({ id: x, nome: x }))} /></Campo>
+            </GrupoFiltro>
+            <GrupoFiltro titulo="O cabelo" icone="💇‍♀️">
+              <Campo rotulo="Medida"><Selecao valor={p('medida')} onChange={(v) => setP('medida', v)} vazio="Todas" opcoes={medidas.map((m) => ({ id: m, nome: `${m} cm` }))} /></Campo>
+              {atributos.map((c) => {
+                const ops = valores((i) => i.campos[c.id])
+                return ops.length ? <Campo key={c.id} rotulo={c.nome}><Selecao valor={p(`a.${c.id}`)} onChange={(v) => setP(`a.${c.id}`, v)} vazio="Todos" opcoes={ops.map((x) => ({ id: x, nome: t(x) }))} /></Campo> : null
+              })}
+              <CampoFaixa rotulo="Peso (g)">
+                <Entrada inputMode="numeric" aria-label={t('Peso mínimo (g)')} placeholder={t('de')} value={p('pmin')} onChange={(e) => setP('pmin', e.target.value.replace(/\D/g, ''))} />
+                <Entrada inputMode="numeric" aria-label={t('Peso máximo (g)')} placeholder={t('até')} value={p('pmax')} onChange={(e) => setP('pmax', e.target.value.replace(/\D/g, ''))} />
+              </CampoFaixa>
+            </GrupoFiltro>
+          </PainelFiltros>
+        )}
       </div>
-      {(abrirFiltros || avancados > 0) && (
-        <div className="mb-2 grid gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Campo rotulo="Compra (código)"><Entrada placeholder={t('Ex.: P-0003')} value={p('compra')} onChange={(e) => setP('compra', e.target.value)} /></Campo>
-          <Campo rotulo="Medida"><Selecao valor={p('medida')} onChange={(v) => setP('medida', v)} vazio="Todas" opcoes={medidas.map((m) => ({ id: m, nome: `${m} cm` }))} /></Campo>
-          <Campo comoDiv rotulo="Entrada (período)">
-            <div className="flex items-center gap-1">
-              <Entrada type="date" aria-label={t('De')} value={p('de')} onChange={(e) => setP('de', e.target.value)} />
-              <Entrada type="date" aria-label={t('Até')} value={p('ate')} onChange={(e) => setP('ate', e.target.value)} />
-            </div>
-          </Campo>
-          {avancados > 0 && <div className="flex items-end"><Botao variante="leve" onClick={limpar}>× {t('Limpar filtros')}</Botao></div>}
-        </div>
-      )}
 
       {!dados ? (
         <Carregando />

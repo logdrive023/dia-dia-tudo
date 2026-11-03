@@ -215,6 +215,7 @@ export function LinhaDoTempo({ id, prefixo = 'lt' }: { id: string; prefixo?: str
 
 function Evento({ e, aberto, onAlternar }: { e: Ev; aberto: boolean; onAlternar(): void }) {
   const t = useT()
+  const { ir } = useApp()
   const hora = new Date(e.em).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })
   const totalAntes = e.detalhe?.startsWith('antes:') ? Number(e.detalhe.slice(6)) : undefined
   const unidade = e.itens?.[0]?.unidade
@@ -256,6 +257,10 @@ function Evento({ e, aberto, onAlternar }: { e: Ev; aberto: boolean; onAlternar(
               {e.valor?.forma && <> · {t(e.valor.forma)}</>}
               {resumo && <> · {resumo}</>}
             </p>
+            {/* referência à vista: leva direto ao que foi catalogado (sem abrir os detalhes) */}
+            {linksDe(e).length > 0 && (
+              <button type="button" onClick={() => { const l = linksDe(e)[0]; ir(l.tela, l.params ?? {}) }} className="-my-1 min-h-10 max-w-[45%] truncate rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">↗ {t(linksDe(e)[0].rotulo)}{linksDe(e).length > 1 ? ` +${linksDe(e).length - 1}` : ''}</button>
+            )}
             <button type="button" aria-expanded={aberto} onClick={onAlternar} className="-my-1 min-h-10 whitespace-nowrap rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">
               {aberto ? `${t('fechar')} ▴` : `${t('detalhes')} ▾`}
             </button>
@@ -267,6 +272,11 @@ function Evento({ e, aberto, onAlternar }: { e: Ev; aberto: boolean; onAlternar(
   )
 }
 
+/** As referências do evento (para onde ele leva): os links dele ou, sem links, o registro de origem. */
+function linksDe(e: Ev) {
+  return e.links?.length ? e.links : e.ref ? [{ tipo: e.ref.tela, tela: e.ref.tela, params: { id: e.ref.id }, rotulo: e.ref.tela === 'venda' ? 'Abrir venda' : e.ref.tela === 'lote' ? 'Abrir lote' : 'Abrir' }] : []
+}
+
 /** Ficha do evento: tudo o que ele sabe, no mesmo formato do histórico do pacote. */
 function Detalhes({ e }: { e: Ev }) {
   const t = useT()
@@ -274,7 +284,7 @@ function Detalhes({ e }: { e: Ev }) {
   const unidade = e.itens?.[0]?.unidade
   const texto = textoLivre(e)
   const saldos = e.grupo ? e.grupo.filter((g) => g.saldo) : e.saldo ? [e] : []
-  const links = e.links?.length ? e.links : e.ref ? [{ tipo: e.ref.tela, tela: e.ref.tela, params: { id: e.ref.id }, rotulo: e.ref.tela === 'venda' ? 'Abrir venda' : e.ref.tela === 'lote' ? 'Abrir lote' : 'Abrir' }] : []
+  const links = linksDe(e)
   const ICONE_LINK: Record<string, string> = { lote: '📦', venda: '🧾', compra: '🛒', triagem: '🧺', viagem: '🧳', adiantamento: '🤝', pessoa: '👤', emprestimo: '💸', caixa: '💵' }
   // no celular o rótulo fica em cima do valor; da tela média para cima, lado a lado
   const dt = 'mt-1.5 text-xs font-semibold text-[var(--suave)] first:mt-0 sm:mt-0 sm:text-sm sm:font-normal'

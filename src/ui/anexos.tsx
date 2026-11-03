@@ -114,10 +114,14 @@ function useUrls(anexos: AnexoTela[]) {
 export function ListaAnexos({ anexos, comFiltro, compacta }: { anexos: AnexoTela[]; comFiltro?: boolean; compacta?: boolean }) {
   const t = useT()
   const [filtro, setFiltro] = useState<CategoriaAnexo | ''>('')
+  const [busca, setBusca] = useState('')
   const [ver, setVer] = useState<string>()
   const urls = useUrls(anexos)
   const tipos = [...new Set(anexos.map((a) => a.categoria))]
-  const lista = filtro ? anexos.filter((a) => a.categoria === filtro) : anexos
+  const termo = busca.trim().toLowerCase()
+  const lista = anexos.filter((a) => (!filtro || a.categoria === filtro) && (!termo || [a.nome, a.porNome, t(NOMES_ANEXO[a.categoria])].filter(Boolean).join(' ').toLowerCase().includes(termo)))
+  // com 2 ou mais arquivos: busca + tipo (também na lista compacta)
+  const comFiltros = (comFiltro || anexos.length > 1) && anexos.length > 1
   const fotos = lista.filter(eImagem)
   const aberto = anexos.find((a) => a.id === ver)
   const chip = (id: CategoriaAnexo | '', nome: string, n: number) => (
@@ -132,23 +136,43 @@ export function ListaAnexos({ anexos, comFiltro, compacta }: { anexos: AnexoTela
   const quando = (a: AnexoTela) => [dataBR(a.criadoEm), a.porNome].filter(Boolean).join(' · ')
   return (
     <div className="space-y-3">
-      {comFiltro && tipos.length > 1 && (
-        <div className="flex flex-wrap gap-2" aria-label={t('Filtrar por tipo')}>
-          {chip('', 'Todos', anexos.length)}
-          {tipos.map((c) => chip(c, NOMES_ANEXO[c], anexos.filter((a) => a.categoria === c).length))}
+      {comFiltros && (
+        <div className="space-y-2">
+          <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={t('Buscar arquivo, tipo ou quem enviou')} aria-label={t('Buscar arquivo, tipo ou quem enviou')} className="min-h-11 w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 text-sm outline-none focus:border-[var(--marca)]" />
+          {tipos.length > 1 && (
+            <div className="flex flex-wrap gap-2" aria-label={t('Filtrar por tipo')}>
+              {chip('', 'Todos', anexos.length)}
+              {tipos.map((c) => chip(c, NOMES_ANEXO[c], anexos.filter((a) => a.categoria === c).length))}
+            </div>
+          )}
         </div>
       )}
+      {comFiltros && !lista.length && <p className="rounded-xl border border-dashed border-[var(--borda)] p-4 text-center text-sm text-[var(--suave)]">{t('Nenhum arquivo com esse filtro.')}</p>}
       {compacta ? (
-        <ul className="divide-y divide-[var(--borda)]">
-          {lista.map((a) => (
-            <li key={a.id}>
-              <button type="button" onClick={() => setVer(a.id)} className="flex min-h-12 w-full min-w-0 items-center gap-2 py-1 text-left text-sm hover:text-[var(--marca)]">
-                {miniatura(a, 'size-10 shrink-0 rounded-lg')}
-                <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{t(NOMES_ANEXO[a.categoria])}</span><span className="block truncate text-xs text-[var(--suave)]">{a.nome} · {quando(a)}</span></span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        // lista em TABELA: arquivo · tipo · data · quem (no celular, tipo/data/quem embaixo do nome)
+        <div className="overflow-hidden rounded-xl border border-[var(--borda)]">
+          {lista.length > 0 && (
+            <div aria-hidden className="hidden grid-cols-[2.5rem_minmax(0,1fr)_8rem_6rem_8rem] gap-3 bg-[var(--fundo)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--suave)] sm:grid">
+              <span /><span>{t('Arquivo')}</span><span>{t('Tipo')}</span><span>{t('Data')}</span><span>{t('Quem')}</span>
+            </div>
+          )}
+          <ul className="divide-y divide-[var(--borda)]">
+            {lista.map((a) => (
+              <li key={a.id}>
+                <button type="button" onClick={() => setVer(a.id)} className="grid min-h-12 w-full grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3 px-3 py-1.5 text-left text-sm hover:bg-[var(--fundo)] sm:grid-cols-[2.5rem_minmax(0,1fr)_8rem_6rem_8rem]">
+                  {miniatura(a, 'size-10 shrink-0 rounded-lg')}
+                  <span className="min-w-0">
+                    <b className="block truncate">{a.nome}</b>
+                    <span className="block truncate text-xs text-[var(--suave)] sm:hidden">{ICONE_ANEXO[a.categoria]} {t(NOMES_ANEXO[a.categoria])} · {quando(a)}</span>
+                  </span>
+                  <span className="hidden truncate text-xs font-semibold text-[var(--marca)] sm:block">{ICONE_ANEXO[a.categoria]} {t(NOMES_ANEXO[a.categoria])}</span>
+                  <span className="num hidden text-xs sm:block">{dataBR(a.criadoEm)}</span>
+                  <span className="hidden truncate text-xs text-[var(--suave)] sm:block">{a.porNome ?? '—'}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {lista.map((a) => (

@@ -11,6 +11,7 @@ import { Botao, Campo, Carregando, Cartao, Entrada, ErroTela, Info, Selecao, Tit
 import { clicavel } from '../ui/compartilhados'
 import { useApp, useConsulta, useParamTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
+import { useLembrado } from '../ui/filtros'
 import { baixarCSV } from './Relatorios'
 
 const DICA_CONFERE = 'Comprado = em pacotes + vendido + perda. Ex.: 10 kg = 4 + 5,4 + 0,6.'
@@ -52,6 +53,10 @@ export function Livro() {
   const [ate, setAte] = useParamTela('ate', '')
   const [tudo, setTudo] = useState(false)
   const [verFiltros, setVerFiltros] = useState(false)
+  // minimizar: dias fechados (só a linha do dia com o subtotal), "compacto" (uma linha por lançamento) e o fechamento
+  const [fechados, setFechados] = useState<Set<string>>(new Set())
+  const [compacto, setCompacto] = useLembrado('livro.compacto', false)
+  const [verFechamento, setVerFechamento] = useLembrado('livro.fechamento', true)
   if (erro) return <ErroTela texto={erro} onVoltar={() => ir('estoque')} />
   if (!dados) return <Carregando />
   const p = pacote.trim().toLowerCase()
@@ -159,14 +164,26 @@ export function Livro() {
       </div>
 
       <Cartao titulo={`${t('Lançamentos')} · ${linhas.length}`}>
+        {linhas.length > 0 && (
+          // minimizar: fechar/abrir todos os dias e o modo compacto (uma linha por lançamento)
+          <div className="-mt-1 mb-3 flex flex-wrap items-center gap-2 text-sm">
+            <button type="button" onClick={() => setFechados(fechados.size ? new Set() : new Set(dias.map(([d]) => d)))} className="min-h-10 rounded-lg px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{fechados.size ? `▾ ${t('Abrir todos os dias')}` : `▸ ${t('Fechar todos os dias')}`}</button>
+            <label className="ml-auto inline-flex min-h-10 cursor-pointer items-center gap-2 font-semibold">
+              <input type="checkbox" className="h-5 w-5" checked={compacto} onChange={(e) => setCompacto(e.target.checked)} />
+              {t('Compacto')}<Info texto="Compacto: uma linha por lançamento (o quê e quanto). Toque na linha para abrir. Ex.: Venda V-0004 · −1,5 kg." />
+            </label>
+          </div>
+        )}
         {!linhas.length ? <p className="text-sm text-[var(--suave)]">{t('Nenhum lançamento com esse filtro.')}</p> : (
-          <div className="space-y-4">
+          // cada dia é um bloco próprio (borda + cabeçalho + linhas divididas): nada "grudado" entre um dia e outro
+          <div className="space-y-3">
             {dias.map(([dia, ls]) => {
               const s = totalDia.get(dia)!
+              const fechado = fechados.has(dia)
               return (
-                <section key={dia} aria-label={dataBR(dia)}>
-                  <div className="-mx-1 mb-1 flex flex-wrap items-baseline justify-between gap-x-3 rounded-lg bg-[var(--fundo)] px-2 py-1.5 text-sm">
-                    <b className="capitalize">{nomeDia(dia)} <span className="text-xs font-normal text-[var(--suave)]">· {s.n}</span></b>
+                <section key={dia} aria-label={dataBR(dia)} className="overflow-hidden rounded-xl border border-[var(--borda)]">
+                  <button type="button" aria-expanded={!fechado} onClick={() => setFechados((f) => { const n = new Set(f); if (n.has(dia)) n.delete(dia); else n.add(dia); return n })} className={cx('flex min-h-11 w-full flex-wrap items-center justify-between gap-x-3 bg-[var(--fundo)] px-3 py-2 text-left text-sm hover:bg-[var(--marca-suave)]', !fechado && 'border-b border-[var(--borda)]')}>
+                    <b className="capitalize"><span aria-hidden className={cx('mr-1 inline-block text-[var(--suave)] transition-transform', !fechado && 'rotate-90')}>›</span>{nomeDia(dia)} <span className="text-xs font-normal text-[var(--suave)]">· {s.n}</span></b>
                     <span className="num text-xs">
                       {s.entrou > 0 && s.saiu > 0 && (
                         <span className="text-[var(--suave)]">
@@ -175,10 +192,12 @@ export function Livro() {
                       )}
                       <b className={s.entrou - s.saiu < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{sinal(s.entrou - s.saiu)}</b>
                     </span>
-                  </div>
-                  <ul className="space-y-1">
-                    {ls.map((l) => <Linha key={l.id} l={l} onAbrir={() => abrir(l)} />)}
-                  </ul>
+                  </button>
+                  {!fechado && (
+                    <ul className="divide-y divide-[var(--borda)]">
+                      {ls.map((l) => <Linha key={l.id} l={l} compacto={compacto} onAbrir={() => abrir(l)} />)}
+                    </ul>
+                  )}
                 </section>
               )
             })}
@@ -188,7 +207,10 @@ export function Livro() {
       </Cartao>
 
       <Cartao titulo={t('Fechamento por compra')} ajuda={DICA_CONFERE}>
-        {!compras.length ? <p className="text-sm text-[var(--suave)]">{t('Nenhuma compra de cabelo ainda.')}</p> : (
+        <button type="button" aria-expanded={verFechamento} onClick={() => setVerFechamento(!verFechamento)} className="-mt-1 mb-1 min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">
+          {verFechamento ? `▾ ${t('Esconder')}` : `▸ ${t('Mostrar ({n})', { n: compras.length })}`}
+        </button>
+        {!verFechamento ? null : !compras.length ? <p className="text-sm text-[var(--suave)]">{t('Nenhuma compra de cabelo ainda.')}</p> : (
           <ul className="divide-y divide-[var(--borda)]">
             {compras.map((c) => (
               <li key={c.compraId} {...clicavel(() => ir('pedido', { id: c.compraId }))} className="cursor-pointer rounded-lg px-1 py-2 text-sm outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
@@ -223,15 +245,24 @@ function Resumo({ rotulo, valor, cor, ajuda, extra }: { rotulo: string; valor: s
 }
 
 /** uma linha do livro: marca colorida do tipo, título, pacote e compra(s) de origem clicáveis, saldo e movimento */
-function Linha({ l, onAbrir }: { l: LinhaLivro; onAbrir(): void }) {
+function Linha({ l, onAbrir, compacto }: { l: LinhaLivro; onAbrir(): void; compacto?: boolean }) {
   const t = useT()
   const { ir } = useApp()
   const cor = corDe(l)
+  // compacto: só o quê e quanto, numa linha
+  if (compacto)
+    return (
+      <li {...clicavel(onAbrir)} style={{ borderLeftColor: cor }} className="flex min-h-11 cursor-pointer items-center gap-2 border-l-4 bg-[var(--cartao)] py-1.5 pl-3 pr-3 text-sm outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
+        <span aria-hidden className="shrink-0">{iconeDe(l.tipo)}</span>
+        <span className="min-w-0 flex-1 truncate font-semibold">{l.titulo}</span>
+        <span className="num shrink-0 whitespace-nowrap font-bold" style={{ color: cor }}>{sinal(l.delta)}</span>
+      </li>
+    )
   const compras = l.compras.filter((c) => c.codigo)
   const ate = 2
   const link = 'font-mono font-semibold text-[var(--marca)] hover:underline'
   return (
-    <li {...clicavel(onAbrir)} style={{ borderLeftColor: cor }} className="flex cursor-pointer items-start gap-2 rounded-lg border-l-4 bg-[var(--cartao)] py-1.5 pl-2 pr-1 text-sm outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
+    <li {...clicavel(onAbrir)} style={{ borderLeftColor: cor }} className="flex cursor-pointer items-start gap-2 border-l-4 bg-[var(--cartao)] py-2.5 pl-3 pr-3 text-sm outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
       <span aria-hidden className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm" style={{ background: `color-mix(in srgb, ${cor} 15%, transparent)` }}>{iconeDe(l.tipo)}</span>
       <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
         <span className="flex flex-wrap items-baseline gap-x-2">

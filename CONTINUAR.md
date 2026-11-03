@@ -18,7 +18,7 @@ tabela de preço), salão (agenda, equipe, comissões), caixa, contas de pessoas
 - React 18 + TypeScript strict + Vite 5 + Tailwind 3 + PWA (vite-plugin-pwa, `registerType: 'prompt'`).
 - Local-first: IndexedDB com Dexie 4 (schema v5). Pronto para virar API trocando `VITE_STORAGE=api` + `VITE_API_URL`
   (envelope criptografado `/v1/k` e `/v1/r`; contrato em `api-contract/openapi.yaml`).
-- Testes: Vitest + fake-indexeddb + Testing Library (31 arquivos, 147 testes em 03/11/2026).
+- Testes: Vitest + fake-indexeddb + Testing Library (33 arquivos, 150 testes em 03/11/2026).
 - Publicação: push na `main` → GitHub Actions roda `npm test` e `npm run build` → GitHub Pages
   (`https://logdrive023.github.io/dia-dia-tudo/`). Se um teste falhar, não publica.
 
@@ -147,11 +147,64 @@ npm run build
   "Separar" do rodapé da separação responde ao clique de mouse; aviso de nova versão aparece no canto (build + `vite preview`)
   e "Atualizar" recarrega na versão nova. Para repetir: `.claude/launch.json` › `tudo-preview` (precisa de `--base /dia-dia-tudo/`).
 
+### Rodada de 03/11/2026 (noite) — fluxo principal no celular
+
+- **Backtest no celular (360 px)**: comprar → separar → etiqueta → vender. Achados e corrigidos:
+  - separação: cada parte mostrava 8 campos → agora Peso + Medida + Categoria + Cor à vista, o resto em "+ mais"
+    (`CamposDinamicos` ganhou `principais`);
+  - depois de separar ia para o bruto zerado (0 g · Esgotado) → vai para a Triagem (ou para o pacote, se for 1 só);
+  - **bug**: modo caixa com `?lote=` dizia "Pacote não encontrado" (o estoque vazio contava como carregado) → corrigido;
+  - "Vender" na página do pacote abre o **modo caixa** com o pacote dentro (total na hora, fecha em 2 toques);
+  - atalhos de teclado do modo caixa só no computador.
+- **Triagem com abas de verdade**: ⏳ Para separar · ✅ Prontos · ❓ Para depois · ✂️ Triagens feitas (`?aba=`; endereços
+  antigos `?f=pronto` / `?f=depois` caem na aba certa). Prontos: lote numa linha (código · peso · valor · 💰), filtros atrás de ⚙.
+- **Página do pacote** segmentada: "Este pacote já foi separado → L-0025 · L-0026" primeiro; Números · Origem e destino ·
+  Detalhes; bruto só separado não mostra "vendido 0 / lucro 0".
+- **Etiquetas**: filtros por compra, lote (ou de origem), fornecedor/cliente, quem gerou, quem imprimiu, medida, atributos
+  do cabelo (listas) e peso; `estoque` devolve `criadoPorNome`.
+- **Filtro padrão** (`src/ui/filtroPadrao.tsx`): `BarraFiltros` (busca + ⚙ Filtros · N), `ChipsFiltros` (✕ por filtro),
+  `PainelFiltros` + `GrupoFiltro` (blocos com título/ícone, 2 por linha no celular) + `CampoFaixa`, rodapé "Ver N resultados".
+  **Já usado em Etiquetas.** Toda lista nova deve usar.
+- **Tooltip (`Info`) com formato padrão**: frases em linhas ("Termo: descrição" com termo em negrito); exemplo em caixa
+  (" · " vira etiquetas, "… = X" destaca o resultado); frases depois do exemplo viram "💡 dica".
+- **Livro do cabelo**: cada dia é um bloco (fecha/abre), "Fechar todos os dias", modo **Compacto** (lembrado), fechamento
+  por compra recolhível.
+- **Comprar**: tabela com "O que falta" resumido ("○ 2 pendências ›") que abre uma linha embaixo; celular já era lista.
+- **Tema claro/escuro/automático** em Configurações (ao lado do idioma), por aparelho (`src/ui/tema.ts`, `data-tema` no `<html>`).
+
+### Rodada de 03/11/2026 (madrugada)
+
+- **Menu**: grupo **Principal** sempre aberto (Painel, Comprar, Triagem, Estoque, Etiquetas, Vender); Dinheiro e agenda ·
+  Cabelo · Pessoas · Gestão começam fechados (`menu.gruposAbertos`). Celular: Painel · Comprar · Triagem · Estoque · Vender + Mais.
+- **Novidades** (`#/novidades`, menu Gestão): changelog para quem usa. Conteúdo em `src/app/novidades.ts` —
+  **a cada rodada, uma entrada nova no topo**.
+- **Compra "Sem valor"** (checkbox em "O que veio"): registra só o peso (total 0, `campos.semValor`) e fica a pendência
+  `semValor` ("Sem valor") até pôr o valor.
+- **Pedido em abas**: Resumo (`ItensCompra` + `DestinoCompra`: barra, números e pacotes), Pagamento (etapas; cancelar
+  concluída vira confirmação com motivo), Conta do fornecedor, Anexos, Histórico.
+- **Pacote em abas**: Resumo = `VidaDoPacote` (🛒 → ✂️ → 🏷 → 💰, cada passo clicável) + números; Detalhes = Linha da vida
+  (`src/ui/linhaVida.tsx`, timeline com gramas por passo) + atributos; Histórico (dias em blocos, ícone/cor por tipo,
+  referência obrigatória à vista); Arquivos. ⓘ ao lado da situação explica Bruto · Preparando · Não identificado ·
+  Disponível · Parcial · Esgotado.
+- **Venda em abas**: total e ações no alto; Resumo · Linha do tempo · Arquivos · Correções. Linha do tempo (todas) mostra
+  "↗ referência" em cada evento.
+- **Arquivos** (pacote, venda, pedido): busca + tipo e lista em tabela (arquivo · tipo · data · quem). Foto: 🗑 no visor.
+- **Etiqueta "Outro tamanho"** (largura × altura em mm): QR, letra, foto e barras proporcionais; aviso se o QR < 15 mm.
+- **Triagem**: filtro padrão nas abas Para separar / Para depois (fornecedor, compra, parado há N dias, etiqueta); total
+  dos Prontos em destaque; ⚙ explica cada opção (o que muda e para quem).
+- **Modo caixa**: com "+ mais" aberto, a barra do total vem depois dos campos (não cobre).
+- **Equipe**: organograma minimalista (cartões com atendimentos e faturado; celular em lista por níveis).
+- **Abas** (`Abas` sublinhado): até 4 dividem a largura e quebram a linha; mais que isso rolam sem barra.
+
 ## 7. O que falta (fila)
 
-1. **Conferir num Android de verdade** (o navegador de teste só simula): fonte grande do sistema e o "Separar" com o dedo.
-2. Outras telas no celular com o mesmo padrão "linha curta que abre no lugar" (Vendas, Estoque, Pessoas), se o dono pedir.
-3. Pendências maiores (de [SISTEMA.md](SISTEMA.md) §7): servidor/API e sincronização entre aparelhos, segurança no servidor,
+1. **Aplicar o filtro padrão** também em Triagens feitas, Livro do cabelo, Estoque, Vendas e na Linha do tempo.
+2. **Tabelas de preço**: listagem mais clara e filtros no "Usada em" (tipo venda/compra, período, pessoa, versão, busca).
+3. **Configurações**: explicar em cada seção o que muda na prática quando altera (como foi feito no ⚙ da Triagem).
+4. **Relatórios no padrão contábil** ("livro caixa" de verdade: abertura, entradas, saídas, saldo, por conta/moeda,
+   conferência que bate com caixa/estoque/contas, filtros padrão) para passar confiança nos valores.
+5. **Conferir num Android de verdade**: fonte grande do sistema e o "Separar" com o dedo.
+6. Pendências maiores (de [SISTEMA.md](SISTEMA.md) §7): servidor/API e sincronização entre aparelhos, segurança no servidor,
    devolução parcial de produto, leitura de QR própria para iPhone/Firefox, testes de longa duração.
 
 ## 8. Para o Claude numa conversa nova

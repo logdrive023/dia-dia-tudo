@@ -87,6 +87,8 @@ export async function criarCompra(
     viagemId?: Id
     /** lote que nasce no registro: código digitado de cada lote (linhaId → código; vazio = o da regra) */
     codigosLotes?: Record<Id, string>
+    /** cabelo que já tínhamos / valor depois: registra só o peso (total 0) e fica a pendência "Sem valor" */
+    semValor?: boolean
   },
 ) {
   if (await ctx.repos.transacoes.obter(d.id)) return { id: d.id }
@@ -141,7 +143,7 @@ export async function criarCompra(
     totalPrincipal: linhas.reduce((s, l) => s + l.totalPrincipal, 0),
     historico: [{ de: '', para: c.etapas[0].id, em: ctx.relogio.agora(), por: ctx.sessao.usuarioId, porNome: ctx.sessao.nome }],
     obs: d.obs,
-    campos: {},
+    campos: d.semValor ? { semValor: true } : {},
     ...(viagem ? { viagemId: viagem.id } : {}),
   })
   await ctx.repos.transacoes.salvar(t)

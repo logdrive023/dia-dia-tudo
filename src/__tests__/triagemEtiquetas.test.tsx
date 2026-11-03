@@ -34,8 +34,8 @@ describe('triagem: etiqueta à vista', () => {
     }
     render(<H />)
     const prontos = await screen.findByRole('region', { name: 'Pronto para vender' }, { timeout: 10000 })
-    await within(prontos).findByText('✓ Etiqueta', { exact: false })
-    expect(within(prontos).getAllByRole('button', { name: /Sem etiqueta/ }).length).toBeGreaterThan(0)
+    // a linha do lote só marca o que falta: 🏷 = sem etiqueta (o impresso não leva selo)
+    await waitFor(() => expect(within(prontos).getAllByLabelText('Sem etiqueta').length).toBeGreaterThan(0), { timeout: 10000 })
     const resumo = within(prontos).getByRole('button', { name: /1 sem etiqueta/ })
     fireEvent.click(resumo)
     expect(resumo.getAttribute('aria-pressed')).toBe('true')

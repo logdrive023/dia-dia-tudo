@@ -17,7 +17,7 @@ import { caminhoQR, gerarQR } from './qr'
 import { useUrlFoto } from './fotos'
 import { useLembrado } from './filtros'
 
-export type TamanhoEtiqueta = 'pequena' | 'a4'
+export type TamanhoEtiqueta = 'pequena' | 'a4' | 'livre'
 
 /** O que vai no QR: o endereço do lote neste app (o leitor da câmera abre o lote; outro celular abre o app nele). */
 export function enderecoDoLote(id: Id) {
@@ -59,14 +59,22 @@ export const TIPOS_ETIQUETA: { id: ModoEtiqueta; nome: string }[] = [
 ]
 export const AJUDA_TIPO_ETIQUETA = 'QR + barras: para leitor de balcão. Só QR: para celular. Sem etiqueta: escreva o código à mão. Ex.: tag presa com elástico no pacote.'
 
-const TAM = {
-  pequena: { w: 50, h: 30, qr: 22, foto: 10, codigo: 5.2, texto: 2.4 },
-  a4: { w: 63.5, h: 38.1, qr: 26, foto: 13, codigo: 6, texto: 2.8 },
-} as const
+/** Medidas de uma etiqueta (mm). Tudo sai da largura × altura: QR, letra, foto e código de barras acompanham. */
+export interface MedidasEtiqueta { w: number; h: number; qr: number; foto: number; codigo: number; texto: number; barras: number }
+const limitar = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+export function medidasEtiqueta(w: number, h: number): MedidasEtiqueta {
+  const qr = Math.max(8, Math.min(h - 3, w * 0.45))
+  return { w, h, qr, foto: h >= 25 ? limitar(h * 0.34, 8, 18) : 0, codigo: limitar(h * 0.17, 3, 9), texto: limitar(h * 0.08, 1.8, 3.4), barras: limitar(h * 0.15, 3.5, 9) }
+}
+/** QR menor que isso: a câmera do celular pode não ler (impressora térmica de 203 dpi ≈ 3 pontos por quadradinho). */
+export const QR_MINIMO_MM = 15
+const TAM: Record<'pequena' | 'a4', MedidasEtiqueta> = {
+  pequena: { w: 50, h: 30, qr: 22, foto: 10, codigo: 5.2, texto: 2.4, barras: 4.5 },
+  a4: { w: 63.5, h: 38.1, qr: 26, foto: 13, codigo: 6, texto: 2.8, barras: 6 },
+}
 
-function UmaEtiqueta({ e, tamanho, barras }: { e: Etiqueta; tamanho: TamanhoEtiqueta; barras: boolean }) {
+function UmaEtiqueta({ e, s, barras }: { e: Etiqueta; s: MedidasEtiqueta; barras: boolean }) {
   const t = useT()
-  const s = TAM[tamanho]
   const foto = useUrlFoto(e.foto)
   const linha = [e.medida, e.categoria ? t(e.categoria) : undefined, e.cor ? t(e.cor) : undefined].filter(Boolean).join(' · ')
   const peso = fmt(e.saldo, e.unidade === 'grama' ? 'gramas' : 'numero')
@@ -78,14 +86,14 @@ function UmaEtiqueta({ e, tamanho, barras }: { e: Etiqueta; tamanho: TamanhoEtiq
       <QR texto={enderecoDoLote(e.id)} className="shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col justify-between" style={{ fontSize: `${s.texto}mm`, lineHeight: 1.15 }}>
         <b className="font-mono" style={{ fontSize: `${tamCodigo}mm`, lineHeight: 1, whiteSpace: 'nowrap' }}>{e.codigo}</b>
-        {barras && <Barras texto={e.codigo} className="barras block w-full" style={{ height: `${tamanho === 'pequena' ? 4.5 : 6}mm` }} />}
+        {barras && <Barras texto={e.codigo} className="barras block w-full" style={{ height: `${s.barras}mm` }} />}
         {linha && <div style={{ fontWeight: 700, overflowWrap: 'anywhere' }}>{linha}</div>}
         <div className="flex items-end justify-between" style={{ gap: '1mm' }}>
           <div className="min-w-0">
             <div className="num" style={{ fontWeight: 700 }}>{peso}</div>
             <div style={{ color: '#444', overflowWrap: 'anywhere' }}>{dataBR(e.data)}{e.compras ? ` · ${e.compras}` : ''}{e.via ? <b style={{ color: '#000' }}> · {t('{n}ª via', { n: e.via })}</b> : null}</div>
           </div>
-          {foto && <img src={foto} alt="" className="shrink-0 object-cover" style={{ width: `${s.foto}mm`, height: `${s.foto}mm`, borderRadius: '1mm' }} />}
+          {foto && s.foto > 0 && <img src={foto} alt="" className="shrink-0 object-cover" style={{ width: `${s.foto}mm`, height: `${s.foto}mm`, borderRadius: '1mm' }} />}
         </div>
       </div>
       <style>{`.etiqueta svg:not(.barras){width:${s.qr}mm;height:${s.qr}mm}`}</style>
@@ -108,7 +116,7 @@ function CodigoAMao({ e }: { e: Etiqueta }) {
 /** Folha A4 de etiquetas (tipo Pimaco 6180/A4256): 3 colunas × 7 linhas de 63,5 × 38,1 mm = 21 por folha. */
 export const POR_FOLHA_A4 = 21
 /** Máximo por impressão (acima disso o navegador do celular trava ao montar a impressão): 10 folhas A4 ou 200 do rolo. */
-export const LIMITE_IMPRESSAO: Record<TamanhoEtiqueta, number> = { a4: POR_FOLHA_A4 * 10, pequena: 200 }
+export const LIMITE_IMPRESSAO: Record<TamanhoEtiqueta, number> = { a4: POR_FOLHA_A4 * 10, pequena: 200, livre: 200 }
 const MAX_COPIAS = 50
 const AJUDA_PAPEL = 'Rolo: 1 etiqueta de 50 × 30 mm por vez (impressora de etiqueta). Folha A4: 21 por folha (3 × 7, etiquetas de 63,5 × 38,1 mm). Ex.: 25 etiquetas = 2 folhas (21 + 4).'
 const AJUDA_INICIO = 'Para usar uma folha que já foi usada: toque na primeira etiqueta livre. Ex.: sobraram 10 → comece na 12.'
@@ -157,6 +165,10 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   const { executar } = useComando()
   const [papelLembrado, setPapel] = useLembrado<TamanhoEtiqueta | ''>('etiquetas.papel', '')
   const tamanho: TamanhoEtiqueta = papelLembrado || (ids.length > 4 ? 'a4' : 'pequena')
+  // "Outro tamanho": largura × altura digitadas (lembradas no aparelho); o rolo 50 × 30 usa as medidas fixas
+  const [largLivre, setLargLivre] = useLembrado('etiquetas.largura', 50)
+  const [altLivre, setAltLivre] = useLembrado('etiquetas.altura', 30)
+  const medRolo = tamanho === 'livre' ? medidasEtiqueta(largLivre, altLivre) : TAM.pequena
   const { dados, erro } = useConsulta('etiquetas', { ids })
   const { dados: modoPadrao } = useConsulta('modoEtiqueta', {}, !modoInicial)
   const [escolhido, setModo] = useState<ModoEtiqueta>()
@@ -168,6 +180,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   const [refPrevia, largura] = useLargura()
   const modo = escolhido ?? modoInicial ?? modoPadrao ?? 'qr'
   const a4 = modo !== 'nenhuma' && tamanho === 'a4'
+  const qrPequeno = modo !== 'nenhuma' && tamanho === 'livre' && medRolo.qr < QR_MINIMO_MM
   const copiasDe = (id: Id) => copias[id] ?? 1
   const todasIguais = (dados ?? []).every((e) => copiasDe(e.id) === copiasDe(dados![0].id))
   const cada = dados?.length ? copiasDe(dados[0].id) : 1
@@ -197,7 +210,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   }, [onFechar])
   // "2 folhas A4 (21 + 4)": quantas etiquetas em cada folha
   const resumoFolhas = !a4 ? '' : folhas <= 1 ? t('1 folha A4') : t('{n} folhas A4 ({a})', { n: folhas, a: paginas.map((v) => v.filter(Boolean).length).join(' + ') })
-  const pagina = tamanho === 'pequena' ? '@page{size:50mm 30mm;margin:0}' : '@page{size:A4;margin:0}'
+  const pagina = tamanho === 'a4' ? '@page{size:A4;margin:0}' : `@page{size:${medRolo.w}mm ${medRolo.h}mm;margin:0}`
   const secao = 'rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm'
   const conteudo = (
     <div id="etiquetas-impressao" role="dialog" aria-modal="true" aria-label={t('Imprimir etiquetas')} className="fixed inset-0 z-[60] flex flex-col bg-[var(--fundo)] text-[var(--texto)]">
@@ -236,8 +249,23 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
             {modo !== 'nenhuma' && (
               <section className={secao}>
                 <h3 className="mb-2 flex items-center text-sm font-bold">{t('Papel')}<Info texto={AJUDA_PAPEL} /></h3>
-                <Escolha rotulo="Papel" valor={tamanho} onChange={(v) => (setPapel(v as TamanhoEtiqueta), setInicio(1))} opcoes={[{ id: 'pequena', nome: 'Rolo 50 × 30' }, { id: 'a4', nome: 'Folha A4' }]} />
+                <Escolha rotulo="Papel" valor={tamanho} onChange={(v) => (setPapel(v as TamanhoEtiqueta), setInicio(1))} opcoes={[{ id: 'pequena', nome: 'Rolo 50 × 30' }, { id: 'a4', nome: 'Folha A4' }, { id: 'livre', nome: 'Outro tamanho' }]} />
+                {tamanho === 'livre' && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <label className="block text-sm font-semibold text-[var(--suave)]">{t('Largura (mm)')}
+                      <Entrada inputMode="decimal" value={String(largLivre)} onChange={(e) => { const n = Number(e.target.value.replace(',', '.')); if (Number.isFinite(n)) setLargLivre(Math.min(200, Math.max(0, n))) }} />
+                    </label>
+                    <label className="block text-sm font-semibold text-[var(--suave)]">{t('Altura (mm)')}
+                      <Entrada inputMode="decimal" value={String(altLivre)} onChange={(e) => { const n = Number(e.target.value.replace(',', '.')); if (Number.isFinite(n)) setAltLivre(Math.min(200, Math.max(0, n))) }} />
+                    </label>
+                  </div>
+                )}
                 <p className="num mt-2 text-xs text-[var(--suave)]">{t(tamanho === 'a4' ? '21 por folha (3 × 7) · até {n} por vez' : '1 por etiqueta do rolo · até {n} por vez', { n: limite })}</p>
+                {tamanho === 'livre' && (
+                  <p role={qrPequeno ? 'alert' : undefined} className={cx('num mt-1 text-xs font-semibold', qrPequeno ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>
+                    {qrPequeno ? `⚠️ ${t('QR com {n} mm: pequeno, a câmera pode não ler. Use etiqueta com pelo menos 18 mm de altura.', { n: medRolo.qr.toFixed(0) })}` : `✓ ${t('QR com {n} mm: a câmera lê.', { n: medRolo.qr.toFixed(0) })}`}
+                  </p>
+                )}
                 {a4 && (
                   <div className="mt-2">
                     {/* fechado: "Começar na etiqueta 1 · Mudar"; aberto: a folha em miniatura (toque na primeira livre) */}
@@ -296,7 +324,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
                     <div style={{ transform: `scale(${escala})`, transformOrigin: 'top left', width: '210mm' }}>
                       <div className="pagina-a4 bg-white shadow-md" style={{ width: '210mm', height: '297mm', padding: '15.15mm 9.75mm', boxSizing: 'border-box' }}>
                         <div className="grade grid" style={{ gridTemplateColumns: 'repeat(3,63.5mm)', gridAutoRows: '38.1mm' }}>
-                          {vagas.map((e, j) => (e ? <UmaEtiqueta key={j} e={e} tamanho="a4" barras={modo === 'qrBarras'} /> : <div key={j} className="vaga" style={{ border: '0.2mm dashed #e5e5e5' }} />))}
+                          {vagas.map((e, j) => (e ? <UmaEtiqueta key={j} e={e} s={TAM.a4} barras={modo === 'qrBarras'} /> : <div key={j} className="vaga" style={{ border: '0.2mm dashed #e5e5e5' }} />))}
                         </div>
                       </div>
                     </div>
@@ -305,7 +333,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
               </div>
             ) : (
               <div className="pequena grade flex flex-wrap gap-2">
-                {fila.map((e, k) => <UmaEtiqueta key={k} e={e} tamanho="pequena" barras={modo === 'qrBarras'} />)}
+                {fila.map((e, k) => <UmaEtiqueta key={k} e={e} s={medRolo} barras={modo === 'qrBarras'} />)}
               </div>
             )}
             <p className="nao-imprimir mt-3 text-xs text-[var(--suave)]">{t(modo === 'nenhuma' ? 'Escreva o código no pacote: a busca acha o pacote pelo código.' : modo === 'qrBarras' ? 'O QR abre o lote pela câmera; o código de barras é lido pelo leitor de balcão, que digita o código na busca.' : 'O QR abre o lote: pelo “Ler código” do Estoque ou pela câmera de qualquer celular.')}</p>

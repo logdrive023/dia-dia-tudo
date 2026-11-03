@@ -3,7 +3,7 @@
 
 import type { Anexo, Transacao } from '../domain/tipos'
 
-export type IdPendencia = 'faltaReceber' | 'semComprovante' | 'semFotos' | 'semComprovanteOrigem' | 'faltaPagar' | 'paradaTriagem'
+export type IdPendencia = 'faltaReceber' | 'semComprovante' | 'semFotos' | 'semComprovanteOrigem' | 'faltaPagar' | 'paradaTriagem' | 'semValor'
 
 export interface Pendencia {
   id: IdPendencia
@@ -20,6 +20,7 @@ export const NOMES_PENDENCIA: Record<IdPendencia, string> = {
   semComprovanteOrigem: 'Sem comprovante de origem',
   faltaPagar: 'Falta pagar',
   paradaTriagem: 'Parada na triagem',
+  semValor: 'Sem valor',
 }
 
 /**
@@ -46,6 +47,8 @@ export function pendenciasCompra(t: Transacao & { diasParada?: number }, anexos:
   if (t.tipo !== 'compra' || t.etapa === 'cancelado' || t.etapa === 'recusado') return []
   const p: Pendencia[] = []
   const meus = anexos.filter((a) => a.donoId === t.id)
+  // registrada "sem valor" (cabelo que já tínhamos / valor depois): lembra de pôr o valor, sem travar a operação
+  if (t.campos.semValor && !t.totalPrincipal) p.push({ id: 'semValor', texto: NOMES_PENDENCIA.semValor, nivel: 'atencao' })
   if (opcoes.pedeFotos !== false && !meus.some((a) => a.categoria === 'pedido' || a.categoria === 'produto')) p.push({ id: 'semFotos', texto: NOMES_PENDENCIA.semFotos, nivel: 'atencao' })
   if (opcoes.pedeOrigem && !meus.some((a) => a.categoria === 'origem')) p.push({ id: 'semComprovanteOrigem', texto: NOMES_PENDENCIA.semComprovanteOrigem, nivel: 'atencao' })
   if (opcoes.jaPassouDoPago) {

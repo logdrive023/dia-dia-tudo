@@ -23,7 +23,7 @@ export interface ItemMenu {
   nome: string
   /** nome curto para a barra do celular */
   curto?: string
-  grupo: 'Dia a dia' | 'Estoque e compras' | 'Pessoas' | 'Gestão'
+  grupo: 'Principal' | 'Dinheiro e agenda' | 'Cabelo' | 'Pessoas' | 'Gestão'
   /** só para admin */
   admin?: boolean
   /** aparece se algum módulo ativo tiver este recurso */
@@ -32,20 +32,21 @@ export interface ItemMenu {
 
 export const MENU: ItemMenu[] = [
   // dia a dia segue o caminho do cabelo: compra → triagem → estoque → venda → caixa
-  { tela: 'painel', nome: 'Painel', grupo: 'Dia a dia', admin: true },
-  { tela: 'comprar', nome: 'Comprar', grupo: 'Dia a dia', admin: true, precisa: 'compra' },
-  { tela: 'triagem', nome: 'Triagem', grupo: 'Dia a dia', admin: true, precisa: 'estoque' },
-  { tela: 'estoque', nome: 'Estoque', grupo: 'Dia a dia', admin: true, precisa: 'estoque' },
-  { tela: 'vender', nome: 'Vender', grupo: 'Dia a dia', precisa: 'venda' },
-  { tela: 'caixa', nome: 'Caixa', grupo: 'Dia a dia', admin: true },
-  { tela: 'agenda', nome: 'Agenda', grupo: 'Dia a dia', precisa: 'agenda' },
+  { tela: 'painel', nome: 'Painel', grupo: 'Principal', admin: true },
+  { tela: 'comprar', nome: 'Comprar', grupo: 'Principal', admin: true, precisa: 'compra' },
+  { tela: 'triagem', nome: 'Triagem', grupo: 'Principal', admin: true, precisa: 'estoque' },
+  { tela: 'estoque', nome: 'Estoque', grupo: 'Principal', admin: true, precisa: 'estoque' },
+  { tela: 'etiquetas', nome: 'Etiquetas', grupo: 'Principal', admin: true, precisa: 'estoque' },
+  { tela: 'vender', nome: 'Vender', grupo: 'Principal', precisa: 'venda' },
+  { tela: 'caixa', nome: 'Caixa', grupo: 'Dinheiro e agenda', admin: true },
+  { tela: 'agenda', nome: 'Agenda', grupo: 'Dinheiro e agenda', precisa: 'agenda' },
   // etiquetas dos pacotes: "Sem etiqueta" (os que acabaram de sair da separação) · "Já impressa" · reimprimir
-  { tela: 'etiquetas', nome: 'Etiquetas', grupo: 'Estoque e compras', admin: true, precisa: 'estoque' },
+  // (Etiquetas está no Principal: compra → triagem → etiqueta → venda)
   // viagens de compra: admin sempre; funcionária só quando está numa viagem aberta (painel do viajante)
-  { tela: 'viagens', nome: 'Viagens', grupo: 'Estoque e compras', precisa: 'compra' },
+  { tela: 'viagens', nome: 'Viagens', grupo: 'Cabelo', precisa: 'compra' },
   // livro do cabelo: todos os lançamentos de gramas e o fechamento de cada compra
-  { tela: 'livro', nome: 'Livro do cabelo', curto: 'Livro', grupo: 'Estoque e compras', admin: true, precisa: 'cabelo' },
-  { tela: 'precos', nome: 'Tabelas de preço', curto: 'Preços', grupo: 'Estoque e compras', admin: true, precisa: 'cabelo' },
+  { tela: 'livro', nome: 'Livro do cabelo', curto: 'Livro', grupo: 'Cabelo', admin: true, precisa: 'cabelo' },
+  { tela: 'precos', nome: 'Tabelas de preço', curto: 'Preços', grupo: 'Cabelo', admin: true, precisa: 'cabelo' },
   { tela: 'pessoas', nome: 'Pessoas e contas', curto: 'Pessoas', grupo: 'Pessoas' },
   { tela: 'equipe', nome: 'Equipe e unidades', curto: 'Equipe', grupo: 'Pessoas' },
   { tela: 'emprestimos', nome: 'Empréstimos', grupo: 'Pessoas', admin: true, precisa: 'emprestimos' },
@@ -53,17 +54,22 @@ export const MENU: ItemMenu[] = [
   { tela: 'adiantamentos', nome: 'Adiantamentos', grupo: 'Pessoas', precisa: 'compra' },
   { tela: 'relatorios', nome: 'Relatórios', grupo: 'Gestão', admin: true },
   { tela: 'config', nome: 'Configurações', curto: 'Ajustes', grupo: 'Gestão', admin: true },
+  // o que mudou no sistema (changelog), para todos
+  { tela: 'novidades', nome: 'Novidades', grupo: 'Gestão' },
 ]
 
 /** barra do celular, na ordem do dia: Agenda (e o resto) ficam no "Mais" */
-const CELULAR = ['painel', 'comprar', 'triagem', 'vender', 'caixa', 'agenda']
+const CELULAR = ['painel', 'comprar', 'triagem', 'estoque', 'vender', 'etiquetas']
 
-export const GRUPOS = ['Dia a dia', 'Estoque e compras', 'Pessoas', 'Gestão'] as const
+export const GRUPOS = ['Principal', 'Dinheiro e agenda', 'Cabelo', 'Pessoas', 'Gestão'] as const
+/** o Principal nunca fecha (a vida do negócio fica sempre à vista); os outros começam fechados */
+const SEMPRE_ABERTO = 'Principal'
 
 /** Cor de cada grupo (só no quadradinho do ícone: ajuda a achar sem poluir). */
 const COR_GRUPO: Record<ItemMenu['grupo'], string> = {
-  'Dia a dia': '#8b5cf6',
-  'Estoque e compras': '#0ea5e9',
+  Principal: '#8b5cf6',
+  'Dinheiro e agenda': '#f43f5e',
+  Cabelo: '#0ea5e9',
   Pessoas: '#10b981',
   Gestão: '#f59e0b',
 }
@@ -140,7 +146,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const [mais, setMais] = useState(false)
   const [recolhido, setRecolhido] = useLembrado('menu.recolhido', false)
   const [oculto, setOculto] = useLembrado('menu.oculto', false)
-  const [gruposFechados, setGruposFechados] = useLembrado<string[]>('menu.gruposFechados', [])
+  const [gruposAbertos, setGruposAbertos] = useLembrado<string[]>('menu.gruposAbertos', [])
   const { dados } = useConsulta('configuracoes', {})
   const sair = async () => {
     await backend.sair()
@@ -255,13 +261,13 @@ export function Shell({ children }: { children: ReactNode }) {
         <nav aria-label={t('Menu principal')} className={cx('min-h-0 flex-1 overflow-y-auto pb-3', recolhido ? 'px-2' : 'px-3')}>
           {grupos.map(({ g, itens }, i) => {
             // grupo do item aberto nunca fica fechado (não perder onde está)
-            const fechado = !recolhido && gruposFechados.includes(g) && !itens.some((m) => m.tela === nav.tela)
+            const fechado = !recolhido && g !== SEMPRE_ABERTO && !gruposAbertos.includes(g) && !itens.some((m) => m.tela === nav.tela)
             const alerta = itens.map((m) => contadores[m.tela]).find((c) => c?.tom === 'urgente') ?? itens.map((m) => contadores[m.tela]).find(Boolean)
             return (
-              <div key={g} className={cx(i > 0 && (recolhido ? 'mt-3 border-t border-[var(--borda)] pt-3' : 'mt-4'))}>
+              <div key={g} className={cx(i > 0 && (recolhido ? 'mt-3 border-t border-[var(--borda)] pt-3' : 'mt-3 border-t border-[var(--borda)] pt-3'))}>
                 {!recolhido && (
-                  <button type="button" onClick={() => setGruposFechados(fechado ? gruposFechados.filter((x) => x !== g) : [...gruposFechados, g])} aria-expanded={!fechado} className="mb-1 flex w-full items-center gap-1 rounded-lg px-3 py-1 text-left text-xs font-medium text-[var(--suave)] hover:text-[var(--texto)]">
-                    <span className={cx('inline-block transition-transform', fechado ? '' : 'rotate-90')} aria-hidden>›</span>
+                  <button type="button" disabled={g === SEMPRE_ABERTO} onClick={() => setGruposAbertos(fechado ? [...gruposAbertos, g] : gruposAbertos.filter((x) => x !== g))} aria-expanded={!fechado} className="mb-1 flex min-h-9 w-full items-center gap-1.5 rounded-lg px-3 py-1 text-left text-xs font-bold uppercase tracking-wide text-[var(--suave)] hover:bg-[var(--fundo)] hover:text-[var(--texto)] disabled:cursor-default disabled:hover:bg-transparent">
+                    {g !== SEMPRE_ABERTO && <span className={cx('inline-block transition-transform', fechado ? '' : 'rotate-90')} aria-hidden>›</span>}<span aria-hidden className="h-2 w-2 rounded-full" style={{ background: COR_GRUPO[g] }} />
                     <span className="flex-1">{t(g)}</span>
                     {fechado && alerta && <Selo c={{ ...alerta, n: itens.reduce((s, m) => s + (contadores[m.tela]?.n ?? 0), 0) }} />}
                   </button>

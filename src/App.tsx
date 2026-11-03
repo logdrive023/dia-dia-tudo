@@ -28,6 +28,7 @@ import { Livro } from './screens/Livro'
 import { FichaPessoa, Pessoas } from './screens/Pessoas'
 import { Precos } from './screens/Precos'
 import { Relatorios } from './screens/Relatorios'
+import { Novidades } from './screens/Novidades'
 import { DetalheVenda, Vendas } from './screens/Vendas'
 import { Vender } from './screens/Vender'
 import { VendaRapida } from './screens/VendaRapida'
@@ -60,6 +61,7 @@ const TELAS: Record<string, () => JSX.Element> = {
   precos: Precos,
   tabelaPreco: Precos,
   relatorios: Relatorios,
+  novidades: Novidades,
   config: Config,
   configSecao: Config,
   vendas: Vendas,

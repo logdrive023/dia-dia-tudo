@@ -341,7 +341,7 @@ HTTPS (use os dois) e, sem `VITE_API_CHAVE_PUBLICA`, alguém no meio com um cert
 
 ## 6. Testes
 ```bash
-npm test          # 147 testes: regras, contrato (memória × IndexedDB × API simulada), dados de exemplo, telas
+npm test          # 150 testes: regras, contrato (memória × IndexedDB × API simulada), dados de exemplo, telas
 npm run build     # tipos + build de produção (PWA)
 npm run dev       # http://localhost:5173
 ```

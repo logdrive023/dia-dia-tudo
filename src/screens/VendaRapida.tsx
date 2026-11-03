@@ -218,7 +218,8 @@ export function VendaRapida() {
 
   // só itens de módulos ativos com venda
   const modulosVenda = new Set((cfg?.modulos ?? []).filter((m) => cfg?.config.modulosAtivos.includes(m.id) && m.temVenda).map((m) => m.id))
-  const estoque = cfg ? (estoqueTodo ?? []).filter((i) => modulosVenda.has(i.moduloId)) : undefined
+  // só "carregado" quando as duas consultas chegaram (com [] antes do estoque, o ?lote= da URL dava "Pacote não encontrado")
+  const estoque = cfg && estoqueTodo ? estoqueTodo.filter((i) => modulosVenda.has(i.moduloId)) : undefined
   const porId = new Map((estoque ?? []).map((i) => [i.id, i]))
   const pessoa = pessoas?.find((x) => x.id === pessoaId)
 
@@ -590,7 +591,7 @@ export function VendaRapida() {
 
   const painelMais = (
     <div>
-      <button type="button" aria-expanded={mais} onClick={() => setMais(!mais)} className="min-h-10 text-sm font-semibold text-[var(--marca)]">
+      <button type="button" aria-expanded={mais} onClick={(e) => { const alvo = e.currentTarget; setMais(!mais); if (!mais) setTimeout(() => alvo.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0) }} className="min-h-10 text-sm font-semibold text-[var(--marca)]">
         {mais ? '− ' : '+ '}{t('mais (cliente, desconto, observação)')}
       </button>
       {mais && (
@@ -687,7 +688,8 @@ export function VendaRapida() {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Botao variante="leve" onClick={() => ir('vender')}>← {t('Vender')}</Botao>
         <h1 className="text-xl font-bold">⚡ {t('Modo caixa')}</h1>
-        <span className="text-sm text-[var(--suave)]">{t('Enter vazio = fechar · Esc = tirar o último')}</span>
+        {/* atalhos de teclado/pistola: só no computador (no celular é ruído) */}
+        <span className="hidden text-sm text-[var(--suave)] md:inline">{t('Enter vazio = fechar · Esc = tirar o último')}</span>
       </div>
 
       {feita && (
@@ -737,7 +739,8 @@ export function VendaRapida() {
       </div>
 
       {!tablet && (
-        <div className="sticky bottom-20 z-20 mt-3 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] px-3 py-2 shadow-lg md:bottom-4">
+        // "+ mais" aberto: a barra deixa de flutuar e vem DEPOIS dos campos (empurrada para baixo, nada fica coberto)
+        <div className={cx('z-20 mt-3 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] px-3 py-2 shadow-lg', mais ? 'relative' : 'sticky bottom-20 md:bottom-4')}>
           <div className="flex items-center gap-3">
             <div className="min-w-0">
               <div className="text-xs text-[var(--suave)]">{t('Total')} · {vistas.length}</div>

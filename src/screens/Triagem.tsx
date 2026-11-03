@@ -10,7 +10,7 @@ import { novoId } from '../core/domain/ids'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { COLUNA_VENDIDO, type ColunaTriagem, camposUnificados } from '../core/services/triagem'
-import { Abas, Botao, Campo, Carregando, Confirmar, Entrada, Escolha, ErroTela, GramasInput, Info, Janela, Pilula, Selecao, cx, dataBR, fmt, gramasTexto, moedaPadrao } from '../ui/base'
+import { Botao, Campo, Carregando, Confirmar, Entrada, Escolha, ErroTela, GramasInput, Info, Janela, Pilula, Selecao, cx, dataBR, fmt, gramasTexto, moedaPadrao } from '../ui/base'
 import { resumoCampos } from '../ui/camposDinamicos'
 import { clicavel } from '../ui/compartilhados'
 import { type Params, useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
@@ -25,6 +25,7 @@ import { LeitorCodigo } from '../ui/estoqueUi'
 import { usePistola } from '../ui/leitorPistola'
 import { useLembrado } from '../ui/filtros'
 import { Icone } from '../ui/icones'
+import { BarraFiltros, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
 import { FiltrosProntos, PARAMS_PRONTOS, ResumoFiltroProntos, agruparProntos, filtrarProntos, useFiltroProntos } from '../ui/filtrosProntos'
 
 const NAO_ID = 'Não identificado'
@@ -45,13 +46,6 @@ const MAX_PRONTOS = 12
 const GRADE_PRONTOS = 'grid grid-cols-[minmax(0,1fr)_3.75rem_6rem_2.5rem] items-center gap-x-1.5 sm:grid-cols-[minmax(0,1fr)_3.5rem_6rem_8rem_2.75rem] sm:gap-x-3'
 const NOME_GRUPO: Record<string, string> = { medida: 'Medida', faixa: 'Faixa', categoria: 'Categoria', cor: 'Cor' }
 const corDe = (c?: ColunaTriagem) => c?.cor ?? 'var(--marca)'
-const rolarPara = (id: string) => {
-  try {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  } catch {
-    /* sem rolagem (testes) */
-  }
-}
 
 /** De onde veio, por extenso: "de P-0003 · Helena · separado de L-0001" (unificado: "de P-0001 + P-0004 · unificado de L-1 + L-2"). */
 function origemTexto(l: Lote, t: T) {
@@ -75,7 +69,7 @@ export function Triagem() {
   const [visaoP, setVisao] = useParamTela<'' | 'quadro' | 'lista'>('visao', '')
   const [quadroLembrado, setQuadroLembrado] = useLembrado('triagem.quadro', false)
   const visao = visaoP || (quadroLembrado ? 'quadro' : 'lista')
-  const [filtro, setFiltro] = useParamTela('f', '')
+  const [filtro] = useParamTela('f', '')
   const [busca, setBusca] = useParamTela('busca', '')
   const [buscaAberta, setBuscaAberta] = useState(!!busca)
   const [trocar, setTrocar] = useState<Lote>()
@@ -93,10 +87,10 @@ export function Triagem() {
   const [editar, setEditar] = useState<Lote>()
   const [arrastando, setArrastando] = useState<Id[]>()
   const [opcoes, setOpcoes] = useState(false)
-  const [aba, setAba] = useParamTela('aba', 'quadro')
+  const [verFiltrosFila, setVerFiltrosFila] = useState(false)
+  const [aba] = useParamTela('aba', 'separar')
   const [alvo, setAlvo] = useState<string>()
   const [lendo, setLendo] = useState(false)
-  const [prontoAberto, setProntoAberto] = useState(false)
   const [maisSeparar, setMaisSeparar] = useState(false)
   const { tirar } = useTirarFoto()
   // leitor pistola: Enter com o código exato abre o pacote
@@ -210,14 +204,41 @@ export function Triagem() {
   )
 
   // ---------- o que mostrar ----------
+  // a aba: ?aba=prontos|depois|triagens (endereços antigos: ?f=pronto/semana/mes e ?m= abrem Prontos; ?f=depois, Para depois)
+  const abaReal: 'separar' | 'prontos' | 'depois' | 'triagens' =
+    aba === 'triagens' ? 'triagens'
+      : aba === 'prontos' || filtroDePronto || !!medida || PARAMS_PRONTOS.some((k) => nav.params[k] !== undefined) ? 'prontos'
+        : aba === 'depois' || filtro === 'depois' ? 'depois'
+          : 'separar'
+  // nas abas Para separar / Para depois a busca fica no filtro padrão (a 🔍 do topo some para não repetir)
+  const buscaNaLista = (abaReal === 'separar' || abaReal === 'depois') && visao !== 'quadro'
+  const irAba = (id: string) => ajustarParams({ aba: id === 'separar' ? undefined : id, f: undefined, m: undefined, t: undefined, ...Object.fromEntries(PARAMS_PRONTOS.map((k) => [k, undefined])) })
   const aguardando = dados.lotes.filter(naFila)
   const gAguardando = aguardando.reduce((s, l) => s + l.saldo, 0)
-  const paraSeparar = aguardando.filter((l) => passaBusca(l) && (filtroDePronto || passaFiltro(l))).sort((a, b) => b.dias - a.dias)
+  // "para separar" e "para depois" (não identificado) são abas diferentes
+  const separarTodos = aguardando.filter((l) => l.campos.estado !== NAO_ID)
+  const gSeparar = separarTodos.reduce((s, l) => s + l.saldo, 0)
+  const daAba = abaReal === 'depois' ? aguardando.filter((l) => l.campos.estado === NAO_ID) : separarTodos
+  // filtro padrão das abas Para separar / Para depois (no endereço): fornecedor, compra, parado há N dias, etiqueta
+  const fp = (k: string) => (nav.params[k] === undefined ? '' : String(nav.params[k]))
+  const fornecedoresFila = [...new Set(daAba.flatMap((l) => l.compras.map((c) => c.fornecedor).filter((x): x is string => !!x)))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const passaFiltroPadrao = (l: Lote) =>
+    (!fp('sf') || l.compras.some((c) => c.fornecedor === fp('sf'))) &&
+    (!fp('sc') || l.compras.some((c) => (c.codigo ?? '').toLowerCase().includes(fp('sc').toLowerCase()))) &&
+    (!fp('sd') || l.dias >= Number(fp('sd'))) &&
+    (!fp('set') || (fp('set') === 'sem' ? !l.etiqueta.impressaEm : !!l.etiqueta.impressaEm))
+  const ativosFila = [
+    ...(fp('sf') ? [{ k: 'sf', rotulo: `👤 ${fp('sf')}` }] : []),
+    ...(fp('sc') ? [{ k: 'sc', rotulo: `🛒 ${fp('sc')}` }] : []),
+    ...(fp('sd') ? [{ k: 'sd', rotulo: t('parado há {n}+ dias', { n: fp('sd') }) }] : []),
+    ...(fp('set') ? [{ k: 'set', rotulo: t(fp('set') === 'sem' ? 'Sem etiqueta' : 'Com etiqueta') }] : []),
+  ]
+  const limparFila = () => ajustarParams({ sf: undefined, sc: undefined, sd: undefined, set: undefined, busca: undefined })
+  const paraSeparar = daAba.filter((l) => passaBusca(l) && passaFiltroPadrao(l) && (filtro === 'depois' || filtroDePronto || passaFiltro(l))).sort((a, b) => b.dias - a.dias)
   const visiveis = maisSeparar ? paraSeparar : paraSeparar.slice(0, MAX_COLUNA)
   const prontos = dados.lotes.filter((l) => ehPronto(l) && passaBusca(l) && (!filtroDePronto || passaFiltro(l)))
-  const abrirPronto = prontoAberto || filtroDePronto || !!medida || (!!termo && prontos.length > 0) || PARAMS_PRONTOS.some((k) => nav.params[k] !== undefined)
   const nomeFiltro = (f: string) => colDe(f)?.nome ?? { atrasados: 'Esperando há mais tempo', depois: 'Para depois', semana: 'Triado nesta semana', mes: 'Triado neste mês', pronto: 'Pronto para vender' }[f] ?? f
-  const verPronto = () => { setProntoAberto(true); setTimeout(() => rolarPara('triagem-pronto'), 0) }
+  const verPronto = () => irAba('prontos')
   const alternarQuadro = () => { setQuadroLembrado(visao !== 'quadro'); if (visaoP) setVisao('') }
   const icone = 'flex h-11 w-11 items-center justify-center rounded-xl text-lg hover:bg-[var(--marca-suave)] aria-pressed:bg-[var(--marca-suave)]'
 
@@ -236,39 +257,68 @@ export function Triagem() {
           </p>
         </div>
         <div className="flex shrink-0 items-center">
-          <button type="button" className={icone} aria-pressed={buscaAberta || !!busca} aria-label={t('Buscar')} title={t('Buscar')} onClick={() => { if (buscaAberta && busca) setBusca(''); setBuscaAberta(!(buscaAberta || !!busca)) }}>🔍</button>
+          {!buscaNaLista && <button type="button" className={icone} aria-pressed={buscaAberta || !!busca} aria-label={t('Buscar')} title={t('Buscar')} onClick={() => { if (buscaAberta && busca) setBusca(''); setBuscaAberta(!(buscaAberta || !!busca)) }}>🔍</button>}
           <button type="button" className={icone} aria-label={t('Ler código')} title={t('Ler código')} onClick={() => setLendo(true)}>📷</button>
           <button type="button" className={icone} aria-pressed={opcoes} aria-expanded={opcoes} aria-label={t('Opções')} title={t('Opções')} onClick={() => setOpcoes(!opcoes)}>⚙</button>
         </div>
       </header>
 
+      {/* OPÇÕES (⚙): cada uma diz o que muda na prática e para quem (só esta tela, este aparelho ou todo mundo) */}
       {opcoes && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-[var(--fundo)] p-2">
+        <section aria-label={t('Opções')} className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
           {dados.colunasPreco.length > 1 && (
-            <div className="min-w-[12rem]"><Selecao valor={dados.colunaPrecoId} onChange={(v) => setColunaPreco(v === dados.colunasPreco[0]?.id ? '' : v)} opcoes={dados.colunasPreco.map((c) => ({ id: c.id, nome: `${t('Preço de')} ${c.nome}` }))} /></div>
+            <div className="grid gap-2 p-3 sm:grid-cols-[16rem_1fr] sm:items-center">
+              <Selecao valor={dados.colunaPrecoId} onChange={(v) => setColunaPreco(v === dados.colunasPreco[0]?.id ? '' : v)} opcoes={dados.colunasPreco.map((c) => ({ id: c.id, nome: `${t('Preço de')} ${c.nome}` }))} />
+              <p className="text-sm text-[var(--suave)]"><b className="text-[var(--texto)]">{t('Qual preço mostrar nos prontos.')}</b> {t('Muda o valor e a margem desta tela (ex.: 2.000 g × 17,5 da coluna P.W. = Bs 35.000). Não muda vendas feitas nem a tabela. Só nesta tela.')}</p>
+            </div>
           )}
-          <Botao variante="leve" onClick={alternarQuadro}>▦ {t(visao === 'quadro' ? 'Ver lista' : 'Ver quadro')}</Botao>
-          <Botao variante="leve" onClick={() => ir('config', { aba: 'triagem' })}>⚙ {t('Personalizar colunas')}</Botao>
-        </div>
+          <div className="grid gap-2 p-3 sm:grid-cols-[16rem_1fr] sm:items-center">
+            <Botao variante="secundario" onClick={alternarQuadro}>▦ {t(visao === 'quadro' ? 'Ver lista' : 'Ver quadro')}</Botao>
+            <p className="text-sm text-[var(--suave)]"><b className="text-[var(--texto)]">{t(visao === 'quadro' ? 'Agora: quadro.' : 'Agora: lista.')}</b> {t('Lista: um pacote por linha com o botão Separar. Quadro: as colunas da triagem para arrastar os pacotes. Só muda a visão; fica lembrado neste aparelho.')}</p>
+          </div>
+          <div className="grid gap-2 p-3 sm:grid-cols-[16rem_1fr] sm:items-center">
+            <Botao variante="secundario" onClick={() => ir('config', { aba: 'triagem' })}>⚙ {t('Personalizar colunas')}</Botao>
+            <p className="text-sm text-[var(--suave)]"><b className="text-[var(--texto)]">{t('Etapas da triagem (para todos).')}</b> {t('Nome, ordem e cor de cada coluna e qual conta como "pronto para vender". Muda o quadro e as abas de todos os usuários; os pacotes não mudam de lugar sozinhos.')}</p>
+          </div>
+        </section>
       )}
 
-      {(buscaAberta || !!busca) && (
+      {!buscaNaLista && (buscaAberta || !!busca) && (
         <Entrada type="search" autoFocus={buscaAberta && !busca} focoSempre className="w-full" aria-label={t('Buscar lote por código (atual ou antigo), compra, sigla ou fornecedor')} placeholder={t('Código, compra ou fornecedor')} value={busca} onChange={(e) => setBusca(e.target.value)} onKeyDown={pistola.onKeyDown} />
       )}
 
-      <Abas variante="sublinhado" atual={aba} onChange={setAba} abas={[{ id: 'quadro', nome: 'Lotes' }, { id: 'triagens', nome: 'Triagens feitas' }]} />
-      {aba === 'triagens' ? (
-        <ListaTriagens aberta={nav.params.t as string | undefined} />
-      ) : <>
-
-      {/* três chips que filtram / levam ao lugar */}
-      <div className="-mt-2 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
-        <Chip ativo={!filtro && !abrirPronto} rotulo={`⏳ ${t('Para separar')}`} valor={gramasTexto(gAguardando)} onClick={() => { ajustarParams({ f: undefined, m: undefined }); setProntoAberto(false); rolarPara('triagem-separar') }} />
-        <Chip ativo={abrirPronto} rotulo={`✅ ${t('Prontos')}`} valor={gramasTexto(tt.pronto)} onClick={() => (abrirPronto && !filtroDePronto ? setProntoAberto(false) : verPronto())} />
-        <Chip ativo={filtro === 'depois'} rotulo={`❓ ${t('Para depois')}`} valor={tt.naoIdentificado.n ? gramasTexto(tt.naoIdentificado.g) : '0'} onClick={() => setFiltro(filtro === 'depois' ? '' : 'depois')} />
+      {/* ABAS DE VERDADE: cada uma carrega só o que é dela (separar · prontos · para depois · triagens feitas) */}
+      <div role="tablist" aria-label={t('Triagem')} className="-mx-1 flex gap-1 overflow-x-auto border-b border-[var(--borda)] px-1 [scrollbar-width:none]">
+        {([
+          { id: 'separar', nome: 'Para separar', icone: '⏳', valor: gramasTexto(gSeparar), n: separarTodos.length },
+          { id: 'prontos', nome: 'Prontos', icone: '✅', valor: gramasTexto(tt.pronto), n: dados.lotes.filter(ehPronto).length },
+          { id: 'depois', nome: 'Para depois', icone: '❓', valor: gramasTexto(tt.naoIdentificado.g), n: tt.naoIdentificado.n },
+          { id: 'triagens', nome: 'Triagens feitas', icone: '✂️' },
+        ] as const).map((a) => (
+          <button key={a.id} type="button" role="tab" aria-selected={abaReal === a.id} onClick={() => irAba(a.id)}
+            className={cx('-mb-px flex min-h-14 shrink-0 flex-col items-start justify-center border-b-2 px-3 text-left', abaReal === a.id ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}>
+            <span className="whitespace-nowrap text-sm font-semibold"><span aria-hidden>{a.icone}</span> {t(a.nome)}</span>
+            {'valor' in a && <span className={cx('num whitespace-nowrap text-xs', abaReal === a.id ? 'font-bold' : '')}>{a.n} · {a.valor}</span>}
+          </button>
+        ))}
       </div>
 
-      {(filtro || medida) && (
+      {abaReal === 'triagens' ? (
+        <ListaTriagens aberta={nav.params.t as string | undefined} />
+      ) : abaReal === 'prontos' ? (
+        <ProntoParaVender
+          lotes={prontos}
+          total={prontos.length === dados.lotes.filter(ehPronto).length ? tt.pronto : prontos.reduce((s, l) => s + l.saldo, 0)}
+          valor={prontos.length === dados.lotes.filter(ehPronto).length ? tt.prontoValor : prontos.reduce((s, l) => s + (l.preco?.valorPrincipal ?? 0), 0)}
+          menuDe={menuDe}
+          onLote={(id) => ir('lote', { id })}
+          onVender={vender}
+          onEstoque={(med) => ir('estoque', { modulo: 'cabelo', 'min.comprimento': med, 'max.comprimento': med })}
+          onFiltrar={(med) => ajustarParams({ f: 'pronto', m: med || undefined })}
+        />
+      ) : <>
+
+      {(filtro || medida) && filtro !== 'depois' && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-[var(--suave)]">{t('Mostrando')}:</span>
           {filtro && <Pilula tom="marca">{t(nomeFiltro(filtro))}</Pilula>}
@@ -278,10 +328,9 @@ export function Triagem() {
       )}
 
       {/* a lista principal (ou o quadro, para quem escolher) */}
-      <section id="triagem-separar" aria-label={t(visao === 'quadro' ? 'Quadro' : 'Para separar')} className="scroll-mt-4">
+      <section id="triagem-separar" aria-label={t(visao === 'quadro' ? 'Quadro' : abaReal === 'depois' ? 'Para depois' : 'Para separar')} className="scroll-mt-4">
         <div className="mb-2 flex items-center gap-1">
-          {visao !== 'quadro' && <NumeroSecao n={1} />}
-          <h2 className="min-w-0 truncate text-lg font-bold">{t(visao === 'quadro' ? 'Quadro' : 'Para separar')}</h2>
+          <h2 className="min-w-0 truncate text-lg font-bold">{t(visao === 'quadro' ? 'Quadro' : abaReal === 'depois' ? 'Para depois' : 'Para separar')}</h2>
           {visao !== 'quadro' && <Info texto={DICA_SEPARAR} />}
           {/* os dois botões nunca quebram no meio da palavra ("Seleciona / r") no celular */}
           <span className="ml-auto flex shrink-0 items-center [&>button]:whitespace-nowrap [&>button]:px-2 sm:[&>button]:px-3">
@@ -290,6 +339,26 @@ export function Triagem() {
             <Botao variante="leve" className="hidden px-3 sm:inline-flex" onClick={alternarQuadro}>{t(visao === 'quadro' ? 'Ver lista' : 'Ver quadro')}</Botao>
           </span>
         </div>
+
+        {/* FILTRO PADRÃO (mesmo visual de Etiquetas): busca + ⚙ Filtros · N → chips ✕ → painel em grupos */}
+        {visao !== 'quadro' && daAba.length > 0 && (
+          <div className="mb-3 space-y-2">
+            <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Código, compra ou fornecedor" ativos={ativosFila.length} aberto={verFiltrosFila} onAlternar={() => setVerFiltrosFila(!verFiltrosFila)} />
+            <ChipsFiltros itens={ativosFila} onTirar={(k) => ajustarParams({ [k]: undefined })} onLimpar={limparFila} />
+            {verFiltrosFila && (
+              <PainelFiltros resultados={paraSeparar.length} temAtivos={ativosFila.length > 0} onLimpar={limparFila} onFechar={() => setVerFiltrosFila(false)}>
+                <GrupoFiltro titulo="De onde veio" icone="🛒">
+                  <Campo rotulo="Fornecedor"><Selecao valor={fp('sf')} onChange={(v) => ajustarParams({ sf: v || undefined })} vazio="Todos" opcoes={fornecedoresFila.map((x) => ({ id: x, nome: x }))} /></Campo>
+                  <Campo rotulo="Compra (código)"><Entrada placeholder={t('Ex.: P-0003')} value={fp('sc')} onChange={(e) => ajustarParams({ sc: e.target.value || undefined })} /></Campo>
+                </GrupoFiltro>
+                <GrupoFiltro titulo="Situação" icone="⏳">
+                  <Campo rotulo="Parado há"><Selecao valor={fp('sd')} onChange={(v) => ajustarParams({ sd: v || undefined })} vazio="Qualquer tempo" opcoes={[{ id: '3', nome: t('3 dias ou mais') }, { id: '7', nome: t('7 dias ou mais') }, { id: '15', nome: t('15 dias ou mais') }]} /></Campo>
+                  <Campo rotulo="Etiqueta"><Selecao valor={fp('set')} onChange={(v) => ajustarParams({ set: v || undefined })} vazio="Todas" opcoes={[{ id: 'sem', nome: t('Sem etiqueta') }, { id: 'com', nome: t('Com etiqueta') }]} /></Campo>
+                </GrupoFiltro>
+              </PainelFiltros>
+            )}
+          </div>
+        )}
 
         {visao === 'quadro' ? (
           <div className="-mx-1 flex items-start gap-3 overflow-x-auto px-1 pb-2">
@@ -346,19 +415,6 @@ export function Triagem() {
         )}
       </section>
 
-      <ProntoParaVender
-        aberto={abrirPronto}
-        onAlternar={() => (abrirPronto ? (setProntoAberto(false), ajustarParams({ ...(filtroDePronto ? { f: undefined } : {}), m: undefined, ...Object.fromEntries(PARAMS_PRONTOS.map((k) => [k, undefined])) })) : setProntoAberto(true))}
-        lotes={prontos}
-        total={prontos.length === dados.lotes.filter(ehPronto).length ? tt.pronto : prontos.reduce((s, l) => s + l.saldo, 0)}
-        valor={prontos.length === dados.lotes.filter(ehPronto).length ? tt.prontoValor : prontos.reduce((s, l) => s + (l.preco?.valorPrincipal ?? 0), 0)}
-        menuDe={menuDe}
-        onLote={(id) => ir('lote', { id })}
-        onVender={vender}
-        onEstoque={(med) => ir('estoque', { modulo: 'cabelo', 'min.comprimento': med, 'max.comprimento': med })}
-        onFiltrar={(med) => ajustarParams({ f: 'pronto', m: med || undefined })}
-      />
-
       </>}
       {/* ações em massa: só com algo selecionado */}
       {sel.size > 0 && (
@@ -393,15 +449,6 @@ export function Triagem() {
   )
 }
 
-/** Chip fino que filtra / leva ao lugar (substitui os 4 cartões de números). */
-function Chip({ ativo, onClick, rotulo, valor }: { ativo: boolean; onClick(): void; rotulo: string; valor: string }) {
-  return (
-    <button type="button" aria-pressed={ativo} onClick={onClick} className={cx('num min-h-11 min-w-0 rounded-xl border px-2 py-1 text-left transition sm:inline-flex sm:items-center sm:gap-1.5 sm:rounded-full sm:px-3 sm:py-0', ativo ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] text-[var(--texto)] hover:border-[var(--marca)]')}>
-      <span className={cx('block truncate text-xs sm:inline sm:text-sm', !ativo && 'text-[var(--suave)]')}>{rotulo}</span>
-      <b className="block whitespace-nowrap text-base sm:inline sm:text-sm">{valor}</b>
-    </button>
-  )
-}
 
 /** Foto do lote; sem foto, um ícone neutro (tocar abre a câmera). */
 function FotoOuIcone({ l }: { l: Lote }) {
@@ -419,10 +466,14 @@ function FotoOuIcone({ l }: { l: Lote }) {
  * PRONTO PARA VENDER: fechado numa linha ("✅ 19,4 kg prontos · Bs 183.972 ›"); aberto, por medida (abre e fecha) e cada
  * LOTE numa linha com origem, gramas, valor, margem, Vender e "⋯".
  */
-function ProntoParaVender({ aberto: secaoAberta, onAlternar, lotes, total, valor, menuDe, onLote, onVender, onEstoque, onFiltrar }: { aberto: boolean; onAlternar(): void; lotes: Lote[]; total: number; valor: number; menuDe(l: Lote): Acao[]; onLote(id: Id): void; onVender(p: Params): void; onEstoque(med: string): void; onFiltrar(med: string): void }) {
+function ProntoParaVender({ lotes, total, valor, onLote, onVender, onEstoque, onFiltrar }: { lotes: Lote[]; total: number; valor: number; menuDe?(l: Lote): Acao[]; onLote(id: Id): void; onVender(p: Params): void; onEstoque(med: string): void; onFiltrar(med: string): void }) {
   const t = useT()
   const m = moedaPadrao()
+  const secaoAberta = true
   const filtro = useFiltroProntos()
+  // filtros abertos quando já há algum ligado (vindo de um link) ou quando a pessoa toca em "⚙ Filtros"
+  const [verFiltrosEscolha, setVerFiltros] = useState<boolean>()
+  const verFiltros = verFiltrosEscolha ?? filtro.ativo
   const todosFiltrados = filtrarProntos(lotes, filtro.f)
   // etiqueta à vista: 'N sem etiqueta' filtra (?se=1) e 'Imprimir N' imprime de uma vez
   const [soSem, setSoSem] = useParamTela('se', '')
@@ -440,23 +491,26 @@ function ProntoParaVender({ aberto: secaoAberta, onAlternar, lotes, total, valor
   // em "fechados" fica o que o usuário inverteu (fechou quando abre sozinho; abriu quando começa fechado)
   const alternar = (k: string) => setFechados(() => { const n = new Set(fechadosAgora); if (n.has(k)) n.delete(k); else n.add(k); return { por: filtro.f.agrupar + filtro.f.passo, k: n } })
   return (
-    <section id="triagem-pronto" aria-label={t('Pronto para vender')} className="scroll-mt-4 border-t border-[var(--borda)] pt-5">
-      <div className="mb-2 flex items-center gap-1">
-        <NumeroSecao n={2} />
-        <h2 className="min-w-0 truncate text-lg font-bold">{t('Prontos para vender')}</h2>
-        <Info texto={DICA_PRONTOS} />
-      </div>
+    // aba "Prontos": o total numa linha e os filtros (medida, peso, agrupar) atrás do botão padrão "⚙ Filtros"
+    <section id="triagem-pronto" aria-label={t('Pronto para vender')} className="scroll-mt-4">
       <div className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-      <button type="button" aria-expanded={secaoAberta} onClick={onAlternar} className="num flex min-h-14 w-full items-center gap-2 rounded-2xl px-4 text-left hover:bg-[var(--marca-suave)]">
+      <div className="num flex min-h-14 items-center gap-2 px-3 sm:px-4">
         <span className="min-w-0 flex-1 truncate text-base">
-          ✅ <b>{t('{g} prontos', { g: gramasTexto(total) })}</b>
+          {/* a aba já diz "Prontos": aqui só o peso e o valor (cabe no celular) */}
+          <b>{gramasTexto(total)}</b>
           {valor > 0 && <span className="text-[var(--suave)]"> · {formatar(valor, m)}</span>}
         </span>
+        <Info texto={DICA_PRONTOS} />
         {semPreco > 0 && <Pilula tom="alerta">⚠️ {semPreco}</Pilula>}
-        <span aria-hidden className={cx('text-xl text-[var(--suave)] transition-transform', secaoAberta && 'rotate-90')}>›</span>
-      </button>
-      {secaoAberta && <div className="px-4 pb-4">
-      {lotes.length > 0 && <FiltrosProntos todos={lotes} filtro={filtro} />}
+        {lotes.length > 0 && (
+          <button type="button" aria-expanded={verFiltros} aria-label={t('Filtros')} onClick={() => setVerFiltros(!verFiltros)}
+            className={cx('inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold', verFiltros ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] hover:border-[var(--marca)]')}>
+            ⚙︎ <span className="hidden sm:inline">{t('Filtros')}</span> <span aria-hidden className={cx('text-xs transition-transform', verFiltros && 'rotate-180')}>▾</span>
+          </button>
+        )}
+      </div>
+      {secaoAberta && <div className="px-2 pb-2 sm:px-4 sm:pb-4">
+      {lotes.length > 0 && verFiltros && <div className="mb-3 rounded-xl bg-[var(--fundo)] p-3"><FiltrosProntos todos={lotes} filtro={filtro} /></div>}
       <ResumoFiltroProntos lotes={filtrados} filtro={filtro} />
       {todosFiltrados.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
@@ -509,25 +563,33 @@ function ProntoParaVender({ aberto: secaoAberta, onAlternar, lotes, total, valor
                 </div>}
                 {(aberto || semCabecalho) && (
                   <ul className={cx('divide-y divide-[var(--borda)]', !semCabecalho && 'border-t border-[var(--borda)] sm:pl-5')}>
+                    {/* um lote = uma linha nas mesmas colunas da tabela: código · peso · valor · 💰 (tocar abre o pacote,
+                        onde estão foto, origem, margem e o resto) */}
                     {mostrar.map((l) => {
-                      const pct = l.preco && l.margem !== undefined && l.preco.valorPrincipal ? Math.round((l.margem * 10000) / l.preco.valorPrincipal) : undefined
+                      const valorLote = l.preco
+                        ? <span className="whitespace-nowrap">{formatar(l.preco.valor, l.preco.moeda)}</span>
+                        : <span className="text-xs font-semibold text-[var(--alerta)]">⚠️ {t(l.semPreco === 'medida' ? 'sem medida' : 'sem preço')}</span>
+                      const semEtq = !l.etiqueta.impressaEm && <span title={t('Sem etiqueta')} aria-label={t('Sem etiqueta')} className="shrink-0 text-xs">🏷</span>
+                      const vender = <button type="button" aria-label={`${t('Vender')} ${l.codigo ?? ''}`} title={t('Vender')} onClick={(e) => (e.stopPropagation(), onVender({ lote: l.id }))} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-[var(--marca-suave)]">💰</button>
                       return (
-                        <li key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-2">
-                          <FotoOuIcone l={l} />
-                          <div {...clicavel(() => onLote(l.id))} className="min-w-0 flex-1 basis-40 cursor-pointer rounded-lg outline-none hover:underline focus-visible:bg-[var(--marca-suave)]">
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5"><span className="font-mono text-base font-bold">{l.codigo}</span><span className="[overflow-wrap:anywhere]">{l.nome}</span><SeloEtiqueta id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} /></div>
-                            {/* a origem aparece só nos chips (compra · fornecedor → triagem) */}
-                            <CadeiaChips className="mt-1" cadeia={l.cadeia} />
-                          </div>
-                          <div className="num flex w-full shrink-0 items-center gap-2 text-right sm:ml-auto sm:w-auto">
-                            <span className="mr-auto whitespace-nowrap font-semibold sm:mr-0">{gramasTexto(l.saldo)}</span>
-                            <span className="min-w-0 sm:min-w-[6.5rem]">
-                              {l.preco ? <b className="block whitespace-nowrap">{formatar(l.preco.valor, l.preco.moeda)}</b> : <span className="block text-xs font-semibold text-[var(--alerta)]">⚠️ {l.semPreco === 'medida' ? t('sem medida') : t('sem preço na tabela')}</span>}
-                              {l.margem !== undefined && <span className={cx('block text-xs font-semibold', l.margem < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>{t('margem')} <span className="whitespace-nowrap">{formatar(l.margem, m)}</span>{pct !== undefined && <span className="whitespace-nowrap"> ({fmt(pct, 'percentual')})</span>}</span>}
+                        <li key={l.id} {...clicavel(() => onLote(l.id))} className="num cursor-pointer px-2 text-sm outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
+                          {/* celular: código inteiro + peso embaixo | valor + 💰 */}
+                          <span className="flex min-h-12 items-center gap-2 py-1 pl-3.5 sm:hidden">
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-center gap-1"><b className="font-mono">{l.codigo}</b>{semEtq}</span>
+                              <span className="block text-xs text-[var(--suave)]">{gramasTexto(l.saldo)}</span>
                             </span>
-                            <Botao className="shrink-0 px-4" onClick={() => onVender({ lote: l.id })}>{t('Vender')}</Botao>
-                            <MenuAcoes acoes={menuDe(l)} />
-                          </div>
+                            <span className="text-right">{valorLote}</span>
+                            {vender}
+                          </span>
+                          {/* computador: nas colunas da tabela */}
+                          <span className={cx(GRADE_PRONTOS, 'hidden min-h-11 sm:grid')}>
+                            <span className="flex min-w-0 items-center gap-1 pl-5"><b className="truncate font-mono">{l.codigo}</b>{semEtq}</span>
+                            <span />
+                            <span className="whitespace-nowrap text-right">{gramasTexto(l.saldo)}</span>
+                            <span className="text-right">{valorLote}</span>
+                            {vender}
+                          </span>
                         </li>
                       )
                     })}
@@ -542,13 +604,17 @@ function ProntoParaVender({ aberto: secaoAberta, onAlternar, lotes, total, valor
             )
           })}
           {/* total de tudo o que está na tabela */}
+          {/* TOTAL em destaque (bloco próprio, não mais uma linha grudada na tabela) */}
           {ordem.length > 1 && (
-            <div className={cx(GRADE_PRONTOS, 'num border-t-2 border-[var(--borda)] bg-[var(--fundo)] px-2 py-2 text-sm font-bold')}>
-              <span className="min-w-0 pl-3.5 sm:pl-5">{t('Total')}<span className="block text-xs font-normal text-[var(--suave)] sm:hidden">{t('{n} lote(s)', { n: filtrados.length })}</span></span>
-              <span className="hidden text-right sm:block">{filtrados.length}</span>
-              <span className="whitespace-nowrap text-right">{gramasTexto(filtrados.reduce((s, l) => s + l.saldo, 0))}</span>
-              <span className="whitespace-nowrap text-right">{formatar(filtrados.reduce((s, l) => s + (l.preco?.valorPrincipal ?? 0), 0), m)}</span>
-              <span aria-hidden />
+            <div className="num flex items-center justify-between gap-3 border-t-2 border-[var(--marca)] bg-[var(--marca-suave)] px-4 py-3">
+              <span>
+                <b className="block text-base text-[var(--marca)]">{t('Total')}</b>
+                <span className="block text-xs text-[var(--suave)]">{t('{n} lote(s)', { n: filtrados.length })}</span>
+              </span>
+              <span className="text-right">
+                <b className="block whitespace-nowrap text-lg">{formatar(filtrados.reduce((s, l) => s + (l.preco?.valorPrincipal ?? 0), 0), m)}</b>
+                <span className="block whitespace-nowrap text-sm text-[var(--suave)]">{gramasTexto(filtrados.reduce((s, l) => s + l.saldo, 0))}</span>
+              </span>
             </div>
           )}
         </div>
@@ -559,10 +625,6 @@ function ProntoParaVender({ aberto: secaoAberta, onAlternar, lotes, total, valor
   )
 }
 
-/** Número da seção (1 Para separar · 2 Prontos para vender), como nas seções da Nova compra. */
-function NumeroSecao({ n }: { n: number }) {
-  return <span aria-hidden className="num mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--marca)] text-xs font-bold text-white">{n}</span>
-}
 
 function Coluna({ col, lotes, children, alvo, lista, rodape, ...zona }: { col: ColunaTriagem; lotes: Lote[]; children(ls: Lote[]): ReactNode; alvo?: boolean; lista?: boolean; rodape?: ReactNode; onDragOver?(e: DragEvent): void; onDragLeave?(): void; onDrop?(e: DragEvent): void }) {
   const t = useT()

@@ -9,6 +9,8 @@ import App from '../App'
 beforeEach(() => {
   Dexie.dependencies.indexedDB = new IDBFactory()
   Dexie.dependencies.IDBKeyRange = IDBKeyRange
+  // "Tabelas de preço" fica no grupo Cabelo, que começa fechado
+  localStorage.setItem('tudo.menu.gruposAbertos', JSON.stringify(['Cabelo']))
 })
 
 afterEach(() => {
