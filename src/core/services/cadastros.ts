@@ -377,7 +377,10 @@ export async function locais(ctx: Ctx, _p: object = {}) {
 }
 
 export async function anexosDe(ctx: Ctx, p: { donoId: Id }) {
-  return ctx.repos.anexos.listar({ donoId: p.donoId })
+  const anexos = await ctx.repos.anexos.listar({ donoId: p.donoId })
+  // quem anexou (nome do usuário), para a lista de anexos mostrar "foto do pedido · 03/11 · Ana"
+  const nomes = new Map((await ctx.repos.usuarios.listar()).map((u) => [u.id, u.nome]))
+  return anexos.map((a) => ({ ...a, porNome: nomes.get(a.criadoPor) }))
 }
 
 /** Ficha 360° da pessoa: tudo o que ela comprou, vendeu, fez no salão, pegou emprestado. */

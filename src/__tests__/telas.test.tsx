@@ -89,6 +89,28 @@ describe('telas (com os dados de exemplo)', () => {
     await screen.findByText('Usuário ou senha não conferem.')
   }, 120000)
 
+  it('pedido: aba Anexos, "+ Anexar" abre a janela com o tipo e sobe; rastreio compacto', async () => {
+    await abrirComDemo()
+    window.location.hash = '#/pedidos/c-wilson'
+    // a compra mostra o resumo do rastreio (uma linha + lotes) e o grafo só sob demanda
+    await screen.findByText('Para onde foi esta compra', {}, { timeout: 10000 })
+    expect(screen.queryByText('onde está agora', { exact: false })).toBeNull()
+    fireEvent.click(screen.getByText('Ver rastreio completo →'))
+    await screen.findByText('Lotes')
+    fireEvent.click(screen.getByRole('tab', { name: /Anexos/ }))
+    await screen.findByText(/Nenhum anexo ainda/)
+    fireEvent.click(screen.getByRole('button', { name: '+ Anexar' }))
+    const janela = await screen.findByRole('dialog')
+    // o mais provável já vem marcado; troca para comprovante de pagamento
+    expect(within(janela).getByRole('radio', { name: /Foto do pedido/ }).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(within(janela).getByRole('radio', { name: /Comprovante de pagamento/ }))
+    const pdf = new File(['%PDF-1.4'], 'pix-maria.pdf', { type: 'application/pdf' })
+    fireEvent.change(within(janela).getByText('Arquivo PDF').parentElement!.querySelector('input')!, { target: { files: [pdf] } })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 10000 })
+    await screen.findByText('pix-maria.pdf', {}, { timeout: 10000 })
+    await waitFor(() => expect(screen.getByRole('tab', { name: /Anexos/ }).textContent).toContain('(1)'), { timeout: 10000 })
+  }, 120000)
+
   it('troca para espanhol', async () => {
     expect(Object.keys(ES).length).toBeGreaterThan(200)
     await abrirComDemo()

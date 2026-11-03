@@ -1,13 +1,15 @@
 // RASTREIO TOTAL: cada grama, como entrou e para onde foi. Uma peça só, usada no lote, na compra, na triagem, na venda
 // e na tela de rastreio. Lê a consulta `genealogia` (compras → triagens → lotes → vendas, em gramas em cada ligação).
 //  - CadeiaChips: a linha curta "Compra P-0003 · Helena → Triagem T-2 → Venda V-12" (cada chip abre a sua tela)
-//  - Caminho: a barra "você está aqui" com o próximo passo
-//  - RastreioTotal: o grafo inteiro em colunas (Compras | Triagens | Lotes | Para onde foi) e a conta que fecha
+//  - Caminho: a linha de chips "você está aqui" com o próximo passo (cabeçalho do lote e tela de rastreio)
+//  - RastreioResumo: o quadro padrão (a conta numa linha + a lista curta do que importa + "Ver rastreio completo")
+//  - RastreioTotal: o grafo inteiro em colunas (Compras | Triagens | Lotes | Para onde foi) e a conta que fecha; aberto sob demanda
 
 import { type ReactNode, useState } from 'react'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import type { Cadeia } from '../core/services/estoque'
+import type { Ligacao } from '../core/services/triagem'
 import { Botao, Info, cx, dataBR, fmt, gramasTexto } from './base'
 import { useApp } from './contexto'
 import { useT } from './i18n'
@@ -50,38 +52,168 @@ export function CadeiaChips({ cadeia, max = 2, className }: { cadeia: Cadeia; ma
 }
 
 /**
- * CAMINHO ("você está aqui"): compra(s) → triagem(ns) → [este lote] → venda(s), com os passos que já aconteceram
- * cheios e clicáveis, e o próximo passo tracejado com o botão do que fazer (Separar / Vender).
+ * CAMINHO ("você está aqui"), numa linha só de chips: compra(s) → triagem(ns) → [este lote] → venda(s); cada chip abre
+ * a sua tela e o próximo passo vira um botão pequeno (Separar agora / Vender). Quebra de linha no celular, sem rolar.
  */
 export function Caminho({ g, onSeparar, onVender }: { g: Genealogia; onSeparar?(): void; onVender?(): void }) {
   const t = useT()
   const { ir } = useApp()
   const c = g.caminho
-  const passo = (tipo: keyof typeof COR, rotulo: string, conteudo: ReactNode, aqui?: boolean) => (
-    <li className={cx('flex min-w-0 flex-col gap-1 rounded-2xl p-2', aqui ? 'bg-[var(--marca-suave)] ring-2 ring-[var(--marca)]' : 'bg-[var(--fundo)]')}>
-      <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--suave)]">{ICONE[tipo]} {t(rotulo)}{aqui && <span className="normal-case tracking-normal text-[var(--marca)]">· {t('você está aqui')}</span>}</span>
-      <span className="flex flex-wrap items-center gap-1">{conteudo}</span>
-    </li>
-  )
-  const mais = <X,>(xs: X[], f: (x: X) => ReactNode, n = 2) => <>{xs.slice(0, n).map(f)}{xs.length > n && <span className="text-xs font-semibold text-[var(--suave)]">+{xs.length - n}</span>}</>
-  const sep = <li aria-hidden className="flex items-center justify-center px-1 text-lg font-bold text-[var(--marca)]"><span className="md:hidden">↓</span><span className="hidden md:inline">→</span></li>
   const aqui = g.tipoFoco
+  const mais = <X,>(xs: X[], f: (x: X) => ReactNode, n = 2) => <>{xs.slice(0, n).map(f)}{xs.length > n && <span className="text-xs font-semibold text-[var(--suave)]">+{xs.length - n}</span>}</>
+  const botao = 'min-h-8 px-3 py-1 text-xs'
   return (
-    <nav aria-label={t('Caminho')}>
-      <ol className="flex flex-col gap-1 md:flex-row md:flex-wrap md:items-stretch">
-        {passo('compra', c.compras.length > 1 ? 'Compras' : 'Compra', c.compras.length ? mais(c.compras, (x) => <Chip key={x.id} tipo="compra" ativo={aqui === 'compra'} onClick={() => ir('pedido', { id: x.id })}>{x.codigo ?? t('Compra')}{x.fornecedor ? ` · ${x.fornecedor}` : ''}</Chip>) : <span className="text-xs text-[var(--suave)]">{t('sem compra (cadastro)')}</span>, aqui === 'compra')}
-        {sep}
-        {passo('triagem', 'Triagem', c.triagens.length
-          ? mais(c.triagens, (x) => <Chip key={x.id} tipo="triagem" ativo={aqui === 'triagem' && g.foco === x.id} onClick={() => ir('triagem', { aba: 'triagens', t: x.id })}>{x.codigo}</Chip>, 3)
-          : <>{onSeparar ? <Botao className="min-h-8 px-3 py-1 text-xs" onClick={onSeparar}>✂️ {t('Separar agora')}</Botao> : <Chip tipo="triagem" fantasma>{t('ainda não')}</Chip>}</>, aqui === 'triagem')}
-        {c.lote && <>{sep}{passo('lote', 'Este lote', <><b className="text-sm">{c.lote.codigo}</b><span className="num text-xs text-[var(--suave)]">{gramasTexto(c.lote.saldo)} {t('em estoque')}</span></>, true)}</>}
-        {sep}
-        {passo('venda', c.vendas.length > 1 ? 'Vendas' : 'Venda', <>
-          {mais(c.vendas, (v) => <Chip key={v.id} tipo="venda" ativo={aqui === 'venda'} onClick={() => ir('venda', { id: v.id })}>{v.codigo}</Chip>, 3)}
-          {onVender ? <Botao className="min-h-8 px-3 py-1 text-xs" onClick={onVender}>💰 {t('Vender')}</Botao> : !c.vendas.length && <Chip tipo="venda" fantasma>{t('próximo passo')}</Chip>}
-        </>, aqui === 'venda')}
-      </ol>
+    <nav aria-label={t('Caminho')} className="flex min-w-0 flex-wrap items-center gap-1">
+      {c.compras.length
+        ? mais(c.compras, (x) => <Chip key={x.id} tipo="compra" ativo={aqui === 'compra'} titulo={aqui === 'compra' ? t('você está aqui') : undefined} onClick={() => ir('pedido', { id: x.id })}>{x.codigo ?? t('Compra')}{x.fornecedor ? ` · ${x.fornecedor}` : ''}</Chip>)
+        : <Chip tipo="compra" fantasma>{t('sem compra (cadastro)')}</Chip>}
+      {(c.triagens.length > 0 || onSeparar) && <>{seta}{c.triagens.length
+        ? mais(c.triagens, (x) => <Chip key={x.id} tipo="triagem" ativo={aqui === 'triagem' && g.foco === x.id} onClick={() => ir('triagem', { aba: 'triagens', t: x.id })}>{x.codigo}</Chip>, 3)
+        : <Botao className={botao} onClick={onSeparar}>✂️ {t('Separar agora')}</Botao>}</>}
+      {c.lote && <>{seta}<Chip tipo="lote" ativo titulo={t('você está aqui')}>{c.lote.codigo} · <span className="num">{gramasTexto(c.lote.saldo)}</span></Chip></>}
+      {(c.vendas.length > 0 || onVender) && <>{seta}
+        {mais(c.vendas, (v) => <Chip key={v.id} tipo="venda" ativo={aqui === 'venda'} onClick={() => ir('venda', { id: v.id })}>{v.codigo}</Chip>, 3)}
+        {onVender && <Botao className={botao} onClick={onVender}>💰 {t('Vender')}</Botao>}
+      </>}
     </nav>
+  )
+}
+
+type Lote = Genealogia['lotes'][number]
+const DIA = 86400000
+
+/** Uma linha da lista curta (sem caixa): o principal abre a tela; o detalhe vem em texto; botão opcional à direita. */
+export interface LinhaRastreio { id: string; principal: ReactNode; detalhe?: ReactNode; acao?: ReactNode; onClick?(): void }
+
+/** Lista curta: até 5 linhas, depois "+N" (mostra o resto), separadas por um traço fino. */
+export function ListaRastreio({ linhas, max = 5 }: { linhas: LinhaRastreio[]; max?: number }) {
+  const [todas, setTodas] = useState(false)
+  if (!linhas.length) return null
+  const vis = todas ? linhas : linhas.slice(0, max)
+  return (
+    <ul className="divide-y divide-[var(--borda)]">
+      {vis.map((l) => (
+        <li key={l.id} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 py-2 text-sm">
+          <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+            {l.onClick ? <button type="button" onClick={l.onClick} className="text-left font-semibold hover:underline">{l.principal}</button> : <span className="font-semibold">{l.principal}</span>}
+            {l.detalhe && <span className="text-[var(--suave)]"> · {l.detalhe}</span>}
+          </span>
+          {l.acao}
+        </li>
+      ))}
+      {linhas.length > max && <li className="py-1"><button type="button" onClick={() => setTodas(!todas)} className="min-h-8 text-xs font-semibold text-[var(--marca)] hover:underline">{todas ? '−' : `+${linhas.length - max}`}</button></li>}
+    </ul>
+  )
+}
+
+/**
+ * RESUMO DO RASTREIO (o quadro padrão da compra, da venda e do lote): uma linha com a conta e uma barra fina
+ * ("30 g · 30 g esperando triagem ✓"), a lista curta do que importa nesta tela e o link para o grafo inteiro.
+ *  - compra → os lotes dela e o que aconteceu com cada um (esperando triagem / separado em / vendido em / em estoque)
+ *  - venda → as compras de origem em gramas (vêm de fora, em `linhas`)
+ *  - lote → "Veio de" e "Para onde foi" em duas linhas
+ */
+export function RastreioResumo({ g, admin = true, linhas }: { g: Genealogia; admin?: boolean; linhas?: LinhaRastreio[] }) {
+  const t = useT()
+  const { ir } = useApp()
+  const [completo, setCompleto] = useState(false)
+  const tt = g.totais
+  const esperando = g.lotes.filter((l) => l.bruto).reduce((s, l) => s + Math.max(0, l.saldo), 0)
+  const partes = [
+    { nome: 'esperando triagem', g: esperando, cor: COR.triagem },
+    { nome: 'em estoque', g: tt.emEstoque - esperando, cor: COR.lote },
+    { nome: 'vendido', g: tt.vendido, cor: COR.venda },
+    { nome: 'perda', g: tt.perda, cor: 'var(--ruim)' },
+    { nome: 'cancelado', g: tt.cancelado, cor: 'var(--suave)' },
+  ]
+  // só as partes que têm grama; tudo zerado → mostra "0 em estoque · 0 vendido · 0 perda"
+  const tudoZero = partes.every((p) => !p.g)
+  const texto = tudoZero ? partes.slice(1, 4) : partes.filter((p) => p.g)
+  const barra = partes.filter((p) => p.g > 0)
+  const somaBarra = barra.reduce((s, p) => s + p.g, 0)
+  const aviso = g.parcial ? t('(mostrando só uma parte)') : t('(não fecha: confira os ajustes)')
+  const cliente = (id: string) => g.vendas.find((v) => v.id === id)?.cliente
+  const comCliente = (id: string, codigo?: string) => `${codigo ?? '—'}${cliente(id) ? ` · ${cliente(id)}` : ''}`
+  const lista = (xs: string[], n = 2) => xs.slice(0, n).join(', ') + (xs.length > n ? ` +${xs.length - n}` : '')
+  // o que aconteceu com um lote, em poucas palavras
+  const situacao = (l: Lote) => {
+    const ps: string[] = []
+    for (const x of g.triagens.filter((x) => l.para.some((p) => p.tipo === 'triagem' && p.id === x.id)))
+      ps.push(`${t(x.separou ? 'separado em' : 'juntado em')} ${x.codigo} → ${lista(x.saidas.map((s) => s.codigo ?? '—'), 3)}`)
+    const vs = l.para.filter((p) => p.tipo === 'venda')
+    if (vs.length) ps.push(`${t('vendido em')} ${lista(vs.map((v) => comCliente(v.id, v.codigo)))}`)
+    if (l.saldo > 0) {
+      const dias = l.criadoEm ? Math.max(0, Math.floor((Date.now() - new Date(l.criadoEm).getTime()) / DIA)) : 0
+      ps.push(l.bruto ? t('esperando triagem há {n} d', { n: dias }) : ps.length ? `${gramasTexto(l.saldo)} ${t('em estoque')}` : t('em estoque'))
+    }
+    return ps.length ? ps.join(' · ') : t('nada em estoque')
+  }
+  let corpo: ReactNode = null
+  if (linhas) corpo = <ListaRastreio linhas={linhas} />
+  else if (g.tipoFoco === 'compra') {
+    const c = g.compras.find((x) => x.id === g.foco)
+    const lotes = (c?.lotes ?? []).flatMap((x) => {
+      const l = g.lotes.find((y) => y.id === x.id)
+      return l ? [{ l, g: x.g || l.entrou }] : []
+    })
+    corpo = <ListaRastreio linhas={lotes.map(({ l, g: gr }) => ({
+      id: l.id,
+      principal: <><span aria-hidden>📦</span> <span className="font-mono">{l.codigo ?? '—'}</span></>,
+      onClick: () => ir('lote', { id: l.id }),
+      detalhe: <><span className="text-[var(--texto)]">{l.nome}</span> · <b className="num text-[var(--texto)]">{gramasTexto(gr)}</b> · {situacao(l)}</>,
+      acao: admin && l.bruto && l.saldo > 0 ? <Botao variante="secundario" className="min-h-8 px-3 py-1 text-xs" onClick={() => ir('separar', { id: l.id })}>✂️ {t('Separar')}</Botao> : undefined,
+    }))} />
+  } else if (g.tipoFoco === 'lote') {
+    const l = g.lotes.find((x) => x.id === g.foco)
+    if (l) {
+      const fornecedor = (id: string) => g.compras.find((c) => c.id === id)?.fornecedor
+      const nome = (x: Ligacao) => (x.tipo === 'compra' ? `${x.codigo ?? t('Compra')}${fornecedor(x.id) ? ` · ${fornecedor(x.id)}` : ''}` : x.tipo === 'venda' ? comCliente(x.id, x.codigo) : (x.codigo ?? '—'))
+      const abrir = (x: Ligacao) => (x.tipo === 'compra' ? ir('pedido', { id: x.id }) : x.tipo === 'triagem' ? ir('triagem', { aba: 'triagens', t: x.id }) : x.tipo === 'venda' ? ir('venda', { id: x.id }) : ir('lote', { id: x.id }))
+      const link = (x: Ligacao) => <button type="button" onClick={() => abrir(x)} className="font-semibold text-[var(--texto)] hover:underline">{nome(x)}</button>
+      // até 3 ligações, depois "+N" (o resto está no rastreio completo)
+      const ligs = (xs: Ligacao[], entre: boolean) => <>{xs.slice(0, 3).map((x, k) => (
+        <span key={x.tipo + x.id}>{k > 0 && ', '}{link(x)}<span className="num"> {entre ? `(${gramasTexto(x.g)})` : gramasTexto(x.g)}</span></span>
+      ))}{xs.length > 3 && <span className="font-semibold"> +{xs.length - 3}</span>}</>
+      // veio de uma triagem: mostra antes a(s) compra(s) de onde o cabelo saiu ("P-0001 · Maria → T-3 (18 kg)")
+      const origem = l.de.some((x) => x.tipo === 'triagem') && l.compras.length
+        ? <>{l.compras.slice(0, 2).map((c, k) => <span key={c.id}>{k > 0 && ', '}{link({ tipo: 'compra', id: c.id, codigo: c.codigo, g: 0 })}</span>)}{l.compras.length > 2 && ` +${l.compras.length - 2}`} → </>
+        : null
+      const linha = (rotulo: string, conteudo: ReactNode) => (
+        <li className="flex min-w-0 flex-wrap items-baseline gap-x-2 py-2 text-sm"><span className="text-xs font-semibold text-[var(--suave)]">{t(rotulo)}</span><span className="min-w-0 flex-1 text-[var(--suave)] [overflow-wrap:anywhere]">{conteudo}</span></li>
+      )
+      corpo = (
+        <ul className="divide-y divide-[var(--borda)]">
+          {linha('Veio de', l.de.length ? <>{origem}{ligs(l.de, true)}</> : t('sem compra (cadastro)'))}
+          {linha('Para onde foi', <>{ligs(l.para, false)}{l.para.length > 0 && l.saldo > 0 && ' · '}{l.saldo > 0 ? <>{t('em estoque')} <b className="num text-[var(--texto)]">{gramasTexto(l.saldo)}</b></> : !l.para.length && t('nada em estoque')}</>)}
+        </ul>
+      )
+    }
+  }
+  return (
+    <div className="space-y-2">
+      <div className="space-y-1">
+        <p className="num flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+          <b>{gramasTexto(tt.entrou)}</b>
+          {texto.map((p) => (
+            <span key={p.nome} className="inline-flex items-center gap-1 whitespace-nowrap">
+              <span aria-hidden className="inline-block size-2 rounded-full" style={{ background: p.cor }} />
+              {p.g ? gramasTexto(p.g) : '0'} {t(p.nome)}
+            </span>
+          ))}
+          <span className={cx('font-bold', tt.confere ? 'text-[var(--bom)]' : 'text-[var(--alerta)]')} title={tt.confere ? t('Comprado = em pacotes + vendido + perda. Ex.: 10 kg = 4 + 5,4 + 0,6.') : aviso}>
+            {tt.confere ? '✓' : <>⚠️ <span className="text-xs font-semibold">{aviso}</span></>}
+          </span>
+        </p>
+        {somaBarra > 0 && (
+          <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--fundo)]" aria-hidden>
+            {barra.map((p) => <span key={p.nome} style={{ width: `${(p.g * 100) / somaBarra}%`, background: p.cor }} />)}
+          </div>
+        )}
+      </div>
+      {corpo}
+      <button type="button" aria-expanded={completo} onClick={() => setCompleto(!completo)} className="min-h-10 text-sm font-semibold text-[var(--marca)] hover:underline">{completo ? t('Fechar o rastreio') : t('Ver rastreio completo →')}</button>
+      {completo && <RastreioTotal g={g} admin={admin} />}
+    </div>
   )
 }
 

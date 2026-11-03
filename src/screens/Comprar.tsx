@@ -5,18 +5,19 @@
 // O cabelo entra na Triagem assim que a compra é registrada ("Aguardando triagem"); as etapas do pedido ficam para o
 // pagamento e a entrega (quem fez fica registrado). A conferência de peso é um lançamento no lote, sem mudar o comprado.
 
-import { Caminho, RastreioTotal } from '../ui/rastreioTotal'
+import { RastreioResumo } from '../ui/rastreioTotal'
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { formatar, multiplicarFator, fatorValido } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
-import type { Campos, Id, Linha, Transacao } from '../core/domain/tipos'
+import type { CategoriaAnexo, Campos, Id, Linha, Transacao } from '../core/domain/tipos'
 import type { ModoCompra } from '../core/services/codigos'
 import { CAMPOS_FORM, type CampoFormId, FORM_COMPRA_PADRAO, type FormCompraConfig } from '../core/services/formCompra'
 import { fatorDaTabela } from '../core/services/precos'
 import { CATEGORIAS_CABELO } from '../modules/cabelo'
-import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Erro, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Erro, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao } from '../ui/base'
 import { useApp, useAvisoSaida, useParamTela, useComando, useConsulta } from '../ui/contexto'
-import { Anexos, EditorPagamentos, type PagamentoTela, SeletorPessoa } from '../ui/compartilhados'
+import { EditorPagamentos, type PagamentoTela, SeletorPessoa } from '../ui/compartilhados'
+import { AbaAnexos, AnexosCurtos } from '../ui/anexos'
 import { CamposDinamicos, resumoCampos } from '../ui/camposDinamicos'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { FiltroPendencia, SeloPendencias } from '../ui/pendencias'
@@ -692,7 +693,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       case 'fotos':
         return (
           <Bloco obrigatorio={obrig(c)} campo={c} titulo="Fotos e arquivos">
-            <Anexos donoId={id} categorias={['pedido', 'produto', 'comprovante', 'origem']} />
+            <AnexosCurtos donoId={id} categorias={CATEGORIAS_COMPRA} padrao="pedido" />
             <Falta se={tentou && obrig('fotos') && !anexos?.length} texto={t('fotos')} />
           </Bloco>
         )
@@ -917,20 +918,20 @@ function NomeComprador({ id }: { id: Id }) {
 
 
 /** Tela do PEDIDO (pedidos/:id): tudo de uma compra num lugar. */
-/** Para onde foi esta compra: Compra → Triagem(ns) → Lotes → Vendas, em gramas (o mesmo rastreio do lote e da venda). */
+/** Para onde foi esta compra: a conta numa linha e cada lote com o que aconteceu (o grafo inteiro abre sob demanda). */
 function RastreioDaCompra({ compraId }: { compraId: Id }) {
   const t = useT()
   const { dados } = useConsulta('genealogia', { compraId })
   if (!dados) return null
   return (
     <Cartao titulo={t('Para onde foi esta compra')}>
-      <div className="space-y-3">
-        <Caminho g={dados} />
-        <RastreioTotal g={dados} />
-      </div>
+      <RastreioResumo g={dados} />
     </Cartao>
   )
 }
+
+/** tipos de anexo de uma compra (as pendências sem fotos / sem comprovante de origem saem da categoria) */
+const CATEGORIAS_COMPRA: CategoriaAnexo[] = ['pedido', 'produto', 'comprovante', 'origem', 'outro']
 
 type DadosPedido = NonNullable<ReturnType<typeof useConsulta<'pedido'>>['dados']>
 type Fechamento = NonNullable<DadosPedido['fechamento']>
@@ -1026,6 +1027,9 @@ export function Pedido() {
   const [conferir, setConferir] = useState<Linha>()
   const [etiquetas, setEtiquetas] = useState<Id[]>()
   const [ligarViagem, setLigarViagem] = useState(false)
+  // sub-abas (no endereço: #/pedidos/P1?aba=anexos): Resumo · Anexos (N) · Histórico
+  const [aba, setAba] = useParamTela<'resumo' | 'anexos' | 'historico'>('aba', 'resumo')
+  const { dados: anexos } = useConsulta('anexosDe', { donoId: id })
   if (erro) return <Erro texto={erro} />
   if (!dados) return <Carregando />
   const c = dados.compra
@@ -1086,7 +1090,16 @@ export function Pedido() {
       {/* a conta fecha: comprado = em pacotes + vendido + perda + diferença */}
       {dados.fechamento && !cancelada && <LinhaFechamento f={dados.fechamento} />}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+      <Abas variante="sublinhado" atual={aba} onChange={(x) => setAba(x as typeof aba)} abas={[
+        { id: 'resumo', nome: 'Resumo' },
+        { id: 'anexos', nome: 'Anexos', extra: <span className="num">({anexos?.length ?? 0})</span> },
+        { id: 'historico', nome: 'Histórico' },
+      ]} />
+
+      {aba === 'anexos' && <AbaAnexos donoId={c.id} categorias={CATEGORIAS_COMPRA} padrao="pedido" />}
+      {aba === 'historico' && <Cartao titulo={t('Linha do tempo')}><LinhaDoTempo id={c.id} /></Cartao>}
+
+      {aba === 'resumo' && <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
         <div className="min-w-0 space-y-4">
           <Cartao titulo={t('Itens')}>
             <div className="overflow-x-auto">
@@ -1167,14 +1180,6 @@ export function Pedido() {
               await executar('cancelarCompra', { compraId: c.id, motivo }, t('Compra cancelada.'))
             }}
           />
-
-          <Cartao titulo={t('Fotos, PDF e arquivos')}>
-            <Anexos donoId={c.id} categorias={['pedido', 'produto', 'comprovante', 'origem']} />
-          </Cartao>
-
-          <Cartao titulo={t('Linha do tempo')}>
-            <LinhaDoTempo id={c.id} />
-          </Cartao>
         </div>
 
         <aside className="h-fit space-y-4 lg:sticky lg:top-4">
@@ -1233,7 +1238,7 @@ export function Pedido() {
             </Cartao>
           )}
         </aside>
-      </div>
+      </div>}
     </div>
   )
 }

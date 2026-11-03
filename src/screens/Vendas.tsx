@@ -1,12 +1,13 @@
 // LISTA DE VENDAS (a lista que forma os números do painel: a soma é o cartão) e DETALHE da venda com linha do tempo.
 
-import { Caminho, RastreioTotal } from '../ui/rastreioTotal'
+import { type LinhaRastreio, ListaRastreio, RastreioResumo } from '../ui/rastreioTotal'
 import { useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../core/domain/dinheiro'
 import type { Id, Transacao } from '../core/domain/tipos'
 import { Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, ErroTela, gramasTexto, loc, moedaPadrao } from '../ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
-import { Anexos, cotacaoDoPagamento, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
+import { cotacaoDoPagamento, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
+import { AnexosCurtos } from '../ui/anexos'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { useT } from '../ui/i18n'
 import { MemoriaLinha } from '../ui/linhaServico'
@@ -176,7 +177,7 @@ export function DetalheVenda() {
               </ul>
             </Cartao>
           )}
-          <Cartao titulo={t('Fotos e comprovantes')}><Anexos donoId={v.id} categorias={['pedido', 'comprovante', 'resultado']} /></Cartao>
+          <Cartao titulo={t('Fotos e comprovantes')}><AnexosCurtos donoId={v.id} categorias={['comprovante', 'pedido', 'resultado']} padrao="comprovante" /></Cartao>
         </div>
       </div>
       {corrigir && <CorrigirVenda venda={v} temCliente={!!v.pessoaId} onFechar={() => setCorrigir(false)} />}
@@ -292,7 +293,7 @@ function PreviaCorrecao({ linha: l, c, moeda }: { linha: Transacao['linhas'][num
 
 /**
  * De onde veio este cabelo: a parte de cada compra NESTA venda, em gramas ("1,5 kg da compra C1 · Maria"), para quem
- * vendeu também (sem custo). O admin vê embaixo o caminho inteiro: Compra(s) → Triagem(ns) → Lote(s) → esta venda.
+ * vendeu também (sem custo), uma linha por compra. O admin vê também a conta numa linha e, sob demanda, o rastreio completo.
  */
 function OrigemDaVenda({ vendaId, admin }: { vendaId: Id; admin: boolean }) {
   const t = useT()
@@ -301,30 +302,16 @@ function OrigemDaVenda({ vendaId, admin }: { vendaId: Id; admin: boolean }) {
   const { dados } = useConsulta('genealogia', { vendaId }, admin)
   const temRastreio = admin && !!dados?.lotes.length
   if (!origem?.length && !temRastreio) return null
+  // uma linha por compra de origem: "1,5 kg de P-0001 · Maria" (a página da compra é do admin; quem vendeu vê sem abrir, e sem custo)
+  const linhas: LinhaRastreio[] = (origem ?? []).map((o) => ({
+    id: o.compraId,
+    principal: <><span aria-hidden>🛒</span> {t('{g} de {compra}', { g: gramasTexto(o.gramas), compra: o.codigo ?? o.compraId.slice(-4).toUpperCase() })}</>,
+    detalhe: o.fornecedor,
+    onClick: admin ? () => ir('pedido', { id: o.compraId }) : undefined,
+  }))
   return (
     <Cartao titulo={t('De onde veio este cabelo')} ajuda="As compras que formaram este cabelo, em gramas. Ex.: 1,5 kg da Maria + 1 kg do Celso.">
-      <div className="space-y-3">
-        {!!origem?.length && (
-          <div className="flex flex-wrap gap-2">
-            {origem.map((o) => {
-              const texto = <><span className="num">{gramasTexto(o.gramas)}</span> {t('da compra')} {o.codigo ?? o.compraId.slice(-4).toUpperCase()}{o.fornecedor ? ` · ${o.fornecedor}` : ''}</>
-              const classe = 'inline-flex min-h-10 items-center gap-1 rounded-full bg-[var(--marca-suave)] px-3 text-sm font-semibold text-[var(--marca)]'
-              // a página da compra é do admin; quem vendeu vê a origem sem abrir a compra (e sem custo)
-              return admin ? (
-                <button key={o.compraId} type="button" onClick={() => ir('pedido', { id: o.compraId })} className={`${classe} hover:underline`}>{texto}</button>
-              ) : (
-                <span key={o.compraId} className={classe}>{texto}</span>
-              )
-            })}
-          </div>
-        )}
-        {temRastreio && dados && (
-          <>
-            <Caminho g={dados} />
-            <RastreioTotal g={dados} />
-          </>
-        )}
-      </div>
+      {temRastreio && dados ? <RastreioResumo g={dados} linhas={linhas} /> : <ListaRastreio linhas={linhas} />}
     </Cartao>
   )
 }

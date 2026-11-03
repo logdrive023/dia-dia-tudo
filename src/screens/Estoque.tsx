@@ -10,14 +10,15 @@ import type { ResultadoConsulta } from '../core/services'
 import { fatorDaTabela } from '../core/services/precos'
 import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Escolha, GramasInput, Info, Janela, Pagina, Selecao, Titulo, Vazio, cx, dataBR, fmt, gramasTexto, ErroTela, moedaPadrao } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
-import { Anexos, clicavel } from '../ui/compartilhados'
+import { clicavel } from '../ui/compartilhados'
+import { AnexosCurtos } from '../ui/anexos'
 import { CamposDinamicos, resumoCampos } from '../ui/camposDinamicos'
 import { BarraFluxo, LeitorCodigo, STATUS_LOTE, StatusBadge, useTelaLarga } from '../ui/estoqueUi'
 import { usePistola } from '../ui/leitorPistola'
 import { useLembrado } from '../ui/filtros'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { HistoricoPacote } from '../ui/historicoPacote'
-import { CadeiaChips, Caminho, RastreioTotal } from '../ui/rastreioTotal'
+import { CadeiaChips, Caminho, RastreioResumo, RastreioTotal } from '../ui/rastreioTotal'
 import { MenuAcoes, acoesLote } from '../ui/menuAcoes'
 import { CampoCodigo, CodigoSelo, TrocarCodigo } from '../ui/codigos'
 import { useT } from '../ui/i18n'
@@ -682,7 +683,7 @@ export function FichaLote() {
       )}
 
       <Cartao titulo={<span id="rastreio-total">{t('Rastreio total: de onde veio e para onde foi cada grama')}</span>}>
-        {gen ? <RastreioTotal g={gen} admin={admin} /> : <Carregando />}
+        {gen ? <RastreioResumo g={gen} admin={admin} /> : <Carregando />}
       </Cartao>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -694,7 +695,7 @@ export function FichaLote() {
           )}
         </Cartao>
         <Cartao titulo={`${t('Fotos do lote')}${dados.fotos.length ? ` · ${dados.fotos.length}` : ''}`}><FotosDoLote itemId={i.id} codigo={i.codigo} /></Cartao>
-        <Cartao titulo={t('Arquivos')}><Anexos donoId={i.id} categorias={['outro']} esconderFotos /></Cartao>
+        <Cartao titulo={t('Arquivos')}><AnexosCurtos donoId={i.id} categorias={['outro']} esconderFotos /></Cartao>
       </div>
       <Cartao titulo={t('Histórico do pacote')} ajuda="Tudo o que entrou e saiu deste pacote, dia a dia. Ex.: 6.000 → 4.500 g na venda V-9.">
         <HistoricoPacote id={i.id} />
