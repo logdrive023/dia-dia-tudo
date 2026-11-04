@@ -39,6 +39,8 @@ export interface Selecao {
   marcados: Set<string>
   onAlternar(id: string): void
   onTodos(): void
+  /** a caixa fica apagada (com o porquê no title): ex. pacote de outra etapa na triagem */
+  desabilitado?(id: string): string | undefined
   /** para o leitor de tela: "Selecionar L-0012" */
   rotulo(id: string): string
 }
@@ -69,6 +71,8 @@ export interface LinhaCelular<T> {
   selo?(l: T): ReactNode
   /** ao abrir: o extra da tela (ex.: a lista do que falta) */
   aberto?(l: T): ReactNode
+  /** um selo a mais na 3ª linha, sempre à vista (ex.: a etiqueta do pacote) */
+  marca?(l: T): ReactNode
 }
 
 /** o código do registro, igual em toda lista */
@@ -136,7 +140,8 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
   const marcada = (l: T) => realce?.(l) === 'marcada' || (!!selecao && selecao.marcados.has(chave(l)))
   const todos = !!selecao && linhas.length > 0 && linhas.every((l) => selecao.marcados.has(chave(l)))
   const caixa = (l: T) => selecao && (
-    <input type="checkbox" className="h-5 w-5 cursor-pointer" aria-label={selecao.rotulo(chave(l))} checked={selecao.marcados.has(chave(l))}
+    <input type="checkbox" className="h-5 w-5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40" aria-label={selecao.rotulo(chave(l))} checked={selecao.marcados.has(chave(l))}
+      disabled={!!selecao.desabilitado?.(chave(l))} title={selecao.desabilitado?.(chave(l))}
       onChange={() => selecao.onAlternar(chave(l))} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} />
   )
 
@@ -171,10 +176,11 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
                       const cod = celular.codigo?.(l)
                       const sit = celular.situacao?.(l)
                       const al = celular.alerta?.(l)
-                      return (cod !== undefined || sit || al) && (
+                      return (cod !== undefined || sit || al || celular.marca) && (
                         <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs">
                           {celular.codigo && <span className="font-mono font-semibold text-[var(--suave)]">{cod ?? '—'}</span>}
                           {sit && <SeloSituacao {...sit} />}
+                          {celular.marca?.(l)}
                           {al && <span className="inline-flex min-w-0 items-center gap-1 font-semibold" style={{ color: COR_TOM[al.tom] }}><span aria-hidden>{al.tom === 'bom' ? '✓' : '⚠'}</span><span className="truncate">{t(al.texto.replace(/^✓\s*/, ''))}</span></span>}
                         </span>
                       )
@@ -193,9 +199,11 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
                     return fs.length > 0 && <div className="flex flex-wrap gap-1.5">{fs.map((x, k) => <SeloFato key={k}>{x}</SeloFato>)}</div>
                   })()}
                   {celular.aberto?.(l)}
-                  {(onAbrir || mais.length > 0) && (
-                    <div className="flex items-center gap-2">
-                      {onAbrir && <Botao className="flex-1" onClick={() => onAbrir(l)}>{t(rotuloAbrir)} →</Botao>}
+                  {(onAbrir || mais.length > 0 || acaoRapida) && (
+                    <div className="flex flex-wrap items-center gap-2 [&>*:first-child]:flex-1">
+                      {/* o caminho principal da tela (ex.: Separar) vem antes do "Abrir" */}
+                      {acaoRapida?.(l)}
+                      {onAbrir && <Botao variante={acaoRapida ? 'secundario' : 'primario'} className="flex-1" onClick={() => onAbrir(l)}>{t(rotuloAbrir)} →</Botao>}
                       {mais.length > 0 && <MenuAcoes comRotulo acoes={mais} />}
                     </div>
                   )}

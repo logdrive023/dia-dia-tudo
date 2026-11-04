@@ -5,6 +5,7 @@
 // Seleção (juntar e separar, mover, etiquetas) só aparece ao tocar "Selecionar". O resto fica no "⋯" de cada linha.
 
 import { type DragEvent, type KeyboardEvent, type ReactNode, useCallback, useState } from 'react'
+import { TabelaDados, SeloCodigo } from '../ui/tabelaDados'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { PainelSelecao } from '../ui/painelSelecao'
 import { Paginada } from '../ui/paginacao'
@@ -425,39 +426,56 @@ export function Triagem() {
                   {grupo.todos.length >= 2 && <Botao variante="leve" className="ml-auto" onClick={() => (setSelecionando(true), setSel(new Set(grupo.todos.map((l) => l.id))))}>☑ {t('Selecionar todos desta etapa')}</Botao>}
                 </div>
               )}
-            <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-              {grupo.ls.map((l) => {
-                const col = colDe(l.fase)
-                const acao = acaoDe(l)
-                const fornecedores = [...new Set(l.compras.map((c) => c.fornecedor).filter(Boolean))]
-                return (
-                  // celular: foto · código e peso · ⋯ em cima, o botão principal com a largura toda embaixo
-                  <li key={l.id} className={cx('flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-3 sm:flex-nowrap sm:gap-3', sel.has(l.id) && 'bg-[var(--marca-suave)]', comSelecao && foraDaEtapa(l) && 'bg-[var(--fundo)]')}>
-                    {comSelecao && <input type="checkbox" className="h-5 w-5 shrink-0 disabled:cursor-not-allowed disabled:opacity-40" checked={sel.has(l.id)} disabled={foraDaEtapa(l)} title={foraDaEtapa(l) ? t('Está em “{a}”; a seleção é de “{b}”. Só junta quem está na mesma etapa.', { a: colDe(l.fase)?.nome ?? l.fase, b: colDe(etapaSel ?? '')?.nome ?? '' }) : undefined} onChange={(e) => marcar(l.id, e.target.checked)} aria-label={t('Selecionar {c}', { c: l.codigo ?? l.nome })} />}
-                    <FotoOuIcone l={l} />
-                    <div {...clicavel(() => ir('lote', { id: l.id }))} className="min-w-0 flex-1 cursor-pointer rounded-lg outline-none focus-visible:bg-[var(--marca-suave)]">
-                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span className="font-mono text-base font-bold">{l.codigo ?? '—'}</span>
-                        <span className="min-w-0 truncate text-base">{rotuloCurto(l, t)}</span>
-                        {comSelecao && foraDaEtapa(l) && <button type="button" onClick={(e) => (e.stopPropagation(), setSel(new Set([l.id])))} title={t('Está em “{a}”; a seleção é de “{b}”. Só junta quem está na mesma etapa.', { a: colDe(l.fase)?.nome ?? l.fase, b: colDe(etapaSel ?? '')?.nome ?? '' })} className="inline-flex min-h-7 items-center gap-1 rounded-full border border-dashed border-[var(--borda)] bg-[var(--cartao)] px-2 text-xs font-semibold text-[var(--suave)] hover:border-[var(--marca)] hover:text-[var(--marca)]">🔒 {t('outra etapa')} · {t('começar com este')}</button>}
-                        {sobraPequena(l) && <span title={t('Sobra pequena: junte com outro ou ajuste como perda.')}><Pilula tom="alerta">⚠️ {t('só {g}', { g: gramasTexto(l.saldo) })}</Pilula></span>}
-                        {l.atrasado && <span title={t('Esperando para separar há mais de {n} dias', { n: dados.diasParado })}><Pilula tom="ruim">⏰ {t('parado')}</Pilula></span>}
-                        {l.campos.estado === NAO_ID && <Pilula tom="alerta">❓ {t('para depois')}</Pilula>}
-                        {col && !col.entrada && <Pilula>{t(col.nome)}</Pilula>}
-                        <SeloEtiqueta id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} />
-                      </div>
-                      {/* peso e dias sempre aparecem; o fornecedor vai ao lado (computador) ou embaixo (celular) */}
-                      <div className="num mt-0.5 min-w-0 text-sm text-[var(--suave)] sm:flex sm:items-center sm:gap-1">
-                        <span className="shrink-0 whitespace-nowrap"><b className="font-semibold text-[var(--texto)]">{gramasTexto(l.saldo)}</b> · {!l.dias ? t('hoje') : l.dias === 1 ? t('há 1 dia') : t('há {n} dias', { n: l.dias })}</span>
-                        {fornecedores.length > 0 && <span className="block min-w-0 truncate"><span className="hidden sm:inline">· </span>{fornecedores.join(', ')}</span>}
-                      </div>
-                    </div>
-                    <MenuAcoes className="sm:order-last" acoes={menuDe(l)} />
-                    {acao && <Botao className="order-last min-h-11 w-full shrink-0 text-base sm:order-none sm:min-h-12 sm:w-auto sm:px-6" disabled={ocupado} onClick={acao.f}>{t(acao.rotulo)}</Botao>}
-                  </li>
-                )
-              })}
-            </ul>
+            {/* LISTAGEM PADRÃO (TabelaDados, como Compras): colunas no computador, a linha padrão no celular */}
+            <TabelaDados
+              linhas={grupo.ls}
+              chave={(l) => l.id}
+              onAbrir={(l) => ir('lote', { id: l.id })}
+              rotuloAbrir="Abrir lote"
+              rotuloLinha={(l) => `${l.codigo ?? ''} · ${rotuloCurto(l, t)}`}
+              acoes={menuDe}
+              acaoRapida={(l) => { const acao = acaoDe(l); return acao ? <Botao className="min-h-10 whitespace-nowrap px-4" disabled={ocupado} onClick={acao.f}>{t(acao.rotulo)}</Botao> : null }}
+              realce={(l) => (sel.has(l.id) ? 'marcada' : undefined)}
+              selecao={comSelecao ? {
+                marcados: sel,
+                onAlternar: (id) => marcar(id, !sel.has(id)),
+                onTodos: () => setSel(grupo.ls.every((l) => sel.has(l.id)) ? new Set() : new Set(grupo.todos.map((l) => l.id))),
+                rotulo: (id) => t('Selecionar {c}', { c: grupo.ls.find((l) => l.id === id)?.codigo ?? '' }),
+                desabilitado: (id) => { const l = grupo.ls.find((x) => x.id === id); return l && foraDaEtapa(l) ? t('Está em “{a}”; a seleção é de “{b}”. Só junta quem está na mesma etapa.', { a: colDe(l.fase)?.nome ?? l.fase, b: colDe(etapaSel ?? '')?.nome ?? '' }) : undefined },
+              } : undefined}
+              colunas={[
+                { id: 'foto', titulo: '', classe: 'w-14', celula: (l) => <FotoOuIcone l={l} /> },
+                { id: 'pacote', titulo: 'Pacote', classe: 'min-w-[12rem]', celula: (l) => {
+                  const col = colDe(l.fase)
+                  return <>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1"><SeloCodigo codigo={l.codigo} /><b>{rotuloCurto(l, t)}</b></span>
+                    <span className="mt-1 flex flex-wrap items-center gap-1">
+                      {comSelecao && foraDaEtapa(l) && <button type="button" onClick={(e) => (e.stopPropagation(), setSel(new Set([l.id])))} title={t('Está em “{a}”; a seleção é de “{b}”. Só junta quem está na mesma etapa.', { a: colDe(l.fase)?.nome ?? l.fase, b: colDe(etapaSel ?? '')?.nome ?? '' })} className="inline-flex min-h-7 items-center gap-1 rounded-full border border-dashed border-[var(--borda)] bg-[var(--cartao)] px-2 text-xs font-semibold text-[var(--suave)] hover:border-[var(--marca)] hover:text-[var(--marca)]">🔒 {t('outra etapa')} · {t('começar com este')}</button>}
+                      {sobraPequena(l) && <span title={t('Sobra pequena: junte com outro ou ajuste como perda.')}><Pilula pequena tom="alerta">⚠️ {t('só {g}', { g: gramasTexto(l.saldo) })}</Pilula></span>}
+                      {l.campos.estado === NAO_ID && <Pilula pequena tom="alerta">❓ {t('para depois')}</Pilula>}
+                      {col && !col.entrada && <Pilula pequena>{t(col.nome)}</Pilula>}
+                    </span>
+                  </>
+                } },
+                { id: 'peso', titulo: 'Peso', direita: true, celula: (l) => <b>{gramasTexto(l.saldo)}</b> },
+                { id: 'origem', titulo: 'Veio de', classe: 'max-w-[14rem]', celula: (l) => <span className="block truncate">{[...new Set(l.compras.map((c) => c.fornecedor).filter(Boolean))].join(', ') || '—'}<span className="block truncate text-xs text-[var(--suave)]">{l.compras.map((c) => c.codigo).filter(Boolean).join(' + ')}</span></span> },
+                { id: 'espera', titulo: 'Esperando', direita: true, celula: (l) => <span className={cx('whitespace-nowrap', l.atrasado ? 'font-semibold text-[var(--ruim)]' : 'text-[var(--suave)]')} title={l.atrasado ? t('Esperando para separar há mais de {n} dias', { n: dados.diasParado }) : undefined}>{l.atrasado && '⏰ '}{!l.dias ? t('hoje') : l.dias === 1 ? t('há 1 dia') : t('há {n} dias', { n: l.dias })}</span> },
+                { id: 'etiqueta', titulo: 'Etiqueta', classe: 'whitespace-nowrap', celula: (l) => <SeloEtiqueta id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} /> },
+              ]}
+              // celular: a mesma linha padrão do Comprar e do Vender (a etiqueta sempre à vista; Separar ao abrir)
+              celular={{
+                titulo: (l) => rotuloCurto(l, t),
+                valor: (l) => gramasTexto(l.saldo),
+                valorSub: (l) => (!l.dias ? t('hoje') : l.dias === 1 ? t('há 1 dia') : t('há {n} dias', { n: l.dias })),
+                resumo: (l) => [...new Set(l.compras.map((c) => c.fornecedor).filter(Boolean))].join(', ') || undefined,
+                codigo: (l) => l.codigo,
+                situacao: (l) => { const col = colDe(l.fase); return col && !col.entrada ? { texto: col.nome, tom: 'marca' } : undefined },
+                alerta: (l) => (l.atrasado ? { texto: t('parado'), tom: 'ruim' } : sobraPequena(l) ? { texto: t('só {g}', { g: gramasTexto(l.saldo) }), tom: 'alerta' } : l.campos.estado === NAO_ID ? { texto: t('para depois'), tom: 'alerta' } : undefined),
+                marca: (l) => <SeloEtiqueta id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} />,
+                fatos: (l) => [...l.compras.map((c) => `🛒 ${c.codigo ?? ''}`), l.pai && `🧬 ${t('separado de')} ${l.pai.codigo ?? '?'}`],
+                aberto: (l) => comSelecao && foraDaEtapa(l) && <button type="button" onClick={() => setSel(new Set([l.id]))} className="min-h-10 rounded-full border border-dashed border-[var(--borda)] px-3 text-xs font-semibold text-[var(--suave)]">🔒 {t('outra etapa')} · {t('começar com este')}</button>,
+              }}
+            />
             </section>
           ))}</div>
           )}</Paginada>
