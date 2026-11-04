@@ -51,8 +51,8 @@ describe('modo caixa (venda rápida)', () => {
     fireEvent.keyDown(campo, { key: 'Enter' })
 
     // entrou inteiro: saldo do lote × fator da tabela
-    const tabela = await screen.findByRole('table', {}, { timeout: 5000 })
-    const linhas = () => within(tabela).getAllByRole('row').slice(1)
+    const regiao = await screen.findByRole('region', { name: 'Nesta venda' }, { timeout: 5000 })
+    const linhas = () => within(regiao).queryAllByRole('listitem')
     await waitFor(() => expect(linhas()).toHaveLength(1))
     expect(within(linhas()[0]).getByText(codigo)).toBeTruthy()
     expect(within(linhas()[0]).getByText(new RegExp(`^${lote.saldo.toLocaleString('pt-BR').replace('.', '\\.')} g × `))).toBeTruthy()
@@ -94,7 +94,7 @@ describe('modo caixa (venda rápida)', () => {
     await screen.findByText(/^Venda V\S* ✓/, {}, { timeout: 5000 })
     expect(erros).toEqual([])
     // pronto para a próxima: lista vazia e campo limpo
-    expect(screen.queryByRole('table')).toBeNull()
+    expect(linhas()).toHaveLength(0)
 
     // a venda existe, o estoque baixou e o movimento guarda antes → depois
     const vendas = await b.consulta('vendas', {})
@@ -140,7 +140,7 @@ describe('modo caixa (venda rápida)', () => {
     fireEvent.change(campo, { target: { value: codigo } })
     await screen.findByText(codigo, { selector: 'li b' }, { timeout: 15000 })
     fireEvent.keyDown(campo, { key: 'Enter' })
-    const linha = (await screen.findAllByRole('row'))[1]
+    const linha = within(await screen.findByRole('region', { name: 'Nesta venda' })).getAllByRole('listitem')[0]
     fireEvent.click(within(linha).getByText(/ g × /))
     fireEvent.change(await screen.findByLabelText('Gramas'), { target: { value: '500' } })
     fireEvent.click(screen.getByRole('button', { name: 'OK' }))
@@ -150,7 +150,7 @@ describe('modo caixa (venda rápida)', () => {
     const esperado = cheio - Math.round(cheio * 0.1)
 
     // + mais → [ % | Bs ] → 10 %
-    fireEvent.click(screen.getByText(/mais \(cliente, desconto, observação\)/))
+    fireEvent.click(screen.getByText(/mais \(cliente, desconto/))
     fireEvent.click(screen.getByRole('radio', { name: '%' }))
     expect(localStorage.getItem('tudo.caixa.modoDesconto')).toBe('pct')
     fireEvent.change(screen.getByLabelText('Desconto em %'), { target: { value: '150' } })
@@ -186,7 +186,7 @@ describe('modo caixa (venda rápida)', () => {
     fireEvent.change(campo, { target: { value: codigo } })
     await screen.findByText(codigo, { selector: 'li b' }, { timeout: 15000 })
     fireEvent.keyDown(campo, { key: 'Enter' })
-    const linha = (await screen.findAllByRole('row'))[1]
+    const linha = within(await screen.findByRole('region', { name: 'Nesta venda' })).getAllByRole('listitem')[0]
     fireEvent.click(within(linha).getByText(/ g × /))
     fireEvent.change(await screen.findByLabelText('Gramas'), { target: { value: '500' } })
     fireEvent.click(screen.getByRole('button', { name: 'OK' }))
@@ -202,7 +202,7 @@ describe('modo caixa (venda rápida)', () => {
     fireEvent.change(cotacao, { target: { value: '1,30' } })
 
     // desconto de R$ 10,00 (na moeda da cobrança)
-    fireEvent.click(screen.getByText(/mais \(cliente, desconto, observação\)/))
+    fireEvent.click(screen.getByText(/mais \(cliente, desconto/))
     const grupoDesconto = screen.getByRole('radiogroup', { name: 'Desconto' })
     fireEvent.click(within(grupoDesconto).getByRole('radio', { name: 'R$' }))
     fireEvent.change(grupoDesconto.parentElement!.parentElement!.querySelector('input:not([aria-label])')!, { target: { value: '10' } })
@@ -246,7 +246,7 @@ describe('modo caixa (venda rápida)', () => {
     fireEvent.change(campo, { target: { value: lote.codigo } })
     await screen.findByText(lote.codigo!, { selector: 'li b' }, { timeout: 15000 })
     fireEvent.keyDown(campo, { key: 'Enter' })
-    const linha = (await screen.findAllByRole('row'))[1]
+    const linha = within(await screen.findByRole('region', { name: 'Nesta venda' })).getAllByRole('listitem')[0]
     fireEvent.click(within(linha).getByText(/ g × /))
     fireEvent.change(await screen.findByLabelText('Gramas'), { target: { value: '500' } })
     fireEvent.click(screen.getByRole('button', { name: 'OK' }))
@@ -296,8 +296,8 @@ describe('modo caixa (venda rápida)', () => {
     expect(screen.getByText('Preço de venda')).toBeTruthy()
     expect(screen.queryByText(/Separar|Ajustar|Rastrear|Etiqueta|Custo/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Vender/ }))
-    const tabela = await screen.findByRole('table', {}, { timeout: 15000 })
-    await waitFor(() => expect(within(tabela).getAllByRole('row')).toHaveLength(2), { timeout: 15000 })
-    expect(within(tabela).getByText(lote.codigo!)).toBeTruthy()
+    const regiao = await screen.findByRole('region', { name: 'Nesta venda' }, { timeout: 15000 })
+    await waitFor(() => expect(within(regiao).getAllByRole('listitem')).toHaveLength(1), { timeout: 15000 })
+    expect(within(regiao).getByText(lote.codigo!)).toBeTruthy()
   }, 120000)
 })

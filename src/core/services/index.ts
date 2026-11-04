@@ -15,6 +15,7 @@ import * as financiamentos from './financiamentos'
 import * as formCompra from './formCompra'
 import * as fotos from './fotos'
 import * as historico from './historico'
+import * as leitura from './leitura'
 import * as livro from './livro'
 import * as origem from './origem'
 import * as painel from './painel'
@@ -148,6 +149,7 @@ export const consultas = {
   genealogia: triagem.genealogia,
   // origem em gramas por compra (pacote misturado e venda)
   origemDoPacote: origem.origemDoPacote,
+  lerCodigoPacote: leitura.lerCodigoPacote,
   origemDaVenda: origem.origemDaVenda,
   triagens: triagem.triagens,
   // livro do cabelo (lançamentos de gramas) e histórico de cada pacote
