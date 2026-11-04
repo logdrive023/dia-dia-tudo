@@ -16,7 +16,7 @@ import { useApp, useConsulta, useParamTela, useFiltrosTela } from '../ui/context
 import { useT } from '../ui/i18n'
 import { useLembrado } from '../ui/filtros'
 import { baixarCSV } from './Relatorios'
-import { BarraFiltros, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros, AtalhosPeriodo } from '../ui/filtroPadrao'
+import { AbasSituacao, BarraFiltros, BotaoPeriodo, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
 import { NumeroGrande, NumeroPequeno } from '../ui/numeroGrande'
 
 const DICA_CONFERE = 'Comprado = em pacotes + vendido + perda. Ex.: 10 kg = 4 + 5,4 + 0,6.'
@@ -157,23 +157,9 @@ export function Livro() {
 
       {/* FILTRO PADRÃO: período (atalhos) · tipo (atalhos) · busca + ⚙ Filtros → chips ✕ → painel em grupos */}
       <div className="space-y-2">
-        {/* atalhos de período (no início, fora do painel): um toque e a lista fica só daquele tempo */}
-        <AtalhosPeriodo de={de} ate={ate} onChange={(d, a) => ajustarParams({ de: d, ate: a })} />
-        <div className="flex items-start gap-2">
-          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap" role="group" aria-label={t('Tipo')}>
-            {GRUPOS.map((g) => {
-              const n = g.id ? base.filter((l) => GRUPO[l.tipo] === g.id).length : base.length
-              const on = grupo === g.id && !tipo
-              return (
-                <button key={g.id || 'todos'} type="button" aria-pressed={on} onClick={() => ajustarParams({ grupo: g.id || undefined, tipo: undefined })}
-                  className={cx('inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold', on ? 'border-[var(--marca)] bg-[var(--marca)] text-white' : 'border-[var(--borda)] bg-[var(--cartao)] hover:border-[var(--marca)]')}>
-                  {t(g.nome)} <span className={cx('num text-xs', on ? 'opacity-80' : 'text-[var(--suave)]')}>{n}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-        <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar lançamento, pacote, compra ou pessoa" ativos={nFiltros} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
+        <AbasSituacao rotulo="Tipo" valor={tipo ? '__tipo' : grupo} onChange={(id) => ajustarParams({ grupo: id || undefined, tipo: undefined })}
+          opcoes={GRUPOS.map((g) => ({ id: g.id, nome: g.nome, n: g.id ? base.filter((x) => GRUPO[x.tipo] === g.id).length : base.length }))} />
+        <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar lançamento, pacote, compra ou pessoa" extra={<BotaoPeriodo de={de} ate={ate} onChange={(d, a) => ajustarParams({ de: d, ate: a })} />} ativos={nFiltros} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
         <ChipsFiltros itens={ativos} onTirar={tirarFiltro} onLimpar={limpar} />
         {verFiltros && (
           <PainelFiltros resultados={linhas.length} temAtivos={nFiltros > 0} onLimpar={limpar} onFechar={() => setVerFiltros(false)}>

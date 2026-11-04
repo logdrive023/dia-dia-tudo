@@ -5,11 +5,11 @@
 // que abre no lugar (celular) · Paginacao. A lista é a MESMA consulta `vendas` que forma os números do Painel.
 
 import { type ReactNode, useState } from 'react'
-import { TabelaDados } from '../ui/tabelaDados'
+import { TabelaDados, SeloCodigo } from '../ui/tabelaDados'
 import { formatar } from '../core/domain/dinheiro'
 import { Botao, Campo, Confirmar, Entrada, Pilula, Selecao, Titulo, Vazio, cx, dataBR, hora, moedaPadrao } from '../ui/base'
 import { useApp, useComando, useConsulta, useFiltrosTela } from '../ui/contexto'
-import { AtalhosPeriodo, CampoFaixa, FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo } from '../ui/filtroPadrao'
+import { CampoFaixa, FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo } from '../ui/filtroPadrao'
 import { useT } from '../ui/i18n'
 import { type Acao } from '../ui/menuAcoes'
 import { GrupoNumeros, NumeroGrande } from '../ui/numeroGrande'
@@ -107,21 +107,11 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
       {/* FILTRO PADRÃO: abas da situação · período · busca · ⚙ Filtros (quando · pagamento · quem · onde) → chips ✕ */}
       <FiltroLista
         className="mb-3"
-        topo={
-          <div className="space-y-2">
-            <div role="tablist" aria-label={t('Situação')} className="flex w-max max-w-full gap-1 overflow-x-auto rounded-xl bg-[var(--marca-suave)] p-1 [scrollbar-width:none]">
-              {ABAS.map((a) => {
-                const n = a.id === 'canceladas' ? canc.length : a.id === 'todas' ? conc.length + canc.length : a.id === 'pendencia' ? comPend.length : conc.length
-                return (
-                  <button key={a.id || 'conc'} type="button" role="tab" aria-selected={aba === a.id} onClick={() => irAba(a.id)} className={cx('min-h-10 shrink-0 whitespace-nowrap rounded-lg px-3 text-sm font-semibold', aba === a.id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
-                    <span>{t(a.nome)} <span className="num opacity-70">{carregando ? '' : n}</span></span>
-                  </button>
-                )
-              })}
-            </div>
-            <AtalhosPeriodo de={p('de')} ate={p('ate')} onChange={(de, ate) => ajustarParams({ de, ate, pagina: undefined })} />
-          </div>
-        }
+        situacao={{ valor: aba, onChange: (id) => irAba(id as typeof aba), opcoes: ABAS.map((a) => ({
+          id: a.id, nome: a.nome, tom: a.id === 'pendencia' ? 'alerta' as const : undefined,
+          n: carregando ? undefined : a.id === 'canceladas' ? canc.length : a.id === 'todas' ? conc.length + canc.length : a.id === 'pendencia' ? comPend.length : conc.length,
+        })) }}
+        periodo={{ de: p('de'), ate: p('ate'), onChange: (de, ate) => ajustarParams({ de, ate, pagina: undefined }) }}
         busca={p('busca')} onBusca={(v) => mudar('busca', v)} placeholder="Buscar cliente, código (V-0001), item ou quem vendeu"
         ativos={ativos} onTirar={(k) => (tirar(k), setP('pagina', ''))} onLimpar={limpar}
         resultados={carregando ? undefined : lista.length} total={carregando ? undefined : (aba === 'canceladas' ? canceladas!.length : aba === 'todas' ? concluidas!.length + canceladas!.length : concluidas!.length)} unidade="venda(s)"
@@ -164,21 +154,27 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
         ordem={{ por: ordem.startsWith('valor') ? 'valor' : 'data', desc: ordem !== 'valorMenor' }}
         onOrdenar={(por) => mudar('ordem', por === 'data' ? '' : ordem === 'valor' ? 'valorMenor' : 'valor')}
         colunas={[
-          { id: 'venda', titulo: 'Venda', celula: (v) => <><span className="block font-mono text-xs font-bold text-[var(--marca)]">{v.codigo ?? '—'}</span><b className="block">{v.cliente ?? t('Sem nome')}</b></> },
+          { id: 'venda', titulo: 'Venda', celula: (v) => <><SeloCodigo codigo={v.codigo} /><b className="mt-1 block">{v.cliente ?? t('Sem nome')}</b></> },
           { id: 'data', titulo: 'Data', ordenar: 'data', classe: 'num whitespace-nowrap', celula: (v) => <>{dataBR(v.data)}<span className="block text-xs text-[var(--suave)]">{hora(v.criadoEm)}{v.feitoPor ? ` · ${v.feitoPor}` : ''}</span></> },
           { id: 'itens', titulo: 'Itens', classe: 'max-w-72', celula: (v) => <><span className="line-clamp-2">{v.linhas.map((l) => l.descricao).join(' + ')}</span><span className="text-xs text-[var(--suave)]">{t('{n} item(ns)', { n: v.linhas.length })}</span></> },
           { id: 'pagamento', titulo: 'Pagamento', classe: 'text-[var(--suave)]', celula: (v) => formas(v) || '—' },
           { id: 'situacao', titulo: 'Situação', celula: situacao },
           { id: 'valor', titulo: 'Valor', ordenar: 'valor', direita: true, celula: (v) => <b className={cx(v.etapa === 'cancelado' && 'line-through')}>{formatar(v.valor, moeda)}</b> },
         ]}
+        // LINHA PADRÃO do celular (a mesma do Comprar): cliente · valor / código · situação · o que falta / quando
         celular={{
           titulo: (v) => v.cliente ?? t('Sem nome'),
           valor: (v) => formatar(v.valor, moeda),
-          sub: (v) => <><span className="font-mono font-bold text-[var(--marca)]">{v.codigo ?? '—'}</span> · {dataBR(v.data)} {hora(v.criadoEm)}</>,
-          selo: situacao,
+          valorSub: (v) => `${dataBR(v.data)} ${hora(v.criadoEm)}`,
+          codigo: (v) => v.codigo,
+          situacao: (v) => (v.etapa === 'cancelado' ? { texto: 'Cancelada', tom: 'suave' } : { texto: 'Concluída', tom: 'bom' }),
+          alerta: (v) => (v.etapa !== 'cancelado' && v.pendencias.length
+            ? { texto: v.pendencias.length === 1 ? t(v.pendencias[0].texto) : t('{n} pendências', { n: v.pendencias.length }), tom: v.pendencias.some((x) => x.nivel === 'urgente') ? 'ruim' : 'alerta' }
+            : undefined),
+          fatos: (v) => [`📦 ${t('{n} item(ns)', { n: v.linhas.length })}`, formas(v) && `💳 ${formas(v)}`, v.feitoPor && `👤 ${v.feitoPor}`],
           aberto: (v) => <>
             <p>{v.linhas.map((l) => l.descricao).join(' + ')}</p>
-            <p className="text-xs text-[var(--suave)]">{[formas(v) && `💳 ${formas(v)}`, v.feitoPor && `${t('por')} ${v.feitoPor}`].filter(Boolean).join(' · ')}</p>
+            {v.etapa !== 'cancelado' && v.pendencias.length > 0 && <SeloPendencias pendencias={v.pendencias} moeda={v.moedaPrincipal} />}
           </>,
         }}
       />

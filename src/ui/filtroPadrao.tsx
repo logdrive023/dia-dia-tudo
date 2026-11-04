@@ -4,7 +4,7 @@
 // "Limpar · Ver N resultados". Celular: dois campos por linha; computador: quatro. Tudo no endereço (quem usa decide).
 // Variação permitida: atalhos (chips de período, abas) ficam fora do painel, mas o painel e os chips são sempre estes.
 
-import { type KeyboardEvent, type ReactNode, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { Botao, Entrada, Vazio, cx } from './base'
 import { type Preset, calcularPeriodo } from './filtros'
 import { useT } from './i18n'
@@ -88,17 +88,6 @@ export function GrupoFiltro({ titulo, icone, children }: { titulo: string; icone
 }
 
 /**
- * ATALHOS DE PERÍODO (fora do painel, no início da lista): "Tudo · Hoje · 7 dias · 30 dias · Este mês". As datas vêm de
- * calcularPeriodo (as mesmas do seletor de período do Painel e dos Relatórios); o de–até livre fica no painel.
- */
-export function AtalhosPeriodo({ de, ate, onChange, presets = ['hoje', '7d', '30d', 'mes'] }: { de: string; ate: string; onChange(de?: string, ate?: string): void; presets?: Exclude<Preset, 'livre'>[] }) {
-  const NOME: Record<string, string> = { hoje: 'Hoje', '7d': '7 dias', '30d': '30 dias', mes: 'Este mês', mesPassado: 'Mês passado', ano: 'Ano' }
-  const opcoes = [{ id: '', nome: 'Tudo', p: undefined }, ...presets.map((id) => ({ id, nome: NOME[id], p: calcularPeriodo(id) }))]
-  const atual = opcoes.find((x) => (x.p ? x.p.de === de && x.p.ate === ate : !de && !ate))?.id
-  return <AtalhosChips rotulo="Período" icone="📅" valor={atual ?? '—'} opcoes={opcoes} onChange={(id) => { const x = opcoes.find((o) => o.id === id); onChange(x?.p?.de, x?.p?.ate) }} />
-}
-
-/**
  * ATALHOS (chips de um toque, fora do painel): o mesmo visual para período, situação etc. Cada tela diz o que cada
  * opção quer dizer (o atalho só mostra e devolve o id). Celular: rola de lado; computador: quebra a linha.
  */
@@ -120,16 +109,115 @@ export function AtalhosChips({ rotulo, icone, valor, opcoes, onChange, umaLinha 
   )
 }
 
+export interface OpcaoSituacao {
+  id: string
+  nome: string
+  /** quantos (undefined = carregando: some) */
+  n?: number
+  /** cor do número quando pede atenção (ex.: "Com pendência 12" em laranja) */
+  tom?: 'alerta' | 'ruim'
+}
+
 /**
- * FILTRO DA LISTA — o padrão do sistema (Compras, Estoque, Triagem, Etiquetas…), sempre na mesma ordem:
- *   1. `topo` (opcional): abas/atalhos à esquerda e `acaoTopo` à direita ("⚙ Etapas e regras")
+ * ABAS DA SITUAÇÃO — o seletor padrão de toda lista ("Em aberto 2 · Encerradas 4 · Todas 6"): um trilho com as
+ * opções lado a lado; a escolhida fica branca e com sombra, o número num selo. Celular: rola de lado, nunca quebra.
+ */
+export function AbasSituacao({ opcoes, valor, onChange, rotulo = 'Situação' }: { opcoes: OpcaoSituacao[]; valor: string; onChange(id: string): void; rotulo?: string }) {
+  const t = useT()
+  return (
+    <div role="tablist" aria-label={t(rotulo)} className="flex max-w-full gap-0.5 overflow-x-auto rounded-xl bg-[var(--fundo)] p-1 ring-1 ring-[var(--borda)] [scrollbar-width:none]">
+      {opcoes.map((o) => {
+        const on = o.id === valor
+        return (
+          <button key={o.id || 'padrao'} type="button" role="tab" aria-selected={on} onClick={() => onChange(o.id)}
+            className={cx('inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-semibold transition', on ? 'bg-[var(--cartao)] text-[var(--texto)] shadow-[0_1px_3px_rgba(16,24,40,.12)]' : 'text-[var(--suave)] hover:text-[var(--texto)]')}>
+            {t(o.nome)}{' '}
+            {o.n !== undefined && (
+              <span className={cx('num inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold',
+                on ? 'bg-[var(--marca)] text-white' : o.tom && o.n > 0 ? (o.tom === 'ruim' ? 'bg-[var(--ruim)]/12 text-[var(--ruim)]' : 'bg-[var(--alerta)]/15 text-[var(--alerta)]') : 'bg-[var(--borda)]/70 text-[var(--suave)]')}>
+                {o.n}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * ESCOLHA NUM BOTÃO ("📅 7 dias ▾" ao lado da busca): abre a lista de opções; a escolhida fica marcada ✓ e o botão
+ * mostra o nome dela. A primeira opção é o "sem filtro" (botão neutro); as outras deixam o botão ligado (cor da marca).
+ */
+export function BotaoEscolha({ icone, rotulo, valor, opcoes, onChange, nomeLivre }: { icone: string; rotulo: string; valor: string; opcoes: { id: string; nome: string }[]; onChange(id: string): void; nomeLivre?: string }) {
+  const t = useT()
+  const [aberto, setAberto] = useState(false)
+  const caixa = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!aberto) return
+    const fora = (e: MouseEvent) => !caixa.current?.contains(e.target as Node) && setAberto(false)
+    const esc = (e: globalThis.KeyboardEvent) => e.key === 'Escape' && setAberto(false)
+    document.addEventListener('mousedown', fora)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('keydown', esc) }
+  }, [aberto])
+  const atual = opcoes.find((o) => o.id === valor)
+  const nome = atual ? t(atual.nome) : nomeLivre ?? '—'
+  const ligado = valor !== (opcoes[0]?.id ?? '')
+  return (
+    <div ref={caixa} className="relative shrink-0">
+      <button type="button" aria-haspopup="listbox" aria-expanded={aberto} aria-label={`${t(rotulo)}: ${nome}`} onClick={() => setAberto(!aberto)}
+        className={cx('inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition', ligado ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] text-[var(--texto)] hover:border-[var(--marca)]')}>
+        {/* celular: sem filtro, só o ícone (a busca precisa do espaço); escolhido, o nome aparece */}
+        <span aria-hidden>{icone}</span><span className={cx('num max-w-[7rem] truncate', !ligado && 'hidden sm:inline')}>{nome}</span><span aria-hidden className={cx('text-xs transition-transform', aberto && 'rotate-180')}>▾</span>
+      </button>
+      {aberto && (
+        <ul role="listbox" aria-label={t(rotulo)} className="absolute right-0 z-30 mt-1 min-w-44 overflow-hidden rounded-xl border border-[var(--borda)] bg-[var(--cartao)] py-1 shadow-lg">
+          {opcoes.map((o) => {
+            const on = o.id === valor
+            return (
+              <li key={o.id || 'tudo'}>
+                <button type="button" role="option" aria-selected={on} onClick={() => { onChange(o.id); setAberto(false) }}
+                  className={cx('flex min-h-11 w-full items-center justify-between gap-3 px-3 text-left text-sm hover:bg-[var(--marca-suave)]', on && 'font-semibold text-[var(--marca)]')}>
+                  {t(o.nome)}{on && <span aria-hidden>✓</span>}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/**
+ * PERÍODO numa peça só (BotaoEscolha "📅 Tudo ▾"): Tudo · Hoje · 7 dias · 30 dias · Este mês. As datas vêm de
+ * calcularPeriodo (as mesmas do Painel); datas livres (de–até, no painel de filtros) aparecem como "📅 02/11–04/11".
+ */
+export function BotaoPeriodo({ de, ate, onChange, presets = ['hoje', '7d', '30d', 'mes'] }: { de: string; ate: string; onChange(de?: string, ate?: string): void; presets?: Exclude<Preset, 'livre'>[] }) {
+  const NOME: Record<string, string> = { hoje: 'Hoje', '7d': '7 dias', '30d': '30 dias', mes: 'Este mês', mesPassado: 'Mês passado', ano: 'Ano' }
+  const opcoes = [{ id: '', nome: 'Tudo', p: undefined as ReturnType<typeof calcularPeriodo> | undefined }, ...presets.map((id) => ({ id: id as string, nome: NOME[id], p: calcularPeriodo(id) }))]
+  const atual = opcoes.find((x) => (x.p ? x.p.de === de && x.p.ate === ate : !de && !ate))
+  const curta = (d: string) => d.slice(5).split('-').reverse().join('/')
+  return <BotaoEscolha icone="📅" rotulo="Período" valor={atual?.id ?? '__livre'} nomeLivre={`${de ? curta(de) : '…'}–${ate ? curta(ate) : '…'}`} opcoes={opcoes} onChange={(id) => { const x = opcoes.find((o) => o.id === id); onChange(x?.p?.de, x?.p?.ate) }} />
+}
+
+/**
+ * FILTRO DA LISTA — o padrão do sistema (Compras, Vender, Estoque, Triagem, Etiquetas…), sempre na mesma ordem:
+ *   1. `situacao` (AbasSituacao: "Em aberto 2 · Encerradas 4 · Todas 6") + `topo` livre à esquerda e `acaoTopo` à
+ *      direita ("⚙ Etapas e regras")
+ *   2. busca + `extra` (📷) + `periodo` ("📅 Tudo ▾") + "⚙ Filtros · N ▾" (só aparece se a tela tem `painel`)
  *   2. busca + `extra` (📷) + "⚙ Filtros · N ▾" (só aparece se a tela tem `painel`)
  *   3. o painel aberto no lugar, com os grupos da tela e o rodapé "Limpar filtros · Ver N resultados"
  *   4. o resultado: "4 de 8 pedido(s)" + os filtros ligados em chips ✕ + "Limpar filtros"; `ferramentas` à direita
  * A tela só diz QUAIS filtros tem (e como filtra): o lugar, o botão e o jeito de limpar são sempre estes.
  */
-export function FiltroLista({ busca, onBusca, placeholder, onKeyDown, autoFocus, topo, acaoTopo, extra, painel, ativos = [], onTirar, onLimpar, temAtivos, resultados, total, unidade, detalhe, ferramentas, aberto: abertoFora, onAberto, className }: {
+export function FiltroLista({ busca, onBusca, placeholder, onKeyDown, autoFocus, situacao, periodo, topo, acaoTopo, extra, painel, ativos = [], onTirar, onLimpar, temAtivos, resultados, total, unidade, detalhe, ferramentas, aberto: abertoFora, onAberto, className }: {
   busca: string; onBusca(v: string): void; placeholder: string; onKeyDown?(e: KeyboardEvent<HTMLInputElement>): void; autoFocus?: boolean
+  /** as abas da situação (o seletor padrão) */
+  situacao?: { opcoes: OpcaoSituacao[]; valor: string; onChange(id: string): void }
+  /** o período ("📅 Tudo ▾"), ao lado da busca */
+  periodo?: { de: string; ate: string; onChange(de?: string, ate?: string): void; presets?: Exclude<Preset, 'livre'>[] }
   topo?: ReactNode; acaoTopo?: ReactNode; extra?: ReactNode
   /** os grupos (GrupoFiltro) do painel; sem painel, sem botão "⚙ Filtros" */
   painel?: ReactNode
@@ -154,13 +242,14 @@ export function FiltroLista({ busca, onBusca, placeholder, onKeyDown, autoFocus,
       : `${resultados} ${t(unidade)}`
   return (
     <div className={cx('space-y-2', className)}>
-      {(topo || acaoTopo) && (
+      {(situacao || topo || acaoTopo) && (
         <div className="flex flex-wrap items-center gap-2">
+          {situacao && <div className="min-w-0 max-w-full"><AbasSituacao {...situacao} /></div>}
           {topo && <div className="min-w-0">{topo}</div>}
           {acaoTopo && <div className="ml-auto shrink-0">{acaoTopo}</div>}
         </div>
       )}
-      <BarraFiltros busca={busca} onBusca={onBusca} placeholder={placeholder} onKeyDown={onKeyDown} autoFocus={autoFocus} extra={extra} ativos={ativos.length} aberto={aberto} onAlternar={painel ? () => abrir(!aberto) : undefined} />
+      <BarraFiltros busca={busca} onBusca={onBusca} placeholder={placeholder} onKeyDown={onKeyDown} autoFocus={autoFocus} extra={<>{extra}{periodo && <BotaoPeriodo {...periodo} />}</>} ativos={ativos.length} aberto={aberto} onAlternar={painel ? () => abrir(!aberto) : undefined} />
       {painel && aberto && (
         <PainelFiltros resultados={resultados} temAtivos={temAtivos ?? ativos.length > 0} onLimpar={onLimpar} onFechar={() => abrir(false)}>{painel}</PainelFiltros>
       )}

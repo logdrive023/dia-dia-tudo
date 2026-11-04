@@ -30,7 +30,7 @@ import { LeitorCodigo } from '../ui/estoqueUi'
 import { usePistola } from '../ui/leitorPistola'
 import { useLembrado } from '../ui/filtros'
 import { Icone } from '../ui/icones'
-import { GrupoFiltro, FiltroLista, VazioFiltro, AtalhosChips } from '../ui/filtroPadrao'
+import { GrupoFiltro, FiltroLista, VazioFiltro, BotaoEscolha } from '../ui/filtroPadrao'
 import { FiltrosProntos, PARAMS_PRONTOS, agruparProntos, filtrarProntos, useFiltroProntos, ativosProntos } from '../ui/filtrosProntos'
 
 const NAO_ID = 'Não identificado'
@@ -979,7 +979,7 @@ function ListaTriagens({ aberta }: { aberta?: string }) {
 
       {/* FILTRO PADRÃO: período em atalhos (no topo) · busca · ⚙ Filtros (quem, compra, perda, ordem) → resultado + chips ✕ */}
       <FiltroLista
-        topo={<AtalhosChips rotulo="Período" icone="📅" valor={periodo} onChange={setPeriodo} opcoes={PERIODOS} />}
+        extra={<BotaoEscolha icone="📅" rotulo="Período" valor={periodo} onChange={setPeriodo} opcoes={PERIODOS} />}
         busca={busca} onBusca={setBusca} placeholder="T-0003, compra, fornecedor, pacote…"
         ativos={ativosT} onTirar={(k) => ajustarParams({ [k]: undefined })} onLimpar={limpar} temAtivos={!!(periodo || ativos > 0 || termo || ordem)}
         resultados={lista.length} total={dados.length} unidade="triagem(ns)"

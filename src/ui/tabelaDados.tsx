@@ -3,8 +3,12 @@
 // cabeçalho das colunas, alinhamento (texto à esquerda; datas, números e valores à direita e com algarismos iguais),
 // altura e espaçamento das linhas, realce no passar do mouse e no foco do teclado, carregando, vazio e erro.
 //
-// CELULAR: em vez da tabela, uma LINHA CURTA por registro (título · valor · uma linha de detalhe · selo); tocar abre o
-// resto no lugar com "Abrir →" e o ⋯ (regra do sistema: lista resumida que expande). Sem `celular`, a tabela rola de lado.
+// CELULAR: em vez da tabela, a LINHA PADRÃO por registro — sempre no mesmo lugar, em toda lista:
+//   Título (quem)                                         Valor
+//   [CÓDIGO] ● situação   ○ alerta (pendência)            detalhe do valor (3 kg)   ›
+// tocar abre no lugar: o progresso, os fatos em selos (📅 data · 📦 itens · ⏱ parada), o extra da tela e a linha de
+// ações ("Abrir →" + ⋯). Regra do sistema: lista resumida que expande. Sem `celular`, a tabela rola de lado.
+// Os selos (SeloCodigo, SeloSituacao, SeloAlerta) são os mesmos nas colunas da tabela do computador.
 //
 // Fica FORA daqui (é do módulo): a consulta, os filtros (FiltroLista), as regras e a paginação (usePaginacao/Paginacao).
 
@@ -37,15 +41,49 @@ export interface Selecao {
   rotulo(id: string): string
 }
 
+export type TomLista = 'bom' | 'ruim' | 'alerta' | 'marca' | 'suave'
+const COR_TOM: Record<TomLista, string> = { bom: 'var(--bom)', ruim: 'var(--ruim)', alerta: 'var(--alerta)', marca: 'var(--marca)', suave: 'var(--suave)' }
+
 export interface LinhaCelular<T> {
   titulo(l: T): ReactNode
   valor?(l: T): ReactNode
-  /** a linha de detalhe (código · data · etapa) */
+  /** embaixo do valor, pequeno (ex.: "3 kg") */
+  valorSub?(l: T): ReactNode
+  /** o código do registro (P-0005), no selo padrão */
+  codigo?(l: T): string | undefined
+  /** a situação/etapa (● Chegou), na cor do tom */
+  situacao?(l: T): { texto: string; tom: TomLista } | undefined
+  /** o que pede atenção (○ 2 pendências), em selo; vazio = nada */
+  alerta?(l: T): { texto: string; tom: TomLista } | undefined
+  /** ao abrir: a barra de progresso (etapas) */
+  progresso?(l: T): ReactNode
+  /** ao abrir: os fatos, cada um num selo ("📅 02/11/2026", "📦 1 item · 3 kg", "⏱ parada há 2 d") */
+  fatos?(l: T): ReactNode[]
+  /** a linha de detalhe livre (telas antigas; prefira código/situação/alerta) */
   sub?(l: T): ReactNode
-  /** o selo da situação, embaixo */
+  /** o selo da situação, embaixo (telas antigas; prefira `situacao`) */
   selo?(l: T): ReactNode
-  /** o que aparece ao abrir no lugar */
+  /** ao abrir: o extra da tela (ex.: a lista do que falta) */
   aberto?(l: T): ReactNode
+}
+
+/** o código do registro, igual em toda lista */
+export function SeloCodigo({ codigo }: { codigo?: string }) {
+  return <span className="inline-flex shrink-0 items-center rounded-md bg-[var(--marca-suave)] px-1.5 py-0.5 font-mono text-[11px] font-bold leading-none text-[var(--marca)]">{codigo ?? '—'}</span>
+}
+/** a situação: bolinha + texto na cor do tom */
+export function SeloSituacao({ texto, tom }: { texto: string; tom: TomLista }) {
+  const t = useT()
+  return <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold" style={{ color: COR_TOM[tom] }}><span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: COR_TOM[tom] }} />{t(texto)}</span>
+}
+/** o que pede atenção: selo com fundo suave na cor do tom */
+export function SeloAlerta({ texto, tom }: { texto: string; tom: TomLista }) {
+  const t = useT()
+  return <span className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ color: COR_TOM[tom], background: `color-mix(in srgb, ${COR_TOM[tom]} 12%, transparent)` }}>{t(texto)}</span>
+}
+/** um fato (aberto da linha): selo cinza */
+export function SeloFato({ children }: { children: ReactNode }) {
+  return <span className="num inline-flex min-h-7 items-center gap-1 rounded-full bg-[var(--cartao)] px-2.5 text-xs text-[var(--suave)] ring-1 ring-[var(--borda)]">{children}</span>
 }
 
 export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 'Abrir', rotuloLinha, acoes, acaoRapida, ordem, onOrdenar, selecao, realce, detalhe, celular, compacta, carregando, erro, vazio }: {
@@ -108,22 +146,42 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
           const mais = acoes?.(l) ?? []
           return (
             <li key={id} className={cx(aberta && 'bg-[var(--marca-suave)]/40', marcada(l) && 'bg-[var(--marca-suave)]', apagada(l) && 'opacity-75')}>
-              <div className="flex items-start gap-2 px-3 py-2.5">
+              <div className="flex items-start gap-2 px-4 py-3">
                 {selecao && <span className="flex h-6 shrink-0 items-center">{caixa(l)}</span>}
-                <button type="button" aria-expanded={aberta} onClick={() => alternar(id)} className="flex min-w-0 flex-1 items-start gap-2 text-left">
+                <button type="button" aria-expanded={aberta} onClick={() => alternar(id)} className="flex min-w-0 flex-1 items-start gap-3 text-left">
                   <span className="min-w-0 flex-1">
-                    <span className="flex min-w-0 items-baseline gap-2">
-                      <b className="min-w-0 flex-1 truncate">{celular.titulo(l)}</b>
-                      {celular.valor && <b className={cx('num shrink-0 whitespace-nowrap', apagada(l) && 'line-through')}>{celular.valor(l)}</b>}
-                    </span>
+                    <b className="block truncate text-[15px] leading-snug">{celular.titulo(l)}</b>
+                    {(() => {
+                      const cod = celular.codigo?.(l)
+                      const sit = celular.situacao?.(l)
+                      const al = celular.alerta?.(l)
+                      return (cod !== undefined || sit || al) && (
+                        <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                          {celular.codigo && <SeloCodigo codigo={cod} />}
+                          {sit && <SeloSituacao {...sit} />}
+                          {al && <SeloAlerta {...al} />}
+                        </span>
+                      )
+                    })()}
                     {celular.sub && <span className="num mt-0.5 block truncate text-xs text-[var(--suave)]">{celular.sub(l)}</span>}
                     {celular.selo && <span className="mt-1 block">{celular.selo(l)}</span>}
                   </span>
-                  <span aria-hidden className={cx('mt-0.5 shrink-0 text-lg text-[var(--suave)] transition-transform', aberta && 'rotate-90')}>›</span>
+                  {celular.valor && (
+                    <span className="shrink-0 text-right">
+                      <b className={cx('num block whitespace-nowrap text-[15px]', apagada(l) && 'line-through')}>{celular.valor(l)}</b>
+                      {celular.valorSub && <span className="num mt-1 block whitespace-nowrap text-xs text-[var(--suave)]">{celular.valorSub(l)}</span>}
+                    </span>
+                  )}
+                  <span aria-hidden className={cx('mt-0.5 shrink-0 text-lg leading-none text-[var(--suave)] transition-transform', aberta && 'rotate-90')}>›</span>
                 </button>
               </div>
               {aberta && (
-                <div className="space-y-2 px-3 pb-3 text-sm">
+                <div className="space-y-2.5 border-t border-dashed border-[var(--borda)] px-4 pb-3 pt-2.5 text-sm">
+                  {celular.progresso?.(l)}
+                  {(() => {
+                    const fs = (celular.fatos?.(l) ?? []).filter((x) => x !== undefined && x !== null && x !== false && x !== '')
+                    return fs.length > 0 && <div className="flex flex-wrap gap-1.5">{fs.map((x, k) => <SeloFato key={k}>{x}</SeloFato>)}</div>
+                  })()}
                   {celular.aberto?.(l)}
                   {(onAbrir || mais.length > 0) && (
                     <div className="flex items-center gap-2">
