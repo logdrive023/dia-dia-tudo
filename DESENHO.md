@@ -425,3 +425,12 @@ Uma listagem nova é CONFIGURAÇÃO, não uma tabela nova:
 - **Paginação**: `const pag = usePaginacao(listaFiltradaEOrdenada, { padrao: 20, reiniciar: JSON.stringify(filtros) })` → `linhas={pag.itens}` e `<Paginacao {...pag} unidade="venda(s)" />`. Página e tamanho (10/20/50/100) ficam no endereço; busca/filtros/ordem novos voltam para a página 1; página fora do fim cai na última. Lista de cartões própria (fila da Triagem, Etiquetas): `<Paginada itens=… unidade=…>{(pagina, inicio) => …}</Paginada>`.
 - **Fica no módulo**: a consulta, as regras, os filtros (`FiltroLista`) e o que cada coluna mostra. Os dados são locais (paginação na tela); com a API, a mesma `usePaginacao` passa `pagina/porPagina` para a consulta.
 - **Não são listagens de registros** (ficam como estão): tabelas de relatório, grade de preços, comparativos e tabelas de detalhe dentro de uma ficha.
+
+### 11.4 Seleção em lista (`PainelSelecao` em `src/ui/painelSelecao.tsx`)
+
+Toda tela que deixa marcar itens usa o mesmo painel (Triagem, Estoque, Etiquetas…):
+
+- Começa **minimizado**: barra fina no rodapé com o número em destaque, o peso e UM botão "Escolher o que fazer ▴" (✕ limpa).
+- Aberto: linha 1 = número + "N selecionados" + ▾ minimizar + ✕; linha 2 = selos (`fatos`: ⚖ peso, 🛒 compras, 💵 custo…); linha 3 = barra das partes + "Ver os N"; chips numa faixa que rola de lado.
+- **Opções** em cartões (ícone, nome, uma linha do que faz, ⓘ com exemplo; a principal em destaque; as que não valem ficam apagadas dizendo por quê). **Outras ações** à vista, cada uma com a explicação embaixo, e um ⓘ do grupo.
+- Fica preso ao rodapé, na largura da coluna de conteúdo, e reserva o mesmo espaço no fim da página (nunca cobre a lista).

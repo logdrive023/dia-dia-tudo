@@ -7,6 +7,7 @@
 // barra de seleção da Triagem e do Estoque e pelo cartão "pacotes novos" depois de separar (?sel=a,b já marcados).
 
 import { useEffect, useMemo, useState } from 'react'
+import { PainelSelecao } from '../ui/painelSelecao'
 import { Paginada } from '../ui/paginacao'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
@@ -88,7 +89,6 @@ export function Etiquetas() {
   const selecionados = (dados ?? []).filter((i) => sel.has(i.id))
   const todos = lista.length > 0 && lista.every((i) => sel.has(i.id))
   const semNaLista = lista.filter((i) => !i.etiquetaImpressaEm)
-  const gSel = selecionados.reduce((s, i) => s + i.saldo, 0)
   // Shift + clique: marca (ou desmarca) do último tocado até este, como o primeiro ficou
   const [ultimo, setUltimo] = useState<number>()
   const marcarAte = (k: number, intervalo?: boolean) => {
@@ -196,13 +196,6 @@ export function Etiquetas() {
             {filtro !== 'sem' && semNaLista.length > 0 && semNaLista.length < lista.length && (
               <button type="button" onClick={() => setSel(new Set(semNaLista.map((i) => i.id)))} className="min-h-10 rounded-lg px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t('Só os sem etiqueta ({n})', { n: semNaLista.length })}</button>
             )}
-            {selecionados.length > 0 && (
-              <span className="num ml-auto flex items-center gap-1 text-[var(--suave)]">
-                {/* no computador a contagem já está na barra de baixo */}
-                <span className="sm:hidden"><b className="text-[var(--texto)]">{t('{n} selecionado(s)', { n: selecionados.length })}</b> · {fmt(gSel, 'gramas')}</span>
-                <button type="button" onClick={impressoOk} className="min-h-10 rounded-lg px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t('Limpar')}</button>
-              </span>
-            )}
             <span className="hidden w-full pb-1 text-xs text-[var(--suave)] lg:block">{t('Toque no pacote para marcar. Shift + clique marca todos entre dois.')}</span>
           </div>
           <Paginada itens={lista} padrao={50} unidade="pacote(s)" reiniciar={JSON.stringify([filtro, ...todosFiltros.map((k) => p(k))])}>{(pagina, inicio) => (
@@ -214,11 +207,17 @@ export function Etiquetas() {
       )}
 
       {selecionados.length > 0 && (
-        <div className="fixed inset-x-2 bottom-20 z-30 mx-auto flex max-w-3xl items-center gap-2 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-2 shadow-xl md:bottom-4" role="region" aria-label={t('Ações em massa')}>
-          <b className="num hidden min-w-0 flex-1 truncate px-2 text-sm sm:block">{t('{n} selecionado(s)', { n: selecionados.length })} · {fmt(gSel, 'gramas')}</b>
-          <Botao className="min-w-0 flex-1 px-3 sm:flex-none" onClick={() => setImprimir(selecionados.map((i) => i.id))}>🏷 {t(selecionados.length === 1 ? 'Imprimir 1 etiqueta' : 'Imprimir {n} etiquetas', { n: selecionados.length })}</Botao>
-          <Botao variante="leve" className="shrink-0 px-2" aria-label={t('Limpar seleção')} onClick={() => (setSel(new Set()), ajustarParams({ sel: undefined }))}>×</Botao>
-        </div>
+        // PAINEL DA SELEÇÃO (padrão): os pacotes marcados e a ação explicada
+        <PainelSelecao
+          itens={selecionados.map((i) => ({ id: i.id, codigo: i.codigo, peso: i.saldo, detalhe: i.etiquetaImpressaEm ? t('já tem etiqueta') : t('sem etiqueta') }))}
+          fatos={[(() => { const sem = selecionados.filter((i) => !i.etiquetaImpressaEm).length; return { icone: '🏷', texto: sem === selecionados.length ? t('todos sem etiqueta') : sem ? t('{n} sem etiqueta', { n: sem }) : t('todos já têm etiqueta') } })()]}
+          onTirar={(id) => setSel((s) => { const n = new Set(s); n.delete(id); return n })}
+          onLimpar={() => (setSel(new Set()), ajustarParams({ sel: undefined }))}
+          opcoes={[{ id: 'imprimir', icone: '🖨', principal: true, onClick: () => setImprimir(selecionados.map((i) => i.id)),
+            titulo: selecionados.length === 1 ? t('Imprimir 1 etiqueta') : t('Imprimir {n} etiquetas', { n: selecionados.length }),
+            legenda: 'Uma etiqueta por pacote, com o código, o peso de agora e o QR.',
+            ajuda: 'Imprime de uma vez as etiquetas dos marcados. Quem já tinha etiqueta ganha uma nova via com o peso de agora. Ex.: vendeu 2 kg de um pacote de 18 kg → a nova diz 16 kg.' }]}
+        />
       )}
 
       {refazer && <RefazerEtiqueta id={refazer} codigo={dados?.find((i) => i.id === refazer)?.codigo} onFechar={() => ajustarParams({ refazer: undefined })} />}

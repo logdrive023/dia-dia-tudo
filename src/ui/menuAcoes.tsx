@@ -10,6 +10,8 @@ import { useT } from './i18n'
 export interface Acao {
   rotulo: string
   icone?: string
+  /** uma linha do que a ação faz, embaixo do nome (para quem bate o olho e não sabe) */
+  descricao?: string
   onClick(): void
   perigo?: boolean
   /** linha separadora antes deste item */
@@ -103,10 +105,10 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
                 type="button"
                 role="menuitem"
                 onClick={() => (fechar(false), a.onClick())}
-                className={cx('flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-medium outline-none hover:bg-[var(--marca-suave)] focus-visible:bg-[var(--marca-suave)]', a.perigo && 'text-[var(--ruim)]')}
+                className={cx('flex min-h-10 w-full items-center gap-2 rounded-xl px-3 py-1.5 text-left text-sm font-medium outline-none hover:bg-[var(--marca-suave)] focus-visible:bg-[var(--marca-suave)]', a.perigo && 'text-[var(--ruim)]')}
               >
                 <span aria-hidden className="w-5 shrink-0 text-center">{a.icone}</span>
-                <span className="min-w-0 [overflow-wrap:anywhere]">{t(a.rotulo)}</span>
+                <span className="min-w-0 [overflow-wrap:anywhere]">{t(a.rotulo)}{a.descricao && <span className="block max-w-72 text-xs font-normal leading-snug text-[var(--suave)]">{t(a.descricao)}</span>}</span>
               </button>
             </div>
           ))}
@@ -121,7 +123,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
                 <button type="button" onClick={() => (setFolha(false), a.onClick())}
                   className={cx('flex min-h-16 w-full items-center gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left shadow-sm transition active:scale-[.99] hover:border-[var(--marca)]', k === 0 && 'border-[var(--marca)] bg-[var(--marca-suave)]', a.perigo && 'text-[var(--ruim)]')}>
                   <span aria-hidden className={cx('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-2xl', k === 0 ? 'bg-[var(--marca)] text-white' : 'bg-[var(--fundo)]')}>{a.icone}</span>
-                  <span className="min-w-0 flex-1 font-semibold [overflow-wrap:anywhere]">{t(a.rotulo)}</span>
+                  <span className="min-w-0 flex-1 font-semibold [overflow-wrap:anywhere]">{t(a.rotulo)}{a.descricao && <span className="block text-xs font-normal text-[var(--suave)]">{t(a.descricao)}</span>}</span>
                   <span aria-hidden className="text-[var(--suave)]">›</span>
                 </button>
               </li>

@@ -2,6 +2,7 @@
 // CSV), SEPARAR lote bruto em N lotes, ajustar, PRONTUÁRIO do lote (compra → triagem → venda) e RASTREIO.
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { PainelSelecao } from '../ui/painelSelecao'
 import { Paginacao, usePaginacao } from '../ui/paginacao'
 import { TabelaDados } from '../ui/tabelaDados'
 import { CabecalhoFicha } from '../ui/cabecalhoFicha'
@@ -415,15 +416,26 @@ export function Estoque() {
       )}
       {dados && lista.length > 0 && <Paginacao {...pag} unidade="lote(s)" />}
 
+      {/* PAINEL DA SELEÇÃO (padrão): os lotes marcados e as ações explicadas */}
       {selecionados.length > 0 && (
-        <div className="sticky bottom-20 z-20 mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-2 shadow-lg md:bottom-4" role="region" aria-label={t('Ações em massa')}>
-          <b className="px-2 text-sm">{t('{n} selecionado(s)', { n: selecionados.length })}</b>
-          {!todos && <Botao variante="leve" onClick={() => setSel(new Set(lista.map((i) => i.id)))}>{t('Selecionar todos os {n} filtrados', { n: lista.length })}</Botao>}
-          <Botao variante="secundario" onClick={() => exportar(selecionados)}>⬇ {t('Exportar CSV')}</Botao>
-          <Botao variante="secundario" onClick={() => ir('etiquetas', { f: 'todas', sel: selecionados.map((i) => i.id).join(',') })}>🏷 {t('Imprimir etiquetas')}</Botao>
-          {admin && <Botao variante="secundario" onClick={() => setJanela('marcar')}>✎ {t('Mudar atributo')}</Botao>}
-          <Botao variante="leve" onClick={() => setSel(new Set())}>{t('Limpar seleção')}</Botao>
-        </div>
+        <PainelSelecao
+          unidade="lote"
+          itens={selecionados.map((i) => ({ id: i.id, codigo: i.codigo, peso: i.saldo, detalhe: i.nome }))}
+          topo={!todos && <Botao variante="leve" onClick={() => setSel(new Set(lista.map((i) => i.id)))}>{t('Selecionar todos os {n} filtrados', { n: lista.length })}</Botao>}
+          onTirar={(id) => alternar(id)}
+          onLimpar={() => setSel(new Set())}
+          opcoes={[
+            { id: 'etiquetas', icone: '🏷', principal: true, onClick: () => ir('etiquetas', { f: 'todas', sel: selecionados.map((i) => i.id).join(',') }),
+              titulo: 'Imprimir etiquetas', legenda: 'Abre Etiquetas com estes lotes já marcados.',
+              ajuda: 'Uma etiqueta por lote, com o código, o peso de agora e o QR. Ex.: 3 lotes sem etiqueta → imprime as 3 de uma vez.' },
+            { id: 'csv', icone: '⬇', onClick: () => exportar(selecionados),
+              titulo: 'Exportar CSV', legenda: 'Baixa uma planilha só com os marcados (as colunas que estão à vista).',
+              ajuda: 'Gera um arquivo .csv para abrir no Excel ou no Google Planilhas. Ex.: marcou 4 lotes de 60 cm → a planilha tem as 4 linhas.' },
+            ...(admin ? [{ id: 'atributo', icone: '✎', onClick: () => setJanela('marcar'),
+              titulo: 'Mudar atributo', legenda: 'Troca a cor, a categoria ou outro atributo de todos de uma vez.',
+              ajuda: 'Muda o mesmo atributo nos lotes marcados (fica no histórico de cada um). Ex.: 5 lotes marcados como Castanho → Castanho escuro.' }] : []),
+          ]}
+        />
       )}
 
       {ajustar && <Ajustar itemId={ajustar} onFechar={() => setAjustar(undefined)} />}

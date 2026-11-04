@@ -66,6 +66,8 @@ describe('tela Etiquetas', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Sem etiqueta/ }))
     await screen.findByText(codigo('b'))
     fireEvent.click(screen.getByLabelText(/Selecionar todos os filtrados/))
+    // o painel da seleção começa minimizado: abre e escolhe a opção
+    fireEvent.click(await screen.findByRole('button', { name: /Escolher o que fazer|Continuar/ }))
     fireEvent.click(await screen.findByRole('button', { name: /Imprimir 1 etiqueta/ }))
     const dialogo = await screen.findByRole('dialog', { name: 'Imprimir etiquetas' })
     await waitFor(() => expect((within(dialogo).getByRole('button', { name: /Imprimir/ }) as HTMLButtonElement).disabled).toBe(false))
@@ -89,7 +91,7 @@ describe('tela Etiquetas', () => {
       return <Ctx.Provider value={ctx}><Etiquetas /></Ctx.Provider>
     }
     render(<ComSel />)
-    await screen.findByRole('button', { name: /Imprimir 1 etiqueta/ }, { timeout: 10000 })
+    await screen.findByText('1 pacote selecionado', {}, { timeout: 10000 })
     expect((screen.getByLabelText(`Selecionar ${lote.codigo}`) as HTMLInputElement).checked).toBe(true)
   }, 30000)
 

@@ -5,9 +5,10 @@
 // Seleção (juntar e separar, mover, etiquetas) só aparece ao tocar "Selecionar". O resto fica no "⋯" de cada linha.
 
 import { type DragEvent, type KeyboardEvent, type ReactNode, useCallback, useState } from 'react'
+import { PainelSelecao } from '../ui/painelSelecao'
 import { Paginada } from '../ui/paginacao'
 import { AcaoIcone } from '../ui/acoesPagina'
-import { NumeroGrande, NumeroPequeno, GrupoNumeros, type Selo } from '../ui/numeroGrande'
+import { NumeroGrande, GrupoNumeros, type Selo } from '../ui/numeroGrande'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id } from '../core/domain/tipos'
@@ -419,20 +420,42 @@ export function Triagem() {
       </section>
 
       </>}
-      {/* ações em massa: só com algo selecionado */}
-      {sel.size > 0 && (
-        <div role="toolbar" aria-label={t('Ações nos selecionados')} className="fixed inset-x-2 bottom-20 z-30 mx-auto flex max-w-5xl flex-wrap items-center gap-2 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-2 shadow-xl md:bottom-4">
-          <span className="px-2 text-sm font-bold">{t('{n} selecionado(s)', { n: sel.size })} · <span className="num">{gramasTexto(selecionados.reduce((s, l) => s + l.saldo, 0))}</span></span>
-          <span className="inline-flex items-center"><Botao disabled={ocupado || !selecionados.length || selecionados.some((l) => l.fase === COLUNA_VENDIDO)} onClick={() => ir('separar', { ids: selecionados.map((l) => l.id).join(','), volta: 'triagem' })}>✂️ {t(sel.size > 1 ? 'Juntar e separar' : 'Separar')}</Botao><Info texto={sel.size > 1 ? DICA_JUNTAR : DICA_SEPARAR} /></span>
-          <Botao variante="secundario" disabled={ocupado || sel.size < 2 || selecionados.some((l) => l.fase === COLUNA_VENDIDO)} title={t('Junta 2 ou mais lotes num lote só')} onClick={() => setJanela('unificar')}>🔗 {t('Só juntar')}</Botao>
-          <Botao variante="secundario" onClick={() => ir('etiquetas', { f: 'todas', sel: [...sel].join(',') })}>🏷 {t('Etiquetas')}</Botao>
-          <MenuAcoes comRotulo acoes={[
-            ...(primeiraPronta && brutos ? [{ rotulo: 'Marcar como triado', icone: '✓', onClick: () => setJanela('triado') }] : []),
-            ...trabalho.map((c, k) => ({ rotulo: `${t('Mover para')} “${c.nome}”`, icone: '→', separar: k === 0 && !!primeiraPronta && brutos, onClick: () => { const ids = selecionados.filter((l) => l.fase !== c.id && l.fase !== COLUNA_VENDIDO).map((l) => l.id); if (ids.length) mover(ids, c.id) } })),
-          ]} />
-          <Botao variante="leve" className="ml-auto" onClick={() => (limparSel(), setSelecionando(false))}>{t('Limpar')}</Botao>
-        </div>
-      )}
+      {/* PAINEL DA SELEÇÃO (padrão): o que foi marcado — cor, código, peso e compra de cada pacote — e as opções explicadas */}
+      {sel.size > 0 && (() => {
+        const varios = selecionados.length > 1
+        const temVendido = selecionados.some((l) => l.fase === COLUNA_VENDIDO)
+        const compras = [...new Map(selecionados.flatMap((l) => l.compras).map((c) => [c.id, c])).values()]
+        const gSel = selecionados.reduce((s, l) => s + l.saldo, 0)
+        const custoKg = gSel && selecionados.every((l) => l.custo !== undefined) ? Math.round((selecionados.reduce((s, l) => s + (l.custo ?? 0), 0) * 1000) / gSel) : undefined
+        return (
+          <PainelSelecao
+            itens={selecionados.map((l) => ({ id: l.id, codigo: l.codigo, peso: l.saldo, detalhe: [l.compras[0]?.codigo, l.compras[0]?.fornecedor].filter(Boolean).join(' · ') }))}
+            fatos={[...(compras.length ? [{ icone: '🛒', texto: t(compras.length === 1 ? 'de 1 compra' : 'de {n} compras', { n: compras.length }) }] : []), ...(custoKg !== undefined ? [{ icone: '💵', texto: `${t('custo médio')} ${formatar(custoKg, moedaPadrao())}/kg` }] : [])]}
+            aviso={varios && compras.length > 1 ? `🧬 ${t('Misturando compras: cada grama guarda de qual compra veio (aparece no pacote novo e na venda).')}` : undefined}
+            ocupado={ocupado}
+            onTirar={(id) => marcar(id, false)}
+            onLimpar={() => (limparSel(), setSelecionando(false))}
+            opcoes={[
+              { id: 'separar', icone: '✂️', principal: true, onClick: () => ir('separar', { ids: selecionados.map((l) => l.id).join(','), volta: 'triagem' }),
+                titulo: varios ? 'Juntar e separar' : 'Separar',
+                legenda: varios ? 'Tudo numa separação só: você diz as partes por medida.' : 'Diga as partes por medida; o que sobra é perda.',
+                ajuda: varios ? DICA_JUNTAR : DICA_SEPARAR, desligado: temVendido ? 'Tem pacote já vendido na seleção.' : undefined },
+              { id: 'juntar', icone: '🔗', onClick: () => setJanela('unificar'),
+                titulo: 'Só juntar', legenda: 'Vira um pacote só agora, com o peso somado; separa depois.',
+                ajuda: 'Junta sem separar: nasce um pacote novo com o peso de todos. Ex.: 1,2 kg + 3 kg → um pacote de 4,2 kg. Cada grama continua sabendo de qual compra veio.',
+                desligado: !varios ? 'Marque 2 ou mais pacotes para juntar.' : temVendido ? 'Tem pacote já vendido na seleção.' : undefined },
+              { id: 'etiquetas', icone: '🏷', onClick: () => ir('etiquetas', { f: 'todas', sel: [...sel].join(',') }),
+                titulo: 'Etiquetas', legenda: 'Imprimir (ou reimprimir) as etiquetas destes pacotes.',
+                ajuda: 'Abre a tela Etiquetas com estes pacotes já marcados. Ex.: 2 pacotes sem etiqueta → imprime as 2 de uma vez.' },
+            ]}
+            ajudaMais="Mudam só a ETAPA dos pacotes no quadro da triagem (não dividem nem mudam o peso). Ex.: foi lavar → Mover para “Lavando”; já veio separado → Marcar como triado."
+            mais={[
+              ...(primeiraPronta && brutos ? [{ rotulo: 'Marcar como triado', icone: '✓', descricao: `${t('Vão para')} “${primeiraPronta.nome}” ${t('sem dividir: ficam prontos para vender.')}`, onClick: () => setJanela('triado') }] : []),
+              ...trabalho.map((c, k) => ({ rotulo: `${t('Mover para')} “${c.nome}”`, icone: '→', descricao: c.pronto ? t('Conta como pronto para vender. O peso não muda.') : t('Só muda a etapa no quadro (ex.: foi lavar). O peso não muda.'), separar: k === 0 && !!primeiraPronta && brutos, onClick: () => { const ids = selecionados.filter((l) => l.fase !== c.id && l.fase !== COLUNA_VENDIDO).map((l) => l.id); if (ids.length) mover(ids, c.id) } })),
+            ]}
+          />
+        )
+      })()}
 
       {janela === 'unificar' && <Unificar lotes={selecionados} campos={campos} onFechar={() => setJanela(undefined)} onFeito={limparSel} />}
       {janela === 'triado' && primeiraPronta && (
@@ -527,14 +550,14 @@ function ProntoParaVender({ lotes, totalLotes, busca, onBusca, onKeyDown, total,
         />
       )}
       {todosFiltrados.length > 0 && (
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
-          {semEtiqueta.length ? (
-            <>
-              <button type="button" aria-pressed={!!soSem} onClick={() => setSoSem(soSem ? '' : '1')} className={cx('inline-flex min-h-10 items-center rounded-full px-3 font-semibold text-[var(--alerta)]', soSem ? 'bg-[color-mix(in_srgb,var(--alerta)_28%,transparent)] ring-2 ring-[var(--alerta)]' : 'bg-[color-mix(in_srgb,var(--alerta)_16%,transparent)]')}>🏷 {t('{n} sem etiqueta', { n: semEtiqueta.length })}</button>
-              <Botao variante="secundario" onClick={() => setImprimir(semEtiqueta.map((l) => l.id))}>🖨 {t('Imprimir {n}', { n: semEtiqueta.length })}</Botao>
-            </>
-          ) : <span className="font-semibold text-[var(--bom)]">✓ {t('Todos com etiqueta')}</span>}
-        </div>
+        // ETIQUETAS dos prontos numa faixa que se explica: o que falta · ver só eles · imprimir todos de uma vez
+        semEtiqueta.length ? (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--alerta)]/40 bg-[var(--alerta)]/10 px-3 py-2 text-sm">
+            <span className="min-w-0 flex-1 font-semibold text-[var(--alerta)]">🏷 {t(semEtiqueta.length === 1 ? '1 pacote pronto está sem etiqueta' : '{n} pacotes prontos estão sem etiqueta', { n: semEtiqueta.length })}</span>
+            <Botao variante="leve" aria-pressed={!!soSem} onClick={() => setSoSem(soSem ? '' : '1')}>{t(soSem ? 'Ver todos' : 'Ver só eles')}</Botao>
+            <Botao onClick={() => setImprimir(semEtiqueta.map((l) => l.id))}>🖨 {t(semEtiqueta.length === 1 ? 'Imprimir a etiqueta' : 'Imprimir as {n}', { n: semEtiqueta.length })}</Botao>
+          </div>
+        ) : <p className="mb-3 rounded-xl bg-[var(--bom)]/10 px-3 py-2 text-sm font-semibold text-[var(--bom)]">✓ {t('Todos com etiqueta')}</p>
       )}
       {imprimir && <ImprimirEtiquetas ids={imprimir} onImpresso={() => setSoSem('')} onFechar={() => setImprimir(undefined)} />}
       {semPreco > 0 && <p className="mb-2 rounded-xl bg-[var(--alerta)]/10 p-2 text-sm font-semibold text-[var(--alerta)]">⚠️ {t('{n} lote(s) triado(s) sem preço na tabela', { n: semPreco })}</p>}
@@ -542,13 +565,7 @@ function ProntoParaVender({ lotes, totalLotes, busca, onBusca, onKeyDown, total,
         // tabela por grupo: Medida | Lotes | Peso | Valor | ⋯ (cabeçalho em cima, total embaixo); tocar na linha abre os lotes
         <div className="overflow-hidden rounded-xl border border-[var(--borda)]">
           {filtro.f.agrupar !== 'nenhum' && (
-            <div aria-hidden className={cx(GRADE_PRONTOS, 'bg-[var(--fundo)] px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]')}>
-              <span className="truncate pl-3.5 sm:pl-5">{t(NOME_GRUPO[filtro.f.agrupar] ?? 'Grupo')}</span>
-              <span className="hidden text-right sm:block">{t('Lotes')}</span>
-              <span className="text-right">{t('Peso')}</span>
-              <span className="text-right">{t('Valor')}</span>
-              <span aria-hidden />
-            </div>
+            <p className="bg-[var(--fundo)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('Por {g}', { g: t(NOME_GRUPO[filtro.f.agrupar] ?? 'Grupo').toLowerCase() })} · {t('toque para ver os lotes')}</p>
           )}
           {ordem.map(({ chave: med, rotulo, medida, lotes: ls }) => {
             const aberto = abertos.has(med)
@@ -558,14 +575,21 @@ function ProntoParaVender({ lotes, totalLotes, busca, onBusca, onKeyDown, total,
             const v = ls.reduce((s, l) => s + (l.preco?.valorPrincipal ?? 0), 0)
             return (
               <div key={med} className="border-t border-[var(--borda)] first:border-t-0">
-                {!semCabecalho && <div className={cx(GRADE_PRONTOS, 'num px-2 text-sm', aberto ? 'bg-[var(--marca-suave)]' : 'hover:bg-[var(--marca-suave)]')}>
-                  <button type="button" aria-expanded={aberto} onClick={() => alternar(med)} className="flex min-h-11 min-w-0 items-center gap-1 text-left sm:gap-2">
-                    <span aria-hidden className={cx('inline-block w-2.5 shrink-0 text-[var(--suave)] transition-transform', aberto && 'rotate-90')}>›</span>
-                    <span className="min-w-0"><b className="block truncate text-sm sm:text-base">{rotulo}</b><span className="block text-xs text-[var(--suave)] sm:hidden">{t('{n} lote(s)', { n: ls.length })}</span></span>
+                {!semCabecalho && <div className={cx('num flex items-center gap-2 px-2 py-2 sm:gap-3 sm:px-3', aberto ? 'bg-[var(--marca-suave)]' : 'hover:bg-[var(--marca-suave)]/50')}>
+                  <button type="button" aria-expanded={aberto} onClick={() => alternar(med)} className="flex min-h-14 min-w-0 flex-1 items-center gap-3 text-left">
+                    {/* a medida em destaque */}
+                    <span className="flex h-11 min-w-16 shrink-0 items-center justify-center rounded-xl bg-[var(--cartao)] px-2 text-base font-black shadow-sm ring-1 ring-[var(--borda)]">{rotulo}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                        <span className="text-sm text-[var(--suave)]"><b className="text-[var(--texto)]">{gramasTexto(g)}</b> · {t('{n} lote(s)', { n: ls.length })}</span>
+                        <b className="whitespace-nowrap text-base">{v ? formatar(v, m) : '—'}</b>
+                      </span>
+                      {/* quanto este grupo pesa no total do que está pronto */}
+                      <span aria-hidden className="mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-[var(--fundo)]"><span className="block h-full rounded-full bg-[var(--bom)]" style={{ width: `${Math.max(2, Math.round((g * 100) / Math.max(gFiltrado, 1)))}%` }} /></span>
+                    </span>
+                    <span className="hidden shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-[var(--borda)] bg-[var(--cartao)] px-2.5 py-1 text-xs font-semibold text-[var(--marca)] sm:inline-flex">{t(aberto ? 'Esconder' : 'Ver lotes')} <span aria-hidden className={cx('transition-transform', aberto && 'rotate-180')}>▾</span></span>
+                    <span aria-hidden className={cx('shrink-0 text-[var(--suave)] transition-transform sm:hidden', aberto && 'rotate-90')}>›</span>
                   </button>
-                  <span className="hidden text-right sm:block">{ls.length}</span>
-                  <span className="whitespace-nowrap text-right">{gramasTexto(g)}</span>
-                  <b className="whitespace-nowrap text-right">{v ? formatar(v, m) : '—'}</b>
                   <MenuAcoes acoes={[
                     { rotulo: aberto ? 'Esconder os lotes' : 'Mostrar os lotes', icone: aberto ? '▴' : '▾', onClick: () => alternar(med) },
                     ...(medida ? [
@@ -947,21 +971,40 @@ function LinhaTriagem({ x, aberta, t, ir, onAlternar, onImprimir }: { x: Triagem
   return (
     // cada triagem é um CARTÃO próprio (espaço entre um e outro): cabeçalho, 3 números e, aberto, seções com título
     <li className={cx('overflow-hidden rounded-2xl border bg-[var(--cartao)] shadow-sm', aberta ? 'border-[var(--marca)]' : 'border-[var(--borda)]')}>
-      <div {...clicavel(onAlternar)} aria-expanded={aberta} className="cursor-pointer px-4 py-3 outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
-        <div className="flex min-w-0 items-center gap-2">
-          <span aria-hidden className={cx('inline-block w-3 shrink-0 text-[var(--suave)] transition-transform', aberta && 'rotate-90')}>›</span>
-          <b className="font-mono text-base">{x.codigo}</b>
-          <span className="min-w-0 flex-1 truncate text-right text-xs text-[var(--suave)]">{dataBR(x.em)}{x.por ? ` · ${x.por}` : ''}</span>
+      <div {...clicavel(onAlternar)} aria-expanded={aberta} className="cursor-pointer px-4 py-3.5 outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
+        {/* CABEÇALHO: ícone · código e quando · de quem veio e quem fez · ›  */}
+        <div className="flex min-w-0 items-center gap-3">
+          <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,var(--marca),color-mix(in_srgb,var(--marca)_70%,#ec4899))] text-lg text-white shadow-sm">✂️</span>
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-baseline gap-2">
+              <b className="font-mono text-base">{x.codigo}</b>
+              <span className="num shrink-0 text-xs text-[var(--suave)]">{dataBR(x.em)}</span>
+            </span>
+            <span className="block truncate text-xs text-[var(--suave)]">{[fornecedores.join(', '), x.por && `${t('por')} ${x.por}`].filter(Boolean).join(' · ') || '—'}</span>
+          </span>
+          <span aria-hidden className={cx('shrink-0 text-lg text-[var(--suave)] transition-transform', aberta && 'rotate-90')}>›</span>
         </div>
-        <div className="num mt-2 grid grid-cols-3 gap-1.5 text-center">
-          <NumeroPequeno rotulo="Entrou" valor={gramasTexto(x.pesoEntrada)} />
-          <NumeroPequeno rotulo="Saiu" valor={gramasTexto(x.pesoSaida)} />
-          <NumeroPequeno rotulo="Perda" valor={fmt(x.perdaPct, 'percentual')} cor={corPerda} sub={x.perda > 0 ? gramasTexto(x.perda) : undefined} />
+        {/* O FLUXO: entrou → saiu, a perda em destaque e a barra do que virou pacote × perda */}
+        <div className="mt-3 rounded-xl bg-[var(--fundo)] p-3">
+          <div className="num flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span><span className="block text-[11px] uppercase tracking-wide text-[var(--suave)]">{t('Entrou')}</span><b className="text-lg">{gramasTexto(x.pesoEntrada)}</b></span>
+            <span aria-hidden className="text-lg text-[var(--suave)]">→</span>
+            <span><span className="block text-[11px] uppercase tracking-wide text-[var(--suave)]">{t('Saiu')}</span><b className="text-lg text-[var(--bom)]">{gramasTexto(x.pesoSaida)}</b></span>
+            <span className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: `color-mix(in srgb, ${corPerda ?? 'var(--bom)'} 14%, transparent)`, color: corPerda ?? 'var(--bom)' }}>
+              {t('perda')} {fmt(x.perdaPct, 'percentual')}{x.perda > 0 && <span className="font-medium opacity-80">· {gramasTexto(x.perda)}</span>}
+            </span>
+          </div>
+          <div aria-hidden className="mt-2 flex h-2 w-full gap-px overflow-hidden rounded-full bg-[var(--cartao)]">
+            <span style={{ flexGrow: Math.max(x.pesoSaida, 0), flexBasis: 0, background: 'var(--bom)' }} />
+            {x.perda > 0 && <span style={{ flexGrow: x.perda, flexBasis: 0, minWidth: 3, background: corPerda ?? 'var(--alerta)' }} />}
+          </div>
         </div>
-        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-          <span className="text-[var(--suave)]">{t('{n} pacote(s)', { n: x.saidas.length })}</span>
-          {x.saidas.length > 0 && <span className={cx('font-semibold', faltam.length ? 'text-[var(--alerta)]' : 'text-[var(--bom)]')}>{faltam.length ? '🏷' : '✓'} {t('{c} de {n} com etiqueta', { c: com, n: x.saidas.length })}</span>}
-          {fornecedores.length > 0 && <span className="min-w-0 truncate text-[var(--suave)]">· {fornecedores.join(', ')}</span>}
+        {/* O QUE SAIU: os pacotes (códigos) e a situação das etiquetas */}
+        <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-1.5 text-xs">
+          <span className="font-semibold text-[var(--suave)]">📦 {t('{n} pacote(s)', { n: x.saidas.length })}</span>
+          {x.saidas.slice(0, 4).map((s) => <span key={s.id} className="rounded-md bg-[var(--marca-suave)] px-1.5 py-0.5 font-mono font-bold text-[var(--marca)]">{s.codigo ?? '—'}</span>)}
+          {x.saidas.length > 4 && <span className="text-[var(--suave)]">+{x.saidas.length - 4}</span>}
+          {x.saidas.length > 0 && <span className={cx('ml-auto rounded-full px-2 py-0.5 font-semibold', faltam.length ? 'bg-[var(--alerta)]/12 text-[var(--alerta)]' : 'bg-[var(--bom)]/12 text-[var(--bom)]')}>{faltam.length ? '🏷' : '✓'} {t('{c} de {n} com etiqueta', { c: com, n: x.saidas.length })}</span>}
         </div>
       </div>
       {faltam.length > 0 && (
