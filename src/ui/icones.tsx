@@ -16,6 +16,7 @@ const CAMINHOS: Record<string, string> = {
   emprestimos: 'M12 2v20 M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
   adiantamentos: 'M2 12h6l3-3h4l2 2-3 2H11 M2 18h4l5 2 9-5-2-2-5 2 M14 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
   relatorios: 'M4 20V10m6 10V4m6 16v-7m6 7H2',
+  livro: 'M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z M4 19a2 2 0 0 1 2-2h13 M8 7h7M8 11h5',
   novidades: 'M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z',
   config: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   mais: 'M4 6h16M4 12h16M4 18h16',
@@ -23,6 +24,9 @@ const CAMINHOS: Record<string, string> = {
   expandir: 'M9 6l6 6-6 6',
   sair: 'M15 3h4a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-4 M10 17l5-5-5-5 M15 12H3',
 }
+
+/** tem um desenho próprio (sem cair no do painel)? */
+export const temIcone = (nome: string) => nome in CAMINHOS
 
 export function Icone({ nome, className = 'h-5 w-5' }: { nome: string; className?: string }) {
   return (

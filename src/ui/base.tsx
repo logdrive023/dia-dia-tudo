@@ -1,6 +1,8 @@
 // Peças de tela reaproveitadas em tudo: botões, cartões, campos, janelas, "ⓘ" com exemplo e números formatados.
 
 import { createPortal } from 'react-dom'
+import { PAI } from '../app/rotas'
+import { Icone, temIcone } from './icones'
 import { type ReactNode, useEffect, useId, useState, useLayoutEffect, useRef } from 'react'
 import { formatar, lerValor, moeda as moedaDe } from '../core/domain/dinheiro'
 import type { Cartao as CartaoDados, Formato } from '../core/modulos'
@@ -338,16 +340,37 @@ export function ErroTela({ texto, onVoltar }: { texto: string; onVoltar?(): void
  *   `principal`; secundárias = AcaoIcone com dica ou Botao secundário). No celular ficam SEMPRE na linha de baixo do
  *   título (à esquerda); do tablet para cima, SEMPRE à direita — nunca depende do tamanho do texto;
  * - 16 px abaixo do cabeçalho, sempre. A trilha (← Origem › Tela) fica ACIMA, fora do cabeçalho.
+ * VISUAL: tudo num CARTÃO (borda, sombra leve, cantos 16 px) com um brilho suave da cor da marca à esquerda, o ÍCONE
+ * do módulo (o mesmo do menu; vem da tela atual, ninguém precisa passar) num quadrado com degradê. `icone` troca o
+ * ícone quando a tela não é um módulo do menu.
  * (A ficha de UMA coisa — pacote, pedido, viagem — usa o CabecalhoFicha, que tem código, situação e valor.)
  */
-export function Titulo({ children, acao, subtitulo }: { children: ReactNode; acao?: ReactNode; subtitulo?: ReactNode }) {
+export function Titulo({ children, acao, subtitulo, icone }: { children: ReactNode; acao?: ReactNode; subtitulo?: ReactNode; icone?: string }) {
+  const { nav } = useApp()
+  // o módulo da tela (novaCompra → comprar, vendas → vender, configSecao → config…): o ícone é o do menu
+  let modulo = nav.tela
+  for (let i = 0; i < 3 && !temIcone(modulo) && PAI[modulo]; i++) modulo = PAI[modulo]
+  const nomeIcone = icone ?? (temIcone(modulo) ? modulo : undefined)
   return (
-    <header className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-      <div className="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
-        <h1 className="text-2xl font-bold leading-tight">{children}</h1>
-        {subtitulo && <p className="mt-1 text-sm leading-snug text-[var(--suave)]">{subtitulo}</p>}
+    <header className="relative mb-4 overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-4 py-4 shadow-[0_1px_2px_rgba(16,24,40,.04),0_4px_16px_-8px_rgba(16,24,40,.08)] sm:px-5">
+      {/* brilho da marca (decoração: não pega toque, não é lido) */}
+      <span aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_140%_at_0%_0%,color-mix(in_srgb,var(--marca)_9%,transparent)_0%,transparent_55%)]" />
+      <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,var(--marca),color-mix(in_srgb,var(--marca)_55%,#ec4899),transparent)]" />
+      <span aria-hidden className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[color-mix(in_srgb,var(--marca)_6%,transparent)] blur-2xl" />
+      <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+          {nomeIcone && (
+            <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,var(--marca),color-mix(in_srgb,var(--marca)_70%,#ec4899))] text-white shadow-[0_6px_14px_-6px_color-mix(in_srgb,var(--marca)_70%,transparent)] sm:h-12 sm:w-12">
+              <Icone nome={nomeIcone} className="h-6 w-6" />
+            </span>
+          )}
+          <div className="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
+            <h1 className="text-xl font-bold leading-tight tracking-tight sm:text-2xl">{children}</h1>
+            {subtitulo && <p className="mt-1 text-sm leading-snug text-[var(--suave)]">{subtitulo}</p>}
+          </div>
+        </div>
+        {acao && <div className="flex shrink-0 flex-wrap items-center gap-2 [&_button]:min-h-11">{acao}</div>}
       </div>
-      {acao && <div className="flex shrink-0 flex-wrap items-center gap-2 [&_button]:min-h-11">{acao}</div>}
     </header>
   )
 }
