@@ -3233,4 +3233,6 @@ export const ES: Record<string, string> = {
   'Vender cabelo (pistola ou QR)': 'Vender cabello (pistola o QR)',
   'Cabelo sem etiqueta (por medida)': 'Cabello sin etiqueta (por medida)',
   '+ Nova venda': '+ Nueva venta',
+  'Escolher os campos e o jeito do formulário de compra (vale para todos).': 'Elegir los campos y la forma del formulario de compra (vale para todos).',
+  'De quem, o que veio e os detalhes. Ao registrar, o cabelo já vai para a triagem.': 'De quién, qué llegó y los detalles. Al registrar, el cabello ya va a la selección.',
 }

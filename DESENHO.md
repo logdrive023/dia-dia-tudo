@@ -396,3 +396,21 @@ no aparelho; com a API vira `GET /v1/painel/indicadores` e o servidor calcula. T
 ### 10.8 Testes
 Cada indicador bate com um modelo independente; **clicar = somar** (a lista do detalhe soma o número do cartão);
 comparação de períodos e moedas com relógio fixo; telas em 320 px e 1440 px.
+
+## 11. Regras permanentes de tela (valem para toda tela nova)
+
+### 11.1 Cabeçalho de tela (PageHeader = `Titulo` em `src/ui/base.tsx`)
+
+Um só componente; a estrutura nunca muda entre telas, só o conteúdo (título, descrição, ações).
+
+- **Toda tela de módulo, lista ou formulário usa `Titulo`.** Nada de `<h1>` montado à mão. `Pagina` (formulários) já usa `Titulo` por dentro.
+- **Título**: só texto, sem emoji, 24 px negrito. **Descrição**: uma linha curta do para que serve a tela (opcional; sem ela o bloco mantém a mesma altura mínima).
+- **Ações**: todas com 44 px de altura. A principal é `Botao` cheio (ou `MenuAcoes principal="+ Nova …"` quando abre caminhos); as secundárias são `AcaoIcone` (ícone + nome + dica no hover/foco) ou `Botao` secundário.
+- **Posição das ações**: celular = sempre na linha de baixo do título; tablet/computador = sempre à direita. Nunca depende do tamanho do texto.
+- **Espaço**: 16 px abaixo do cabeçalho. A trilha (`Trilha`: ← Origem › Tela) fica acima, fora do cabeçalho.
+- **Ficha de UMA coisa** (pacote, pedido, viagem): `CabecalhoFicha` (nome · código + situação · detalhes · valor · ações), também único.
+
+### 11.2 Logo abaixo do cabeçalho
+
+- **Números grandes**: `GrupoNumeros` + `NumeroGrande` (com `carregando`; tocar filtra a lista quando há filtro correspondente).
+- **Pesquisa e filtros**: `FiltroLista` (busca · ⚙ Filtros → painel em grupos · resultado "N de M" + chips ✕ · "Limpar filtros"); listas longas com `Paginacao`; vazio de filtro com `VazioFiltro`.

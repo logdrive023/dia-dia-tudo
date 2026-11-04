@@ -76,7 +76,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
         aria-controls={aberto ? id : undefined}
         onClick={() => (aberto ? fechar() : abrir())}
         className={principal
-          ? 'inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--marca)] px-5 text-base font-semibold text-white shadow-sm hover:brightness-110'
+          ? 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--marca)] px-4 text-sm font-semibold text-white shadow-sm hover:brightness-110'
           : cx('inline-flex h-10 min-w-10 items-center justify-center gap-1 rounded-xl text-lg font-black leading-none hover:bg-[var(--marca-suave)] hover:text-[var(--marca)]', comRotulo ? 'border border-[var(--borda)] px-3 text-[var(--marca)]' : 'text-[var(--suave)]', aberto && 'bg-[var(--marca-suave)] text-[var(--marca)]')}
       >
         {principal ? <>{t(principal)} <span aria-hidden className={cx('text-xs transition-transform', aberto && 'rotate-180')}>▾</span></> : <>{comRotulo && <span className="hidden text-sm font-semibold sm:inline">{t('Mais')}</span>}⋯</>}

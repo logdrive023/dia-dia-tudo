@@ -6,6 +6,7 @@
 // pagamento e a entrega (quem fez fica registrado). A conferência de peso é um lançamento no lote, sem mudar o comprado.
 
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { AcaoIcone } from '../ui/acoesPagina'
 import { CabecalhoFicha } from '../ui/cabecalhoFicha'
 import { formatar, multiplicarFator, fatorValido, moeda as moedaDe } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
@@ -144,7 +145,7 @@ export function Comprar() {
   return (
     <div>
       {/* CABEÇALHO PADRÃO: nome da tela · para que serve · a ação principal à direita */}
-      <Titulo subtitulo={t('O cabelo vai para a Triagem assim que a compra é registrada; aqui ficam o pagamento e a entrega.')} acao={<Botao grande onClick={() => ir('novaCompra')}>+ {t('Nova compra')}</Botao>}>
+      <Titulo subtitulo={t('O cabelo vai para a Triagem assim que a compra é registrada; aqui ficam o pagamento e a entrega.')} acao={<Botao onClick={() => ir('novaCompra')}>+ {t('Nova compra')}</Botao>}>
         {t('Pedidos de compra')}
       </Titulo>
 
@@ -1011,11 +1012,10 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <Trilha className="mb-0" atual={t(base ? 'Repetir compra' : 'Nova compra')} />
-        {admin && <button type="button" onClick={() => ir('config', { aba: 'formCompra' })} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Personalizar')}</button>}
-      </div>
-      <h1 className="mb-3 text-2xl font-bold">{t(base ? 'Repetir compra' : 'Nova compra')}</h1>
+      <Trilha atual={t(base ? 'Repetir compra' : 'Nova compra')} />
+      <Titulo subtitulo={t('De quem, o que veio e os detalhes. Ao registrar, o cabelo já vai para a triagem.')} acao={admin && <AcaoIcone icone="⚙️" rotulo="Personalizar" dica="Escolher os campos e o jeito do formulário de compra (vale para todos)." lado="direita" onClick={() => ir('config', { aba: 'formCompra' })} />}>
+        {t(base ? 'Repetir compra' : 'Nova compra')}
+      </Titulo>
 
       {trocando && (
         <Confirmar

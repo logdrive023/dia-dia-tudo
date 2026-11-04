@@ -11,7 +11,7 @@ import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { TabelaPreco } from '../core/domain/tipos'
 import { chaveCelula } from '../core/services/precos'
-import { Abas, Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pilula, Selecao, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, diaCurto } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pilula, Selecao, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, diaCurto, Titulo } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela, useFiltrosTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 import { Trilha } from '../ui/trilha'
@@ -54,17 +54,16 @@ export function Precos() {
   const lista = [...(dados ?? [])].sort((a, b) => Number(!!a.categoria) - Number(!!b.categoria))
   return (
     <div>
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold">{t('Tabelas de preço')}</h1>
-          {/* as duas regras da tela, curtas; o detalhe com exemplos fica no ⓘ */}
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--suave)]">
-            <span className="inline-flex items-center">🧮 {t('Como calcula o preço')}<Info texto={AJUDA_CONTA} /></span>
-            <span className="inline-flex items-center">🕓 {t('Versões e comparação')}<Info texto={AJUDA_VERSOES} /></span>
-          </p>
-        </div>
-        {!!dados?.length && <Botao className="shrink-0" onClick={nova}>+ {t('Tabela')}</Botao>}
-      </div>
+      {/* CABEÇALHO PADRÃO: as duas regras da tela, curtas, na descrição; o detalhe com exemplos fica no ⓘ */}
+      <Titulo
+        subtitulo={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="inline-flex items-center">🧮 {t('Como calcula o preço')}<Info texto={AJUDA_CONTA} /></span>
+          <span className="inline-flex items-center">🕓 {t('Versões e comparação')}<Info texto={AJUDA_VERSOES} /></span>
+        </span>}
+        acao={!!dados?.length && <Botao onClick={nova}>+ {t('Tabela')}</Botao>}
+      >
+        {t('Tabelas de preço')}
+      </Titulo>
       {!dados ? <Carregando /> : !dados.length ? (
         <Vazio texto="Nenhuma tabela ainda.">
           <p className="mb-3">{t('Uma tabela diz o fator por medida e comprador: 60 cm × Helena = 16 → valor = gramas × 16.')}</p>

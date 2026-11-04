@@ -3,6 +3,7 @@
 // serviço: unidade, cliente, o que vai fazer, quem atende, agora ou agendar.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Trilha } from '../ui/trilha'
 import { MenuAcoes, type Acao } from '../ui/menuAcoes'
 import { ListaVendas } from './ListaVendas'
 import { formatar, multiplicarFator, fatorValido } from '../core/domain/dinheiro'
@@ -10,7 +11,7 @@ import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { Id, Item, TabelaPreco } from '../core/domain/tipos'
 import { fatorDaTabela } from '../core/services/precos'
-import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, GramasInput, Selecao, ValorInput, Vazio, cx, gramasTexto, loc, moedaPadrao, ehToque } from '../ui/base'
+import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, GramasInput, Selecao, ValorInput, Vazio, cx, gramasTexto, loc, moedaPadrao, ehToque, Titulo } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { Anexos, EditorPagamentos, type PagamentoTela, SeletorPessoa, ValoresConvertidos, linkWhatsApp, useCotacoes, conv } from '../ui/compartilhados'
 import { useT } from '../ui/i18n'
@@ -238,10 +239,8 @@ function AssistenteVenda(p: {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-3 flex items-center gap-2">
-        <Botao variante="leve" onClick={passo === 'pagar' ? () => setPasso('itens') : p.onVoltar}>← {t('Voltar')}</Botao>
-        <h1 className="text-xl font-bold">{p.titulo}</h1>
-      </div>
+      <Trilha atual={p.titulo} onVoltar={passo === 'pagar' ? () => setPasso('itens') : p.onVoltar} rotuloVoltar={passo === 'pagar' ? 'Itens' : 'Vender'} />
+      <Titulo>{p.titulo}</Titulo>
       <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
         <div className="space-y-4">
           {passo === 'itens' ? (

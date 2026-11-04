@@ -25,7 +25,7 @@ export function Novidades() {
   )
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Titulo subtitulo={t('O que mudou no sistema, em palavras simples. Toque num item para ver onde mudou.')}>✨ {t('Novidades')}</Titulo>
+      <Titulo subtitulo={t('O que mudou no sistema, em palavras simples. Toque num item para ver onde mudou.')}>{t('Novidades')}</Titulo>
       <div className="space-y-2">
         <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar mudança" />
         <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">

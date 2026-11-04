@@ -329,18 +329,25 @@ export function ErroTela({ texto, onVoltar }: { texto: string; onVoltar?(): void
 }
 
 /**
- * CABEÇALHO DE TELA (o mesmo em todo módulo): título (o nome da tela) · uma linha do para que serve (opcional) · as
- * ações à direita, na mesma linha do título (ação principal = Botao cheio; secundárias = AcaoIcone com dica).
- * No celular as ações ficam ao lado do título enquanto couberem; senão descem para a linha de baixo.
+ * CABEÇALHO DE TELA (PageHeader) — O ÚNICO do sistema. Regra permanente: toda tela de módulo/lista/formulário usa este;
+ * nada de <h1> montado à mão. A estrutura é fixa e só o CONTEÚDO muda:
+ *   [ Título (texto, sem emoji)            ]  [ ações ]
+ *   [ uma linha do para que serve (opcional)]
+ * - título: 24 px, negrito; descrição: 14 px cinza, logo abaixo (sem descrição o bloco mantém a mesma altura mínima);
+ * - ações: à direita, alinhadas ao centro do bloco, TODAS com 44 px de altura (principal = Botao cheio / MenuAcoes
+ *   `principal`; secundárias = AcaoIcone com dica ou Botao secundário). No celular ficam SEMPRE na linha de baixo do
+ *   título (à esquerda); do tablet para cima, SEMPRE à direita — nunca depende do tamanho do texto;
+ * - 16 px abaixo do cabeçalho, sempre. A trilha (← Origem › Tela) fica ACIMA, fora do cabeçalho.
+ * (A ficha de UMA coisa — pacote, pedido, viagem — usa o CabecalhoFicha, que tem código, situação e valor.)
  */
 export function Titulo({ children, acao, subtitulo }: { children: ReactNode; acao?: ReactNode; subtitulo?: ReactNode }) {
   return (
-    <header className="mb-4 flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
-      <div className="min-w-0 flex-1 basis-40">
+    <header className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      <div className="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
         <h1 className="text-2xl font-bold leading-tight">{children}</h1>
-        {subtitulo && <p className="mt-0.5 text-sm text-[var(--suave)]">{subtitulo}</p>}
+        {subtitulo && <p className="mt-1 text-sm leading-snug text-[var(--suave)]">{subtitulo}</p>}
       </div>
-      {acao && <div className="flex shrink-0 flex-wrap items-center gap-2">{acao}</div>}
+      {acao && <div className="flex shrink-0 flex-wrap items-center gap-2 [&_button]:min-h-11">{acao}</div>}
     </header>
   )
 }
@@ -548,9 +555,8 @@ export function Pagina({ titulo, subtitulo, onVoltar, voltarRotulo, trilha, chil
   return (
     <div className="mx-auto max-w-4xl">
       <Trilha atual={trilha ?? (typeof titulo === 'string' ? titulo : undefined)} onVoltar={proprio ? onVoltar : undefined} rotuloVoltar={proprio ? voltarRotulo : undefined} />
-      <h1 className="text-2xl font-bold">{titulo}</h1>
-      {subtitulo && <p className="mb-4 text-sm text-[var(--suave)]">{subtitulo}</p>}
-      <div className={cx(!subtitulo && 'mt-4', 'pb-4')}>{children}</div>
+      <Titulo subtitulo={subtitulo}>{titulo}</Titulo>
+      <div className="pb-4">{children}</div>
       {/* barra fixa no fim do conteúdo (no fluxo da página: o último campo nunca fica escondido embaixo dela) */}
       {rodape && <div className="sticky bottom-20 z-20 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-2 shadow-lg sm:p-3 md:bottom-4">{rodape}</div>}
     </div>

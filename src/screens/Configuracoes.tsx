@@ -173,7 +173,7 @@ function Secao({ s }: { s: SecaoConfig }) {
         <p className="hidden text-xs font-medium text-[var(--suave)] lg:block">
           <span aria-hidden>{g.icone} </span>{t(g.nome)} <span aria-hidden>›</span> {t(s.nome)}
         </p>
-        <Titulo subtitulo={t(s.descricao)}><span className="flex items-center gap-2"><span aria-hidden>{s.icone}</span>{t(s.nome)}</span></Titulo>
+        <Titulo subtitulo={t(s.descricao)}>{t(s.nome)}</Titulo>
         <C key={s.id} />
       </div>
     </div>

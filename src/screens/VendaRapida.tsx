@@ -5,12 +5,13 @@
 // Celular: cartões + barra fixa embaixo; tablet: lista à esquerda e total à direita; desktop: tabela larga.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Trilha } from '../ui/trilha'
 import { type Cotacao, type TabelaCotacoes, formatar, moeda as moedaDe, multiplicarFator, valorDeUm } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id, TabelaPreco } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { fatorDaTabela } from '../core/services/precos'
-import { Botao, Campo, Entrada, Escolha, Info, Janela, Selecao, ValorInput, cx, gramasTexto, loc, moedaPadrao, ehToque } from '../ui/base'
+import { Botao, Campo, Entrada, Escolha, Info, Janela, Selecao, ValorInput, cx, gramasTexto, loc, moedaPadrao, ehToque, Titulo } from '../ui/base'
 import { SeloReserva, reservado } from '../ui/reserva'
 import { useApp, useAvisoSaida, useComando, useConsulta } from '../ui/contexto'
 import { EditorPagamentos, type PagamentoTela, SeletorPessoa, conv, cotacaoDigitada, cotacaoTexto, lerCotacaoTexto, linkWhatsApp, textoCotacaoPagamento, useCotacoes } from '../ui/compartilhados'
@@ -689,12 +690,9 @@ export function VendaRapida() {
 
   return (
     <div ref={raiz} className="mx-auto max-w-7xl">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Botao variante="leve" onClick={() => ir('vender')}>← {t('Vender')}</Botao>
-        <h1 className="text-xl font-bold">⚡ {t('Modo caixa')}</h1>
-        {/* atalhos de teclado/pistola: só no computador (no celular é ruído) */}
-        <span className="hidden text-sm text-[var(--suave)] md:inline">{t('Enter vazio = fechar · Esc = tirar o último')}</span>
-      </div>
+      <Trilha atual={t('Modo caixa')} onVoltar={() => ir('vender')} rotuloVoltar="Vender" />
+      {/* atalhos de teclado/pistola na descrição: só no computador (no celular é ruído) */}
+      <Titulo subtitulo={<><span className="md:hidden">{t('Passe a pistola ou leia o QR')}</span><span className="hidden md:inline">{t('Enter vazio = fechar · Esc = tirar o último')}</span></>}>{t('Modo caixa')}</Titulo>
 
       {feita && (
         <div role="status" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[var(--bom)] bg-[var(--bom)]/10 p-3">
