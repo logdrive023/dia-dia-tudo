@@ -328,15 +328,20 @@ export function ErroTela({ texto, onVoltar }: { texto: string; onVoltar?(): void
   )
 }
 
+/**
+ * CABEÇALHO DE TELA (o mesmo em todo módulo): título (o nome da tela) · uma linha do para que serve (opcional) · as
+ * ações à direita, na mesma linha do título (ação principal = Botao cheio; secundárias = AcaoIcone com dica).
+ * No celular as ações ficam ao lado do título enquanto couberem; senão descem para a linha de baixo.
+ */
 export function Titulo({ children, acao, subtitulo }: { children: ReactNode; acao?: ReactNode; subtitulo?: ReactNode }) {
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-      <div>
-        <h1 className="text-2xl font-bold">{children}</h1>
-        {subtitulo && <p className="text-sm text-[var(--suave)]">{subtitulo}</p>}
+    <header className="mb-4 flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+      <div className="min-w-0 flex-1 basis-40">
+        <h1 className="text-2xl font-bold leading-tight">{children}</h1>
+        {subtitulo && <p className="mt-0.5 text-sm text-[var(--suave)]">{subtitulo}</p>}
       </div>
-      {acao}
-    </div>
+      {acao && <div className="flex shrink-0 flex-wrap items-center gap-2">{acao}</div>}
+    </header>
   )
 }
 

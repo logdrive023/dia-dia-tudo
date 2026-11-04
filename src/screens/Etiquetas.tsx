@@ -10,14 +10,14 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { passaEtiqueta } from '../core/services/estoque'
-import { Botao, Campo, Carregando, Entrada, Info, Pilula, Selecao, Titulo, Vazio, cx, fmt, diaMes } from '../ui/base'
+import { Botao, Campo, Carregando, Entrada, Pilula, Selecao, Titulo, Vazio, cx, fmt, diaMes } from '../ui/base'
 import { useApp, useConsulta, useParamTela, useFiltrosTela } from '../ui/contexto'
 import { ImprimirEtiquetas, RefazerEtiqueta } from '../ui/etiquetas'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
 import { useT } from '../ui/i18n'
 import { useCamposModulo } from './Estoque'
-import { NumeroGrande, type Selo } from '../ui/numeroGrande'
+import { NumeroGrande, type Selo, GrupoNumeros } from '../ui/numeroGrande'
 import { CampoFaixa, GrupoFiltro, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 
 type Linha = ResultadoConsulta<'estoque'>[number]
@@ -123,12 +123,10 @@ export function Etiquetas() {
 
   return (
     <div className={cx(selecionados.length > 0 && 'pb-24')}>
-      <Titulo subtitulo={t('Imprima, reimprima e veja quais pacotes ainda não têm etiqueta.')}>🏷 {t('Etiquetas')}</Titulo>
+      <Titulo subtitulo={t('Imprima, reimprima e veja quais pacotes ainda não têm etiqueta.')}>{t('Etiquetas')}</Titulo>
 
       {/* três NÚMEROS GRANDES (mesmo padrão de Compras, Triagem e Estoque): tocar troca a lista; selos dizem o peso e o que pede atenção */}
-      <div className="mb-3">
-        <div className="mb-1 flex items-center justify-end"><Info texto={AJUDA_SEM} /></div>
-        <div role="tablist" aria-label={t('Etiqueta')} className="grid grid-cols-3 gap-2">
+      <GrupoNumeros colunas={3} celular={3} abas rotulo="Etiqueta">
           {CARTOES_ETIQUETA.map((c) => {
             const n = conta(c.f)
             const g = base.filter((i) => passaEtiqueta(i, c.f)).reduce((s, i) => s + i.saldo, 0)
@@ -140,10 +138,9 @@ export function Etiquetas() {
               const hoje = base.filter((i) => i.etiquetaImpressaEm?.slice(0, 10) === new Date().toISOString().slice(0, 10)).length
               if (hoje) selos.push({ texto: t('{n} hoje', { n: hoje }), tom: 'marca' })
             }
-            return <NumeroGrande key={c.f} role="tab" rotulo={c.rotulo} icone={c.icone} cor={c.cor} valor={dados ? String(n) : '…'} selos={dados ? selos : undefined} colorirValor={c.f === 'sem' && n > 0} ativo={filtro === c.f} onClick={() => setFiltro(c.f)} />
+            return <NumeroGrande key={c.f} role="tab" rotulo={c.rotulo} icone={c.icone} cor={c.cor} valor={String(n)} selos={selos} colorirValor={c.f === 'sem' && n > 0} ativo={filtro === c.f} onClick={() => setFiltro(c.f)} ajuda={c.f === 'sem' ? AJUDA_SEM : undefined} carregando={!dados} />
           })}
-        </div>
-      </div>
+      </GrupoNumeros>
 
       {/* FILTRO PADRÃO: busca + ⚙ Filtros · N → chips ✕ → painel em grupos com "Ver N resultados" */}
       <FiltroLista

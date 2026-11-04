@@ -3202,4 +3202,8 @@ export const ES: Record<string, string> = {
   '{n} de atenção': '{n} de atención',
   'Dinheiro e lugar': 'Dinero y lugar',
   'O que pede você, a operação e as vendas. Toque num número para ver de onde vem.': 'Lo que te necesita, la operación y las ventas. Toca un número para ver de dónde viene.',
+  'Separe o cabelo bruto por medida; o que fica pronto vai para o estoque.': 'Separa el cabello bruto por medida; lo que queda listo va al stock.',
+  'Buscar um pacote no quadro pelo código, compra ou fornecedor.': 'Buscar un paquete en el tablero por código, compra o proveedor.',
+  'Aponte a câmera para a etiqueta do pacote: o código vai para a busca e o pacote aparece.': 'Apunta la cámara a la etiqueta del paquete: el código va a la búsqueda y aparece el paquete.',
+  'Opções desta tela: qual preço mostrar, lista ou quadro e as colunas da triagem.': 'Opciones de esta pantalla: qué precio mostrar, lista o tablero y las columnas de la selección.',
 }

@@ -5,13 +5,14 @@
 // Seleção (juntar e separar, mover, etiquetas) só aparece ao tocar "Selecionar". O resto fica no "⋯" de cada linha.
 
 import { type DragEvent, type KeyboardEvent, type ReactNode, useCallback, useState } from 'react'
-import { NumeroGrande, NumeroPequeno } from '../ui/numeroGrande'
+import { AcaoIcone } from '../ui/acoesPagina'
+import { NumeroGrande, NumeroPequeno, GrupoNumeros, type Selo } from '../ui/numeroGrande'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { COLUNA_VENDIDO, type ColunaTriagem, camposUnificados } from '../core/services/triagem'
-import { Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, GramasInput, Info, Janela, Pilula, Selecao, cx, dataBR, fmt, gramasTexto, moedaPadrao, Vazio, TituloSecao, BotaoExpandir } from '../ui/base'
+import { Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, GramasInput, Info, Janela, Pilula, Selecao, cx, dataBR, fmt, gramasTexto, moedaPadrao, Vazio, TituloSecao, BotaoExpandir, Titulo } from '../ui/base'
 import { resumoCampos } from '../ui/camposDinamicos'
 import { clicavel } from '../ui/compartilhados'
 import { type Params, useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
@@ -240,24 +241,20 @@ export function Triagem() {
   const nomeFiltro = (f: string) => colDe(f)?.nome ?? { atrasados: 'Esperando há mais tempo', depois: 'Para depois', semana: 'Triado nesta semana', mes: 'Triado neste mês', pronto: 'Pronto para vender' }[f] ?? f
   const verPronto = () => irAba('prontos')
   const alternarQuadro = () => { setQuadroLembrado(visao !== 'quadro'); if (visaoP) setVisao('') }
-  const icone = 'flex h-11 w-11 items-center justify-center rounded-xl text-lg hover:bg-[var(--marca-suave)] aria-pressed:bg-[var(--marca-suave)]'
 
   return (
     <div className="space-y-5 pb-24">
       {/* acabou de separar: "✓ 3 pacotes novos · Imprimir etiquetas · Depois" */}
       <AvisoPacotesNovos />
       {/* topo: o que fazer agora */}
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {/* o resumo (quantos para separar, quanto pesa) fica nos cartões logo abaixo — sem repetir aqui */}
-          <h1 className="text-2xl font-bold">{t('Triagem')}</h1>
-        </div>
-        <div className="flex shrink-0 items-center">
-          {!buscaNaLista && <button type="button" className={icone} aria-pressed={buscaAberta || !!busca} aria-label={t('Buscar')} title={t('Buscar')} onClick={() => { if (buscaAberta && busca) setBusca(''); setBuscaAberta(!(buscaAberta || !!busca)) }}>🔍</button>}
-          <button type="button" className={icone} aria-label={t('Ler código')} title={t('Ler código')} onClick={() => setLendo(true)}>📷</button>
-          <button type="button" className={icone} aria-pressed={opcoes} aria-expanded={opcoes} aria-label={t('Opções')} title={t('Opções')} onClick={() => setOpcoes(!opcoes)}>⚙</button>
-        </div>
-      </header>
+      {/* CABEÇALHO PADRÃO: nome · para que serve · ações com nome e dica (📷 ler etiqueta, ⚙ opções da tela) */}
+      <Titulo subtitulo={t('Separe o cabelo bruto por medida; o que fica pronto vai para o estoque.')} acao={<>
+          {!buscaNaLista && <AcaoIcone icone="🔍" rotulo="Buscar" dica="Buscar um pacote no quadro pelo código, compra ou fornecedor." ativo={buscaAberta || !!busca} onClick={() => { if (buscaAberta && busca) setBusca(''); setBuscaAberta(!(buscaAberta || !!busca)) }} />}
+          <AcaoIcone comNome icone="📷" rotulo="Ler código" dica="Aponte a câmera para a etiqueta do pacote: o código vai para a busca e o pacote aparece." onClick={() => setLendo(true)} />
+          <AcaoIcone icone="⚙️" rotulo="Opções" dica="Opções desta tela: qual preço mostrar, lista ou quadro e as colunas da triagem." ativo={opcoes} lado="direita" onClick={() => setOpcoes(!opcoes)} />
+        </>}>
+        {t('Triagem')}
+      </Titulo>
 
       {/* OPÇÕES (⚙): cada uma diz o que muda na prática e para quem (só esta tela, este aparelho ou todo mundo) */}
       {opcoes && (
@@ -283,28 +280,17 @@ export function Triagem() {
         <Entrada type="search" autoFocus={buscaAberta && !busca} focoSempre className="w-full" aria-label={t('Buscar lote por código (atual ou antigo), compra, sigla ou fornecedor')} placeholder={t('Código, compra ou fornecedor')} value={busca} onChange={(e) => setBusca(e.target.value)} onKeyDown={pistola.onKeyDown} />
       )}
 
-      {/* abas como CARTÕES: ícone, número grande e os detalhes em SELOS coloridos (pacotes · parados · valor) */}
-      <div role="tablist" aria-label={t('Triagem')} className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      {/* abas = NÚMEROS GRANDES na fileira padrão (mesmo cartão de Compras, Estoque e Etiquetas): tocar troca a lista */}
+      <GrupoNumeros colunas={4} abas rotulo="Triagem" className="!mb-0 !mt-0">
         {([
           { id: 'separar', nome: 'Para separar', icone: '⏳', cor: paradosN ? 'var(--ruim)' : 'var(--alerta)', valor: separarTodos.length ? gramasTexto(gSeparar) : t('Tudo separado ✓'), selos: separarTodos.length ? [{ texto: t('{n} pacote(s)', { n: separarTodos.length }) }, ...(paradosN ? [{ texto: `⏰ ${t('{n} parado(s)', { n: paradosN })}`, tom: 'ruim' }] : [])] : [{ texto: t('nada esperando'), tom: 'bom' }] },
           { id: 'prontos', nome: 'Prontos', icone: '✅', cor: 'var(--bom)', valor: gramasTexto(tt.pronto), selos: [{ texto: t('{n} pacote(s)', { n: dados.lotes.filter(ehPronto).length }) }, ...(tt.prontoValor ? [{ texto: formatar(tt.prontoValor, moedaPadrao()), tom: 'bom' }] : [])] },
           { id: 'depois', nome: 'Para depois', icone: '❓', cor: '#a78bfa', valor: gramasTexto(tt.naoIdentificado.g), selos: [{ texto: t('{n} pacote(s)', { n: tt.naoIdentificado.n }), ...(tt.naoIdentificado.n ? { tom: 'alerta' } : {}) }] },
           { id: 'triagens', nome: 'Triagens feitas', icone: '✂️', cor: 'var(--marca)', valor: gramasTexto(tt.triadoSemana), selos: [{ texto: t('nesta semana'), tom: 'marca' }] },
         ] as { id: string; nome: string; icone: string; cor: string; valor: string; selos: { texto: string; tom?: string }[] }[]).map((a) => (
-          <button key={a.id} type="button" role="tab" aria-selected={abaReal === a.id} onClick={() => irAba(a.id)}
-            className={cx('relative min-w-0 overflow-hidden rounded-2xl border bg-[var(--cartao)] p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-4', abaReal === a.id ? 'border-[var(--marca)] ring-2 ring-[var(--marca-suave)]' : 'border-[var(--borda)]')}>
-            <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: a.cor }} />
-            <span className="flex items-center gap-2 text-xs font-semibold text-[var(--suave)]"><span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm" style={{ background: `color-mix(in srgb, ${a.cor} 15%, transparent)` }}>{a.icone}</span><span className="truncate">{t(a.nome)}</span></span>
-            <span className={cx('num mt-1.5 block truncate text-xl font-bold sm:text-2xl', abaReal === a.id && 'text-[var(--marca)]')}>{a.valor}</span>
-            <span className="mt-1.5 flex flex-wrap gap-1">
-              {a.selos.map((s, k) => (
-                <span key={k} className={cx('num inline-flex max-w-full items-center truncate rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                  s.tom === 'ruim' ? 'bg-[var(--ruim)]/15 text-[var(--ruim)]' : s.tom === 'bom' ? 'bg-[var(--bom)]/15 text-[var(--bom)]' : s.tom === 'alerta' ? 'bg-[var(--alerta)]/15 text-[var(--alerta)]' : s.tom === 'marca' ? 'bg-[var(--marca-suave)] text-[var(--marca)]' : 'bg-[var(--fundo)] text-[var(--suave)]')}>{s.texto}</span>
-              ))}
-            </span>
-          </button>
+          <NumeroGrande key={a.id} role="tab" rotulo={a.nome} icone={a.icone} cor={a.cor} valor={a.valor} selos={a.selos as Selo[]} ativo={abaReal === a.id} colorirValor={abaReal === a.id} onClick={() => irAba(a.id)} />
         ))}
-      </div>
+      </GrupoNumeros>
 
       {abaReal === 'triagens' ? (
         <ListaTriagens aberta={nav.params.t as string | undefined} />

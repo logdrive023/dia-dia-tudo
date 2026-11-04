@@ -14,7 +14,7 @@ import type { ModoCompra } from '../core/services/codigos'
 import { CAMPOS_FORM, type CampoFormId, FORM_COMPRA_PADRAO, type FormCompraConfig } from '../core/services/formCompra'
 import { fatorDaTabela } from '../core/services/precos'
 import { CATEGORIAS_CABELO } from '../modules/cabelo'
-import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, ehToque, ErroTela, TituloSecao } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, ehToque, ErroTela, TituloSecao, Titulo } from '../ui/base'
 import { useApp, useAvisoSaida, useParamTela, useComando, useConsulta, useFiltrosTela } from '../ui/contexto'
 import { EditorPagamentos, type PagamentoTela, SeletorPessoa, ValoresConvertidos, useCotacoes } from '../ui/compartilhados'
 import { LinhaCotacao, PesoInput, ValorMoedaInput, converterDigitado, cotacaoSistema, moedasDoCampo } from '../ui/valorMoeda'
@@ -29,7 +29,7 @@ import { BuscaPessoa } from '../ui/buscaPessoa'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
 import { useLargo } from '../ui/calendario'
-import { NumeroGrande, type Selo } from '../ui/numeroGrande'
+import { NumeroGrande, type Selo, GrupoNumeros } from '../ui/numeroGrande'
 import { Passo } from '../ui/passoAPasso'
 import { CampoFaixa, GrupoFiltro, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 
@@ -143,18 +143,15 @@ export function Comprar() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">{t('Pedidos de compra')}</h1>
-          <p className="text-sm text-[var(--suave)]">{t('O cabelo vai para a Triagem assim que a compra é registrada; aqui ficam o pagamento e a entrega.')}</p>
-        </div>
-        <Botao grande onClick={() => ir('novaCompra')}>+ {t('Nova compra')}</Botao>
-      </div>
+      {/* CABEÇALHO PADRÃO: nome da tela · para que serve · a ação principal à direita */}
+      <Titulo subtitulo={t('O cabelo vai para a Triagem assim que a compra é registrada; aqui ficam o pagamento e a entrega.')} acao={<Botao grande onClick={() => ir('novaCompra')}>+ {t('Nova compra')}</Botao>}>
+        {t('Pedidos de compra')}
+      </Titulo>
 
-      {/* BIG NUMBERS: ícone + número grande + detalhe; tocar filtra (o que está ligado fica destacado) */}
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        {resumo.map((r) => <NumeroGrande key={r.nome} rotulo={r.nome} icone={r.icone} cor={r.cor} valor={r.valor} selos={r.selos} colorirValor={r.tom} ativo={r.ativo} onClick={r.abrir} />)}
-      </div>
+      {/* NÚMEROS GRANDES (fileira padrão): tocar filtra a lista (o que está ligado fica destacado) */}
+      <GrupoNumeros colunas={4}>
+        {resumo.map((r) => <NumeroGrande key={r.nome} rotulo={r.nome} icone={r.icone} cor={r.cor} valor={r.valor} selos={r.selos} colorirValor={r.tom} ativo={r.ativo} onClick={r.abrir} carregando={!fila} />)}
+      </GrupoNumeros>
 
       {/* FILTRO PADRÃO: situação à vista (segmentos) + busca + ⚙ Filtros (o que falta, fornecedor, período) → chips ✕ */}
       <FiltroLista
