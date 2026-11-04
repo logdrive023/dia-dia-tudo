@@ -157,6 +157,8 @@ export function Triagem() {
         t,
         admin: true,
         separarParams: { volta: 'triagem' },
+        // o que já é o botão da linha (Separar) não se repete no ⋯
+        sem: acaoDe(l)?.rotulo === 'Separar' ? ['Separar'] : [],
         onTrocarCodigo: () => setTrocar(l),
         extras: [
           { rotulo: 'Tirar foto', icone: '📷', onClick: () => tirar(l.id), separar: true },

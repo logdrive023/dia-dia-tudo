@@ -330,7 +330,8 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   const [attrAbertos, setAttrAbertos] = useState<Set<Id>>(new Set())
   // PASSO A PASSO (como o Separar): 1 Fornecedor · 2 O que veio · 3 Detalhes; repetir compra já começa no 2
   const [passosAbertos, setPassosAbertos] = useState<Set<number>>(() => new Set([base?.pessoaId ? 2 : 1]))
-  const alternarPasso = (n: number) => setPassosAbertos((s) => { const x = new Set(s); if (x.has(n)) x.delete(n); else x.add(n); return x })
+  // um passo aberto por vez (abrir outro fecha o de antes); o Passo rola até o que abriu
+  const alternarPasso = (n: number) => setPassosAbertos((s) => (s.has(n) ? new Set([...s].filter((x) => x !== n)) : new Set([n])))
   const irPasso = (n: number) => setPassosAbertos(new Set([n]))
   // com várias linhas, só uma fica aberta (as outras numa linha: "2 · Bruto · 2 kg · Bs 3.000")
   const [linhaAberta, setLinhaAberta] = useState<Id>()

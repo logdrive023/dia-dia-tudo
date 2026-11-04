@@ -138,8 +138,11 @@ function Selo({ c, pontinho }: { c?: Contador; pontinho?: boolean }) {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { nav: navReal, ir, sessao, backend, trocarSessao } = useApp()
-  const nav = { ...navReal, tela: PAI[navReal.tela] ?? navReal.tela }
+  const { nav: navReal, ir, sessao, backend, trocarSessao, origem } = useApp()
+  // o menu acende o MESMO lugar que a trilha mostra: numa tela de detalhe/ação (separar, lote, pedido…) aberta a partir
+  // de uma lista do menu, acende essa lista (Separar vindo da Triagem → Triagem); aberta por link, a lista "pai" da área
+  const daOrigem = origem && !PAI[origem.tela] && MENU.some((m) => m.tela === origem.tela) ? origem.tela : undefined
+  const nav = { ...navReal, tela: PAI[navReal.tela] ? (daOrigem ?? PAI[navReal.tela]) : navReal.tela }
   const t = useT()
   const menu = useMenu()
   const { c: contadores } = useContadores()

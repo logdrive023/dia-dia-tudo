@@ -47,15 +47,17 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
       if (e.key === 'Escape') (e.stopPropagation(), fechar())
     }
     const sair = () => fechar(false)
+    // rolar DENTRO do menu (lista comprida) não fecha; rolar a página, sim (o menu ficaria solto no lugar errado)
+    const rolou = (e: Event) => { if (!menu.current?.contains(e.target as Node)) fechar(false) }
     document.addEventListener('pointerdown', fora, true)
     document.addEventListener('keydown', tecla, true)
     window.addEventListener('resize', sair)
-    window.addEventListener('scroll', sair, true)
+    window.addEventListener('scroll', rolou, true)
     return () => {
       document.removeEventListener('pointerdown', fora, true)
       document.removeEventListener('keydown', tecla, true)
       window.removeEventListener('resize', sair)
-      window.removeEventListener('scroll', sair, true)
+      window.removeEventListener('scroll', rolou, true)
     }
   }, [aberto])
   if (!acoes.length) return null

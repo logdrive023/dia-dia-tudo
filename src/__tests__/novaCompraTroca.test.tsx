@@ -44,6 +44,13 @@ const abrirPasso = (nome: string) => {
 }
 
 const obs = () => screen.getByLabelText('Observação') as HTMLTextAreaElement
+/** um passo aberto por vez: abre Detalhes (e a Observação, se ela foi fechada) para ler o campo */
+const verObs = async () => {
+  abrirPasso('Detalhes')
+  const mais = screen.queryByText('+ Observação')
+  if (mais) fireEvent.click(mais)
+  return (await screen.findByLabelText('Observação')) as HTMLTextAreaElement
+}
 
 describe('nova compra: trocar o fornecedor', () => {
   it('com algo preenchido pergunta; Continuar limpa, Voltar mantém', async () => {
@@ -57,17 +64,20 @@ describe('nova compra: trocar o fornecedor', () => {
     fireEvent.click(await screen.findByText('Trocar'))
     await escolher('Rosa')
     fireEvent.click(await screen.findByText('Continuar'))
-    await waitFor(() => expect(obs().value).toBe(''))
-    expect(screen.getByText('Rosa', { selector: 'b' })).toBeTruthy()
+    abrirPasso('Fornecedor')
+    expect(await screen.findByText('Rosa', { selector: 'b' })).toBeTruthy()
+    await waitFor(async () => expect((await verObs()).value).toBe(''))
     // trocar e desistir: volta a Rosa, com o que foi preenchido
-    fireEvent.change(obs(), { target: { value: 'outra obs' } })
-    fireEvent.click(screen.getByText('Trocar'))
+    fireEvent.change(await verObs(), { target: { value: 'outra obs' } })
+    abrirPasso('Fornecedor')
+    fireEvent.click(await screen.findByText('Trocar'))
     await escolher('Marta')
     // o "Voltar" da pergunta (a trilha da tela também tem um "Voltar")
     fireEvent.click(within(await screen.findByRole('dialog')).getByText('Voltar'))
     await waitFor(() => expect(screen.queryByText('Trocar o fornecedor?')).toBeNull())
-    expect(obs().value).toBe('outra obs')
     expect(screen.getByText('Rosa', { selector: 'b' })).toBeTruthy()
+    expect(screen.queryByText('Marta', { selector: 'b' })).toBeNull()
+    expect((await verObs()).value).toBe('outra obs')
     expect(screen.queryByText('Marta', { selector: 'b' })).toBeNull()
     // intermitente só com a suíte inteira (causa ainda não achada; anotado no CONTINUAR.md): até 2 novas tentativas
   }, { timeout: 30000, retry: 2 })

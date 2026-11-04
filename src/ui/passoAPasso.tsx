@@ -2,7 +2,7 @@
 // os campos e o "para que serve" (explicação + exemplo) fica no ⓘ ao lado do título; os fechados ficam numa linha com o resumo.
 // Número vira ✓ quando o passo está feito. Tocar no título abre/fecha; "Próximo →" fecha este e abre o seguinte.
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import { Info, cx } from './base'
 import { useT } from './i18n'
 
@@ -23,8 +23,16 @@ export function Passo({ n, de, titulo, resumo, ajuda, exemplo, aberto, feito, op
   children: ReactNode
 }) {
   const t = useT()
+  // ABRIU (tocou no título ou "Próximo →"): a tela rola até o começo deste passo, para mostrar o que abriu (na primeira
+  // vez não rola: a tela começa no topo)
+  const raiz = useRef<HTMLLIElement>(null)
+  const antes = useRef(aberto)
+  useEffect(() => {
+    if (aberto && !antes.current) requestAnimationFrame(() => raiz.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }))
+    antes.current = aberto
+  }, [aberto])
   return (
-    <li className={cx('overflow-hidden rounded-2xl border shadow-sm', falta ? 'border-[var(--ruim)]' : aberto ? 'border-[var(--marca)] bg-[var(--fundo)]' : 'border-[var(--borda)] bg-[var(--cartao)]')}>
+    <li ref={raiz} className={cx('scroll-mt-4 overflow-hidden rounded-2xl border shadow-sm', falta ? 'border-[var(--ruim)]' : aberto ? 'border-[var(--marca)] bg-[var(--fundo)]' : 'border-[var(--borda)] bg-[var(--cartao)]')}>
       <div className="flex min-h-14 items-center gap-1 pr-3">
         <button type="button" aria-expanded={aberto} onClick={onAlternar} className="flex min-h-14 min-w-0 flex-1 items-center gap-3 pl-3 text-left">
           <span aria-hidden className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black', feito ? 'bg-[var(--bom)] text-white' : aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--fundo)] text-[var(--suave)]')}>{feito ? '✓' : n}</span>
