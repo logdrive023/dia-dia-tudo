@@ -73,7 +73,21 @@ export interface LinhaCelular<T> {
   aberto?(l: T): ReactNode
   /** um selo a mais na 3ª linha, sempre à vista (ex.: a etiqueta do pacote) */
   marca?(l: T): ReactNode
+  /** à esquerda: a inicial de quem é (ou um ícone), num círculo colorido — reconhece a linha sem ler */
+  avatar?(l: T): { texto: string; cor?: string } | undefined
+  /** a faixa colorida na borda esquerda (a situação de relance): bom = verde, ruim = vermelho… */
+  tom?(l: T): TomLista | undefined
 }
+
+/** cor fixa por nome (a mesma pessoa tem sempre a mesma cor) */
+export function corDoNome(nome: string) {
+  const cores = ['#7c3aed', '#0ea5e9', '#16a34a', '#ea580c', '#db2777', '#0d9488', '#ca8a04', '#4f46e5']
+  let h = 0
+  for (const c of nome) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return cores[h % cores.length]
+}
+/** "Ana Paula" → "AP" · "Carla" → "C" */
+export const iniciais = (nome: string) => nome.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('')
 
 /** o código do registro, igual em toda lista */
 export function SeloCodigo({ codigo }: { codigo?: string }) {
@@ -154,10 +168,14 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
           const aberta = abertas.has(id)
           const mais = acoes?.(l) ?? []
           return (
-            <li key={id} className={cx(aberta && 'bg-[var(--marca-suave)]/40', marcada(l) && 'bg-[var(--marca-suave)]', apagada(l) && 'opacity-75')}>
+            <li key={id} style={celular.tom?.(l) ? { boxShadow: `inset 4px 0 0 ${COR_TOM[celular.tom(l)!]}` } : undefined} className={cx(aberta && 'bg-[var(--marca-suave)]/40', marcada(l) && 'bg-[var(--marca-suave)]', apagada(l) && 'opacity-75')}>
               <div className="flex items-start gap-2 px-4 py-3">
                 {selecao && <span className="flex h-6 shrink-0 items-center">{caixa(l)}</span>}
                 <button type="button" aria-expanded={aberta} onClick={() => alternar(id)} className="flex min-w-0 flex-1 items-start gap-3 text-left">
+                  {(() => {
+                    const av = celular.avatar?.(l)
+                    return av && <span aria-hidden className="mt-0.5 hidden h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white xs:flex" style={{ background: av.cor ?? 'var(--suave)' }}>{av.texto}</span>
+                  })()}
                   <span className="min-w-0 flex-1">
                     {/* 1. quem · valor */}
                     <span className="flex min-w-0 items-baseline gap-3">

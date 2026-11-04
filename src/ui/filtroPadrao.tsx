@@ -8,6 +8,7 @@ import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 
 import { Botao, Entrada, Vazio, cx } from './base'
 import { type Preset, calcularPeriodo } from './filtros'
 import { useT } from './i18n'
+import { useApp } from './contexto'
 
 export interface FiltroAtivo {
   /** chave(s) do endereço que o ✕ apaga, separadas por vírgula ("de,ate") */
@@ -288,5 +289,25 @@ export function CampoFaixa({ rotulo, children }: { rotulo: string; children: Rea
       <span className="mb-1 block text-sm font-semibold text-[var(--suave)]">{t(rotulo)}</span>
       <div className="grid grid-cols-2 gap-1">{children}</div>
     </div>
+  )
+}
+
+/**
+ * BAIXAR PLANILHA — o botão único de exportar uma lista (Vendas, Estoque…): sempre com o NOME à vista, também no
+ * celular ("📥 Baixar planilha"; só um ⬇ ninguém entende), e depois de baixar diz o que veio e como abrir.
+ * `quantos` + `unidade`: "22 venda(s)" no aviso e no title. O arquivo é CSV (abre no Excel e no Google Planilhas).
+ */
+export function BotaoExportar({ onExportar, quantos, unidade, rotulo = 'Baixar planilha' }: { onExportar(): void; quantos: number; unidade: string; rotulo?: string }) {
+  const t = useT()
+  const { avisar } = useApp()
+  const baixar = () => {
+    onExportar()
+    avisar(t('Planilha baixada: {n} {u}. Abra no Excel ou no Google Planilhas.', { n: quantos, u: t(unidade) }), 'ok')
+  }
+  return (
+    <button type="button" disabled={!quantos} onClick={baixar} title={t('Baixar uma planilha com as {n} {u} desta lista (como está filtrada)', { n: quantos, u: t(unidade) })}
+      className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 text-sm font-semibold text-[var(--marca)] shadow-sm hover:border-[var(--marca)] hover:bg-[var(--marca-suave)] disabled:opacity-40">
+      <span aria-hidden>📥</span>{t(rotulo)}
+    </button>
   )
 }

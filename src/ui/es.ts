@@ -3650,4 +3650,13 @@ export const ES: Record<string, string> = {
   'Gasto da viagem redividido': 'Gasto del viaje redividido',
   'Ligação de compras desfeita': 'Vínculo de compras deshecho',
   'Viagem apagada': 'Viaje borrado',
+  'Baixar planilha': 'Descargar planilla',
+  'Planilha baixada: {n} {u}. Abra no Excel ou no Google Planilhas.': 'Planilla descargada: {n} {u}. Ábrala en Excel o en Google Sheets.',
+  'Baixar uma planilha com as {n} {u} desta lista (como está filtrada)': 'Descargar una planilla con las {n} {u} de esta lista (como está filtrada)',
+  'selecionado(s)': 'seleccionado(s)',
+  'Cliente sem nome': 'Cliente sin nombre',
+  'Paga': 'Pagada',
+  'sem comprovante': 'sin comprobante',
+  'ontem': 'ayer',
+  'Escolher as colunas da tabela': 'Elegir las columnas de la tabla',
 }

@@ -5,12 +5,13 @@
 // que abre no lugar (celular) · Paginacao. A lista é a MESMA consulta `vendas` que forma os números do Painel.
 
 import { type ReactNode, useState } from 'react'
+import { dataLocal } from '../core/domain/datas'
 import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
-import { TabelaDados, SeloCodigo } from '../ui/tabelaDados'
+import { TabelaDados, SeloCodigo, corDoNome, iniciais } from '../ui/tabelaDados'
 import { formatar } from '../core/domain/dinheiro'
-import { Botao, Campo, Confirmar, Entrada, Pilula, Selecao, Titulo, Vazio, cx, dataBR, hora, moedaPadrao } from '../ui/base'
+import { Campo, Confirmar, Entrada, Pilula, Selecao, Titulo, Vazio, cx, dataBR, diaCurto, hora, moedaPadrao } from '../ui/base'
 import { useApp, useComando, useConsulta, useFiltrosTela } from '../ui/contexto'
-import { CampoFaixa, FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo } from '../ui/filtroPadrao'
+import { CampoFaixa, FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo, BotaoExportar } from '../ui/filtroPadrao'
 import { useT } from '../ui/i18n'
 import { type Acao } from '../ui/menuAcoes'
 import { GrupoNumeros, NumeroGrande } from '../ui/numeroGrande'
@@ -23,6 +24,13 @@ const ABAS = [{ id: '', nome: 'Concluídas' }, { id: 'pendencia', nome: 'Com pen
 const PENDENCIAS = [{ id: 'faltaReceber', nome: 'Falta receber' }, { id: 'semComprovante', nome: 'Sem comprovante' }]
 /** os filtros do endereço (para "Limpar"); a aba e a página ficam de fora */
 const CHAVES = ['busca', 'de', 'ate', 'pendencia', 'forma', 'moeda', 'usuarioId', 'profissionalId', 'pessoaId', 'moduloId', 'localId', 'viagem'] as const
+
+/** "hoje" · "ontem" · "02/11" (o dia de relance na linha do celular) */
+function diaRelativo(iso: string, t: (s: string) => string) {
+  const hoje = dataLocal()
+  const ontem = dataLocal(new Date(Date.now() - 86400000))
+  return iso.slice(0, 10) === hoje ? t('hoje') : iso.slice(0, 10) === ontem ? t('ontem') : diaCurto(iso)
+}
 
 export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?: ReactNode }) {
   const t = useT()
@@ -124,7 +132,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
         ativos={ativos} onTirar={(k) => (tirar(k), setP('pagina', ''))} onLimpar={limpar}
         resultados={carregando ? undefined : lista.length} total={carregando ? undefined : (aba === 'canceladas' ? canceladas!.length : aba === 'todas' ? concluidas!.length + canceladas!.length : concluidas!.length)} unidade="venda(s)"
         detalhe={!carregando && lista.length > 0 && formatar(lista.reduce((s, v) => s + v.valor, 0), moeda)}
-        ferramentas={<Botao variante="leve" className="px-3" disabled={!lista.length} onClick={exportar} aria-label={t('Exportar CSV')}>⬇<span className="hidden sm:inline"> CSV</span></Botao>}
+        ferramentas={<BotaoExportar onExportar={exportar} quantos={lista.length} unidade="venda(s)" />}
         painel={<>
           <GrupoFiltro titulo="Quando e o quê" icone="📅">
             <CampoFaixa rotulo="Data da venda">
@@ -203,16 +211,25 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
         ]}
         // LINHA PADRÃO do celular (a mesma do Comprar): cliente · valor / código · situação · o que falta / quando
         celular={{
-          titulo: (v) => v.cliente ?? t('Sem nome'),
+          titulo: (v) => v.cliente ?? t('Cliente sem nome'),
+          avatar: (v) => (v.cliente ? { texto: iniciais(v.cliente), cor: corDoNome(v.cliente) } : { texto: '🛒' }),
+          tom: (v) => (v.etapa === 'cancelado' ? 'suave' : v.pendencias.some((x) => x.id === 'faltaReceber') ? 'ruim' : 'bom'),
           valor: (v) => formatar(v.valor, moeda),
           // o que vendeu, numa linha (o 1º item + quantos mais) · quando · e só o que foge do normal (cancelada, pendência)
           resumo: (v) => `${v.linhas[0]?.descricao ?? '—'}${v.linhas.length > 1 ? ` + ${t('{n} item(ns)', { n: v.linhas.length - 1 })}` : ''}`,
-          valorSub: (v) => `${dataBR(v.data).slice(0, 5)} ${hora(v.criadoEm)}`,
+          valorSub: (v) => `${diaRelativo(v.data, t)} ${hora(v.criadoEm)}`,
           codigo: (v) => v.codigo,
-          situacao: (v) => (v.etapa === 'cancelado' ? { texto: 'Cancelada', tom: 'suave' } : undefined),
-          alerta: (v) => (v.etapa !== 'cancelado' && v.pendencias.length
-            ? { texto: v.pendencias.length === 1 ? t(v.pendencias[0].texto) : t('{n} pendências', { n: v.pendencias.length }), tom: v.pendencias.some((x) => x.nivel === 'urgente') ? 'ruim' : 'alerta' }
-            : undefined),
+          situacao: (v) => {
+            if (v.etapa === 'cancelado') return { texto: 'Cancelada', tom: 'suave' }
+            const falta = v.pendencias.find((x) => x.id === 'faltaReceber')
+            return falta ? { texto: falta.valor ? `${t('Falta receber')} ${formatar(falta.valor, moeda)}` : 'Falta receber', tom: 'ruim' } : { texto: 'Paga', tom: 'bom' }
+          },
+          // o resto do que falta, curto (o "falta receber" já está na situação)
+          alerta: (v) => {
+            const resto = v.etapa === 'cancelado' ? [] : v.pendencias.filter((x) => x.id !== 'faltaReceber')
+            if (!resto.length) return undefined
+            return { texto: resto.length === 1 ? (resto[0].id === 'semComprovante' ? t('sem comprovante') : t(resto[0].texto)) : t('{n} pendências', { n: resto.length }), tom: 'alerta' }
+          },
           marca: (v) => <SelosViagem vs={v.viagens} curto />,
           fatos: (v) => [formas(v) && `💳 ${formas(v)}`, v.feitoPor && `👤 ${v.feitoPor}`, `📅 ${dataBR(v.data)}`],
           aberto: (v) => <>
