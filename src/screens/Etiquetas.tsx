@@ -18,7 +18,7 @@ import { MiniaturaLote, marcadorLote } from '../ui/fotos'
 import { useT } from '../ui/i18n'
 import { useCamposModulo } from './Estoque'
 import { NumeroGrande, type Selo } from '../ui/numeroGrande'
-import { BarraFiltros, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
+import { CampoFaixa, GrupoFiltro, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 
 type Linha = ResultadoConsulta<'estoque'>[number]
 type Filtro = 'sem' | 'impressa' | 'todas'
@@ -46,7 +46,6 @@ export function Etiquetas() {
     if (selUrl) setSel(new Set(selUrl.split(',').filter(Boolean)))
   }, [selUrl])
   const [imprimir, setImprimir] = useState<Id[]>()
-  const [abrirFiltros, setAbrirFiltros] = useState(false)
   // 'Errou? Gerar nova' (aqui ou vindo do ⋯ de um pacote: ?refazer=<id>)
   const refazer = p('refazer')
 
@@ -147,11 +146,12 @@ export function Etiquetas() {
       </div>
 
       {/* FILTRO PADRÃO: busca + ⚙ Filtros · N → chips ✕ → painel em grupos com "Ver N resultados" */}
-      <div className="mb-2 space-y-2">
-        <BarraFiltros busca={p('busca')} onBusca={(v) => setP('busca', v)} placeholder="Buscar código, nome ou compra" ativos={avancados} aberto={abrirFiltros} onAlternar={() => setAbrirFiltros(!abrirFiltros)} />
-        <ChipsFiltros itens={ativos} onTirar={tirar} onLimpar={limpar} />
-        {abrirFiltros && (
-          <PainelFiltros resultados={lista.length} temAtivos={avancados > 0} onLimpar={limpar} onFechar={() => setAbrirFiltros(false)}>
+      <FiltroLista
+        className="mb-2"
+        busca={p('busca')} onBusca={(v) => setP('busca', v)} placeholder="Buscar código, nome ou compra"
+        ativos={ativos} onTirar={tirar} onLimpar={limpar} temAtivos={avancados > 0}
+        resultados={dados ? lista.length : undefined} total={dados ? dados.filter((i) => passaEtiqueta(i, filtro)).length : undefined} unidade="pacote(s)"
+        painel={<>
             <GrupoFiltro titulo="De onde veio" icone="🛒">
               <Campo rotulo="Compra (código)"><Entrada placeholder={t('Ex.: P-0003')} value={p('compra')} onChange={(e) => setP('compra', e.target.value)} /></Campo>
               <Campo rotulo="Lote (ou lote de origem)"><Entrada placeholder={t('Ex.: L-0012')} value={p('lote')} onChange={(e) => setP('lote', e.target.value)} /></Campo>
@@ -176,9 +176,8 @@ export function Etiquetas() {
                 <Entrada inputMode="numeric" aria-label={t('Peso máximo (g)')} placeholder={t('até')} value={p('pmax')} onChange={(e) => setP('pmax', e.target.value.replace(/\D/g, ''))} />
               </CampoFaixa>
             </GrupoFiltro>
-          </PainelFiltros>
-        )}
-      </div>
+        </>}
+      />
 
       {!dados ? (
         <Carregando />
@@ -186,7 +185,7 @@ export function Etiquetas() {
         filtro === 'sem' && !avancados && !termo && dados.length > 0 ? (
           <Vazio texto="Todos os pacotes já têm etiqueta ✓"><Botao variante="secundario" onClick={() => setFiltro('impressa')}>{t('Ver as já impressas')}</Botao></Vazio>
         ) : (
-          <Vazio texto="Nada com esse filtro.">{(avancados > 0 || termo) && <Botao variante="secundario" onClick={limpar}>{t('Limpar filtros')}</Botao>}</Vazio>
+          <VazioFiltro filtrando={avancados > 0 || !!termo} onLimpar={limpar} />
         )
       ) : (
         <>

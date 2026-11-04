@@ -4,8 +4,8 @@
 // muda regra nenhuma, só escolhe o que mostrar.
 
 import { useEffect, useState } from 'react'
-import { formatar } from '../core/domain/dinheiro'
-import { Info, cx, gramasTexto, moedaPadrao } from './base'
+import { Info, cx, gramasTexto } from './base'
+import { type FiltroAtivo, GrupoFiltro } from './filtroPadrao'
 import { useApp, useParamTela } from './contexto'
 import { useT } from './i18n'
 
@@ -153,17 +153,17 @@ export function agruparProntos<L extends LoteFiltravel>(lotes: L[], f: FiltroPro
   return [...mapa.values()].sort((a, b) => (typeof a.ordem === 'number' && typeof b.ordem === 'number' ? b.ordem - a.ordem : String(a.ordem).localeCompare(String(b.ordem))))
 }
 
-/** texto curto dos filtros ativos: "50–60 cm, > 1 kg" */
-export function textoFiltros(f: FiltroProntos, t: (s: string, v?: Record<string, string | number>) => string) {
-  const partes: string[] = []
-  if (f.medidas.length) partes.push(`${f.medidas.join(' · ')} cm`)
+/** os filtros ligados em chips do FILTRO PADRÃO ("📏 50 · 60 cm ✕", "⚖ > 1 kg ✕"); `k` = os parâmetros que o ✕ apaga */
+export function ativosProntos(f: FiltroProntos): FiltroAtivo[] {
+  const r: FiltroAtivo[] = []
+  if (f.medidas.length) r.push({ k: 'pm', rotulo: `📏 ${f.medidas.join(' · ')} cm` })
   if (f.faixaDe !== undefined || f.faixaAte !== undefined)
-    partes.push(f.faixaDe !== undefined && f.faixaAte !== undefined ? `${f.faixaDe}–${f.faixaAte} cm` : f.faixaDe !== undefined ? `≥ ${f.faixaDe} cm` : `≤ ${f.faixaAte} cm`)
+    r.push({ k: 'pfd,pfa', rotulo: `↔ ${f.faixaDe !== undefined && f.faixaAte !== undefined ? `${f.faixaDe}–${f.faixaAte} cm` : f.faixaDe !== undefined ? `≥ ${f.faixaDe} cm` : `≤ ${f.faixaAte} cm`}` })
   if (f.pesoDe !== undefined || f.pesoAte !== undefined) {
     const atalho = ATALHOS_PESO.find((a) => a.de === f.pesoDe && a.ate === f.pesoAte)
-    partes.push(atalho ? atalho.nome : f.pesoDe !== undefined && f.pesoAte !== undefined ? `${gramasTexto(f.pesoDe)}–${gramasTexto(f.pesoAte)}` : f.pesoDe !== undefined ? `≥ ${gramasTexto(f.pesoDe)}` : `≤ ${gramasTexto(f.pesoAte!)}`)
+    r.push({ k: 'ppd,ppa', rotulo: `⚖ ${atalho ? atalho.nome : f.pesoDe !== undefined && f.pesoAte !== undefined ? `${gramasTexto(f.pesoDe)}–${gramasTexto(f.pesoAte)}` : f.pesoDe !== undefined ? `≥ ${gramasTexto(f.pesoDe)}` : `≤ ${gramasTexto(f.pesoAte!)}`}` })
   }
-  return partes.join(', ') || t('tudo')
+  return r
 }
 
 const chip = (ativo: boolean) =>
@@ -194,7 +194,7 @@ function CampoPeso({ valor, onChange, rotulo, exemplo }: { valor?: number; onCha
 }
 
 /**
- * Os controles: no celular, uma linha ("Filtros" + ordem) que abre o resto; no computador, tudo à mostra.
+ * O miolo do painel padrão (FiltroLista) dos Prontos: grupos Medida · Peso · Como mostrar.
  * `todos` = os prontos antes do filtro (para os chips de medida com os kg de cada uma).
  */
 export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { todos: L[]; filtro: ReturnType<typeof useFiltroProntos> }) {
@@ -221,23 +221,12 @@ export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { tod
     { id: 'categoria', nome: 'Categoria' },
     { id: 'nenhum', nome: 'Nenhum' },
   ]
-  const rotulo = 'w-full shrink-0 text-xs font-semibold text-[var(--suave)] sm:w-24'
+  // GRUPOS do painel padrão: o cabelo (medida/faixa) · peso · como mostrar (ordem e agrupar não filtram, só arrumam)
+  const linha = 'col-span-2 flex flex-wrap items-center gap-1.5 lg:col-span-4'
   return (
-    <div className="mb-3 space-y-2">
-      {/* uma linha no celular */}
-      <div className="flex items-center gap-2">
-        <label className="ml-auto flex items-center gap-1 text-xs text-[var(--suave)]">
-          <span className="hidden sm:inline">{t('Ordenar')}</span>
-          <select aria-label={t('Ordenar')} value={f.ordem} onChange={(e) => filtro.setOrdem(e.target.value as Ordem)} className="h-9 rounded-lg border border-[var(--borda)] bg-[var(--cartao)] px-2 text-sm text-[var(--texto)]">
-            {ordens.map((o) => <option key={o.id} value={o.id}>{t(o.nome)}</option>)}
-          </select>
-        </label>
-      </div>
-
-      <div className="space-y-2">
-        {/* medida */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className={rotulo}>{t('Medida')}</span>
+    <>
+      <GrupoFiltro titulo="Medida" icone="📏">
+        <div className={linha}>
           {medidas.map(([m, g]) => {
             const on = f.medidas.includes(m)
             return (
@@ -257,10 +246,9 @@ export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { tod
             </span>
           )}
         </div>
-
-        {/* peso */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className={cx(rotulo, 'inline-flex items-center')}>{t('Peso')}<Info texto="Ex.: só pacotes acima de 1 kg" /></span>
+      </GrupoFiltro>
+      <GrupoFiltro titulo="Peso" icone="⚖️">
+        <div className={linha}>
           {ATALHOS_PESO.map((a) => {
             const on = f.pesoDe === a.de && f.pesoAte === a.ate
             return <button key={a.id} type="button" aria-pressed={on} onClick={() => (on ? filtro.setPeso(undefined, undefined) : filtro.setPeso(a.de, a.ate))} className={chip(on)}>{a.nome}</button>
@@ -269,11 +257,18 @@ export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { tod
             {t('de')} <CampoPeso rotulo={t('Peso de')} exemplo="100 g" valor={f.pesoDe} onChange={(g) => filtro.setPeso(g, f.pesoAte)} />
             {t('a')} <CampoPeso rotulo={t('Peso até')} exemplo="2 kg" valor={f.pesoAte} onChange={(g) => filtro.setPeso(f.pesoDe, g)} />
           </span>
+          <Info texto="Ex.: só pacotes acima de 1 kg" />
         </div>
-
-        {/* agrupar */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className={rotulo}>{t('Agrupar por')}</span>
+      </GrupoFiltro>
+      <GrupoFiltro titulo="Como mostrar" icone="▦">
+        <label className="col-span-2 flex items-center gap-2 text-sm font-semibold text-[var(--suave)] lg:col-span-1">
+          {t('Ordenar')}
+          <select aria-label={t('Ordenar')} value={f.ordem} onChange={(e) => filtro.setOrdem(e.target.value as Ordem)} className="h-9 min-w-0 flex-1 rounded-lg border border-[var(--borda)] bg-[var(--cartao)] px-2 text-sm font-normal text-[var(--texto)]">
+            {ordens.map((o) => <option key={o.id} value={o.id}>{t(o.nome)}</option>)}
+          </select>
+        </label>
+        <div className="col-span-2 flex flex-wrap items-center gap-1.5 lg:col-span-3">
+          <span className="text-sm font-semibold text-[var(--suave)]">{t('Agrupar por')}</span>
           {grupos.map((o) => <button key={o.id} type="button" aria-pressed={f.agrupar === o.id} onClick={() => filtro.setAgrupar(o.id)} className={chip(f.agrupar === o.id)}>{t(o.nome)}</button>)}
           {f.agrupar === 'faixa' && (
             <span className="inline-flex items-center gap-1 text-sm">
@@ -281,23 +276,7 @@ export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { tod
             </span>
           )}
         </div>
-      </div>
-    </div>
-  )
-}
-
-/** "Mostrando 6 lotes · 4,2 kg · Bs 38.000 · 50–60 cm, > 1 kg" + Limpar (só com filtro ativo) */
-export function ResumoFiltroProntos<L extends LoteFiltravel>({ lotes, filtro }: { lotes: L[]; filtro: ReturnType<typeof useFiltroProntos> }) {
-  const t = useT()
-  if (!filtro.ativo) return null
-  const g = lotes.reduce((s, l) => s + l.saldo, 0)
-  const v = lotes.reduce((s, l) => s + (l.preco?.valorPrincipal ?? 0), 0)
-  return (
-    <div className="num mb-2 flex items-center gap-2 rounded-xl bg-[var(--marca-suave)] px-3 py-1.5 text-sm">
-      <span className="min-w-0 flex-1">
-        {t('Mostrando {n} lote(s)', { n: lotes.length })} · <b>{gramasTexto(g)}</b>{v > 0 && <> · <b>{formatar(v, moedaPadrao())}</b></>} · <span className="text-[var(--marca)]">{textoFiltros(filtro.f, t)}</span>
-      </span>
-      <button type="button" onClick={filtro.limpar} className="min-h-9 shrink-0 rounded-lg px-2 font-semibold text-[var(--marca)] hover:bg-[var(--cartao)]">✕ {t('Limpar')}</button>
-    </div>
+      </GrupoFiltro>
+    </>
   )
 }

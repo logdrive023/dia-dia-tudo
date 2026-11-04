@@ -30,7 +30,7 @@ import { MiniaturaLote, marcadorLote } from '../ui/fotos'
 import { useLargo } from '../ui/calendario'
 import { NumeroGrande, type Selo } from '../ui/numeroGrande'
 import { Passo } from '../ui/passoAPasso'
-import { BarraFiltros, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
+import { CampoFaixa, GrupoFiltro, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 
 const ENCERRADAS = ['concluido', 'recusado', 'cancelado']
 const codigoDe = (c: { codigo?: string; id: string }) => c.codigo ?? `#${c.id.slice(-5)}`
@@ -85,7 +85,6 @@ export function Comprar() {
   // celular: lista de linhas curtas que abrem no lugar; computador/tablet: a tabela
   const largo = useLargo()
   const [abertos, setAbertos] = useState<Set<Id>>(new Set())
-  const [verFiltros, setVerFiltros] = useState(false)
   const alternarAberto = (id: Id) => setAbertos((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   if (nav.params.id) return <Pedido />
   const etapasDo = (moduloId: string) => cfg?.modulos.find((m) => m.id === moduloId)?.etapas ?? []
@@ -127,6 +126,7 @@ export function Comprar() {
     ...(forn ? [{ k: 'forn', rotulo: `👤 ${forn}` }] : []),
     ...(de || ate ? [{ k: 'de,ate', rotulo: `📅 ${de ? dataBR(de) : '…'} – ${ate ? dataBR(ate) : '…'}` }] : []),
   ]
+  const limparCompra = () => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined, busca: undefined })
   const contaAba = { abertas: abertas.length, encerradas: todas.length - abertas.length, todas: todas.length }
   const Th = ({ por, children, direita }: { por?: Ordem; children: ReactNode; direita?: boolean }) => (
     <th className={cx('whitespace-nowrap px-3 py-2 text-xs font-medium text-[var(--suave)]', direita && 'text-right')}>
@@ -156,8 +156,9 @@ export function Comprar() {
       </div>
 
       {/* FILTRO PADRÃO: situação à vista (segmentos) + busca + ⚙ Filtros (o que falta, fornecedor, período) → chips ✕ */}
-      <div className="mb-3 space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <FiltroLista
+        className="mb-3"
+        topo={
           <div role="tablist" aria-label={t('Situação')} className="grid grid-cols-3 gap-1 rounded-xl bg-[var(--marca-suave)] p-1 sm:flex">
             {([['abertas', 'Em aberto'], ['encerradas', 'Encerradas'], ['todas', 'Todas']] as const).map(([id, nome]) => (
               <button key={id} type="button" role="tab" aria-selected={aba === id} onClick={() => setAba(id)} className={cx('min-h-10 rounded-lg px-3 text-sm font-semibold', aba === id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
@@ -165,12 +166,12 @@ export function Comprar() {
               </button>
             ))}
           </div>
-          {sessao.perfil === 'admin' && <button type="button" onClick={() => ir('config', { aba: 'etapas' })} className="ml-auto min-h-10 whitespace-nowrap rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Etapas e regras')}</button>}
-        </div>
-        <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar código (atual ou antigo), sigla, fornecedor, item…" ativos={ativosCompra.length} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
-        <ChipsFiltros itens={ativosCompra} onTirar={tirarFiltro} onLimpar={() => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined, busca: undefined })} />
-        {verFiltros && (
-          <PainelFiltros resultados={lista.length} temAtivos={ativosCompra.length > 0} onLimpar={() => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined })} onFechar={() => setVerFiltros(false)}>
+        }
+        acaoTopo={sessao.perfil === 'admin' && <button type="button" onClick={() => ir('config', { aba: 'etapas' })} className="min-h-10 whitespace-nowrap rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Etapas e regras')}</button>}
+        busca={busca} onBusca={setBusca} placeholder="Buscar código (atual ou antigo), sigla, fornecedor, item…"
+        ativos={ativosCompra} onTirar={tirarFiltro} onLimpar={limparCompra}
+        resultados={fila ? lista.length : undefined} total={contaAba[aba]} unidade="pedido(s)"
+        painel={<>
             <GrupoFiltro titulo="O que falta" icone="⚠️">
               <div className="col-span-2 lg:col-span-4"><FiltroPendencia valor={pendencia} onChange={setPendencia} contagem={contagem} opcoes={opcoesPend.filter((o) => contagem[o.id] || pendencia === o.id)} /></div>
             </GrupoFiltro>
@@ -181,14 +182,13 @@ export function Comprar() {
                 <Entrada type="date" aria-label={t('Até')} value={ate} onChange={(e) => ajustarParams({ ate: e.target.value || undefined })} />
               </CampoFaixa>
             </GrupoFiltro>
-          </PainelFiltros>
-        )}
-      </div>
+        </>}
+      />
 
       {!fila ? (
         <Carregando />
       ) : !lista.length ? (
-        <Vazio texto="Nenhum pedido com esse filtro." />
+        <VazioFiltro texto="Nenhum pedido com esse filtro." filtrando={ativosCompra.length > 0 || !!busca.trim()} onLimpar={limparCompra} />
       ) : !largo ? (
         // celular: uma linha curta por pedido (quem · total · código · etapa · "2 pendências"); tocar abre o resto no lugar
         <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">

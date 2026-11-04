@@ -2,7 +2,7 @@
 // CSV), SEPARAR lote bruto em N lotes, ajustar, PRONTUÁRIO do lote (compra → triagem → venda) e RASTREIO.
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { ChipsFiltros, PainelFiltros, GrupoFiltro, CampoFaixa } from '../ui/filtroPadrao'
+import { GrupoFiltro, CampoFaixa, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Campos, Id } from '../core/domain/tipos'
@@ -171,11 +171,9 @@ export function Estoque() {
   const [reservar, setReservar] = useState<Linha>()
   const [janela, setJanela] = useState<'colunas' | 'favorito' | 'marcar' | 'camera'>()
   const { tirar } = useTirarFoto()
-  const [abrirFiltros, setAbrirFiltros] = useState(false)
 
   // ---------- filtros ----------
   const chavesFiltro = Object.keys(nav.params).filter((k) => k !== 'modulo')
-  const avancados = chavesFiltro.filter((k) => !['busca', 'status', 'bruto', 'repor'].includes(k)).length
   const limpar = () => ajustarParams(Object.fromEntries(chavesFiltro.map((k) => [k, undefined])))
   const ativosEstoque = [
     ...(status ? [{ k: 'status,bruto', rotulo: `📦 ${t(STATUS_FILTRO.find((s) => s.id === status)?.nome ?? status)}` }] : []),
@@ -299,23 +297,20 @@ export function Estoque() {
         {admin && <NumeroGrande rotulo="Valor em estoque" icone="💵" cor="#0ea5e9" valor={formatar(comSaldo.reduce((s, i) => s + (custoAgora(i) ?? 0), 0), moedaPadrao())} selos={[{ texto: t('a custo'), tom: 'marca' }, { texto: t('o que ainda tem') }]} />}
       </div>
 
-      {/* barra única: no celular a busca ocupa a linha e os botões vão embaixo (só ícone no que é raro); na tela larga, tudo numa linha */}
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Entrada type="search" aria-label={t('Buscar por código, nome ou atributo')} className="w-auto min-w-0 flex-1 basis-full sm:basis-48" placeholder={t('Buscar por código, nome ou atributo')} value={busca} onChange={(e) => setP('busca', e.target.value)} onKeyDown={pistola.onKeyDown} />
-        <div className="flex flex-1 flex-nowrap items-center gap-1.5 sm:flex-none">
-          <Botao variante="secundario" className="whitespace-nowrap px-3" onClick={() => setJanela('camera')}>📷 {t('Ler código')}</Botao>
-          <Botao variante={abrirFiltros || avancados ? 'secundario' : 'leve'} className="whitespace-nowrap px-3" aria-expanded={abrirFiltros} onClick={() => setAbrirFiltros(!abrirFiltros)}>⚙︎ {t('Filtros')}{avancados ? ` · ${avancados}` : ''}</Botao>
+      {/* FILTRO PADRÃO: busca (aceita a pistola) + 📷 + ⚙ Filtros → painel em grupos (situação · medidas · o cabelo ·
+          de onde veio) → "N de M lote(s)" + chips ✕; Colunas, Ver como e CSV ficam à direita do resultado */}
+      <FiltroLista
+        className="mb-2"
+        busca={busca} onBusca={(v) => setP('busca', v)} placeholder="Buscar por código, nome ou atributo" onKeyDown={pistola.onKeyDown}
+        extra={<Botao variante="secundario" className="shrink-0 whitespace-nowrap px-3" aria-label={t('Ler código')} onClick={() => setJanela('camera')}>📷<span className="hidden sm:inline"> {t('Ler código')}</span></Botao>}
+        ativos={ativosEstoque} onTirar={tirarFiltro} onLimpar={limpar} temAtivos={chavesFiltro.length > 0}
+        resultados={dados ? lista.length : undefined} total={dados?.length} unidade="lote(s)"
+        ferramentas={<>
           <Botao variante="leve" className="whitespace-nowrap px-3" title={t('Colunas')} onClick={() => setJanela('colunas')}>▦<span className="sr-only sm:not-sr-only"> {t('Colunas')}</span></Botao>
           {larga && <div className="shrink-0 [&_button]:whitespace-nowrap"><Escolha rotulo="Ver como" valor={visao} onChange={setVisao} opcoes={[{ id: 'tabela', nome: 'Tabela' }, { id: 'cartoes', nome: 'Cartões' }]} /></div>}
-          <Botao variante="leve" className="ml-auto whitespace-nowrap px-3 sm:ml-0" disabled={!lista.length} title={selecionados.length ? t('Exportar CSV dos {n} selecionados', { n: selecionados.length }) : t('Exportar CSV')} aria-label={t('Exportar CSV')} onClick={() => exportar(selecionados.length ? selecionados : lista)}>⬇<span className="hidden sm:inline"> CSV</span></Botao>
-        </div>
-      </div>
-
-      {/* FILTRO PADRÃO: chips ✕ do que está ligado e o painel em grupos (situação · medidas · o cabelo · de onde veio) */}
-      <div className="mb-2"><ChipsFiltros itens={ativosEstoque} onTirar={tirarFiltro} onLimpar={limpar} /></div>
-      {abrirFiltros && (
-        <div className="mb-2">
-          <PainelFiltros resultados={lista.length} temAtivos={chavesFiltro.length > 0} onLimpar={limpar} onFechar={() => setAbrirFiltros(false)}>
+          <Botao variante="leve" className="whitespace-nowrap px-3" disabled={!lista.length} title={selecionados.length ? t('Exportar CSV dos {n} selecionados', { n: selecionados.length }) : t('Exportar CSV')} aria-label={t('Exportar CSV')} onClick={() => exportar(selecionados.length ? selecionados : lista)}>⬇<span className="hidden sm:inline"> CSV</span></Botao>
+        </>}
+        painel={<>
             <GrupoFiltro titulo="Situação" icone="📦">
               <Campo rotulo="Status"><Selecao valor={status} onChange={(v) => setP('status', v)} opcoes={STATUS_FILTRO.slice(1)} vazio={STATUS_FILTRO[0].nome} /></Campo>
             </GrupoFiltro>
@@ -345,12 +340,11 @@ export function Estoque() {
                 <Entrada type="date" aria-label={t('Até')} value={p('ate')} onChange={(e) => setP('ate', e.target.value)} />
               </CampoFaixa>
             </GrupoFiltro>
-          </PainelFiltros>
-        </div>
-      )}
+        </>}
+      />
 
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
-        <span className="num text-xs text-[var(--suave)]" aria-live="polite">{t('{n} de {total} lote(s)', { n: lista.length, total: dados?.length ?? 0 })}</span>
+      {/* filtros salvos (★): um toque aplica; "☆ Salvar filtro" guarda o que está ligado */}
+      {(favoritos.length > 0 || chavesFiltro.length > 0) && <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
         {favoritos.map((f, k) => (
           <span key={k} className="inline-flex items-center rounded-full bg-[var(--marca-suave)] text-[var(--marca)]">
             <button type="button" className="min-h-10 rounded-l-full pl-3 pr-1 font-semibold" onClick={() => ajustarParams({ ...Object.fromEntries(chavesFiltro.map((x) => [x, undefined])), ...f.params })}>★ {f.nome}</button>
@@ -359,12 +353,12 @@ export function Estoque() {
         ))}
         {chavesFiltro.length > 0 && <Botao variante="leve" onClick={() => setJanela('favorito')}>☆ {t('Salvar filtro')}</Botao>}
         {chavesFiltro.length > 0 && !ativosEstoque.length && <Botao variante="leve" onClick={limpar}>× {t('Limpar filtros')}</Botao>}
-      </div>
+      </div>}
 
       {!dados ? (
         <Carregando />
       ) : !lista.length ? (
-        <Vazio texto="Nada no estoque com esse filtro.">{chavesFiltro.length > 0 && <Botao variante="secundario" onClick={limpar}>{t('Limpar filtros')}</Botao>}</Vazio>
+        <VazioFiltro texto="Nada no estoque com esse filtro." filtrando={chavesFiltro.length > 0} onLimpar={limpar} />
       ) : modo === 'tabela' ? (
         <div id="lista-estoque" className="overflow-x-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
           <table className="w-full text-sm">

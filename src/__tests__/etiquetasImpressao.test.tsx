@@ -110,7 +110,7 @@ describe('triagens feitas', () => {
     fireEvent.change(screen.getByLabelText(/Perda acima de/), { target: { value: '5' } })
     await waitFor(() => expect(screen.queryByText('Nenhuma triagem com esses filtros.')).toBeNull())
 
-    fireEvent.change(screen.getByLabelText('Buscar triagem'), { target: { value: 'nada-assim' } })
+    fireEvent.change(screen.getByLabelText('T-0003, compra, fornecedor, pacote…'), { target: { value: 'nada-assim' } })
     await screen.findByText('Nenhuma triagem com esses filtros.')
   }, 30000)
 })

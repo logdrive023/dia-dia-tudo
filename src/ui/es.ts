@@ -3173,4 +3173,11 @@ export const ES: Record<string, string> = {
   'Lista: um pacote por linha com o botão Separar. Quadro: as colunas da triagem para arrastar os pacotes. Só muda a visão; fica lembrado neste aparelho.': 'Lista: un paquete por fila con el botón Separar. Tablero: las columnas de la selección para arrastrar los paquetes. Solo cambia la vista; queda guardado en este dispositivo.',
   'Etapas da triagem (para todos).': 'Etapas de la selección (para todos).',
   'Nome, ordem e cor de cada coluna e qual conta como "pronto para vender". Muda o quadro e as abas de todos os usuários; os pacotes não mudam de lugar sozinhos.': 'Nombre, orden y color de cada columna y cuál cuenta como "listo para vender". Cambia el tablero y las pestañas de todos los usuarios; los paquetes no cambian de lugar solos.',
+  'pedido(s)': 'pedido(s)',
+  'lote(s)': 'lote(s)',
+  'pacote(s)': 'paquete(s)',
+  'triagem(ns)': 'selección(es)',
+  'Como mostrar': 'Cómo mostrar',
+  'Quem e de onde': 'Quién y de dónde',
+  'Perda e ordem': 'Pérdida y orden',
 }

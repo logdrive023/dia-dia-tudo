@@ -4,14 +4,14 @@
 // fechado numa linha; o quadro (colunas do negócio, arrastar) fica atrás de "Ver quadro" (lembrado no aparelho).
 // Seleção (juntar e separar, mover, etiquetas) só aparece ao tocar "Selecionar". O resto fica no "⋯" de cada linha.
 
-import { type DragEvent, type ReactNode, useCallback, useState } from 'react'
+import { type DragEvent, type KeyboardEvent, type ReactNode, useCallback, useState } from 'react'
 import { NumeroGrande, NumeroPequeno } from '../ui/numeroGrande'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { COLUNA_VENDIDO, type ColunaTriagem, camposUnificados } from '../core/services/triagem'
-import { Botao, Campo, Carregando, Confirmar, Entrada, Escolha, ErroTela, GramasInput, Info, Janela, Pilula, Selecao, cx, dataBR, fmt, gramasTexto, moedaPadrao, Vazio, TituloSecao, BotaoExpandir } from '../ui/base'
+import { Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, GramasInput, Info, Janela, Pilula, Selecao, cx, dataBR, fmt, gramasTexto, moedaPadrao, Vazio, TituloSecao, BotaoExpandir } from '../ui/base'
 import { resumoCampos } from '../ui/camposDinamicos'
 import { clicavel } from '../ui/compartilhados'
 import { type Params, useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
@@ -26,8 +26,8 @@ import { LeitorCodigo } from '../ui/estoqueUi'
 import { usePistola } from '../ui/leitorPistola'
 import { useLembrado } from '../ui/filtros'
 import { Icone } from '../ui/icones'
-import { BarraFiltros, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
-import { FiltrosProntos, PARAMS_PRONTOS, ResumoFiltroProntos, agruparProntos, filtrarProntos, useFiltroProntos } from '../ui/filtrosProntos'
+import { GrupoFiltro, FiltroLista, VazioFiltro, AtalhosChips } from '../ui/filtroPadrao'
+import { FiltrosProntos, PARAMS_PRONTOS, agruparProntos, filtrarProntos, useFiltroProntos, ativosProntos } from '../ui/filtrosProntos'
 
 const NAO_ID = 'Não identificado'
 /** ainda precisa separar: bruto ou "não identificado" (ficou para depois) */
@@ -88,7 +88,6 @@ export function Triagem() {
   const [editar, setEditar] = useState<Lote>()
   const [arrastando, setArrastando] = useState<Id[]>()
   const [opcoes, setOpcoes] = useState(false)
-  const [verFiltrosFila, setVerFiltrosFila] = useState(false)
   const [aba] = useParamTela('aba', 'separar')
   const [alvo, setAlvo] = useState<string>()
   const [lendo, setLendo] = useState(false)
@@ -211,8 +210,8 @@ export function Triagem() {
       : aba === 'prontos' || filtroDePronto || !!medida || PARAMS_PRONTOS.some((k) => nav.params[k] !== undefined) ? 'prontos'
         : aba === 'depois' || filtro === 'depois' ? 'depois'
           : 'separar'
-  // nas abas Para separar / Para depois a busca fica no filtro padrão (a 🔍 do topo some para não repetir)
-  const buscaNaLista = (abaReal === 'separar' || abaReal === 'depois') && visao !== 'quadro'
+  // a busca fica no FILTRO PADRÃO de cada lista (Para separar, Prontos, Triagens feitas); a 🔍 do topo é só do quadro
+  const buscaNaLista = !((abaReal === 'separar' || abaReal === 'depois') && visao === 'quadro')
   const irAba = (id: string) => ajustarParams({ aba: id === 'separar' ? undefined : id, f: undefined, m: undefined, t: undefined, ...Object.fromEntries(PARAMS_PRONTOS.map((k) => [k, undefined])) })
   const aguardando = dados.lotes.filter(naFila)
   // "para separar" e "para depois" (não identificado) são abas diferentes
@@ -312,6 +311,8 @@ export function Triagem() {
       ) : abaReal === 'prontos' ? (
         <ProntoParaVender
           lotes={prontos}
+          totalLotes={dados.lotes.filter(ehPronto).length}
+          busca={busca} onBusca={setBusca} onKeyDown={pistola.onKeyDown}
           total={prontos.length === dados.lotes.filter(ehPronto).length ? tt.pronto : prontos.reduce((s, l) => s + l.saldo, 0)}
           valor={prontos.length === dados.lotes.filter(ehPronto).length ? tt.prontoValor : prontos.reduce((s, l) => s + (l.preco?.valorPrincipal ?? 0), 0)}
           menuDe={menuDe}
@@ -358,13 +359,14 @@ export function Triagem() {
           </div>
         )}
         {comSelecao && sel.size < 2 && daAba.length >= 2 && <p className="mb-2 rounded-xl bg-[var(--marca-suave)] px-3 py-2 text-sm text-[var(--marca)]">☑ {t('Marque os pacotes que vão juntos (2 ou mais). A barra de baixo mostra “Juntar e separar”.')}</p>}
-        {/* FILTRO PADRÃO (mesmo visual de Etiquetas): busca + ⚙ Filtros · N → chips ✕ → painel em grupos */}
+        {/* FILTRO PADRÃO (o mesmo de Compras, Estoque e Etiquetas): busca + ⚙ Filtros → painel em grupos → resultado + chips ✕ */}
         {visao !== 'quadro' && daAba.length > 0 && (
-          <div className="mb-3 space-y-2">
-            <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Código, compra ou fornecedor" ativos={ativosFila.length} aberto={verFiltrosFila} onAlternar={() => setVerFiltrosFila(!verFiltrosFila)} />
-            <ChipsFiltros itens={ativosFila} onTirar={(k) => ajustarParams({ [k]: undefined })} onLimpar={limparFila} />
-            {verFiltrosFila && (
-              <PainelFiltros resultados={paraSeparar.length} temAtivos={ativosFila.length > 0} onLimpar={limparFila} onFechar={() => setVerFiltrosFila(false)}>
+          <FiltroLista
+            className="mb-3"
+            busca={busca} onBusca={setBusca} placeholder="Código, compra ou fornecedor" onKeyDown={pistola.onKeyDown}
+            ativos={ativosFila} onTirar={(k) => ajustarParams({ [k]: undefined })} onLimpar={limparFila}
+            resultados={paraSeparar.length} total={daAba.length} unidade="pacote(s)"
+            painel={<>
                 <GrupoFiltro titulo="De onde veio" icone="🛒">
                   <Campo rotulo="Fornecedor"><Selecao valor={fp('sf')} onChange={(v) => ajustarParams({ sf: v || undefined })} vazio="Todos" opcoes={fornecedoresFila.map((x) => ({ id: x, nome: x }))} /></Campo>
                   <Campo rotulo="Compra (código)"><Entrada placeholder={t('Ex.: P-0003')} value={fp('sc')} onChange={(e) => ajustarParams({ sc: e.target.value || undefined })} /></Campo>
@@ -373,9 +375,8 @@ export function Triagem() {
                   <Campo rotulo="Parado há"><Selecao valor={fp('sd')} onChange={(v) => ajustarParams({ sd: v || undefined })} vazio="Qualquer tempo" opcoes={[{ id: '3', nome: t('3 dias ou mais') }, { id: '7', nome: t('7 dias ou mais') }, { id: '15', nome: t('15 dias ou mais') }]} /></Campo>
                   <Campo rotulo="Etiqueta"><Selecao valor={fp('set')} onChange={(v) => ajustarParams({ set: v || undefined })} vazio="Todas" opcoes={[{ id: 'sem', nome: t('Sem etiqueta') }, { id: 'com', nome: t('Com etiqueta') }]} /></Campo>
                 </GrupoFiltro>
-              </PainelFiltros>
-            )}
-          </div>
+            </>}
+          />
         )}
 
         {visao === 'quadro' ? (
@@ -484,8 +485,9 @@ function FotoOuIcone({ l }: { l: Lote }) {
  * PRONTO PARA VENDER: fechado numa linha ("✅ 19,4 kg prontos · Bs 183.972 ›"); aberto, por medida (abre e fecha) e cada
  * LOTE numa linha com origem, gramas, valor, margem, Vender e "⋯".
  */
-function ProntoParaVender({ lotes, total, valor, onLote, onVender, onEstoque, onFiltrar }: { lotes: Lote[]; total: number; valor: number; menuDe?(l: Lote): Acao[]; onLote(id: Id): void; onVender(p: Params): void; onEstoque(med: string): void; onFiltrar(med: string): void }) {
+function ProntoParaVender({ lotes, totalLotes, busca, onBusca, onKeyDown, total, valor, onLote, onVender, onEstoque, onFiltrar }: { lotes: Lote[]; totalLotes: number; busca: string; onBusca(v: string): void; onKeyDown?(e: KeyboardEvent<HTMLInputElement>): void; total: number; valor: number; menuDe?(l: Lote): Acao[]; onLote(id: Id): void; onVender(p: Params): void; onEstoque(med: string): void; onFiltrar(med: string): void }) {
   const t = useT()
+  const { ajustarParams } = useApp()
   const m = moedaPadrao()
   const secaoAberta = true
   const filtro = useFiltroProntos()
@@ -499,6 +501,12 @@ function ProntoParaVender({ lotes, total, valor, onLote, onVender, onEstoque, on
   const semEtiqueta = todosFiltrados.filter((l) => !l.etiqueta.impressaEm)
   const filtrados = soSem && semEtiqueta.length ? semEtiqueta : todosFiltrados
   const ordem = agruparProntos(filtrados, filtro.f, t)
+  // o que está ligado (chips) e o "Limpar filtros" (medida, faixa, peso, só sem etiqueta e a busca)
+  const ativosP = [...ativosProntos(filtro.f), ...(soSem ? [{ k: 'se', rotulo: `🏷 ${t('Sem etiqueta')}` }] : [])]
+  const filtrando = ativosP.length > 0 || !!busca.trim()
+  const limparP = () => ajustarParams({ ...Object.fromEntries(PARAMS_PRONTOS.map((k) => [k, undefined])), se: undefined, busca: undefined })
+  const gFiltrado = filtrados.reduce((s, l) => s + l.saldo, 0)
+  const vFiltrado = filtrados.reduce((s, l) => s + (l.preco?.valorPrincipal ?? 0), 0)
   // grupos fechados (o resto abre sozinho quando há poucos lotes); muda de "Agrupar por" → recomeça
   const [fechados, setFechados] = useState<{ por: string; k: Set<string> }>({ por: '', k: new Set() })
   const fechadosAgora = fechados.por === filtro.f.agrupar + filtro.f.passo ? fechados.k : new Set<string>()
@@ -520,22 +528,20 @@ function ProntoParaVender({ lotes, total, valor, onLote, onVender, onEstoque, on
         </span>
         <Info texto={DICA_PRONTOS} />
         {semPreco > 0 && <Pilula tom="alerta">⚠️ {semPreco}</Pilula>}
-        {lotes.length > 0 && (
-          <button type="button" aria-expanded={verFiltros} aria-label={t('Filtros')} onClick={() => setVerFiltros(!verFiltros)}
-            className={cx('inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold', verFiltros ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] hover:border-[var(--marca)]')}>
-            ⚙︎ <span className="hidden sm:inline">{t('Filtros')}</span> <span aria-hidden className={cx('text-xs transition-transform', verFiltros && 'rotate-180')}>▾</span>
-          </button>
-        )}
       </div>
       {secaoAberta && <div className="px-2 pb-2 sm:px-4 sm:pb-4">
-      {lotes.length > 0 && verFiltros && (
-        <div className="mb-3">
-          <PainelFiltros resultados={filtrados.length} temAtivos={filtro.ativo} onLimpar={filtro.limpar} onFechar={() => setVerFiltros(false)}>
-            <div className="rounded-xl bg-[var(--fundo)] p-3"><FiltrosProntos todos={lotes} filtro={filtro} /></div>
-          </PainelFiltros>
-        </div>
+      {/* FILTRO PADRÃO: busca + ⚙ Filtros (medida · peso · como mostrar) → resultado (peso e valor do filtrado) + chips ✕ */}
+      {totalLotes > 0 && (
+        <FiltroLista
+          className="mb-3"
+          busca={busca} onBusca={onBusca} placeholder="Código, compra ou fornecedor" onKeyDown={onKeyDown}
+          ativos={ativosP} onTirar={(k) => ajustarParams(Object.fromEntries(k.split(',').map((x) => [x, undefined])))} onLimpar={limparP}
+          resultados={filtrados.length} total={totalLotes} unidade="lote(s)"
+          detalhe={filtrando && <>{gramasTexto(gFiltrado)}{vFiltrado > 0 && ` · ${formatar(vFiltrado, m)}`}</>}
+          aberto={verFiltros} onAberto={setVerFiltros}
+          painel={<FiltrosProntos todos={lotes} filtro={filtro} />}
+        />
       )}
-      <ResumoFiltroProntos lotes={filtrados} filtro={filtro} />
       {todosFiltrados.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
           {semEtiqueta.length ? (
@@ -548,7 +554,7 @@ function ProntoParaVender({ lotes, total, valor, onLote, onVender, onEstoque, on
       )}
       {imprimir && <ImprimirEtiquetas ids={imprimir} onImpresso={() => setSoSem('')} onFechar={() => setImprimir(undefined)} />}
       {semPreco > 0 && <p className="mb-2 rounded-xl bg-[var(--alerta)]/10 p-2 text-sm font-semibold text-[var(--alerta)]">⚠️ {t('{n} lote(s) triado(s) sem preço na tabela', { n: semPreco })}</p>}
-      {!lotes.length ? <Vazio compacto texto="Nada triado ainda: separe um lote para começar a vender." /> : !filtrados.length ? <p className="rounded-xl border border-dashed border-[var(--borda)] p-4 text-center text-sm text-[var(--suave)]">{t('Nenhum lote com esses filtros.')}</p> : (
+      {!totalLotes ? <Vazio compacto texto="Nada triado ainda: separe um lote para começar a vender." /> : !filtrados.length ? <VazioFiltro texto="Nenhum lote com esses filtros." filtrando={filtrando} onLimpar={limparP} /> : (
         // tabela por grupo: Medida | Lotes | Peso | Valor | ⋯ (cabeçalho em cima, total embaixo); tocar na linha abre os lotes
         <div className="overflow-hidden rounded-xl border border-[var(--borda)]">
           {filtro.f.agrupar !== 'nenhum' && (
@@ -851,7 +857,7 @@ function Unificar({ lotes, campos, onFechar, onFeito }: { lotes: Lote[]; campos:
 }
 
 type TriagemFeita = ResultadoConsulta<'triagens'>[number]
-const PERIODOS = [{ id: '7', nome: '7 dias' }, { id: '30', nome: '30 dias' }, { id: 'mes', nome: 'Mês' }, { id: '', nome: 'Tudo' }] as const
+const PERIODOS = [{ id: '', nome: 'Tudo' }, { id: '7', nome: '7 dias' }, { id: '30', nome: '30 dias' }, { id: 'mes', nome: 'Mês' }]
 const ORDENS = [{ id: '', nome: 'Mais recentes' }, { id: 'perda', nome: 'Mais perda (%)' }, { id: 'peso', nome: 'Mais peso' }]
 const AJUDA_PERDA = 'Perda = o que entrou − o que saiu. Ex.: 10 kg → 9,6 kg = 400 g (4%).'
 
@@ -896,6 +902,11 @@ function ListaTriagens({ aberta }: { aberta?: string }) {
   const saiu = lista.reduce((s, x) => s + x.pesoSaida, 0)
   const perdaBp = entrou ? Math.round(((entrou - saiu) * 10000) / entrou) : 0
   const ativos = [quem, compra, perdaMin].filter(Boolean).length
+  const ativosT = [
+    ...(quem ? [{ k: 'tq', rotulo: `👤 ${quem}` }] : []),
+    ...(compra ? [{ k: 'tc', rotulo: `🛒 ${compra}` }] : []),
+    ...(perdaMin ? [{ k: 'tperda', rotulo: `📉 ${t('perda')} > ${perdaMin}%` }] : []),
+  ]
   const limpar = () => ajustarParams({ tp: undefined, tq: undefined, tc: undefined, tperda: undefined, tb: undefined, to: undefined })
 
   return (
@@ -909,28 +920,27 @@ function ListaTriagens({ aberta }: { aberta?: string }) {
         <NumeroGrande rotulo="Perda" ajuda={AJUDA_PERDA} valor={fmt(perdaBp, 'percentual')} sub={gramasTexto(entrou - saiu)} tom={perdaBp > 500 ? 'ruim' : undefined} />
       </div>
 
-      {/* filtros: período e busca à mão; quem, compra, perda e ordem em "Filtros" */}
-      <div className="space-y-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="min-w-0 flex-1 [&_button]:whitespace-nowrap [&_button]:px-1 sm:[&_button]:px-3"><Escolha rotulo="Período" valor={periodo} onChange={setPeriodo} opcoes={[...PERIODOS]} /></div>
-          <Botao variante={maisFiltros || ativos ? 'secundario' : 'leve'} className="shrink-0 px-3" aria-label={t('Filtros')} aria-expanded={maisFiltros} onClick={() => setMaisFiltros(!maisFiltros)}>⚙︎<span className="hidden sm:inline"> {t('Filtros')}</span>{ativos ? ` · ${ativos}` : ''}</Botao>
-        </div>
-        <Entrada type="search" className="w-full" aria-label={t('Buscar triagem')} placeholder={t('T-0003, compra, fornecedor, pacote…')} value={busca} onChange={(e) => setBusca(e.target.value)} />
-        {maisFiltros && (
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      {/* FILTRO PADRÃO: período em atalhos (no topo) · busca · ⚙ Filtros (quem, compra, perda, ordem) → resultado + chips ✕ */}
+      <FiltroLista
+        topo={<AtalhosChips rotulo="Período" icone="📅" valor={periodo} onChange={setPeriodo} opcoes={PERIODOS} />}
+        busca={busca} onBusca={setBusca} placeholder="T-0003, compra, fornecedor, pacote…"
+        ativos={ativosT} onTirar={(k) => ajustarParams({ [k]: undefined })} onLimpar={limpar} temAtivos={!!(periodo || ativos > 0 || termo || ordem)}
+        resultados={lista.length} total={dados.length} unidade="triagem(ns)"
+        aberto={maisFiltros} onAberto={setMaisFiltros}
+        painel={<>
+          <GrupoFiltro titulo="Quem e de onde" icone="👤">
             <Campo rotulo="Quem triou"><Selecao valor={quem} onChange={setQuem} vazio="Todos" opcoes={pessoas.map((p) => ({ id: p, nome: p }))} /></Campo>
             <Campo rotulo="Compra"><Entrada placeholder={t('Ex.: P-0003 ou Maria')} value={compra} onChange={(e) => setCompra(e.target.value)} /></Campo>
+          </GrupoFiltro>
+          <GrupoFiltro titulo="Perda e ordem" icone="📉">
             <Campo rotulo="Perda acima de (%)"><Entrada inputMode="decimal" placeholder={t('Ex.: 5')} value={perdaMin} onChange={(e) => setPerdaMin(e.target.value.replace(/[^\d,.]/g, ''))} /></Campo>
             <Campo rotulo="Ordenar"><Selecao valor={ordem} onChange={setOrdem} opcoes={ORDENS} /></Campo>
-          </div>
-        )}
-        {(periodo || ativos > 0 || termo || ordem) && (
-          <button type="button" onClick={limpar} className="min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">✕ {t('Limpar filtros')}</button>
-        )}
-      </div>
+          </GrupoFiltro>
+        </>}
+      />
 
       {!lista.length ? (
-        <p className="rounded-xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nenhuma triagem com esses filtros.')}</p>
+        <VazioFiltro texto="Nenhuma triagem com esses filtros." filtrando={!!(periodo || ativos > 0 || termo)} onLimpar={limpar} />
       ) : (
         <ul className="space-y-3">
           {lista.map((x) => <LinhaTriagem key={x.id} x={x} aberta={aberta === x.id} t={t} ir={ir} onAlternar={() => ajustarParams({ t: aberta === x.id ? undefined : x.id })} onImprimir={setImprimir} />)}
