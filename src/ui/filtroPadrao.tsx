@@ -25,14 +25,22 @@ export function BarraFiltros({ busca, onBusca, placeholder, ativos = 0, aberto =
     <div className="flex items-center gap-2">
       <Entrada type="search" aria-label={t(placeholder)} className="w-auto min-w-0 flex-1" placeholder={t(placeholder)} value={busca} onChange={(e) => onBusca(e.target.value)} onKeyDown={onKeyDown} autoFocus={autoFocus} focoSempre={autoFocus} />
       {extra}
-      {onAlternar && <button type="button" aria-expanded={aberto} aria-label={t('Filtros')} onClick={onAlternar}
-        className={cx('inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition', aberto || ativos ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] text-[var(--texto)] hover:border-[var(--marca)]')}>
-        <span aria-hidden>⚙︎</span>
-        <span className="hidden sm:inline">{t('Filtros')}</span>
-        {ativos > 0 && <span className="num flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--marca)] px-1 text-xs text-white">{ativos}</span>}
-        <span aria-hidden className={cx('text-xs transition-transform', aberto && 'rotate-180')}>▾</span>
-      </button>}
+      {onAlternar && <BotaoFiltros ativos={ativos} aberto={aberto} onAlternar={onAlternar} />}
     </div>
+  )
+}
+
+/** O botão "⚙ Filtros · N ▾" (o mesmo em toda tela; telas sem busca, como o Painel, usam só ele). */
+export function BotaoFiltros({ ativos = 0, aberto = false, onAlternar }: { ativos?: number; aberto?: boolean; onAlternar(): void }) {
+  const t = useT()
+  return (
+    <button type="button" aria-expanded={aberto} aria-label={t('Filtros')} onClick={onAlternar}
+      className={cx('inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition', aberto || ativos ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] text-[var(--texto)] hover:border-[var(--marca)]')}>
+      <span aria-hidden>⚙︎</span>
+      <span className="hidden sm:inline">{t('Filtros')}</span>
+      {ativos > 0 && <span className="num flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--marca)] px-1 text-xs text-white">{ativos}</span>}
+      <span aria-hidden className={cx('text-xs transition-transform', aberto && 'rotate-180')}>▾</span>
+    </button>
   )
 }
 
@@ -94,10 +102,10 @@ export function AtalhosPeriodo({ de, ate, onChange, presets = ['hoje', '7d', '30
  * ATALHOS (chips de um toque, fora do painel): o mesmo visual para período, situação etc. Cada tela diz o que cada
  * opção quer dizer (o atalho só mostra e devolve o id). Celular: rola de lado; computador: quebra a linha.
  */
-export function AtalhosChips({ rotulo, icone, valor, opcoes, onChange }: { rotulo: string; icone?: string; valor: string; opcoes: { id: string; nome: string }[]; onChange(id: string): void }) {
+export function AtalhosChips({ rotulo, icone, valor, opcoes, onChange, umaLinha }: { rotulo: string; icone?: string; valor: string; opcoes: { id: string; nome: string }[]; onChange(id: string): void; umaLinha?: boolean }) {
   const t = useT()
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap" role="group" aria-label={t(rotulo)}>
+    <div className={cx("flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]", umaLinha ? "lg:flex-wrap" : "sm:flex-wrap")} role="group" aria-label={t(rotulo)}>
       {icone && <span aria-hidden className="inline-flex min-h-10 shrink-0 items-center text-xs font-semibold text-[var(--suave)]">{icone}</span>}
       {opcoes.map((x) => {
         const on = x.id === valor

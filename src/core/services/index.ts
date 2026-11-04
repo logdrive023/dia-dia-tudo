@@ -127,6 +127,7 @@ export const consultas = {
   fluxosCompra: cadastros.fluxosCompra,
   atributosItem: cadastros.atributosItem,
   painel: painel.painel,
+  operacao: painel.operacao,
   resumoMenu: resumo.resumoMenu,
   diagnostico: painel.diagnostico,
   caixaDoDia: caixa.caixaDoDia,

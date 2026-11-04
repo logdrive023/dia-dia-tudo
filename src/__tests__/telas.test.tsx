@@ -28,7 +28,7 @@ async function entrarComo(login: string) {
 async function abrirComDemo() {
   render(<App />)
   await entrarComo('admin')
-  await screen.findByText('Atenção agora', {}, { timeout: 30000 })
+  await screen.findByText('Precisa de você', {}, { timeout: 30000 })
 }
 
 function irPara(nome: string) {

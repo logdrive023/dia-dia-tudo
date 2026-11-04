@@ -46,7 +46,7 @@ describe('macaco: telas do fluxo principal', () => {
   it('clica aleatório em Comprar, Triagem, Estoque, Etiquetas e Vender sem quebrar nenhuma tela', async () => {
     render(<App />)
     fireEvent.click((await screen.findAllByText('admin', { selector: 'span.font-mono' }, { timeout: 30000 }))[0])
-    await screen.findByText('Atenção agora', {}, { timeout: 30000 })
+    await screen.findByText('Precisa de você', {}, { timeout: 30000 })
     const r = gerador(2026)
     const visitadas = new Set<string>()
     for (let k = 0; k < 140; k++) {

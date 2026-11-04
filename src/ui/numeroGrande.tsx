@@ -32,7 +32,7 @@ export function NumeroGrande({ rotulo, valor, sub, selos, icone, cor, tom, ativo
         {icone && <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm" style={{ background: `color-mix(in srgb, ${c} 15%, transparent)` }}>{icone}</span>}
         {/* rótulo em até 2 linhas (3 cartões lado a lado no celular: "Sem etiqueta" inteiro, sem "Sem eti…") */}
         <span className="line-clamp-2 min-w-0 leading-tight">{t(rotulo)}</span>
-        {ajuda && !clicavel && <Info texto={ajuda} />}
+        {ajuda && <Info texto={ajuda} />}
       </span>
       <span className="num mt-1.5 block truncate text-xl font-bold sm:text-2xl" style={pintar ? { color: c } : undefined}>{valor}</span>
       {sub && <span className="num block truncate text-xs text-[var(--suave)]">{sub}</span>}
@@ -44,6 +44,12 @@ export function NumeroGrande({ rotulo, valor, sub, selos, icone, cor, tom, ativo
     </>
   )
   const base = cx('relative min-w-0 overflow-hidden rounded-2xl border bg-[var(--cartao)] p-3 text-left shadow-sm sm:p-4', ativo ? 'border-[var(--marca)] ring-2 ring-[var(--marca-suave)]' : 'border-[var(--borda)]')
+  // com ⓘ e clicável: div com papel de botão (o ⓘ também é botão, e botão dentro de botão não vale)
+  if (clicavel && ajuda && !role)
+    return (
+      <div role="button" tabIndex={0} aria-pressed={ativo} onClick={onClick} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), onClick?.())}
+        className={cx(base, 'cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md')}>{dentro}</div>
+    )
   return clicavel ? (
     <button type="button" role={role} onClick={onClick} aria-pressed={role ? undefined : ativo} aria-selected={role ? !!ativo : undefined} className={cx(base, 'transition hover:-translate-y-0.5 hover:shadow-md')}>{dentro}</button>
   ) : (

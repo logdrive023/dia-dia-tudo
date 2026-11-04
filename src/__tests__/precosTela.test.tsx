@@ -23,7 +23,7 @@ describe('tabela de preço (tela)', () => {
   it('edita na grade, desfaz, publica versão nova e mostra no histórico', async () => {
     render(<App />)
     fireEvent.click((await screen.findAllByText('admin', { selector: 'span.font-mono' }, { timeout: 30000 }))[0])
-    await screen.findByText('Atenção agora', {}, { timeout: 30000 })
+    await screen.findByText('Precisa de você', {}, { timeout: 30000 })
     fireEvent.click(within(screen.getAllByRole('navigation')[0]).getByText('Tabelas de preço'))
     fireEvent.click(await screen.findByText('Tabela geral (Normal)', {}, { timeout: 10000 }))
 

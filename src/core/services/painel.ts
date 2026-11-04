@@ -8,6 +8,8 @@ import type { Cartao, DadosPainel, Secao } from '../modulos'
 import { type Ctx, cotacoesAtuais, lerConfig } from './contexto'
 import { situacaoDe } from './emprestimos'
 import { filaTriagem } from './compras'
+import { COLUNA_VENDIDO, triagem } from './triagem'
+import { NAO_IDENTIFICADO, estoque, passaEtiqueta } from './estoque'
 import { recortarVenda, valorEm, vendas } from './vendas'
 import { toleranciaConversao } from './pagamentos'
 import { viagensAbertas } from './viagens'
@@ -352,4 +354,55 @@ export async function diagnostico(ctx: Ctx, _p: object = {}) {
   // adiantamentos a parceiros: saiu do caixa uma vez, entregas sem caixa, conta bate
   problemas.push(...(await conferirFinanciamentos(ctx)))
   return { ok: problemas.length === 0, problemas }
+}
+
+/**
+ * OPERAÇÃO DO CABELO (painel): o caminho compra → triagem → estoque → etiqueta, cada etapa com o MESMO número que a
+ * tela do módulo mostra (vem das mesmas consultas: filaTriagem, triagem e estoque) e o que pede atenção nela.
+ * Só leitura; nada é calculado de outro jeito aqui. Sem o módulo de cabelo, volta vazio.
+ */
+export async function operacao(ctx: Ctx, _p: object = {}) {
+  let tri: Awaited<ReturnType<typeof triagem>>
+  try {
+    tri = await triagem(ctx, { moduloId: 'cabelo' })
+  } catch {
+    return null
+  }
+  const fila = await filaTriagem(ctx, {})
+  const est = (await estoque(ctx, { moduloId: 'cabelo', somenteComSaldo: true })).filter((i) => i.saldo > 0)
+  const pronta = new Set(tri.colunas.filter((c) => c.pronto).map((c) => c.id))
+  const naFila = tri.lotes.filter((l) => l.fase !== COLUNA_VENDIDO && !pronta.has(l.fase))
+  const separar = naFila.filter((l) => l.campos.estado !== NAO_IDENTIFICADO)
+  const bruto = (s: string) => s === 'bruto' || s === 'preparando' || s === 'naoIdentificado'
+  const disponiveis = est.filter((i) => !bruto(i.status))
+  const semEtiqueta = est.filter((i) => passaEtiqueta(i, 'sem'))
+  const g = (xs: { saldo: number }[]) => xs.reduce((s, x) => s + x.saldo, 0)
+  return {
+    compras: {
+      abertas: fila.length,
+      valor: fila.reduce((s, c) => s + c.totalPrincipal, 0),
+      gramas: fila.reduce((s, c) => s + c.linhas.reduce((x, l) => x + l.quantidade, 0), 0),
+      paradas: fila.filter((c) => c.pendencias.some((p) => p.id === 'paradaTriagem')).length,
+      urgentes: fila.filter((c) => c.pendencias.some((p) => p.nivel === 'urgente')).length,
+    },
+    triagem: {
+      separar: separar.length,
+      gramas: g(separar),
+      parados: separar.filter((l) => l.atrasado).length,
+      paraDepois: tri.totais.naoIdentificado.n,
+      triadoSemana: tri.totais.triadoSemana,
+    },
+    estoque: {
+      lotes: est.length,
+      gramas: g(est),
+      disponivel: g(disponiveis),
+      prontos: tri.totais.pronto,
+      prontoValor: tri.totais.prontoValor,
+    },
+    etiqueta: {
+      sem: semEtiqueta.length,
+      velhas: est.filter((i) => i.etiquetaVelha).length,
+      gramas: g(semEtiqueta),
+    },
+  }
 }
