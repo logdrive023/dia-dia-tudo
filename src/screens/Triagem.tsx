@@ -388,7 +388,7 @@ export function Triagem() {
           <FiltroLista
             className="mb-3"
             busca={busca} onBusca={setBusca} placeholder="Código, compra ou fornecedor" onKeyDown={pistola.onKeyDown}
-            extra={<FiltroViagem viagens={viagensFila} valor={fp('sv')} onChange={(v) => ajustarParams({ sv: v || undefined })} />}
+            extra={<FiltroViagem nasLinhas={daAba.map((l) => l.compras.map((c) => c.viagem))} valor={fp('sv')} onChange={(v) => ajustarParams({ sv: v || undefined })} />}
             ativos={ativosFila} onTirar={(k) => ajustarParams({ [k]: undefined })} onLimpar={limparFila}
             resultados={paraSeparar.length} total={daAba.length} unidade="pacote(s)"
             painel={<>

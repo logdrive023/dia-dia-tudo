@@ -44,6 +44,7 @@ export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
   'estoque',
   'lerCodigoPacote',
   'vendasAbertas',
+  'viagensParaFiltro',
   'tabelasPreco',
   'tabelaVigente',
   'calcularPreco',

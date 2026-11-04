@@ -119,7 +119,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
           n: a.id === 'abertas' ? abertas?.length : carregando ? undefined : a.id === 'canceladas' ? canc.length : a.id === 'todas' ? conc.length + canc.length : a.id === 'pendencia' ? comPend.length : conc.length,
         })) }}
         periodo={{ de: p('de'), ate: p('ate'), onChange: (de, ate) => ajustarParams({ de, ate, pagina: undefined }) }}
-        extra={<FiltroViagem viagens={viagensVendas} valor={p('viagem')} onChange={(v) => mudar('viagem', v)} />}
+        extra={<FiltroViagem nasLinhas={[...(concluidas ?? []), ...(canceladas ?? [])].map((v) => v.viagens)} valor={p('viagem')} onChange={(v) => mudar('viagem', v)} />}
         busca={p('busca')} onBusca={(v) => mudar('busca', v)} placeholder="Buscar cliente, código (V-0001), item ou quem vendeu"
         ativos={ativos} onTirar={(k) => (tirar(k), setP('pagina', ''))} onLimpar={limpar}
         resultados={carregando ? undefined : lista.length} total={carregando ? undefined : (aba === 'canceladas' ? canceladas!.length : aba === 'todas' ? concluidas!.length + canceladas!.length : concluidas!.length)} unidade="venda(s)"

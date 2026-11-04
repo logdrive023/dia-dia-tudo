@@ -2,6 +2,7 @@
 // e o aviso de tela larga (tabela) × estreita (cartões).
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { brilho, decodificar } from './leitorImagem'
 import { BarraPartes } from './barras'
 import type { StatusLote } from '../core/services/estoque'
 import { Botao, Janela, Pilula, cx, gramasTexto } from './base'
@@ -88,14 +89,20 @@ type Detector = { detect(v: HTMLVideoElement): Promise<{ rawValue: string }[]> }
 /** o navegador lê QR/código de barras pela câmera (Chrome no Android, por exemplo) */
 export const temDetectorCodigo = () => typeof window !== 'undefined' && 'BarcodeDetector' in window
 
-/**
- * O botão da câmera aparece SEMPRE: onde o navegador não lê códigos, a janela explica que dá para usar a câmera do
- * celular no QR (ela abre o pacote direto). Mantido com este nome para as telas que já usam.
- */
+/** O botão da câmera aparece SEMPRE: o leitor próprio (jsQR) lê em qualquer navegador com câmera. */
 export const temLeitorCodigo = () => true
 
+/** o que a câmera deste aparelho deixa controlar (lanterna e zoom), quando deixa */
+type Capacidades = { torch?: boolean; zoom?: { min: number; max: number; step?: number } }
+
 /**
- * Abre a câmera, lê QR/código de barras e devolve o texto. Sem câmera ou sem permissão: explica e deixa digitar.
+ * LER CÓDIGO PELA CÂMERA — feito para o balcão de verdade (etiqueta com tinta fraca, pouca luz, reflexo, papel ruim):
+ *   · câmera traseira em ALTA resolução e foco contínuo; 🔦 LANTERNA e ZOOM quando o celular deixa
+ *   · DOIS leitores: o do navegador (rápido, lê também código de barras) e o próprio (jsQR, em qualquer navegador,
+ *     com realce de contraste e suavização para etiqueta desbotada e foto escura)
+ *   · lê o QUADRADO do meio primeiro (mais detalhe onde a pessoa mira) e a imagem inteira de vez em quando
+ *   · DICAS na hora: pouca luz → "ligue a lanterna"; demorou → "aproxime, incline para tirar o reflexo"
+ *   · e sempre dá para DIGITAR o código (o código está impresso na etiqueta, embaixo do QR)
  * QR da ETIQUETA do lote (…#/lotes/<id>): abre o lote direto (abrirLote=false: devolve o texto, ex.: a venda adiciona).
  */
 export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true }: { onLer(codigo: string): void; onFechar(): void; abrirLote?: boolean }) {
@@ -103,40 +110,81 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true }: 
   const { ir } = useApp()
   const ref = useRef({ onLerTexto, onFechar, ir, abrirLote })
   ref.current = { onLerTexto, onFechar, ir, abrirLote }
-  const semDetector = !temDetectorCodigo()
   const onLer = useCallback((texto: string) => {
+    try { navigator.vibrate?.(40) } catch { /* sem vibração */ }
     const lote = loteDoCodigoLido(texto)
     if (lote && ref.current.abrirLote) return (ref.current.onFechar(), ref.current.ir('lote', { id: lote }))
     ref.current.onLerTexto(texto)
   }, [])
   const video = useRef<HTMLVideoElement>(null)
+  const trilha = useRef<MediaStreamTrack>()
   const [erro, setErro] = useState<string>()
+  const [caps, setCaps] = useState<Capacidades>({})
+  const [lanterna, setLanterna] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const [dica, setDica] = useState<'escuro' | 'demora' | undefined>()
+  const [digitado, setDigitado] = useState('')
   useEffect(() => {
     let stream: MediaStream | undefined
     let vivo = true
     let timer: ReturnType<typeof setTimeout> | undefined
-    if (semDetector) return undefined
+    const inicio = Date.now()
     ;(async () => {
       try {
-        const Ctor = (window as unknown as { BarcodeDetector: new (o?: object) => Detector }).BarcodeDetector
-        const detector = new Ctor()
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error('sem câmera')
+        // alta resolução + foco contínuo (se o aparelho não aceitar, cai para o simples)
+        const pedir = (v: MediaTrackConstraints) => navigator.mediaDevices.getUserMedia({ video: v, audio: false })
+        stream = await pedir({ facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] })
+          .catch(() => pedir({ facingMode: 'environment' }))
         if (!vivo || !video.current) return
+        const tr = stream.getVideoTracks()[0]
+        trilha.current = tr
+        const c = (tr?.getCapabilities?.() ?? {}) as MediaTrackCapabilities & { torch?: boolean; zoom?: { min: number; max: number; step?: number } }
+        setCaps({ torch: !!c.torch, zoom: c.zoom && c.zoom.max > (c.zoom.min ?? 1) ? { min: c.zoom.min ?? 1, max: c.zoom.max, step: c.zoom.step } : undefined })
         video.current.srcObject = stream
         await video.current.play()
+        const Ctor = temDetectorCodigo() ? (window as unknown as { BarcodeDetector: new (o?: object) => Detector }).BarcodeDetector : undefined
+        let detector: Detector | undefined
+        try { detector = Ctor ? new Ctor({ formats: ['qr_code', 'code_128', 'ean_13', 'code_39'] }) : undefined } catch { detector = Ctor ? new Ctor() : undefined }
+        const tela = document.createElement('canvas')
+        const ctx2d = tela.getContext('2d', { willReadFrequently: true })
+        let volta = 0
         const ler = async () => {
-          if (!vivo || !video.current) return
+          const v = video.current
+          if (!vivo || !v) return
+          volta++
           try {
-            const r = await detector.detect(video.current)
-            if (r[0]?.rawValue && vivo) return onLer(r[0].rawValue.trim())
+            // 1) o leitor do navegador (rápido; lê código de barras também)
+            if (detector) {
+              const r = await detector.detect(v)
+              if (r[0]?.rawValue && vivo) return onLer(r[0].rawValue.trim())
+            }
+            // 2) o leitor próprio: o QUADRADO do meio (onde a pessoa mira) e, a cada 4 voltas, a imagem inteira
+            if (ctx2d && v.videoWidth) {
+              const inteiro = volta % 4 === 0
+              const lado = Math.min(v.videoWidth, v.videoHeight) * (inteiro ? 1 : 0.7)
+              const sx = inteiro ? 0 : (v.videoWidth - lado) / 2
+              const sy = inteiro ? 0 : (v.videoHeight - lado) / 2
+              const sw = inteiro ? v.videoWidth : lado
+              const sh = inteiro ? v.videoHeight : lado
+              const escala = Math.min(1, 800 / Math.max(sw, sh))
+              tela.width = Math.round(sw * escala)
+              tela.height = Math.round(sh * escala)
+              ctx2d.drawImage(v, sx, sy, sw, sh, 0, 0, tela.width, tela.height)
+              const img = ctx2d.getImageData(0, 0, tela.width, tela.height)
+              const texto = decodificar(img.data, tela.width, tela.height)
+              if (texto && vivo) return onLer(texto)
+              // dicas: pouca luz (brilho baixo) e demora
+              if (volta % 6 === 0) setDica(brilho(img.data) < 60 ? 'escuro' : Date.now() - inicio > 5000 ? 'demora' : undefined)
+            }
           } catch {
             /* quadro ruim: tenta de novo */
           }
-          timer = setTimeout(ler, 300)
+          timer = setTimeout(ler, 160)
         }
         ler()
       } catch {
-        if (vivo) setErro('Não deu para abrir a câmera. Confira a permissão ou digite o código.')
+        if (vivo) setErro('Não deu para abrir a câmera. Confira a permissão — ou digite o código da etiqueta abaixo.')
       }
     })()
     return () => {
@@ -144,20 +192,48 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true }: 
       if (timer) clearTimeout(timer)
       stream?.getTracks().forEach((x) => x.stop())
     }
-  }, [onLer, semDetector])
+  }, [onLer])
+  const aplicar = (c: MediaTrackConstraintSet) => { try { void trilha.current?.applyConstraints({ advanced: [c] }) } catch { /* o aparelho não deixou */ } }
+  const trocarLanterna = () => { const v = !lanterna; setLanterna(v); aplicar({ torch: v } as MediaTrackConstraintSet) }
+  const trocarZoom = (z: number) => { setZoom(z); aplicar({ zoom: z } as MediaTrackConstraintSet) }
+  const zooms = caps.zoom ? [1, 2, 3].filter((z) => z >= caps.zoom!.min && z <= caps.zoom!.max) : []
+  const enviar = () => { const c = digitado.trim(); if (c) onLer(c) }
   return (
     <Janela aberta titulo={t('Ler código')} onFechar={onFechar} rodape={<Botao variante="leve" className="w-full" onClick={onFechar}>{t('Fechar')}</Botao>}>
-      {semDetector ? (
-        <div className="space-y-2 text-sm">
-          <p className="font-semibold">📱 {t('Use a câmera do celular para ler o QR')}</p>
-          <p className="text-[var(--suave)]">{t('Este navegador não lê códigos pela câmera. A câmera do celular lê o QR da etiqueta e abre o pacote; o leitor de balcão digita o código na busca.')}</p>
+      <div className="space-y-3">
+        {erro ? <p className="rounded-xl bg-[var(--ruim)]/10 p-3 text-sm text-[var(--ruim)]">{t(erro)}</p> : (
+          <div className="relative overflow-hidden rounded-2xl bg-black">
+            <video ref={video} className="aspect-[4/3] w-full object-cover" muted playsInline />
+            {/* o QUADRADO onde mirar (é onde o leitor olha primeiro) */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="relative aspect-square w-[62%] rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,.35)]">
+                {['left-0 top-0 border-l-4 border-t-4 rounded-tl-2xl', 'right-0 top-0 border-r-4 border-t-4 rounded-tr-2xl', 'left-0 bottom-0 border-l-4 border-b-4 rounded-bl-2xl', 'right-0 bottom-0 border-r-4 border-b-4 rounded-br-2xl'].map((c) => <span key={c} className={cx('absolute h-8 w-8 border-white', c)} />)}
+              </div>
+            </div>
+            {/* lanterna e zoom (quando o celular deixa) */}
+            {(caps.torch || zooms.length > 1) && (
+              <div className="absolute inset-x-0 bottom-2 flex justify-center gap-2">
+                {caps.torch && <button type="button" aria-pressed={lanterna} onClick={trocarLanterna} className={cx('min-h-10 rounded-full px-4 text-sm font-semibold backdrop-blur', lanterna ? 'bg-yellow-300 text-black' : 'bg-black/55 text-white')}>🔦 {t(lanterna ? 'Lanterna ligada' : 'Lanterna')}</button>}
+                {zooms.length > 1 && zooms.map((z) => <button key={z} type="button" aria-pressed={zoom === z} onClick={() => trocarZoom(z)} className={cx('min-h-10 min-w-10 rounded-full px-3 text-sm font-bold backdrop-blur', zoom === z ? 'bg-white text-black' : 'bg-black/55 text-white')}>{z}×</button>)}
+              </div>
+            )}
+          </div>
+        )}
+        {!erro && (
+          <p className={cx('rounded-xl px-3 py-2 text-center text-sm', dica ? 'bg-[var(--alerta)]/12 font-semibold' : 'text-[var(--suave)]')}>
+            {dica === 'escuro'
+              ? (caps.torch ? t('Pouca luz: ligue a 🔦 lanterna.') : t('Pouca luz: chegue perto de uma luz ou aproxime a etiqueta.'))
+              : dica === 'demora' ? t('Não está lendo? Ponha o QR inteiro dentro do quadrado, segure firme e incline um pouco para tirar o reflexo do plástico.')
+                : t('Mire o QR da etiqueta no quadrado.')}
+          </p>
+        )}
+        {/* último recurso: o código impresso na etiqueta */}
+        <div className="flex gap-2">
+          <input aria-label={t('Digitar o código')} placeholder={t('Ou digite o código (ex.: L-0022)')} value={digitado} onChange={(e) => setDigitado(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), enviar())}
+            className="min-h-11 min-w-0 flex-1 rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 font-mono outline-none focus:border-[var(--marca)]" />
+          <Botao disabled={!digitado.trim()} onClick={enviar}>OK</Botao>
         </div>
-      ) : erro ? <p className="text-sm text-[var(--ruim)]">{t(erro)}</p> : (
-        <div className="space-y-2">
-          <video ref={video} className={cx('aspect-video w-full rounded-xl bg-black object-cover')} muted playsInline />
-          <p className="text-center text-sm text-[var(--suave)]">{t('Aponte para a etiqueta do lote (QR ou código de barras).')}</p>
-        </div>
-      )}
+      </div>
     </Janela>
   )
 }

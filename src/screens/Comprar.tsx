@@ -128,7 +128,7 @@ export function Comprar() {
           { id: 'todas', nome: 'Todas', n: fila ? contaAba.todas : undefined },
         ] }}
         periodo={{ de, ate, onChange: (d, a) => ajustarParams({ de: d, ate: a }) }}
-        extra={<FiltroViagem viagens={viagensLista} valor={vg} onChange={(v) => ajustarParams({ vg: v || undefined })} />}
+        extra={<FiltroViagem nasLinhas={daAba.map((c) => [c.viagem])} valor={vg} onChange={(v) => ajustarParams({ vg: v || undefined })} />}
         acaoTopo={sessao.perfil === 'admin' && <button type="button" onClick={() => ir('config', { aba: 'etapas' })} className="min-h-10 whitespace-nowrap rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Etapas e regras')}</button>}
         busca={busca} onBusca={setBusca} placeholder="Buscar código (atual ou antigo), sigla, fornecedor, item…"
         ativos={ativosCompra} onTirar={tirarFiltro} onLimpar={limparCompra}

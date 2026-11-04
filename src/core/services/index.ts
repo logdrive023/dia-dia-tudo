@@ -28,6 +28,7 @@ import * as usuarios from './usuarios'
 import * as vendas from './vendas'
 import * as viagens from './viagens'
 import * as vendasAbertas from './vendasAbertas'
+import * as viagemCurta from './viagemCurta'
 
 export const comandos = {
   // caixa
@@ -155,6 +156,7 @@ export const consultas = {
   origemDoPacote: origem.origemDoPacote,
   lerCodigoPacote: leitura.lerCodigoPacote,
   vendasAbertas: vendasAbertas.vendasAbertas,
+  viagensParaFiltro: viagemCurta.viagensParaFiltro,
   origemDaVenda: origem.origemDaVenda,
   triagens: triagem.triagens,
   // livro do cabelo (lançamentos de gramas) e histórico de cada pacote

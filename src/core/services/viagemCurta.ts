@@ -14,3 +14,11 @@ export async function mapaViagens(ctx: Ctx) {
 export function viagensDe(compras: { viagem?: ViagemCurta }[]): ViagemCurta[] {
   return [...new Map(compras.filter((c) => c.viagem).map((c) => [c.viagem!.id, c.viagem!])).values()]
 }
+
+/** as viagens para ESCOLHER num filtro (todas, a mais nova primeiro): código, nome, destino, datas e situação */
+export async function viagensParaFiltro(ctx: Ctx, _p: object = {}) {
+  return (await ctx.repos.viagens.listar())
+    .filter((x) => !x.apagadoEm)
+    .map((x) => ({ id: x.id, codigo: x.codigo, nome: x.nome, destino: x.destino, inicio: x.inicio, fim: x.fim, status: x.status }))
+    .sort((a, b) => (a.inicio < b.inicio ? 1 : -1))
+}

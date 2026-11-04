@@ -316,7 +316,7 @@ export function Estoque() {
       <FiltroLista
         className="mb-2"
         busca={busca} onBusca={(v) => setP('busca', v)} placeholder="Buscar por código, nome ou atributo" onKeyDown={pistola.onKeyDown}
-        extra={<><FiltroViagem viagens={viagensEstoque} valor={p('vg')} onChange={(v) => setP('vg', v)} /><Botao variante="secundario" className="shrink-0 whitespace-nowrap px-3" aria-label={t('Ler código')} onClick={() => setJanela('camera')}>📷<span className="hidden sm:inline"> {t('Ler código')}</span></Botao></>}
+        extra={<><FiltroViagem nasLinhas={(dados ?? []).map((i) => i.compras.map((c) => c.viagem))} valor={p('vg')} onChange={(v) => setP('vg', v)} /><Botao variante="secundario" className="shrink-0 whitespace-nowrap px-3" aria-label={t('Ler código')} onClick={() => setJanela('camera')}>📷<span className="hidden sm:inline"> {t('Ler código')}</span></Botao></>}
         ativos={ativosEstoque} onTirar={tirarFiltro} onLimpar={limpar} temAtivos={chavesFiltro.length > 0}
         resultados={dados ? lista.length : undefined} total={dados?.length} unidade="lote(s)"
         ferramentas={<>
