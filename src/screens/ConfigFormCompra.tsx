@@ -30,7 +30,7 @@ export function ConfigFormCompra() {
   const [novoEstado, setNovoEstado] = useState('')
   const tabela = useMemo(() => tabelas?.find((x) => !x.categoria) ?? tabelas?.[0], [tabelas])
   if (!admin) return <p className="text-sm text-[var(--suave)]">{t('Só o administrador muda o formulário de compra.')}</p>
-  if (erro) return <ErroTela texto={erro} onVoltar={() => history.back()} />
+  if (erro) return <ErroTela texto={erro} />
   if (!atual || !cfg) return <Carregando />
 
   const mudar = (d: Partial<FormCompraConfig>) => setRasc({ ...atual, ...d })
@@ -64,8 +64,8 @@ export function ConfigFormCompra() {
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="min-w-0 space-y-4">
         <Cartao titulo={t('Jeito da tela')}>
-          <Escolha rotulo="Jeito da tela" valor={atual.layout} onChange={(layout) => mudar({ layout })} opcoes={[{ id: 'simples', nome: 'Simples (uma página)' }, { id: 'passos', nome: 'Passo a passo' }]} />
-          <p className="mt-2 text-xs text-[var(--suave)]">{t(atual.layout === 'simples' ? 'Tudo numa página: o que não está aberto vira "+ Adicionar …".' : 'Um passo por vez (na ordem dos campos). Dá para registrar de qualquer passo quando o obrigatório está preenchido.')}</p>
+          <Escolha rotulo="Jeito da tela" valor={atual.layout} onChange={(layout) => mudar({ layout })} opcoes={[{ id: 'simples', nome: 'Passo a passo' }, { id: 'passos', nome: 'Passo a passo + Revisar' }]} />
+          <p className="mt-2 text-xs text-[var(--suave)]">{t(atual.layout === 'simples' ? 'Fornecedor → O que veio → Detalhes, um embaixo do outro; o que não está aberto vira "+ Adicionar …". Registra quando o obrigatório está preenchido.' : 'Os mesmos passos e, no fim, um passo Revisar com o pedido inteiro antes de registrar.')}</p>
         </Cartao>
 
         <Cartao titulo={t('Campos')} ajuda="A ordem da lista é a ordem na tela. Aberto = já aparece; fechado = vira um botão + que abre com um toque. Obrigatório = não registra sem ele.">
@@ -164,8 +164,8 @@ function Marca({ rotulo, marcado, desligado, onChange }: { rotulo: string; marca
 function Previa({ f }: { f: FormCompraConfig }) {
   const t = useT()
   const visiveis = f.campos.filter((c) => c.visivel && c.id !== 'atributos')
-  const PASSO: Record<string, string> = { fornecedor: 'Fornecedor', codigo: 'Fornecedor', comprador: 'Fornecedor', coluna: 'Fornecedor', itens: 'O que veio', estado: 'Estado', obs: 'Estado', fotos: 'Fotos', viagem: 'Fornecedor' }
-  const passos = f.layout === 'passos' ? [...new Set(visiveis.map((c) => PASSO[c.id])), 'Revisar'] : []
+  // os passos da Nova compra (o mesmo passo a passo nos dois jeitos; o segundo acrescenta Revisar)
+  const passos = ['Fornecedor', 'O que veio', 'Detalhes', ...(f.layout === 'passos' ? ['Revisar'] : [])]
   const blocos: (CampoForm | CampoForm[])[] = []
   for (const c of visiveis) {
     const ult = blocos[blocos.length - 1]

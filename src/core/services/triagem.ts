@@ -730,29 +730,9 @@ async function genealogiaTriagem(ctx: Ctx, L: Awaited<ReturnType<typeof leitorCa
     perda: gIn - gOut,
     perdaPct: gIn ? Math.round(((gIn - gOut) * 10000) / gIn) : 0,
     vendas: L.vendasDosLotes(descend),
-    vendasLista: vendasDaTriagem(L, descend),
+    // cada venda numa linha (mais nova primeiro): data, cliente e quanto saiu destes pacotes
+    vendasLista: L.vendasComDetalhe(descend).reverse(),
     /** nada do que saiu foi vendido, separado de novo nem ajustado: dá para desfazer (o servidor confere de novo) */
     podeDesfazer: descend.size === saidas.length && saidas.every((i) => i.saldo === (i.quantidadeInicial ?? 0)),
   }
-}
-
-/** cada venda que levou cabelo desta triagem: data, cliente e quanto (gramas e valor) saiu DESTES pacotes */
-function vendasDaTriagem(L: Awaited<ReturnType<typeof leitorCadeia>>, lotes: Set<Id>) {
-  const vs = new Map<Id, Transacao>()
-  for (const x of lotes) for (const t of L.vendasDe.get(x) ?? []) vs.set(t.id, t)
-  return [...vs.values()]
-    .sort((a, b) => (a.data + a.criadoEm < b.data + b.criadoEm ? 1 : -1))
-    .map((t) => {
-      const ls = t.linhas.filter((l) => l.itemId && lotes.has(l.itemId))
-      return {
-        id: t.id,
-        codigo: L.codigoVenda(t),
-        data: t.data,
-        cliente: t.pessoaId ? L.pessoas.get(t.pessoaId) : undefined,
-        g: ls.reduce((s, l) => s + l.quantidade, 0),
-        valor: ls.reduce((s, l) => s + l.totalPrincipal, 0),
-        moeda: t.moedaPrincipal,
-        lotes: [...new Set(ls.map((l) => L.porId.get(l.itemId!)?.codigo).filter(Boolean))] as string[],
-      }
-    })
 }

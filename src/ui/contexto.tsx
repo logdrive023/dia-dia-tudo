@@ -47,6 +47,18 @@ export function useParamTela<T extends string = string>(chave: string, padrao: s
   return [atual, (v: T) => ajustarParams({ [chave]: v === padrao ? undefined : v })]
 }
 
+/**
+ * VÁRIOS FILTROS NO ENDEREÇO (padrão das listas): `p('busca')` lê ('' quando vazio), `setP('busca', v)` grava (vazio
+ * tira do endereço) e `tirar('de,ate')` apaga os de um chip ✕ de uma vez.
+ */
+export function useFiltrosTela() {
+  const { nav, ajustarParams } = useApp()
+  const p = (k: string) => (nav.params[k] === undefined ? '' : String(nav.params[k]))
+  const setP = (k: string, v: string) => ajustarParams({ [k]: v || undefined })
+  const tirar = (ks: string) => ajustarParams(Object.fromEntries(ks.split(',').map((x) => [x, undefined])))
+  return { p, setP, tirar }
+}
+
 /** Avisa antes de sair da tela (menu, voltar, voltar do celular, fechar a aba) se houver dado não salvo. */
 export function useAvisoSaida(sujo: boolean) {
   const { marcarSujo } = useApp()

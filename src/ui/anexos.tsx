@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react'
 import type { CategoriaAnexo, Id } from '../core/domain/tipos'
 import { ehFoto } from '../core/services/fotos'
-import { Botao, Janela, cx, dataBR } from './base'
+import { Botao, Janela, cx, dataBR, Pilula, Vazio } from './base'
 import { useApp, useConsulta } from './contexto'
 import { useT } from './i18n'
 import { VisorFotos, useEnviarFotos } from './fotos'
@@ -180,7 +180,7 @@ export function ListaAnexos({ anexos, comFiltro, compacta }: { anexos: AnexoTela
               <button type="button" onClick={() => setVer(a.id)} className="block w-full min-w-0 overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] text-left hover:border-[var(--marca)]">
                 {miniatura(a, 'aspect-square w-full')}
                 <span className="block space-y-0.5 p-2">
-                  <span className="inline-block max-w-full truncate rounded-full bg-[var(--marca-suave)] px-2 py-0.5 text-[11px] font-semibold text-[var(--marca)]">{ICONE_ANEXO[a.categoria]} {t(NOMES_ANEXO[a.categoria])}</span>
+                  <Pilula pequena tom="marca">{ICONE_ANEXO[a.categoria]} {t(NOMES_ANEXO[a.categoria])}</Pilula>
                   <span className="block truncate text-xs font-semibold">{a.nome}</span>
                   <span className="block truncate text-[11px] text-[var(--suave)]">{quando(a)}</span>
                 </span>
@@ -207,12 +207,11 @@ export function ListaAnexos({ anexos, comFiltro, compacta }: { anexos: AnexoTela
 
 /** Anexos curtos (lote, venda): "+ Anexar" e a lista em linhas, sem abas. */
 export function AnexosCurtos({ donoId, categorias, padrao, esconderFotos }: { donoId: Id; categorias: CategoriaAnexo[]; padrao?: CategoriaAnexo; esconderFotos?: boolean }) {
-  const t = useT()
   const { dados } = useConsulta('anexosDe', { donoId })
   const anexos = (esconderFotos ? dados?.filter((a) => !ehFoto(a)) : dados) ?? []
   return (
     <div className="space-y-2">
-      {anexos.length ? <ListaAnexos anexos={anexos} compacta /> : <p className="text-sm text-[var(--suave)]">{t('Nenhum anexo ainda.')}</p>}
+      {anexos.length ? <ListaAnexos anexos={anexos} compacta /> : <Vazio compacto texto="Nenhum anexo ainda." />}
       <BotaoAnexar donoId={donoId} categorias={categorias} padrao={padrao} variante="secundario" />
     </div>
   )

@@ -2,6 +2,7 @@
 // filtro por área (chips) e busca, no padrão das outras listas. Tocar num item com tela abre a tela.
 
 import { useState } from 'react'
+import { BarraFiltros } from '../ui/filtroPadrao'
 import { NOVIDADES, type ItemNovidade } from '../app/novidades'
 import { Titulo, cx, dataBR } from '../ui/base'
 import { useApp } from '../ui/contexto'
@@ -26,7 +27,7 @@ export function Novidades() {
     <div className="mx-auto max-w-3xl space-y-4">
       <Titulo subtitulo={t('O que mudou no sistema, em palavras simples. Toque num item para ver onde mudou.')}>✨ {t('Novidades')}</Titulo>
       <div className="space-y-2">
-        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={t('Buscar mudança')} aria-label={t('Buscar mudança')} className="min-h-11 w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 text-sm outline-none focus:border-[var(--marca)]" />
+        <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar mudança" />
         <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
           {chip('', 'Todas', NOVIDADES.reduce((s, n) => s + n.itens.length, 0))}
           {areas.map((a) => chip(a, a, NOVIDADES.reduce((s, n) => s + n.itens.filter((i) => i.area === a).length, 0)))}

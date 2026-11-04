@@ -2,7 +2,7 @@
 
 import { formatar } from '../core/domain/dinheiro'
 import type { Pendencia } from '../core/services/pendencias'
-import { cx } from './base'
+import { cx, Pilula } from './base'
 import { useT } from './i18n'
 
 const CURTO: Record<string, string> = { semFotos: 'Fotos', semComprovanteOrigem: 'Origem', semComprovante: 'Comprovante', paradaTriagem: 'Parada', faltaPagar: 'A pagar', faltaReceber: 'A receber' }
@@ -10,14 +10,14 @@ const CURTO: Record<string, string> = { semFotos: 'Fotos', semComprovanteOrigem:
 export function SeloPendencias({ pendencias, moeda, compacto }: { pendencias: Pendencia[]; moeda: string; compacto?: boolean }) {
   const t = useT()
   if (!pendencias.length)
-    return <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bom)]/15 px-2 py-0.5 text-xs font-semibold text-[var(--bom)]">✓ {t('Completa')}</span>
+    return <Pilula tom="bom">✓ {t('Completa')}</Pilula>
   return (
     <span className="inline-flex flex-wrap gap-1" title={pendencias.map((p) => t(p.texto)).join(' · ')}>
       {pendencias.map((p) => (
-        <span key={p.id} className={cx('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold', p.nivel === 'urgente' ? 'bg-[var(--ruim)]/15 text-[var(--ruim)]' : 'bg-[var(--alerta)]/15 text-[var(--alerta)]')}>
+        <Pilula key={p.id} tom={p.nivel === 'urgente' ? 'ruim' : 'alerta'}>
           {p.nivel === 'urgente' ? '●' : '○'} {t(compacto ? CURTO[p.id] ?? p.texto : p.texto)}
           {!compacto && p.valor !== undefined && <span className="num">{formatar(p.valor, moeda)}</span>}
-        </span>
+        </Pilula>
       ))}
     </span>
   )

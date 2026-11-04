@@ -2,14 +2,15 @@
 // CSV), SEPARAR lote bruto em N lotes, ajustar, PRONTUÁRIO do lote (compra → triagem → venda) e RASTREIO.
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { ChipsFiltros, PainelFiltros, GrupoFiltro, CampoFaixa } from '../ui/filtroPadrao'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Campos, Id } from '../core/domain/tipos'
 import type { CampoDef } from '../core/modulos'
 import type { ResultadoConsulta } from '../core/services'
 import { fatorDaTabela } from '../core/services/precos'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Escolha, GramasInput, Info, Janela, Pagina, Selecao, Titulo, Vazio, cx, dataBR, fmt, gramasTexto, ErroTela, moedaPadrao } from '../ui/base'
-import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
+import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Escolha, GramasInput, Info, Janela, Pagina, Selecao, Titulo, Vazio, cx, dataBR, fmt, gramasTexto, ErroTela, moedaPadrao, TituloSecao, BotaoExpandir, diaMes } from '../ui/base'
+import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela, useFiltrosTela } from '../ui/contexto'
 import { clicavel } from '../ui/compartilhados'
 import { AnexosCurtos } from '../ui/anexos'
 import { CamposDinamicos, resumoCampos } from '../ui/camposDinamicos'
@@ -155,7 +156,7 @@ export function Estoque() {
   const modulos = (cfg?.modulos ?? []).filter((m) => cfg?.config.modulosAtivos.includes(m.id) && m.tiposItem.some((x) => x.controlaEstoque))
   const [modulo] = useParamTela('modulo', 'cabelo')
   const campos = useCamposModulo(modulo)
-  const p = (k: string) => (nav.params[k] === undefined ? '' : String(nav.params[k]))
+  const { p, tirar: tirarFiltro } = useFiltrosTela()
   const setP = (k: string, v: string) => ajustarParams({ [k]: v || undefined, ...(k === 'status' ? { bruto: undefined } : {}) })
   const busca = p('busca')
   const status = p('status') || (nav.params.bruto ? 'bruto' : '')
@@ -176,6 +177,13 @@ export function Estoque() {
   const chavesFiltro = Object.keys(nav.params).filter((k) => k !== 'modulo')
   const avancados = chavesFiltro.filter((k) => !['busca', 'status', 'bruto', 'repor'].includes(k)).length
   const limpar = () => ajustarParams(Object.fromEntries(chavesFiltro.map((k) => [k, undefined])))
+  const ativosEstoque = [
+    ...(status ? [{ k: 'status,bruto', rotulo: `📦 ${t(STATUS_FILTRO.find((s) => s.id === status)?.nome ?? status)}` }] : []),
+    ...campos.filter((c) => c.tipo === 'numero' && (p(`min.${c.id}`) || p(`max.${c.id}`))).map((c) => ({ k: `min.${c.id},max.${c.id}`, rotulo: `${t(c.nome)}: ${p(`min.${c.id}`) || '0'} – ${p(`max.${c.id}`) || '∞'}` })),
+    ...campos.filter((c) => (c.tipo === 'lista' || c.tipo === 'simNao') && p(`f.${c.id}`)).map((c) => ({ k: `f.${c.id}`, rotulo: `${t(c.nome)}: ${c.tipo === 'simNao' ? t(p(`f.${c.id}`) === 'true' ? 'Sim' : 'Não') : t(p(`f.${c.id}`))}` })),
+    ...(p('compra') ? [{ k: 'compra', rotulo: `🛒 ${p('compra')}` }] : []),
+    ...(p('de') || p('ate') ? [{ k: 'de,ate', rotulo: `📅 ${p('de') ? diaMes(p('de')) : '…'} – ${p('ate') ? diaMes(p('ate')) : '…'}` }] : []),
+  ]
   const termo = busca.trim().toLowerCase()
   const passaCampos = (i: Linha) =>
     campos.every((c) => {
@@ -303,30 +311,41 @@ export function Estoque() {
         </div>
       </div>
 
+      {/* FILTRO PADRÃO: chips ✕ do que está ligado e o painel em grupos (situação · medidas · o cabelo · de onde veio) */}
+      <div className="mb-2"><ChipsFiltros itens={ativosEstoque} onTirar={tirarFiltro} onLimpar={limpar} /></div>
       {abrirFiltros && (
-        <div className="mb-2 grid gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Campo rotulo="Status"><Selecao valor={status} onChange={(v) => setP('status', v)} opcoes={STATUS_FILTRO.slice(1)} vazio={STATUS_FILTRO[0].nome} /></Campo>
-          {campos.filter((c) => c.tipo === 'numero').map((c) => (
-            <Campo key={c.id} comoDiv rotulo={`${c.nome}${c.unidade ? ` (${c.unidade})` : ''}`}>
-              <div className="flex items-center gap-1">
-                <Entrada inputMode="numeric" aria-label={`${t(c.nome)} · ${t('mínimo')}`} placeholder={t('mín.')} value={p(`min.${c.id}`)} onChange={(e) => setP(`min.${c.id}`, e.target.value.replace(/[^\d.,]/g, '').replace(',', '.'))} />
-                <span className="text-[var(--suave)]">–</span>
-                <Entrada inputMode="numeric" aria-label={`${t(c.nome)} · ${t('máximo')}`} placeholder={t('máx.')} value={p(`max.${c.id}`)} onChange={(e) => setP(`max.${c.id}`, e.target.value.replace(/[^\d.,]/g, '').replace(',', '.'))} />
-              </div>
-            </Campo>
-          ))}
-          {campos.filter((c) => c.tipo === 'lista' || c.tipo === 'simNao').map((c) => (
-            <Campo key={c.id} rotulo={c.nome}>
-              <Selecao valor={p(`f.${c.id}`)} onChange={(v) => setP(`f.${c.id}`, v)} vazio="Todos" opcoes={c.tipo === 'simNao' ? [{ id: 'true', nome: 'Sim' }, { id: 'false', nome: 'Não' }] : (c.opcoes ?? []).map((o) => ({ id: o, nome: o }))} />
-            </Campo>
-          ))}
-          <Campo rotulo="Lote de origem / compra"><Entrada placeholder="P-0003 / L-0001" value={p('compra')} onChange={(e) => setP('compra', e.target.value)} /></Campo>
-          <Campo comoDiv rotulo="Entrada (período)">
-            <div className="flex items-center gap-1">
-              <Entrada type="date" aria-label={t('De')} value={p('de')} onChange={(e) => setP('de', e.target.value)} />
-              <Entrada type="date" aria-label={t('Até')} value={p('ate')} onChange={(e) => setP('ate', e.target.value)} />
-            </div>
-          </Campo>
+        <div className="mb-2">
+          <PainelFiltros resultados={lista.length} temAtivos={chavesFiltro.length > 0} onLimpar={limpar} onFechar={() => setAbrirFiltros(false)}>
+            <GrupoFiltro titulo="Situação" icone="📦">
+              <Campo rotulo="Status"><Selecao valor={status} onChange={(v) => setP('status', v)} opcoes={STATUS_FILTRO.slice(1)} vazio={STATUS_FILTRO[0].nome} /></Campo>
+            </GrupoFiltro>
+            {campos.some((c) => c.tipo === 'numero') && (
+              <GrupoFiltro titulo="Medidas" icone="📏">
+                {campos.filter((c) => c.tipo === 'numero').map((c) => (
+                  <CampoFaixa key={c.id} rotulo={`${t(c.nome)}${c.unidade ? ` (${c.unidade})` : ''}`}>
+                    <Entrada inputMode="numeric" aria-label={`${t(c.nome)} · ${t('mínimo')}`} placeholder={t('mín.')} value={p(`min.${c.id}`)} onChange={(e) => setP(`min.${c.id}`, e.target.value.replace(/[^\d.,]/g, '').replace(',', '.'))} />
+                    <Entrada inputMode="numeric" aria-label={`${t(c.nome)} · ${t('máximo')}`} placeholder={t('máx.')} value={p(`max.${c.id}`)} onChange={(e) => setP(`max.${c.id}`, e.target.value.replace(/[^\d.,]/g, '').replace(',', '.'))} />
+                  </CampoFaixa>
+                ))}
+              </GrupoFiltro>
+            )}
+            {campos.some((c) => c.tipo === 'lista' || c.tipo === 'simNao') && (
+              <GrupoFiltro titulo="O cabelo" icone="💇">
+                {campos.filter((c) => c.tipo === 'lista' || c.tipo === 'simNao').map((c) => (
+                  <Campo key={c.id} rotulo={c.nome}>
+                    <Selecao valor={p(`f.${c.id}`)} onChange={(v) => setP(`f.${c.id}`, v)} vazio="Todos" opcoes={c.tipo === 'simNao' ? [{ id: 'true', nome: 'Sim' }, { id: 'false', nome: 'Não' }] : (c.opcoes ?? []).map((o) => ({ id: o, nome: o }))} />
+                  </Campo>
+                ))}
+              </GrupoFiltro>
+            )}
+            <GrupoFiltro titulo="De onde veio" icone="🛒">
+              <Campo rotulo="Lote de origem / compra"><Entrada placeholder="P-0003 / L-0001" value={p('compra')} onChange={(e) => setP('compra', e.target.value)} /></Campo>
+              <CampoFaixa rotulo="Entrada (período)">
+                <Entrada type="date" aria-label={t('De')} value={p('de')} onChange={(e) => setP('de', e.target.value)} />
+                <Entrada type="date" aria-label={t('Até')} value={p('ate')} onChange={(e) => setP('ate', e.target.value)} />
+              </CampoFaixa>
+            </GrupoFiltro>
+          </PainelFiltros>
         </div>
       )}
 
@@ -338,12 +357,8 @@ export function Estoque() {
             <button type="button" className="min-h-10 min-w-10 rounded-r-full" aria-label={`${t('Tirar favorito')} ${f.nome}`} onClick={() => setFavoritos(favoritos.filter((_, j) => j !== k))}>×</button>
           </span>
         ))}
-        {chavesFiltro.length > 0 && (
-          <>
-            <Botao variante="leve" onClick={() => setJanela('favorito')}>☆ {t('Salvar filtro')}</Botao>
-            <Botao variante="leve" onClick={limpar}>× {t('Limpar filtros')}</Botao>
-          </>
-        )}
+        {chavesFiltro.length > 0 && <Botao variante="leve" onClick={() => setJanela('favorito')}>☆ {t('Salvar filtro')}</Botao>}
+        {chavesFiltro.length > 0 && !ativosEstoque.length && <Botao variante="leve" onClick={limpar}>× {t('Limpar filtros')}</Botao>}
       </div>
 
       {!dados ? (
@@ -704,7 +719,7 @@ function Separar({ ids, onFechar, onSeparou, voltarRotulo }: { ids: Id[]; onFech
             <div className={cx('flex justify-between border-t-2 border-[var(--borda)] px-3 py-2 font-bold', soma > usar ? 'text-[var(--ruim)]' : perda > 0 ? 'text-[var(--alerta)]' : 'text-[var(--bom)]')}><span>{soma > usar ? t('Passou do que entrou!') : t('Perda')}</span><span>{soma > usar ? `+${gramasTexto(soma - usar)}` : `${gramasTexto(perda)} (${fmt(pctPerda, 'percentual')})`}</span></div>
           </div>
           <Campo rotulo="Observação (fica no histórico)"><Entrada value={motivo} placeholder={t('Ex.: mesma qualidade, lavar junto')} onChange={(e) => setMotivo(e.target.value)} /></Campo>
-          <button type="button" aria-expanded={avancado} onClick={() => setAvancado(!avancado)} className="min-h-10 text-sm font-semibold text-[var(--marca)]">{t('Avançado')} {avancado ? '▾' : '▸'} <span className="font-normal text-[var(--suave)]">({t('custo e códigos')})</span></button>
+          <BotaoExpandir aberto={avancado} onClick={() => setAvancado(!avancado)} className="-ml-2">{t('Avançado')} <span className="font-normal text-[var(--suave)]">({t('custo e códigos')})</span></BotaoExpandir>
           {avancado && (
             <div className="space-y-3 rounded-xl bg-[var(--cartao)] p-3 text-sm">
               <div>
@@ -870,7 +885,7 @@ export function FichaLote() {
       ) : <>
       {/* DETALHES: números completos, caminho, cada grama e atributos */}
       <section aria-label={t('Números')} className="space-y-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('Números')}</h2>
+        <TituloSecao>{t('Números')}</TituloSecao>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <Cartao><div className="text-xs text-[var(--suave)]">{t('Agora')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{q(i.saldo)}</div>{f.inicial !== i.saldo && <div className="num text-xs text-[var(--suave)]">{t('entrou')} {q(f.inicial)}</div>}</Cartao>
           <Cartao><div className="text-xs text-[var(--suave)]">{t('Custo do lote')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{formatar(i.custoPrincipal ?? 0, m)}</div>{soSeparado && <div className="text-xs text-[var(--suave)]">{t('dividido entre os pacotes')}</div>}</Cartao>
@@ -897,7 +912,7 @@ export function FichaLote() {
       </Cartao>
 
       <Cartao titulo={t('Atributos')} acao={admin && campos.length > 0 ? <Botao variante="secundario" onClick={() => setEditar(true)}>✎ {t('Editar atributos')}</Botao> : undefined}>
-        {!atributos.length ? <p className="text-sm text-[var(--suave)]">{t('Nenhum atributo preenchido.')}</p> : (
+        {!atributos.length ? <Vazio compacto texto="Nenhum atributo preenchido." /> : (
           <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-sm">
             {atributos.map((a) => <div key={a.id} className="contents"><dt className="text-[var(--suave)]">{t(a.nome)}</dt><dd className="font-semibold [overflow-wrap:anywhere]">{t(a.valor)}</dd></div>)}
           </dl>

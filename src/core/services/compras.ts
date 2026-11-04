@@ -3,7 +3,7 @@
 // As etapas da compra ficam só para PAGAMENTO E ENTREGA (conferir, pagar, concluir); a última etapa não cria lote de novo.
 // Item de catálogo (produto) continua entrando no estoque só na última etapa, como antes.
 
-import { formatar, multiplicarFator, type CodigoMoeda } from '../domain/dinheiro'
+import { formatar, multiplicarFator, proporcao, type CodigoMoeda } from '../domain/dinheiro'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { diasEntre } from '../domain/datas'
 import type { Campos, Id, Item, Linha, MovEstoque, Transacao } from '../domain/tipos'
@@ -464,7 +464,6 @@ async function espalharCusto(ctx: Ctx, raizId: Id, delta: number) {
   const recebe = new Map<Id, number>([[raizId, delta]])
   const fila = [raizId]
   const mexidos: Id[] = []
-  const proporcao = (v: number, a: number, b: number) => (b ? Math.round((v * a) / b) : 0)
   while (fila.length) {
     const id = fila.shift()!
     const dl = recebe.get(id) ?? 0

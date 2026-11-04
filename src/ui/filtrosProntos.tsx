@@ -200,7 +200,6 @@ function CampoPeso({ valor, onChange, rotulo, exemplo }: { valor?: number; onCha
 export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { todos: L[]; filtro: ReturnType<typeof useFiltroProntos> }) {
   const t = useT()
   const { f } = filtro
-  const [aberto, setAberto] = useState(false)
   const [faixaAberta, setFaixa] = useState(false)
   const faixa = faixaAberta || f.faixaDe !== undefined || f.faixaAte !== undefined
   const porMedida = new Map<number, number>()
@@ -209,7 +208,6 @@ export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { tod
     if (m !== undefined) porMedida.set(m, (porMedida.get(m) ?? 0) + l.saldo)
   }
   const medidas = [...porMedida].sort((a, b) => a[0] - b[0])
-  const nAtivos = (f.medidas.length ? 1 : 0) + (f.faixaDe !== undefined || f.faixaAte !== undefined ? 1 : 0) + (f.pesoDe !== undefined || f.pesoAte !== undefined ? 1 : 0)
   const ordens: { id: Ordem; nome: string }[] = [
     { id: 'maior', nome: 'Maior peso' },
     { id: 'menor', nome: 'Menor peso' },
@@ -228,9 +226,6 @@ export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { tod
     <div className="mb-3 space-y-2">
       {/* uma linha no celular */}
       <div className="flex items-center gap-2">
-        <button type="button" aria-expanded={aberto} onClick={() => setAberto(!aberto)} className={cx(chip(aberto || nAtivos > 0), 'sm:hidden')}>
-          ⚲ {t('Filtros')}{nAtivos > 0 && <b className="ml-0.5 rounded-full bg-[var(--marca)] px-1.5 text-xs text-white">{nAtivos}</b>}
-        </button>
         <label className="ml-auto flex items-center gap-1 text-xs text-[var(--suave)]">
           <span className="hidden sm:inline">{t('Ordenar')}</span>
           <select aria-label={t('Ordenar')} value={f.ordem} onChange={(e) => filtro.setOrdem(e.target.value as Ordem)} className="h-9 rounded-lg border border-[var(--borda)] bg-[var(--cartao)] px-2 text-sm text-[var(--texto)]">
@@ -239,7 +234,7 @@ export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { tod
         </label>
       </div>
 
-      <div className={cx('space-y-2 rounded-xl bg-[var(--fundo)] p-2 sm:block sm:bg-transparent sm:p-0', !aberto && 'hidden')}>
+      <div className="space-y-2">
         {/* medida */}
         <div className="flex flex-wrap items-center gap-1.5">
           <span className={rotulo}>{t('Medida')}</span>

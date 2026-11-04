@@ -49,7 +49,7 @@ export function ConfigCodigos() {
   const mudou = !!rasc && !igual(rasc, salvo)
   useAvisoSaida(mudou)
   if (!admin) return <p className="text-sm text-[var(--suave)]">{t('Só o administrador muda os códigos.')}</p>
-  if (erro) return <ErroTela texto={erro} onVoltar={() => history.back()} />
+  if (erro) return <ErroTela texto={erro} />
   if (!dados || !atual) return <Carregando />
   const mudar = <K extends Exclude<keyof Rascunho, 'etiqueta'>>(k: K, v: Partial<Rascunho[K]>) => setRasc({ ...atual, [k]: { ...atual[k], ...v } })
   const salvar = async () => {

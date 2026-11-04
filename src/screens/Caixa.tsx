@@ -5,13 +5,14 @@
 // ("Ver em Bs | US$ | R$"), com a cotação digitada aqui (só para ver: não muda nenhum lançamento).
 
 import { useEffect, useRef, useState } from 'react'
+import { BarraPartes } from '../ui/barras'
 import { MOEDAS, formatar, moeda as moedaDe, type TabelaCotacoes, valorDeUm } from '../core/domain/dinheiro'
 import { dataCurta, dataLocal, somarDias } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { Id, MovCaixa, TipoCaixa } from '../core/domain/tipos'
 import type { ContaMoeda } from '../core/services/caixa'
 import { NOMES_TIPO_CAIXA } from '../core/services/caixa'
-import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, loc, moedaPadrao } from '../ui/base'
+import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, loc, moedaPadrao, Titulo } from '../ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { CampoCotacao, SeletorPessoa, conv, cotacaoDigitada, cotacaoTexto, lerCotacaoTexto, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { useT } from '../ui/i18n'
@@ -153,14 +154,9 @@ export function Caixa() {
   }
   return (
     <div className="min-w-0">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-black">
-          {t('Caixa')} · {dataBR(data)}
-        </h1>
-        <span className="text-sm text-[var(--suave)]">
-          {t('Situação')}: <Pilula tom={aberto ? 'bom' : 'neutro'}>{t(NOME_STATUS[dados.status] ?? dados.status)}</Pilula>
-        </span>
-      </div>
+      <Titulo acao={<span className="text-sm text-[var(--suave)]">{t('Situação')}: <Pilula tom={aberto ? 'bom' : 'neutro'}>{t(NOME_STATUS[dados.status] ?? dados.status)}</Pilula></span>}>
+        {t('Caixa')} · {dataBR(data)}
+      </Titulo>
 
       <FitaDias data={data} hoje={hoje} dias={dias ?? []} onEscolher={setData} />
 
@@ -491,9 +487,7 @@ function SaldoDoCaixa({ contas, movimentos, data, cot, linha, onOntem }: { conta
           <span className="text-sm font-bold">{t('Vendas de hoje')}</span>
           <span className="num font-black">{formatar(totalVendas, ver)}</span>
         </div>
-        <div className="mt-1 flex h-2 overflow-hidden rounded-full bg-[var(--borda)]">
-          {porForma.map((x, i) => (x.valor > 0 ? <span key={x.f.id} style={{ width: `${pct(x.valor)}%`, background: CORES[i % CORES.length] }} /> : null))}
-        </div>
+        <BarraPartes className="mt-1" altura="h-2" partes={porForma.map((x, i) => ({ chave: x.f.id, valor: x.valor, cor: CORES[i % CORES.length] }))} />
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {porForma.map((x, i) => (
             <button key={x.f.id} type="button" onClick={() => ir('vendas', { de: data, ate: data, forma: x.f.id })} className="min-w-0 rounded-xl border border-[var(--borda)] p-2 text-left hover:border-[var(--marca)]">

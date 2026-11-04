@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { Id, Item } from '../core/domain/tipos'
-import { Botao, Campo, Entrada, Info, Janela, cx, dataBR } from './base'
+import { Botao, Campo, Entrada, Info, Janela, dataBR, Pilula } from './base'
 import { useComando } from './contexto'
 import { useT } from './i18n'
 
@@ -21,9 +21,9 @@ export function SeloReserva({ i, className }: { i: ComReserva; className?: strin
   const r = i.reserva!
   const venceu = !!r.ate && r.ate < new Date().toISOString().slice(0, 10)
   return (
-    <span title={r.obs} className={cx('inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[11px] font-semibold', venceu ? 'bg-[var(--ruim)]/15 text-[var(--ruim)]' : 'bg-[var(--alerta)]/15 text-[var(--alerta)]', className)}>
+    <Pilula pequena title={r.obs} tom={venceu ? 'ruim' : 'alerta'} className={className}>
       🔒 {t('Reservado para {p}', { p: r.para })}{r.ate ? ` · ${venceu ? t('venceu') : t('até')} ${dataBR(r.ate)}` : ''}
-    </span>
+    </Pilula>
   )
 }
 

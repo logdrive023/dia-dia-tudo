@@ -749,7 +749,6 @@ export function Dados() {
   const [protegido, setProtegido] = useState<boolean>()
   const [espaco, setEspaco] = useState<{ usado: number; total: number }>()
   const [confirmar, setConfirmar] = useState<'demo' | 'zerar'>()
-  const [ocupado, setOcupado] = useState(false)
   const { dados: diag } = useConsulta('diagnostico', {})
   useEffect(() => {
     if (backend.tipo === 'local') {
@@ -767,7 +766,6 @@ export function Dados() {
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
   const acao = async () => {
-    setOcupado(true)
     try {
       if (confirmar === 'demo') await carregarDemo(backend as BackendNoAparelho)
       else await backend.limparTudo()
@@ -775,7 +773,6 @@ export function Dados() {
     } catch (e) {
       avisar(e instanceof Error ? e.message : String(e), 'erro')
     } finally {
-      setOcupado(false)
       setConfirmar(undefined)
     }
   }
@@ -817,9 +814,16 @@ export function Dados() {
           <p className="mt-2 text-xs text-[var(--suave)]">{t('Antes de zerar, baixe um backup se quiser voltar depois.')}</p>
         </Cartao>
       )}
-      <Janela aberta={!!confirmar} titulo={t('Tem certeza?')} onFechar={() => setConfirmar(undefined)} rodape={<Botao grande variante={confirmar === 'zerar' ? 'perigo' : 'primario'} className="w-full" disabled={ocupado} onClick={acao}>{ocupado ? t('Aguarde…') : t('Sim, continuar')}</Botao>}>
-        <p>{t(confirmar === 'demo' ? 'Os dados atuais serão trocados pelos dados de exemplo.' : 'Todos os dados deste aparelho serão apagados.')}</p>
-      </Janela>
+      {confirmar && (
+        <Confirmar
+          titulo="Tem certeza?"
+          texto={confirmar === 'demo' ? 'Os dados atuais serão trocados pelos dados de exemplo.' : 'Todos os dados deste aparelho serão apagados.'}
+          rotulo="Sim, continuar"
+          perigo={confirmar === 'zerar'}
+          onConfirmar={acao}
+          onFechar={() => setConfirmar(undefined)}
+        />
+      )}
     </div>
   )
 }

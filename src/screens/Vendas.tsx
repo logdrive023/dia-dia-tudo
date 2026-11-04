@@ -4,7 +4,7 @@ import { type LinhaRastreio, ListaRastreio, RastreioTotal } from '../ui/rastreio
 import { useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../core/domain/dinheiro'
 import type { Id, Transacao } from '../core/domain/tipos'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, ErroTela, gramasTexto, loc, moedaPadrao } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, ErroTela, gramasTexto, loc, moedaPadrao, Confirmar } from '../ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { cotacaoDoPagamento, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { AnexosCurtos } from '../ui/anexos'
@@ -106,10 +106,9 @@ export function DetalheVenda() {
   const id = nav.params.id as Id
   const { dados, erro } = useConsulta('venda', { id })
   const { cfg } = useCotacoes()
-  const { executar, ocupado } = useComando()
+  const { executar } = useComando()
   const [cancelar, setCancelar] = useState(false)
   const [corrigir, setCorrigir] = useState(false)
-  const [motivo, setMotivo] = useState('')
   const [aba, setAba] = useParamTela<'resumo' | 'tempo' | 'arquivos' | 'correcoes'>('aba', 'resumo')
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
@@ -200,10 +199,17 @@ export function DetalheVenda() {
         </>}
       </div>
       {corrigir && <CorrigirVenda venda={v} temCliente={!!v.pessoaId} onFechar={() => setCorrigir(false)} />}
-      <Janela aberta={cancelar} titulo={t('Cancelar venda')} onFechar={() => (!motivo || window.confirm(t('Sair sem salvar?'))) && (setCancelar(false), setMotivo(''))} rodape={<Botao variante="perigo" grande className="w-full" disabled={ocupado || !motivo} onClick={async () => (await executar('cancelarVenda', { id, motivo }, t('Venda cancelada: estoque e dinheiro voltaram.'))) && setCancelar(false)}>{t('Cancelar venda')}</Botao>}>
-        <p className="mb-2 text-sm">{t('O estoque volta e cada pagamento é estornado. Nada é apagado.')}</p>
-        <Entrada placeholder={t('Motivo')} value={motivo} onChange={(e) => setMotivo(e.target.value)} />
-      </Janela>
+      {cancelar && (
+        <Confirmar
+          perigo
+          pedirMotivo
+          titulo="Cancelar venda"
+          texto="O estoque volta e cada pagamento é estornado. Nada é apagado."
+          rotulo="Cancelar venda"
+          onConfirmar={(motivo) => executar('cancelarVenda', { id, motivo }, t('Venda cancelada: estoque e dinheiro voltaram.'))}
+          onFechar={() => setCancelar(false)}
+        />
+      )}
     </Pagina>
   )
 }

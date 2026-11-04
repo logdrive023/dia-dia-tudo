@@ -48,6 +48,29 @@ export function dataBR(d?: string) {
   return d ? d.slice(0, 10).split('-').reverse().join('/') : ''
 }
 
+// FORMATADORES DE TELA (um só lugar; seguem o idioma): data curta, hora, data e hora, gramas com sinal, %.
+const quandoDe = (iso: string) => new Date(iso.length === 10 ? `${iso}T12:00:00` : iso)
+/** "03/11" */
+export const diaMes = (iso: string) => quandoDe(iso).toLocaleDateString(loc(), { day: '2-digit', month: '2-digit' })
+/** "14/10" (o ano só quando não é o deste ano: "14/10/25") */
+export function diaCurto(iso?: string) {
+  if (!iso) return ''
+  const d = quandoDe(iso)
+  return d.toLocaleDateString(loc(), d.getFullYear() === new Date().getFullYear() ? { day: '2-digit', month: '2-digit' } : { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+/** "14/10/26" */
+export const dataCurta = (iso: string) => quandoDe(iso).toLocaleDateString(loc(), { day: '2-digit', month: '2-digit', year: '2-digit' })
+/** "seg." (dia da semana curto) */
+export const diaSemana = (iso: string) => quandoDe(iso.slice(0, 10)).toLocaleDateString(loc(), { weekday: 'short' })
+/** "10:42" */
+export const hora = (iso: string) => new Date(iso).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })
+/** "14/10/26, 10:42" */
+export const dataHora = (iso: string) => new Date(iso).toLocaleString(loc(), { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+/** "+1,9 kg" · "−300 g" · "0 g" */
+export const sinalGramas = (n: number) => (n > 0 ? `+${gramasTexto(n)}` : n < 0 ? `−${gramasTexto(-n)}` : gramasTexto(0))
+/** pontos-base em %: 1234 → "12,3%"; sem valor → "—" */
+export const pctBp = (bp?: number) => (bp === undefined ? '—' : `${(bp / 100).toLocaleString(loc(), { maximumFractionDigits: 1 })}%`)
+
 // ---------- botões e blocos ----------
 
 export function Botao({
@@ -234,19 +257,44 @@ function ExemploDica({ texto, rotulo }: { texto: string; rotulo: string }) {
   )
 }
 
-export function Pilula({ children, tom = 'neutro' }: { children: ReactNode; tom?: 'neutro' | 'bom' | 'alerta' | 'ruim' | 'marca' }) {
-  const c = {
-    neutro: 'bg-[var(--borda)] text-[var(--texto)]',
-    bom: 'bg-[var(--bom)]/15 text-[var(--bom)]',
-    alerta: 'bg-[var(--alerta)]/15 text-[var(--alerta)]',
-    ruim: 'bg-[var(--ruim)]/15 text-[var(--ruim)]',
-    marca: 'bg-[var(--marca-suave)] text-[var(--marca)]',
-  }[tom]
-  return <span className={cx('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold', c)}>{children}</span>
+/** TONS de selo/pílula (uma paleta só no sistema: situação, pendência, selos dos números grandes, reserva) */
+export type Tom = 'neutro' | 'suave' | 'bom' | 'alerta' | 'ruim' | 'marca'
+export const COR_TOM: Record<Tom, string> = {
+  neutro: 'bg-[var(--borda)] text-[var(--texto)]',
+  suave: 'bg-[var(--fundo)] text-[var(--suave)]',
+  bom: 'bg-[var(--bom)]/15 text-[var(--bom)]',
+  alerta: 'bg-[var(--alerta)]/15 text-[var(--alerta)]',
+  ruim: 'bg-[var(--ruim)]/15 text-[var(--ruim)]',
+  marca: 'bg-[var(--marca-suave)] text-[var(--marca)]',
 }
 
-export function Vazio({ texto, children }: { texto: string; children?: ReactNode }) {
+/** `pequena`: o selo de 11 px (dentro de números grandes e linhas de lista); `title` aparece ao passar o mouse */
+export function Pilula({ children, tom = 'neutro', pequena, title, className }: { children: ReactNode; tom?: Tom; pequena?: boolean; title?: string; className?: string }) {
+  return <span title={title} className={cx('num inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 font-semibold', pequena ? 'text-[11px]' : 'text-xs', COR_TOM[tom], className)}>{children}</span>
+}
+
+/**
+ * "▸ Ver mais / ▾ Esconder" (o mesmo jeito de abrir e fechar no lugar em todas as telas): link na cor da marca, seta
+ * que gira, `aria-expanded`. `rotuloAberto` troca o texto quando aberto ("Ver rastreio" → "Fechar o rastreio").
+ */
+export function BotaoExpandir({ aberto, onClick, children, rotuloAberto, className }: { aberto: boolean; onClick(): void; children: ReactNode; rotuloAberto?: ReactNode; className?: string }) {
+  return (
+    <button type="button" aria-expanded={aberto} onClick={onClick} className={cx('inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]', className)}>
+      <span aria-hidden className={cx('inline-block text-xs transition-transform', aberto && 'rotate-90')}>▸</span>
+      <span>{aberto && rotuloAberto !== undefined ? rotuloAberto : children}</span>
+    </button>
+  )
+}
+
+/** Título de seção pequeno em maiúsculas ("VEIO DE", "PACOTES DESTA COMPRA · 3"): o mesmo em todas as telas */
+export function TituloSecao({ children, className }: { children: ReactNode; className?: string }) {
+  return <h3 className={cx('text-xs font-semibold uppercase tracking-wide text-[var(--suave)]', className)}>{children}</h3>
+}
+
+/** Nada para mostrar. `compacto`: uma linha cinza (dentro de um cartão ou seção); sem ele, o quadro tracejado da página. */
+export function Vazio({ texto, children, compacto }: { texto: string; children?: ReactNode; compacto?: boolean }) {
   const t = useT()
+  if (compacto) return <p className="text-sm text-[var(--suave)]">{t(texto)}{children}</p>
   return (
     <div className="rounded-xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">
       <p>{t(texto)}</p>
@@ -265,13 +313,17 @@ export function Erro({ texto }: { texto?: string }) {
   return <p className="rounded-xl bg-[var(--ruim)]/10 p-3 text-sm text-[var(--ruim)]">{texto}</p>
 }
 
-/** Registro não encontrado / erro: explica e oferece voltar (nunca "Carregando…" para sempre). */
-export function ErroTela({ texto, onVoltar }: { texto: string; onVoltar(): void }) {
+/**
+ * Registro não encontrado / erro: explica e oferece voltar (nunca "Carregando…" para sempre). Sem `onVoltar`, volta
+ * pela regra do App (a mesma da trilha: a lista de origem), e não para uma tela fixa.
+ */
+export function ErroTela({ texto, onVoltar }: { texto: string; onVoltar?(): void }) {
   const t = useT()
+  const { voltar } = useApp()
   return (
     <div className="mx-auto max-w-md space-y-3 pt-10 text-center">
       <p className="font-semibold">{t(texto)}</p>
-      <Botao variante="secundario" onClick={onVoltar}>← {t('Voltar')}</Botao>
+      <Botao variante="secundario" onClick={onVoltar ?? voltar}>← {t('Voltar')}</Botao>
     </div>
   )
 }

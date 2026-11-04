@@ -906,11 +906,28 @@ export async function leitorCadeia(ctx: Ctx) {
     const t = compras.get(id)
     return { id, codigo: t?.codigo, fornecedor: t?.pessoaId ? pessoas.get(t.pessoaId) : undefined }
   }
-  const vendasDosLotes = (ids: Iterable<Id>) => {
+  /** vendas que levaram cabelo destes lotes (mais antiga primeiro), com o que saiu DELES: gramas, valor, cliente */
+  const vendasComDetalhe = (ids: Iterable<Id>) => {
+    const lotes = new Set(ids)
     const vs = new Map<Id, Transacao>()
-    for (const x of ids) for (const t of vendasDe.get(x) ?? []) vs.set(t.id, t)
-    return [...vs.values()].sort((a, b) => (a.data + a.criadoEm < b.data + b.criadoEm ? -1 : 1)).map((t) => ({ id: t.id, codigo: codigoVenda(t) }))
+    for (const x of lotes) for (const t of vendasDe.get(x) ?? []) vs.set(t.id, t)
+    return [...vs.values()]
+      .sort((a, b) => (a.data + a.criadoEm < b.data + b.criadoEm ? -1 : 1))
+      .map((t) => {
+        const ls = t.linhas.filter((l) => l.itemId && lotes.has(l.itemId))
+        return {
+          id: t.id,
+          codigo: codigoVenda(t),
+          data: t.data,
+          cliente: t.pessoaId ? pessoas.get(t.pessoaId) : undefined,
+          g: ls.reduce((s, l) => s + l.quantidade, 0),
+          valor: ls.reduce((s, l) => s + l.totalPrincipal, 0),
+          moeda: t.moedaPrincipal,
+          lotes: [...new Set(ls.map((l) => porId.get(l.itemId!)?.codigo).filter(Boolean))] as string[],
+        }
+      })
   }
+  const vendasDosLotes = (ids: Iterable<Id>) => vendasComDetalhe(ids).map((v) => ({ id: v.id, codigo: v.codigo }))
   const cadeia = (id: Id): Cadeia => {
     const linha = [...ancestrais(id), id, ...descendentes(id)]
     const ts = new Map<Id, Pick<Triagem, 'id' | 'codigo' | 'em'>>()
@@ -927,5 +944,5 @@ export async function leitorCadeia(ctx: Ctx) {
       vendas: vendasDosLotes([id, ...descendentes(id)]),
     }
   }
-  return { cadeia, itens, porId, compras, pessoas, vendasDe, vendasDosLotes, descendentes, compraCurta, codigoVenda }
+  return { cadeia, itens, porId, compras, pessoas, vendasDe, vendasDosLotes, vendasComDetalhe, descendentes, compraCurta, codigoVenda }
 }

@@ -4,6 +4,7 @@
 // As seções e os grupos vêm de uma lista só (configSecoes.ts).
 
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { Trilha } from '../ui/trilha'
 import { Titulo, Vazio, cx } from '../ui/base'
 import { useApp, useComando, useConsulta } from '../ui/contexto'
 import { useT } from '../ui/i18n'
@@ -161,24 +162,18 @@ function Idioma() {
 
 function Secao({ s }: { s: SecaoConfig }) {
   const t = useT()
-  const { ir } = useApp()
   const g = grupoConfig(s.grupo)
   const C = s.componente
   return (
     <div className="lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-8">
       <ListaLateral atual={s.id} />
       <div className="min-w-0">
-        <button type="button" onClick={() => ir('config')} className="-ml-2 mb-2 flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)] lg:hidden">
-          ← {t('Configurações')}
-        </button>
-        <p className="text-xs font-medium text-[var(--suave)]">
+        {/* celular: a trilha (← Configurações › grupo › seção); no computador a lista ao lado já mostra onde está */}
+        <div className="lg:hidden"><Trilha niveis={[{ rotulo: <><span aria-hidden>{g.icone} </span>{t(g.nome)}</> }]} atual={t(s.nome)} /></div>
+        <p className="hidden text-xs font-medium text-[var(--suave)] lg:block">
           <span aria-hidden>{g.icone} </span>{t(g.nome)} <span aria-hidden>›</span> {t(s.nome)}
         </p>
-        <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold">
-          <span aria-hidden>{s.icone}</span>
-          {t(s.nome)}
-        </h1>
-        <p className="mb-4 text-sm text-[var(--suave)]">{t(s.descricao)}</p>
+        <Titulo subtitulo={t(s.descricao)}><span className="flex items-center gap-2"><span aria-hidden>{s.icone}</span>{t(s.nome)}</span></Titulo>
         <C key={s.id} />
       </div>
     </div>

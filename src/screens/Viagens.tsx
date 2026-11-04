@@ -2,42 +2,29 @@
 // viajante e a ficha da viagem (Resumo/DRE · Gastos · Compras · Rateio · Prestação de contas).
 // Funcionária que viaja vê só o painel do viajante (lança os gastos dela; sem custos nem resultado).
 
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
+import { BarraFiltros, ChipsFiltros, PainelFiltros, GrupoFiltro } from '../ui/filtroPadrao'
+import { CodigoTexto } from '../ui/codigos'
+import { BarraLimite } from '../ui/barras'
 import { formatar } from '../core/domain/dinheiro'
 import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { Id, Viagem } from '../core/domain/tipos'
-import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, gramasTexto, loc } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, gramasTexto, pctBp } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { Anexos, clicavel, useCotacoes } from '../ui/compartilhados'
 import { Barras } from '../ui/graficos'
 import { useT } from '../ui/i18n'
 import { LinhaDoTempo } from '../ui/linhaTempo'
-import { NumeroGrande } from '../ui/numeroGrande'
+import { NumeroGrande, NumeroPequeno } from '../ui/numeroGrande'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { Passo } from '../ui/passoAPasso'
 import { AvisoNoAparelho, BarraOrcamento, CarteiraViagem, FolhaDespesa, LinhaGasto, PainelViajante } from '../ui/viagem'
 
-const pct = (bp?: number) => (bp === undefined ? '—' : `${(bp / 100).toLocaleString(loc(), { maximumFractionDigits: 1 })}%`)
 const TOM_STATUS = { aberta: 'marca', encerrada: 'neutro' } as const
 const NOME_STATUS = { aberta: 'Aberta', encerrada: 'Encerrada' } as const
 /** "Por viajante" (quem compra mais barato): desligado por enquanto — a aba aparece "em breve" */
 const COMPARATIVO_LIGADO = false as boolean
-
-/** Número com rótulo e explicação (a ficha e a comparação). */
-function Numero({ rotulo, valor, ajuda, tom, sub }: { rotulo: string; valor: ReactNode; ajuda?: string; tom?: 'bom' | 'ruim'; sub?: ReactNode }) {
-  const t = useT()
-  return (
-    <div className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3">
-      <div className="flex items-center text-xs font-semibold text-[var(--suave)]">
-        {t(rotulo)}
-        {ajuda && <Info texto={ajuda} />}
-      </div>
-      <div className={cx('num mt-1 break-words text-xl font-bold', tom === 'bom' && 'text-[var(--bom)]', tom === 'ruim' && 'text-[var(--ruim)]')}>{valor}</div>
-      {sub && <div className="text-xs text-[var(--suave)]">{sub}</div>}
-    </div>
-  )
-}
 
 // ---------- lista ----------
 
@@ -77,6 +64,7 @@ function ViagensAdmin() {
   const [status, setStatus] = useParamTela<'' | 'aberta' | 'encerrada'>('status', '')
   const [viajanteId, setViajante] = useParamTela('viajante', '')
   const [busca, setBusca] = useParamTela('busca', '')
+  const [verFiltros, setVerFiltros] = useState(false)
   const { dados } = useConsulta('viagens', { status: status || undefined, viajanteId: viajanteId || undefined, busca: busca || undefined })
   const { dados: painel } = useConsulta('painelViajante', {})
   // contagem de abertas/encerradas sem o filtro de situação (os números grandes não somem ao filtrar)
@@ -116,9 +104,16 @@ function ViagensAdmin() {
               <NumeroGrande rotulo="Resultado" icone="📈" cor={(dados?.linhas ?? []).reduce((s, v) => s + v.resultado, 0) < 0 ? 'var(--ruim)' : 'var(--bom)'} colorirValor valor={formatar((dados?.linhas ?? []).reduce((s, v) => s + v.resultado, 0), dados?.moeda ?? 'BOB')} />
             </div>
           )}
-          <div className="mb-3 grid gap-2 md:grid-cols-[14rem_1fr]">
-            <Selecao valor={viajanteId} onChange={setViajante} vazio="Quem viajou: todos" opcoes={dados?.viajantesPossiveis ?? []} />
-            <Entrada type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={t('Buscar código, nome, destino ou viajante')} aria-label={t('Buscar')} />
+          <div className="mb-3 space-y-2">
+            <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar código, nome, destino ou viajante" ativos={viajanteId ? 1 : 0} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
+            <ChipsFiltros itens={viajanteId ? [{ k: 'viajante', rotulo: `👤 ${(dados?.viajantesPossiveis ?? []).find((x) => x.id === viajanteId)?.nome ?? viajanteId}` }] : []} onTirar={() => setViajante('')} onLimpar={() => setViajante('')} />
+            {verFiltros && (
+              <PainelFiltros resultados={dados?.linhas.length} temAtivos={!!viajanteId} onLimpar={() => setViajante('')} onFechar={() => setVerFiltros(false)}>
+                <GrupoFiltro titulo="Quem" icone="👤">
+                  <Campo rotulo="Quem viajou"><Selecao valor={viajanteId} onChange={setViajante} vazio="Todos" opcoes={dados?.viajantesPossiveis ?? []} /></Campo>
+                </GrupoFiltro>
+              </PainelFiltros>
+            )}
           </div>
           {!dados ? <Carregando /> : COMPARATIVO_LIGADO && aba === 'comparar' ? <Comparativo linhas={dados.comparativo} moeda={dados.moeda} /> : !dados.linhas.length ? (
             <Vazio texto="Nenhuma viagem por aqui."><Botao variante="secundario" onClick={() => ir('novaViagem')}>+ {t('Nova viagem')}</Botao></Vazio>
@@ -154,7 +149,7 @@ function ListaViagens({ linhas }: { linhas: LinhaLista[] }) {
                 <span aria-hidden className={cx('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl', aberta ? 'bg-[var(--marca-suave)]' : 'bg-[var(--fundo)]')}>{aberta ? '✈️' : '🏁'}</span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <b className="font-mono text-sm text-[var(--marca)]">{v.codigo}</b>
+                    <CodigoTexto codigo={v.codigo} className="text-sm" />
                     <Pilula tom={TOM_STATUS[v.status]}>{t(NOME_STATUS[v.status])}</Pilula>
                     {v.prospeccao && <Pilula>{t('prospecção')}</Pilula>}
                   </span>
@@ -166,32 +161,20 @@ function ListaViagens({ linhas }: { linhas: LinhaLista[] }) {
               {usoOrc !== undefined && (
                 <div>
                   <div className="num flex justify-between text-xs"><span className="text-[var(--suave)]">{t('Orçamento dos gastos')}</span><span className={v.acimaOrcamento ? 'font-semibold text-[var(--ruim)]' : 'text-[var(--suave)]'}>{formatar(v.gasto, v.moeda)} {t('de')} {formatar(v.orcamento!, v.moeda)}{v.acimaOrcamento ? ` · ${t('passou')}` : ''}</span></div>
-                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-[var(--fundo)]"><span className="block h-full rounded-full" style={{ width: `${usoOrc}%`, background: v.acimaOrcamento ? 'var(--ruim)' : usoOrc > 80 ? 'var(--alerta)' : 'var(--bom)' }} /></div>
+                  <BarraLimite className="mt-1" altura="h-2" usado={v.gasto} previsto={v.orcamento} />
                 </div>
               )}
               <div className="num grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <Bloco rotulo="Gastos" valor={formatar(v.gasto, v.moeda)} />
-                <Bloco rotulo="Comprou" valor={gramasTexto(v.gramas)} sub={t('{n} compra(s)', { n: v.compras })} />
-                <Bloco rotulo="Custo/kg real" valor={v.custoKgReal !== undefined ? formatar(v.custoKgReal, v.moeda) : '—'} />
-                <Bloco rotulo="Resultado" valor={v.prospeccao ? t('sem compra') : formatar(v.resultado, v.moeda)} sub={v.prospeccao ? undefined : `ROI ${pct(v.roiBp)}`} cor={v.prospeccao ? undefined : v.resultado < 0 ? 'var(--ruim)' : 'var(--bom)'} />
+                <NumeroPequeno rotulo="Gastos" valor={formatar(v.gasto, v.moeda)} />
+                <NumeroPequeno rotulo="Comprou" valor={gramasTexto(v.gramas)} sub={t('{n} compra(s)', { n: v.compras })} />
+                <NumeroPequeno rotulo="Custo/kg real" valor={v.custoKgReal !== undefined ? formatar(v.custoKgReal, v.moeda) : '—'} />
+                <NumeroPequeno rotulo="Resultado" valor={v.prospeccao ? t('sem compra') : formatar(v.resultado, v.moeda)} sub={v.prospeccao ? undefined : `ROI ${pctBp(v.roiBp)}`} cor={v.prospeccao ? undefined : v.resultado < 0 ? 'var(--ruim)' : 'var(--bom)'} />
               </div>
             </button>
           </li>
         )
       })}
     </ul>
-  )
-}
-
-/** bloco de número do cartão da viagem */
-function Bloco({ rotulo, valor, sub, cor }: { rotulo: string; valor: string; sub?: string; cor?: string }) {
-  const t = useT()
-  return (
-    <span className="min-w-0 rounded-xl bg-[var(--fundo)] px-2.5 py-2">
-      <span className="block truncate text-[11px] text-[var(--suave)]">{t(rotulo)}</span>
-      <b className="block truncate text-sm" style={cor ? { color: cor } : undefined}>{valor}</b>
-      {sub && <span className="block truncate text-[11px] text-[var(--suave)]">{sub}</span>}
-    </span>
   )
 }
 
@@ -213,7 +196,7 @@ function Comparativo({ linhas, moeda }: { linhas: NonNullable<ReturnType<typeof 
             </div>
             <div className="num mt-2 grid grid-cols-2 gap-2 text-sm">
               <span>{t('Custo/kg real')}<br /><b className="text-lg">{x.custoKgReal !== undefined ? formatar(x.custoKgReal, moeda) : '—'}</b></span>
-              <span>{t('ROI médio')}<br /><b className={cx('text-lg', (x.roiMedioBp ?? 0) < 0 && 'text-[var(--ruim)]')}>{pct(x.roiMedioBp)}</b></span>
+              <span>{t('ROI médio')}<br /><b className={cx('text-lg', (x.roiMedioBp ?? 0) < 0 && 'text-[var(--ruim)]')}>{pctBp(x.roiMedioBp)}</b></span>
               <span>{t('Logística por kg')}<br /><b>{x.gastoKg !== undefined ? formatar(x.gastoKg, moeda) : '—'}</b></span>
               <span>{t('Comprou')}<br /><b>{gramasTexto(x.gramas)}</b></span>
               <span>{t('Gastos')}<br /><b>{formatar(x.gasto, moeda)}</b></span>
@@ -398,10 +381,10 @@ function AbaHistorico({ d }: { d: Dados }) {
   return (
     <div className="space-y-3">
       <div className="num grid grid-cols-2 gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm lg:grid-cols-4">
-        <Bloco rotulo="Abriu" valor={dataBR(v.inicio)} sub={v.fim ? `${t('volta')} ${dataBR(v.fim)}` : t('sem data de volta')} />
-        <Bloco rotulo="Gastos lançados" valor={String(gastos.length)} sub={anulados ? t('{n} anulado(s)', { n: anulados }) : formatar(d.kpis.gasto, d.moeda)} />
-        <Bloco rotulo="Compras ligadas" valor={String(d.compras.length)} sub={gramasTexto(d.kpis.gramas)} />
-        <Bloco rotulo="Situação" valor={t(NOME_STATUS[v.status])} sub={v.status === 'encerrada' ? t('contas prestadas') : t('em andamento')} cor={v.status === 'aberta' ? 'var(--marca)' : undefined} />
+        <NumeroPequeno rotulo="Abriu" valor={dataBR(v.inicio)} sub={v.fim ? `${t('volta')} ${dataBR(v.fim)}` : t('sem data de volta')} />
+        <NumeroPequeno rotulo="Gastos lançados" valor={String(gastos.length)} sub={anulados ? t('{n} anulado(s)', { n: anulados }) : formatar(d.kpis.gasto, d.moeda)} />
+        <NumeroPequeno rotulo="Compras ligadas" valor={String(d.compras.length)} sub={gramasTexto(d.kpis.gramas)} />
+        <NumeroPequeno rotulo="Situação" valor={t(NOME_STATUS[v.status])} sub={v.status === 'encerrada' ? t('contas prestadas') : t('em andamento')} cor={v.status === 'aberta' ? 'var(--marca)' : undefined} />
       </div>
       <Cartao titulo={t('Tudo o que aconteceu')} ajuda="Cada ação da viagem, da mais nova para a mais antiga, com quem fez e quando: gastos lançados ou anulados, adiantamentos, compras ligadas, encerramento. Toque na referência para abrir. Ex.: 03/11 · Paula lançou gasolina Bs 150 ↗">
         <LinhaDoTempo id={v.id} />
@@ -424,18 +407,18 @@ function AbaResumo({ d }: { d: Dados }) {
         </div>
       )}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <Numero rotulo="Resultado" tom={d.prospeccao ? undefined : k.resultado < 0 ? 'ruim' : 'bom'} valor={formatar(k.resultado, m)} ajuda="Receita das vendas do cabelo desta viagem − (custo do cabelo + gastos da viagem). Enquanto houver estoque ele tende a ser negativo: veja o potencial. Ex.: vendeu Bs 8.000 de Bs 14.800 investidos = −Bs 6.800." sub={!d.prospeccao ? `${t('com o estoque')}: ${formatar(k.resultadoPotencial, m)}` : undefined} />
-        <Numero rotulo="ROI" tom={k.roiBp === undefined ? undefined : k.roiBp < 0 ? 'ruim' : 'bom'} valor={pct(k.roiBp)} ajuda="Resultado ÷ o que foi investido (cabelo + gastos). Ex.: −6.800 ÷ 14.800 = −45,9%." sub={k.roiPotencialBp !== undefined ? `${t('com o estoque')}: ${pct(k.roiPotencialBp)}` : undefined} />
-        <Numero rotulo="Receita gerada" valor={formatar(k.receita, m)} ajuda="Vendas do cabelo que veio desta viagem (pela genealogia: compra → triagem → lote → venda), proporcional às gramas." sub={`${gramasTexto(k.gramasVendidas)} ${t('vendidos')}`} />
-        <Numero rotulo="Investido" valor={formatar(k.investido, m)} ajuda="Custo do cabelo comprado na viagem + gastos operacionais da viagem." sub={`${t('cabelo')} ${formatar(k.custoCabelo, m)} · ${t('gastos')} ${formatar(k.gasto, m)}`} />
-        <Numero rotulo="Custo/kg sem logística" valor={k.custoKg !== undefined ? formatar(k.custoKg, m) : '—'} ajuda="Só o que se pagou pelo cabelo ÷ kg comprados." sub={k.custoGrama !== undefined ? `${formatar(Math.round(k.custoGrama), m)}/g` : undefined} />
-        <Numero rotulo="Custo/kg real" valor={k.custoKgReal !== undefined ? formatar(k.custoKgReal, m) : '—'} ajuda="(Cabelo + gastos da viagem) ÷ kg comprados: o custo de verdade de cada grama. Ex.: (14.000 + 800) ÷ 4 kg = Bs 3.700/kg." sub={k.custoGramaReal !== undefined ? `${formatar(Math.round(k.custoGramaReal), m)}/g` : undefined} />
-        <Numero rotulo="Comprado" valor={gramasTexto(k.gramas)} sub={`${t('capital pago')} ${formatar(k.capitalPago, m)}`} />
-        <Numero rotulo="Ainda em estoque" valor={`${pct(k.pctEstoqueBp)}`} ajuda="Gramas desta viagem que ainda estão no estoque e quanto valem pela tabela de preço (sem preço na tabela: pelo custo)." sub={`${gramasTexto(k.gramasEstoque)} · ${t('potencial')} ${formatar(k.potencial, m)}`} />
-        <Numero rotulo="Dias" valor={k.dias} />
-        <Numero rotulo="Custo por dia" valor={formatar(k.custoDia, m)} ajuda="Gastos da viagem ÷ dias de viagem." />
-        <Numero rotulo="Gastos da viagem" valor={formatar(k.gasto, m)} ajuda="Gastos operacionais (logística): combustível, hospedagem, comida, transporte… Não inclui o cabelo." />
-        <Numero rotulo="Lucro sobre o vendido" tom={d.prospeccao ? undefined : k.lucroVendido < 0 ? 'ruim' : 'bom'} valor={d.prospeccao ? '—' : formatar(k.lucroVendido, m)} ajuda="Receita − (custo do cabelo + gastos) proporcional às gramas já vendidas. Mostra se o que já saiu deu lucro." />
+        <NumeroGrande rotulo="Resultado" tom={d.prospeccao ? undefined : k.resultado < 0 ? 'ruim' : 'bom'} valor={formatar(k.resultado, m)} ajuda="Receita das vendas do cabelo desta viagem − (custo do cabelo + gastos da viagem). Enquanto houver estoque ele tende a ser negativo: veja o potencial. Ex.: vendeu Bs 8.000 de Bs 14.800 investidos = −Bs 6.800." sub={!d.prospeccao ? `${t('com o estoque')}: ${formatar(k.resultadoPotencial, m)}` : undefined} />
+        <NumeroGrande rotulo="ROI" tom={k.roiBp === undefined ? undefined : k.roiBp < 0 ? 'ruim' : 'bom'} valor={pctBp(k.roiBp)} ajuda="Resultado ÷ o que foi investido (cabelo + gastos). Ex.: −6.800 ÷ 14.800 = −45,9%." sub={k.roiPotencialBp !== undefined ? `${t('com o estoque')}: ${pctBp(k.roiPotencialBp)}` : undefined} />
+        <NumeroGrande rotulo="Receita gerada" valor={formatar(k.receita, m)} ajuda="Vendas do cabelo que veio desta viagem (pela genealogia: compra → triagem → lote → venda), proporcional às gramas." sub={`${gramasTexto(k.gramasVendidas)} ${t('vendidos')}`} />
+        <NumeroGrande rotulo="Investido" valor={formatar(k.investido, m)} ajuda="Custo do cabelo comprado na viagem + gastos operacionais da viagem." sub={`${t('cabelo')} ${formatar(k.custoCabelo, m)} · ${t('gastos')} ${formatar(k.gasto, m)}`} />
+        <NumeroGrande rotulo="Custo/kg sem logística" valor={k.custoKg !== undefined ? formatar(k.custoKg, m) : '—'} ajuda="Só o que se pagou pelo cabelo ÷ kg comprados." sub={k.custoGrama !== undefined ? `${formatar(Math.round(k.custoGrama), m)}/g` : undefined} />
+        <NumeroGrande rotulo="Custo/kg real" valor={k.custoKgReal !== undefined ? formatar(k.custoKgReal, m) : '—'} ajuda="(Cabelo + gastos da viagem) ÷ kg comprados: o custo de verdade de cada grama. Ex.: (14.000 + 800) ÷ 4 kg = Bs 3.700/kg." sub={k.custoGramaReal !== undefined ? `${formatar(Math.round(k.custoGramaReal), m)}/g` : undefined} />
+        <NumeroGrande rotulo="Comprado" valor={gramasTexto(k.gramas)} sub={`${t('capital pago')} ${formatar(k.capitalPago, m)}`} />
+        <NumeroGrande rotulo="Ainda em estoque" valor={`${pctBp(k.pctEstoqueBp)}`} ajuda="Gramas desta viagem que ainda estão no estoque e quanto valem pela tabela de preço (sem preço na tabela: pelo custo)." sub={`${gramasTexto(k.gramasEstoque)} · ${t('potencial')} ${formatar(k.potencial, m)}`} />
+        <NumeroGrande rotulo="Dias" valor={k.dias} />
+        <NumeroGrande rotulo="Custo por dia" valor={formatar(k.custoDia, m)} ajuda="Gastos da viagem ÷ dias de viagem." />
+        <NumeroGrande rotulo="Gastos da viagem" valor={formatar(k.gasto, m)} ajuda="Gastos operacionais (logística): combustível, hospedagem, comida, transporte… Não inclui o cabelo." />
+        <NumeroGrande rotulo="Lucro sobre o vendido" tom={d.prospeccao ? undefined : k.lucroVendido < 0 ? 'ruim' : 'bom'} valor={d.prospeccao ? '—' : formatar(k.lucroVendido, m)} ajuda="Receita − (custo do cabelo + gastos) proporcional às gramas já vendidas. Mostra se o que já saiu deu lucro." />
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         <Cartao titulo={t('Resultado da viagem (DRE)')}>
@@ -621,7 +604,7 @@ function AbaRateio({ d }: { d: Dados }) {
             <p className="mb-2 text-sm">
               {t('Vai para os lotes')}: <b className="num">{formatar(d.incorporacao.incorporavel, m)}</b> · {t('já realizado (vendido/perda)')}: <span className="num">{formatar(d.incorporacao.realizado, m)}</span>
             </p>
-            {!d.incorporacao.lotes.length ? <p className="text-sm text-[var(--suave)]">{t('Nenhum lote desta viagem em estoque.')}</p> : (
+            {!d.incorporacao.lotes.length ? <Vazio compacto texto="Nenhum lote desta viagem em estoque." /> : (
               <TabelaLotes linhas={d.incorporacao.lotes.map((l) => ({ id: l.itemId, codigo: l.codigo, gramas: l.saldo, extra: l.extra, antes: l.custoKgAtual, depois: l.custoKgNovo }))} moeda={m} />
             )}
             {v.status !== 'encerrada' ? (

@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom'
 import { novoId } from '../core/domain/ids'
 import type { CategoriaAnexo, Id } from '../core/domain/tipos'
 import type { FotoLote, FotoResumo } from '../core/services/fotos'
-import { Carregando, cx, dataBR } from './base'
+import { Carregando, cx, dataBR, TituloSecao } from './base'
 import { useApp, useComando, useConsulta } from './contexto'
 import { useT } from './i18n'
 
@@ -429,7 +429,7 @@ export function FotosDoLote({ itemId, codigo }: { itemId: Id; codigo?: string })
       {proprias.length > 0 && grade(proprias, 0)}
       {herdadas.length > 0 && (
         <div>
-          <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-[var(--suave)]">↑ {t('Herdadas da origem')}</h3>
+          <TituloSecao className="mb-1">↑ {t('Herdadas da origem')}</TituloSecao>
           {grade(herdadas, proprias.length)}
         </div>
       )}

@@ -5,22 +5,22 @@
 // venda, compra). Embaixo, o fechamento de cada compra: comprado = em pacotes + vendido + perda + diferença ✓.
 
 import { useState } from 'react'
+import { CodigoTexto } from '../ui/codigos'
+import { BarraPartes } from '../ui/barras'
 import { dataLocal, somarDias } from '../core/domain/datas'
 import type { LinhaLivro, TipoLivro } from '../core/services/livro'
 import type { ResultadoConsulta } from '../core/services'
-import { Botao, Campo, Carregando, Cartao, Entrada, ErroTela, Info, Selecao, Titulo, cx, dataBR, gramasTexto, loc } from '../ui/base'
+import { Botao, Campo, Carregando, Cartao, Entrada, ErroTela, Info, Selecao, Titulo, cx, dataBR, gramasTexto, sinalGramas, hora, diaSemana, Vazio, BotaoExpandir } from '../ui/base'
 import { clicavel } from '../ui/compartilhados'
-import { useApp, useConsulta, useParamTela } from '../ui/contexto'
+import { useApp, useConsulta, useParamTela, useFiltrosTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 import { useLembrado } from '../ui/filtros'
 import { baixarCSV } from './Relatorios'
-import { BarraFiltros, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
-import { NumeroGrande } from '../ui/numeroGrande'
+import { BarraFiltros, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros, AtalhosPeriodo } from '../ui/filtroPadrao'
+import { NumeroGrande, NumeroPequeno } from '../ui/numeroGrande'
 
 const DICA_CONFERE = 'Comprado = em pacotes + vendido + perda. Ex.: 10 kg = 4 + 5,4 + 0,6.'
 const MAX = 200
-const sinal = (n: number) => (n > 0 ? `+${gramasTexto(n)}` : n < 0 ? `−${gramasTexto(-n)}` : gramasTexto(0))
-const hora = (em: string) => new Date(em).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })
 
 /** atalhos por tipo: cada lançamento cai em um grupo */
 type Grupo = 'entradas' | 'vendas' | 'separacoes' | 'ajustes'
@@ -60,12 +60,13 @@ export function Livro() {
   const [gMin, setGMin] = useParamTela('gmin', '')
   const [gMax, setGMax] = useParamTela('gmax', '')
   const [tudo, setTudo] = useState(false)
+  const { tirar: tirarFiltro } = useFiltrosTela()
   const [verFiltros, setVerFiltros] = useState(false)
   // minimizar: dias fechados (só a linha do dia com o subtotal), "compacto" (uma linha por lançamento) e o fechamento
   const [fechados, setFechados] = useState<Set<string>>(new Set())
   const [compacto, setCompacto] = useLembrado('livro.compacto', false)
   const [verFechamento, setVerFechamento] = useLembrado('livro.fechamento', true)
-  if (erro) return <ErroTela texto={erro} onVoltar={() => ir('estoque')} />
+  if (erro) return <ErroTela texto={erro} />
   if (!dados) return <Carregando />
   const p = pacote.trim().toLowerCase()
   const b = busca.trim().toLowerCase()
@@ -103,15 +104,6 @@ export function Livro() {
     ...(tipo ? [{ k: 'tipo', rotulo: t(dados.tipos.find((x) => x.id === tipo)?.nome ?? tipo) }] : []),
     ...(de || ate ? [{ k: 'de,ate', rotulo: `📅 ${de ? dataBR(de) : '…'} – ${ate ? dataBR(ate) : '…'}` }] : []),
   ]
-  const tirarFiltro = (k: string) => ajustarParams(Object.fromEntries(k.split(',').map((x) => [x, undefined])))
-  // atalhos de período (no início, fora do painel): um toque e a lista fica só daquele tempo
-  const PERIODOS: { id: string; nome: string; de?: string }[] = [
-    { id: 'hoje', nome: 'Hoje', de: dataLocal() },
-    { id: '7', nome: '7 dias', de: somarDias(dataLocal(), -6) },
-    { id: '30', nome: '30 dias', de: somarDias(dataLocal(), -29) },
-    { id: 'mes', nome: 'Este mês', de: `${dataLocal().slice(0, 7)}-01` },
-  ]
-  const periodoAtual = !ate ? PERIODOS.find((x) => x.de === de)?.id : undefined
   const soma = (ls: LinhaLivro[], f: (l: LinhaLivro) => boolean = () => true) => ls.filter(f).reduce((s, l) => s + l.delta, 0)
   const entrou = soma(linhas, (l) => l.delta > 0)
   const saiu = -soma(linhas, (l) => l.delta < 0)
@@ -142,7 +134,7 @@ export function Livro() {
     else dias.push([l.data, [l]])
   }
   const nomeDia = (d: string) => {
-    const semana = new Date(`${d}T12:00:00`).toLocaleDateString(loc(), { weekday: 'short' })
+    const semana = diaSemana(d)
     return d === hoje ? `${t('Hoje')} · ${dataBR(d)}` : d === ontem ? `${t('Ontem')} · ${dataBR(d)}` : `${semana} · ${dataBR(d)}`
   }
 
@@ -157,26 +149,16 @@ export function Livro() {
 
       {/* resumo do que está na lista (respeita os filtros) */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <Resumo rotulo="Entrou" valor={`+${gramasTexto(entrou)}`} cor="var(--bom)" ajuda="Tudo o que entrou nos pacotes: compras e os pacotes novos da separação. Ex.: compra de 10 kg + 9,8 kg separados = 19,8 kg." />
-        <Resumo rotulo="Saiu" valor={`−${gramasTexto(saiu)}`} cor="var(--ruim)" ajuda="Tudo o que saiu dos pacotes: vendas, o bruto que foi para a separação, perdas. Ex.: venda de 1,5 kg + 10 kg para separar = 11,5 kg." />
-        <Resumo rotulo="Saldo do período" valor={sinal(entrou - saiu)} cor={entrou - saiu < 0 ? 'var(--ruim)' : 'var(--bom)'} ajuda="Entrou − saiu na lista. Ex.: entrou 10 kg, saiu 7 kg = +3 kg no estoque." />
-        <Resumo rotulo="Perdas e ajustes" valor={sinal(soma(ajustes))} cor="var(--alerta)" extra={t(ajustes.length === 1 ? '1 lançamento' : '{n} lançamentos', { n: ajustes.length })} ajuda="Perda, lavagem, diferença de peso na conferência e ajuste de contagem. Ex.: lavagem −300 g + contagem −20 g = −320 g." />
+        <NumeroGrande colorirValor rotulo="Entrou" valor={`+${gramasTexto(entrou)}`} cor="var(--bom)" ajuda="Tudo o que entrou nos pacotes: compras e os pacotes novos da separação. Ex.: compra de 10 kg + 9,8 kg separados = 19,8 kg." />
+        <NumeroGrande colorirValor rotulo="Saiu" valor={`−${gramasTexto(saiu)}`} cor="var(--ruim)" ajuda="Tudo o que saiu dos pacotes: vendas, o bruto que foi para a separação, perdas. Ex.: venda de 1,5 kg + 10 kg para separar = 11,5 kg." />
+        <NumeroGrande colorirValor rotulo="Saldo do período" valor={sinalGramas(entrou - saiu)} cor={entrou - saiu < 0 ? 'var(--ruim)' : 'var(--bom)'} ajuda="Entrou − saiu na lista. Ex.: entrou 10 kg, saiu 7 kg = +3 kg no estoque." />
+        <NumeroGrande colorirValor rotulo="Perdas e ajustes" valor={sinalGramas(soma(ajustes))} cor="var(--alerta)" sub={t(ajustes.length === 1 ? '1 lançamento' : '{n} lançamentos', { n: ajustes.length })} ajuda="Perda, lavagem, diferença de peso na conferência e ajuste de contagem. Ex.: lavagem −300 g + contagem −20 g = −320 g." />
       </div>
 
       {/* FILTRO PADRÃO: período (atalhos) · tipo (atalhos) · busca + ⚙ Filtros → chips ✕ → painel em grupos */}
       <div className="space-y-2">
-        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap" role="group" aria-label={t('Período')}>
-          <span className="inline-flex min-h-10 shrink-0 items-center text-xs font-semibold text-[var(--suave)]">📅</span>
-          {[{ id: '', nome: 'Tudo', de: undefined }, ...PERIODOS].map((x) => {
-            const on = x.id ? periodoAtual === x.id : !de && !ate
-            return (
-              <button key={x.id || 'tudo'} type="button" aria-pressed={on} onClick={() => ajustarParams({ de: x.de, ate: undefined })}
-                className={cx('min-h-10 shrink-0 rounded-full border px-3 text-sm font-semibold', on ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] hover:border-[var(--marca)]')}>
-                {t(x.nome)}
-              </button>
-            )
-          })}
-        </div>
+        {/* atalhos de período (no início, fora do painel): um toque e a lista fica só daquele tempo */}
+        <AtalhosPeriodo de={de} ate={ate} onChange={(d, a) => ajustarParams({ de: d, ate: a })} />
         <div className="flex items-start gap-2">
           <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap" role="group" aria-label={t('Tipo')}>
             {GRUPOS.map((g) => {
@@ -225,14 +207,14 @@ export function Livro() {
         {linhas.length > 0 && (
           // minimizar: fechar/abrir todos os dias e o modo compacto (uma linha por lançamento)
           <div className="-mt-1 mb-3 flex flex-wrap items-center gap-2 text-sm">
-            <button type="button" onClick={() => setFechados(fechados.size ? new Set() : new Set(dias.map(([d]) => d)))} className="min-h-10 rounded-lg px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{fechados.size ? `▾ ${t('Abrir todos os dias')}` : `▸ ${t('Fechar todos os dias')}`}</button>
+            <BotaoExpandir aberto={!fechados.size} onClick={() => setFechados(fechados.size ? new Set() : new Set(dias.map(([d]) => d)))} rotuloAberto={t('Fechar todos os dias')}>{t('Abrir todos os dias')}</BotaoExpandir>
             <label className="ml-auto inline-flex min-h-10 cursor-pointer items-center gap-2 font-semibold">
               <input type="checkbox" className="h-5 w-5" checked={compacto} onChange={(e) => setCompacto(e.target.checked)} />
               {t('Compacto')}<Info texto="Compacto: uma linha por lançamento (o quê e quanto). Toque na linha para abrir. Ex.: Venda V-0004 · −1,5 kg." />
             </label>
           </div>
         )}
-        {!linhas.length ? <p className="text-sm text-[var(--suave)]">{t('Nenhum lançamento com esse filtro.')}</p> : (
+        {!linhas.length ? <Vazio compacto texto="Nenhum lançamento com esse filtro." /> : (
           // cada dia é um bloco próprio (borda + cabeçalho + linhas divididas): nada "grudado" entre um dia e outro
           <div className="space-y-3">
             {dias.map(([dia, ls]) => {
@@ -248,7 +230,7 @@ export function Livro() {
                           <span className="text-[var(--bom)]">+{gramasTexto(s.entrou)}</span> · <span className="text-[var(--ruim)]">−{gramasTexto(s.saiu)}</span> ={' '}
                         </span>
                       )}
-                      <b className={s.entrou - s.saiu < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{sinal(s.entrou - s.saiu)}</b>
+                      <b className={s.entrou - s.saiu < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{sinalGramas(s.entrou - s.saiu)}</b>
                     </span>
                   </button>
                   {!fechado && (
@@ -295,9 +277,9 @@ function FechamentoCompras({ compras, aberto, onAlternar, onAbrir }: { compras: 
     <section aria-label={t('Fechamento por compra')} className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center text-base font-bold">{t('Fechamento por compra')}<span className="num ml-1 text-sm font-normal text-[var(--suave)]">· {compras.length}</span><Info texto={DICA_CONFERE} /></h2>
-        <button type="button" aria-expanded={aberto} onClick={onAlternar} className="min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{aberto ? `▾ ${t('Esconder')}` : `▸ ${t('Mostrar ({n})', { n: compras.length })}`}</button>
+        <BotaoExpandir aberto={aberto} onClick={onAlternar} rotuloAberto={t('Esconder')}>{t('Mostrar ({n})', { n: compras.length })}</BotaoExpandir>
       </div>
-      {aberto && (!compras.length ? <p className="mt-2 text-sm text-[var(--suave)]">{t('Nenhuma compra de cabelo ainda.')}</p> : (
+      {aberto && (!compras.length ? <Vazio compacto texto="Nenhuma compra de cabelo ainda." /> : (
         <div className="mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             <NumeroGrande rotulo="Fecham" icone="✓" cor="var(--bom)" valor={String(n('fecha'))} ativo={filtro === 'fecha'} onClick={() => alternar('fecha')} selos={[{ texto: t('cada grama tem lugar'), tom: 'bom' }]} />
@@ -310,24 +292,19 @@ function FechamentoCompras({ compras, aberto, onAlternar, onAbrir }: { compras: 
           <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--suave)]">
             {PARTES_FECH.map((x) => <span key={x.k} className="inline-flex items-center gap-1"><span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: x.cor }} />{t(x.nome)}</span>)}
           </p>
-          {!lista.length ? <p className="text-sm text-[var(--suave)]">{t('Nada com estes filtros.')}</p> : (
+          {!lista.length ? <Vazio compacto texto="Nada com estes filtros." /> : (
             <ul className="space-y-2">
               {lista.map((c) => (
                 <li key={c.compraId} {...clicavel(() => onAbrir(c.compraId))} className={cx('cursor-pointer rounded-xl border p-3 outline-none hover:border-[var(--marca)] focus-visible:ring-2 focus-visible:ring-[var(--marca)]', c.confere ? 'border-[var(--borda)]' : 'border-[var(--alerta)]')}>
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                    <b className="min-w-0 truncate"><span className="font-mono text-[var(--marca)]">{c.codigo}</span>{c.fornecedor ? ` · ${c.fornecedor}` : ''}</b>
+                    <b className="min-w-0 truncate"><CodigoTexto codigo={c.codigo} />{c.fornecedor ? ` · ${c.fornecedor}` : ''}</b>
                     <span className="num text-xs text-[var(--suave)]">{dataBR(c.data)} · {t('comprou')} <b className="text-[var(--texto)]">{gramasTexto(c.comprado)}</b></span>
                   </div>
                   {/* para onde foi cada grama */}
-                  <div aria-hidden className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-[var(--fundo)]">
-                    {PARTES_FECH.map((x) => c[x.k] > 0 && c.comprado > 0 ? <span key={x.k} style={{ width: `${(c[x.k] * 100) / c.comprado}%`, background: x.cor }} /> : null)}
-                  </div>
+                  <BarraPartes className="mt-2" total={c.comprado} partes={PARTES_FECH.map((x) => ({ chave: x.k, valor: c[x.k], cor: x.cor }))} />
                   <div className="num mt-2 grid grid-cols-2 gap-1.5 text-center sm:grid-cols-4">
                     {PARTES_FECH.filter((x) => x.k !== 'diferenca' || c.diferenca).map((x) => (
-                      <span key={x.k} className="rounded-lg bg-[var(--fundo)] px-1 py-1.5">
-                        <span className="block text-[11px] text-[var(--suave)]">{t(x.nome)}</span>
-                        <b className="block text-sm" style={{ color: c[x.k] ? x.cor : undefined }}>{gramasTexto(c[x.k])}</b>
-                      </span>
+                      <NumeroPequeno key={x.k} rotulo={x.nome} valor={gramasTexto(c[x.k])} cor={c[x.k] ? x.cor : undefined} />
                     ))}
                   </div>
                   <p className={cx('mt-2 text-xs font-semibold', c.confere ? 'text-[var(--bom)]' : 'text-[var(--alerta)]')}>{c.confere ? `✓ ${t('Fecha: cada grama tem lugar')}` : `⚠️ ${t('não fecha: faltam {g}', { g: gramasTexto(c.resto) })}`}</p>
@@ -338,18 +315,6 @@ function FechamentoCompras({ compras, aberto, onAlternar, onAbrir }: { compras: 
         </div>
       ))}
     </section>
-  )
-}
-
-/** cartão do resumo: rótulo pequeno, número grande na cor do tipo */
-function Resumo({ rotulo, valor, cor, ajuda, extra }: { rotulo: string; valor: string; cor: string; ajuda: string; extra?: string }) {
-  const t = useT()
-  return (
-    <div className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm" style={{ borderTop: `3px solid ${cor}` }}>
-      <div className="flex items-center text-xs font-semibold text-[var(--suave)]">{t(rotulo)}<Info texto={ajuda} /></div>
-      <div className="num mt-0.5 truncate text-xl font-bold sm:text-2xl" style={{ color: cor }}>{valor}</div>
-      {extra && <div className="text-xs text-[var(--suave)]">{extra}</div>}
-    </div>
   )
 }
 
@@ -364,7 +329,7 @@ function Linha({ l, onAbrir, compacto }: { l: LinhaLivro; onAbrir(): void; compa
       <li {...clicavel(onAbrir)} style={{ borderLeftColor: cor }} className="flex min-h-11 cursor-pointer items-center gap-2 border-l-4 bg-[var(--cartao)] py-1.5 pl-3 pr-3 text-sm outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
         <span aria-hidden className="shrink-0">{iconeDe(l.tipo)}</span>
         <span className="min-w-0 flex-1 truncate font-semibold">{l.titulo}</span>
-        <span className="num shrink-0 whitespace-nowrap font-bold" style={{ color: cor }}>{sinal(l.delta)}</span>
+        <span className="num shrink-0 whitespace-nowrap font-bold" style={{ color: cor }}>{sinalGramas(l.delta)}</span>
       </li>
     )
   const compras = l.compras.filter((c) => c.codigo)
@@ -396,7 +361,7 @@ function Linha({ l, onAbrir, compacto }: { l: LinhaLivro; onAbrir(): void; compa
         </span>
       </span>
       <span className="shrink-0 text-right">
-        <span className="num block whitespace-nowrap font-bold" style={{ color: cor }}>{sinal(l.delta)}</span>
+        <span className="num block whitespace-nowrap font-bold" style={{ color: cor }}>{sinalGramas(l.delta)}</span>
         <span className="num block whitespace-nowrap text-[11px] text-[var(--suave)]">{gramasTexto(l.antes)} → {gramasTexto(l.depois)}</span>
       </span>
     </li>

@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import type { TabelaPreco } from '../core/domain/tipos'
 import type { DiferencaCelula } from '../core/services/precos'
-import { Campo, Carregando, Info, Pilula, Selecao, Vazio, cx, loc } from '../ui/base'
+import { Campo, Carregando, Info, Pilula, Selecao, Vazio, cx, loc, dataHora, TituloSecao, BotaoExpandir } from '../ui/base'
 import { useConsulta } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 import { NumeroGrande } from '../ui/numeroGrande'
@@ -15,7 +15,6 @@ type GradeDados = Pick<TabelaPreco, 'linhas' | 'colunas' | 'valores'>
 type Versao = { numero: number; em: string; por?: string; nota: string }
 type Tipo = 'subiu' | 'desceu' | 'novo' | 'removido'
 
-const quando = (iso: string) => new Date(iso).toLocaleString(loc(), { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 const tipoDe = (c: DiferencaCelula): Tipo => (!c.antes ? 'novo' : !c.depois ? 'removido' : (c.pct ?? 0) >= 0 ? 'subiu' : 'desceu')
 const COR: Record<Tipo, string> = { subiu: 'var(--bom)', desceu: 'var(--ruim)', novo: 'var(--bom)', removido: 'var(--ruim)' }
 
@@ -44,7 +43,7 @@ export function Historico({ id, versoes }: { id: string; versoes: Versao[] }) {
 
       {/* LINHA DO TEMPO das versões (a mais nova em cima) */}
       <section aria-label={t('Versões')} className="lg:row-span-2 lg:row-start-1">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('Versões')} · {versoes.length}</h3>
+        <TituloSecao className="mb-2">{t('Versões')} · {versoes.length}</TituloSecao>
         <ol className="relative space-y-2 border-l-2 border-[var(--borda)] pl-4">
           {versoes.map((v, i) => {
             const naComparacao = v.numero === a || v.numero === b
@@ -59,7 +58,7 @@ export function Historico({ id, versoes }: { id: string; versoes: Versao[] }) {
                     {v.numero === a && <Pilula>{t('era')}</Pilula>}
                     {v.numero === b && <Pilula tom="marca">{t('ficou')}</Pilula>}
                   </div>
-                  <p className="mt-0.5 text-xs text-[var(--suave)]">{quando(v.em)}{v.por ? ` · ${v.por}` : ''}</p>
+                  <p className="mt-0.5 text-xs text-[var(--suave)]">{dataHora(v.em)}{v.por ? ` · ${v.por}` : ''}</p>
                   {v.nota && <p className="mt-1 text-sm [overflow-wrap:anywhere]">“{v.nota}”</p>}
                   {anterior && !(a === anterior.numero && b === v.numero) && (
                     <button type="button" onClick={() => (setDe(anterior.numero), setPara(v.numero))} className="mt-1 min-h-9 text-sm font-semibold text-[var(--marca)] hover:underline">
@@ -161,7 +160,7 @@ function Comparacao({ id, de, para }: { id: string; de: number; para: number }) 
               </table>
             </>
           )}
-          <button type="button" aria-expanded={verGrade} onClick={() => setVerGrade(!verGrade)} className="mt-3 min-h-10 text-sm font-semibold text-[var(--marca)]">{verGrade ? '▾' : '▸'} {t('Ver na grade (riscado = era; embaixo = ficou)')}</button>
+          <BotaoExpandir aberto={verGrade} onClick={() => setVerGrade(!verGrade)} className="-ml-2 mt-3">{t('Ver na grade (riscado = era; embaixo = ficou)')}</BotaoExpandir>
           {verGrade && <GradeComparacao tb={{ linhas: dados.linhas, colunas: dados.colunas, valores: dados.para.valores }} diferencas={mapa} base={dados.de} />}
         </section>
       )}

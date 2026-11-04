@@ -2,6 +2,7 @@
 // Tudo passa pelos comandos normais: salvo neste aparelho na hora (fila de saída) e sincronizado quando houver sinal.
 
 import { useState } from 'react'
+import { BarraLimite } from './barras'
 import { formatar } from '../core/domain/dinheiro'
 import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
@@ -147,11 +148,7 @@ export function BarraOrcamento({ rotulo, usado, previsto, moeda }: { rotulo: str
           {previsto ? <span className="text-[var(--suave)]"> / {formatar(previsto, moeda)} ({pct}%)</span> : <span className="text-[var(--suave)]"> · {t('sem orçamento')}</span>}
         </span>
       </div>
-      {!!previsto && (
-        <span className="mt-1 block h-2.5 rounded-full bg-[var(--marca-suave)]">
-          <span className={cx('block h-2.5 rounded-full', pct! > 100 ? 'bg-[var(--ruim)]' : pct! > 85 ? 'bg-[var(--alerta)]' : 'bg-[var(--bom)]')} style={{ width: `${Math.min(100, pct!)}%` }} />
-        </span>
-      )}
+      <BarraLimite className="mt-1" usado={usado} previsto={previsto} />
     </div>
   )
 }
@@ -221,7 +218,7 @@ export function PainelViajante({ viagemId }: { viagemId?: Id }) {
       </Cartao>
       <Cartao titulo={`${t('Gastos')} (${v.despesas.filter((x) => !x.anulada).length})`}>
         {!v.despesas.length ? (
-          <p className="text-sm text-[var(--suave)]">{t('Nenhum gasto ainda. Toque em "+ Gasto" a cada despesa.')}</p>
+          <Vazio compacto texto={'Nenhum gasto ainda. Toque em "+ Gasto" a cada despesa.'} />
         ) : (
           <ul className="divide-y divide-[var(--borda)]">
             {v.despesas.map((g) => <LinhaGasto key={g.id} g={g} onAnular={g.minha || admin ? () => setAnular(g.id) : undefined} />)}
@@ -230,7 +227,7 @@ export function PainelViajante({ viagemId }: { viagemId?: Id }) {
       </Cartao>
       <Cartao titulo={`${t('Compras da viagem')} (${v.compras.length})`}>
         {!v.compras.length ? (
-          <p className="text-sm text-[var(--suave)]">{t('Nenhuma compra ligada a esta viagem (ainda). Viagem sem compra também conta: é prospecção.')}</p>
+          <Vazio compacto texto="Nenhuma compra ligada a esta viagem (ainda). Viagem sem compra também conta: é prospecção." />
         ) : (
           <ul className="divide-y divide-[var(--borda)] text-sm">
             {v.compras.map((c) => (

@@ -2,6 +2,7 @@
 // e o aviso de tela larga (tabela) × estreita (cartões).
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { BarraPartes } from './barras'
 import type { StatusLote } from '../core/services/estoque'
 import { Botao, Janela, Pilula, cx, gramasTexto } from './base'
 import { useT } from './i18n'
@@ -52,9 +53,7 @@ export function BarraFluxo({ partes, total }: { partes: { nome: string; valor: n
   const base = Math.max(total, partes.reduce((s, p) => s + p.valor, 0), 1)
   return (
     <div>
-      <div className="flex h-4 w-full overflow-hidden rounded-full bg-[var(--fundo)]" role="img" aria-label={partes.map((p) => `${t(p.nome)} ${gramasTexto(p.valor)}`).join(', ')}>
-        {partes.filter((p) => p.valor > 0).map((p) => <div key={p.nome} className="h-full" style={{ width: `${(p.valor / base) * 100}%`, background: p.cor }} />)}
-      </div>
+      <BarraPartes altura="h-4" total={base} partes={partes.map((p) => ({ chave: p.nome, valor: p.valor, cor: p.cor }))} rotulo={partes.map((p) => `${t(p.nome)} ${gramasTexto(p.valor)}`).join(', ')} />
       <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
         {partes.map((p) => (
           <li key={p.nome} className="flex items-center gap-1">

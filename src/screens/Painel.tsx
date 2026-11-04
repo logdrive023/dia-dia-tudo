@@ -6,10 +6,12 @@
 //  - cor só com função: vermelho = urgente, âmbar = atenção.
 
 import { type ReactNode, useState } from 'react'
+import { CodigoTexto } from '../ui/codigos'
+import { BarraLimite } from '../ui/barras'
 import { MOEDAS, formatar } from '../core/domain/dinheiro'
 import type { Cartao as CartaoDados } from '../core/modulos'
 import type { Alerta } from '../core/services/painel'
-import { Abas, Carregando, Cartao, Entrada, Erro, Info, Titulo, cx, fmt, moedaPadrao } from '../ui/base'
+import { Abas, Carregando, Cartao, Entrada, Erro, Info, Titulo, cx, fmt, moedaPadrao, Pilula, Vazio } from '../ui/base'
 import { useApp, useConsulta } from '../ui/contexto'
 import { calcularPeriodo, type Periodo, type Preset, useLembrado, usePeriodo } from '../ui/filtros'
 import { Barras, Linha, SecaoView } from '../ui/graficos'
@@ -424,11 +426,11 @@ function PainelViagens({ de, ate, completo }: { de: string; ate: string; complet
               <li key={v.id}>
                 <button type="button" onClick={() => ir('viagem', { id: v.id })} className="w-full rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left hover:border-[var(--marca)]">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-semibold"><span className="font-mono text-xs text-[var(--marca)]">{v.codigo}</span> {v.nome} {v.acimaOrcamento && <span className="ml-1 rounded-full bg-[var(--ruim)]/15 px-2 py-0.5 text-xs text-[var(--ruim)]">{t('Acima do orçamento')}</span>}</span>
+                    <span className="font-semibold"><CodigoTexto codigo={v.codigo} className="text-xs" /> {v.nome} {v.acimaOrcamento && <Pilula tom="ruim" className="ml-1">{t('Acima do orçamento')}</Pilula>}</span>
                     <span className="num text-sm"><b>{formatar(v.gasto, m)}</b>{v.orcamento ? <span className="text-[var(--suave)]"> / {formatar(v.orcamento, m)}</span> : null}</span>
                   </div>
                   <div className="text-xs text-[var(--suave)]">{v.viajantes.map((x) => x.nome).join(', ')} · {v.gramas ? `${(v.gramas / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} kg` : t('sem compra ainda')}</div>
-                  {usado !== undefined && <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--borda)]"><div className={cx('h-full', v.acimaOrcamento ? 'bg-[var(--ruim)]' : 'bg-[var(--marca)]')} style={{ width: `${usado}%` }} /></div>}
+                  {usado !== undefined && <BarraLimite className="mt-2" altura="h-2" usado={v.gasto} previsto={v.orcamento} />}
                 </button>
               </li>
             )
@@ -447,7 +449,7 @@ function PainelViagens({ de, ate, completo }: { de: string; ate: string; complet
           </ul>
         </Cartao>
       )}
-      {completo && !dados.linhas.length && <p className="text-sm text-[var(--suave)]">{t('Nenhuma viagem por aqui.')}</p>}
+      {completo && !dados.linhas.length && <Vazio compacto texto="Nenhuma viagem por aqui." />}
     </Secao>
   )
 }

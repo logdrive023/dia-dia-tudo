@@ -6,6 +6,7 @@
 
 import type { ReactNode } from 'react'
 import { Botao, Entrada, cx } from './base'
+import { type Preset, calcularPeriodo } from './filtros'
 import { useT } from './i18n'
 
 export interface FiltroAtivo {
@@ -14,20 +15,23 @@ export interface FiltroAtivo {
   rotulo: string
 }
 
-/** Busca + botão "⚙ Filtros · N" (mesma altura, mesma ordem em toda tela). `extra` vai entre os dois (ex.: 📷). */
-export function BarraFiltros({ busca, onBusca, placeholder, ativos, aberto, onAlternar, extra }: { busca: string; onBusca(v: string): void; placeholder: string; ativos: number; aberto: boolean; onAlternar(): void; extra?: ReactNode }) {
+/**
+ * Busca + botão "⚙ Filtros · N" (mesma altura, mesma ordem em toda tela). `extra` vai entre os dois (ex.: 📷).
+ * Lista só com busca (sem painel): sem `onAlternar`, o botão não aparece.
+ */
+export function BarraFiltros({ busca, onBusca, placeholder, ativos = 0, aberto = false, onAlternar, extra }: { busca: string; onBusca(v: string): void; placeholder: string; ativos?: number; aberto?: boolean; onAlternar?(): void; extra?: ReactNode }) {
   const t = useT()
   return (
     <div className="flex items-center gap-2">
       <Entrada type="search" aria-label={t(placeholder)} className="w-auto min-w-0 flex-1" placeholder={t(placeholder)} value={busca} onChange={(e) => onBusca(e.target.value)} />
       {extra}
-      <button type="button" aria-expanded={aberto} aria-label={t('Filtros')} onClick={onAlternar}
+      {onAlternar && <button type="button" aria-expanded={aberto} aria-label={t('Filtros')} onClick={onAlternar}
         className={cx('inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition', aberto || ativos ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] text-[var(--texto)] hover:border-[var(--marca)]')}>
         <span aria-hidden>⚙︎</span>
         <span className="hidden sm:inline">{t('Filtros')}</span>
         {ativos > 0 && <span className="num flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--marca)] px-1 text-xs text-white">{ativos}</span>}
         <span aria-hidden className={cx('text-xs transition-transform', aberto && 'rotate-180')}>▾</span>
-      </button>
+      </button>}
     </div>
   )
 }
@@ -72,6 +76,30 @@ export function GrupoFiltro({ titulo, icone, children }: { titulo: string; icone
       <p aria-hidden className="mb-2 flex items-center gap-1.5 text-sm font-bold"><span>{icone}</span>{t(titulo)}</p>
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">{children}</div>
     </fieldset>
+  )
+}
+
+/**
+ * ATALHOS DE PERÍODO (fora do painel, no início da lista): "Tudo · Hoje · 7 dias · 30 dias · Este mês". As datas vêm de
+ * calcularPeriodo (as mesmas do seletor de período do Painel e dos Relatórios); o de–até livre fica no painel.
+ */
+export function AtalhosPeriodo({ de, ate, onChange, presets = ['hoje', '7d', '30d', 'mes'] }: { de: string; ate: string; onChange(de?: string, ate?: string): void; presets?: Exclude<Preset, 'livre'>[] }) {
+  const t = useT()
+  const NOME: Record<string, string> = { hoje: 'Hoje', '7d': '7 dias', '30d': '30 dias', mes: 'Este mês', mesPassado: 'Mês passado', ano: 'Ano' }
+  const opcoes = [{ id: '', nome: 'Tudo', p: undefined }, ...presets.map((id) => ({ id, nome: NOME[id], p: calcularPeriodo(id) }))]
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap" role="group" aria-label={t('Período')}>
+      <span aria-hidden className="inline-flex min-h-10 shrink-0 items-center text-xs font-semibold text-[var(--suave)]">📅</span>
+      {opcoes.map((x) => {
+        const on = x.p ? x.p.de === de && x.p.ate === ate : !de && !ate
+        return (
+          <button key={x.id || 'tudo'} type="button" aria-pressed={on} onClick={() => onChange(x.p?.de, x.p?.ate)}
+            className={cx('min-h-10 shrink-0 rounded-full border px-3 text-sm font-semibold', on ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] hover:border-[var(--marca)]')}>
+            {t(x.nome)}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

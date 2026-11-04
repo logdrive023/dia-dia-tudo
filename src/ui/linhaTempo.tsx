@@ -4,9 +4,10 @@
 // pagamentos, itens, anexo e as referências clicáveis (lote, venda, compra, triagem, viagem, adiantamento).
 
 import { useState } from 'react'
+import { BarraFiltros, ChipsFiltros, PainelFiltros, GrupoFiltro, CampoFaixa } from './filtroPadrao'
 import { formatar } from '../core/domain/dinheiro'
 import type { EventoTempo } from '../core/services/historico'
-import { Botao, Info, cx, gramasTexto, loc } from './base'
+import { Botao, Info, cx, gramasTexto, loc, Pilula, Vazio, TituloSecao, BotaoExpandir, Campo, Selecao, Entrada, diaMes } from './base'
 import { baixarCSV } from './csv'
 import { useApp, useConsulta } from './contexto'
 import { useT } from './i18n'
@@ -68,6 +69,7 @@ export function LinhaDoTempo({ id, prefixo = 'lt' }: { id: string; prefixo?: str
   const { dados } = useConsulta('linhaDoTempo', { id })
   const [tudo, setTudo] = useState(false)
   const [abertos, setAbertos] = useState<Set<string>>(new Set())
+  const [verFiltros, setVerFiltros] = useState(false)
   const k = (c: string) => `${prefixo}${c}`
   const param = (c: string) => (nav.params[k(c)] as string | undefined) ?? ''
   const filtro = param('Tipo') as Filtro | ''
@@ -81,7 +83,7 @@ export function LinhaDoTempo({ id, prefixo = 'lt' }: { id: string; prefixo?: str
   const limpar = () => ajustarParams({ [k('Tipo')]: undefined, [k('Quem')]: undefined, [k('De')]: undefined, [k('Ate')]: undefined, [k('Busca')]: undefined })
 
   if (!dados) return null
-  if (!dados.length) return <p className="text-sm text-[var(--suave)]">{t('Nada registrado ainda.')}</p>
+  if (!dados.length) return <Vazio compacto texto="Nada registrado ainda." />
 
   const todos = juntar(dados)
   const pessoas = [...new Set(todos.map((e) => e.por).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, loc()))
@@ -142,7 +144,6 @@ export function LinhaDoTempo({ id, prefixo = 'lt' }: { id: string; prefixo?: str
     )
 
   const chip = (on: boolean) => cx('min-h-10 whitespace-nowrap rounded-full px-3 text-sm font-semibold', on ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')
-  const campo = 'min-h-10 w-full min-w-0 rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 text-sm outline-none focus:border-[var(--marca)]'
   const contagem = (f: Filtro) => base.filter((e) => passa(e, f)).length
   return (
     <div>
@@ -156,21 +157,25 @@ export function LinhaDoTempo({ id, prefixo = 'lt' }: { id: string; prefixo?: str
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_11rem_9.5rem_9.5rem]">
-          <input type="search" value={busca} onChange={(e) => definir('Busca', e.target.value)} placeholder={t('Buscar código ou texto')} aria-label={t('Buscar código ou texto')} className={cx(campo, 'col-span-2 sm:col-span-1')} />
-          <select value={quem} onChange={(e) => definir('Quem', e.target.value)} aria-label={t('Quem')} className={cx(campo, 'col-span-2 sm:col-span-1')}>
-            <option value="">{t('Quem')}: {t('Todos')}</option>
-            {pessoas.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <label className="col-span-2 flex min-w-0 items-center gap-1 text-xs font-semibold text-[var(--suave)] sm:col-span-1">
-            {t('De')}
-            <input type="date" value={de} max={ate || undefined} onChange={(e) => definir('De', e.target.value)} className={campo} />
-          </label>
-          <label className="col-span-2 flex min-w-0 items-center gap-1 text-xs font-semibold text-[var(--suave)] sm:col-span-1">
-            {t('Até')}
-            <input type="date" value={ate} min={de || undefined} onChange={(e) => definir('Ate', e.target.value)} className={campo} />
-          </label>
-        </div>
+        <BarraFiltros busca={busca} onBusca={(v) => definir('Busca', v)} placeholder="Buscar código ou texto" ativos={(quem ? 1 : 0) + (de || ate ? 1 : 0)} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
+        <ChipsFiltros
+          itens={[...(quem ? [{ k: 'Quem', rotulo: `👤 ${quem}` }] : []), ...(de || ate ? [{ k: 'De,Ate', rotulo: `📅 ${de ? diaMes(de) : '…'} – ${ate ? diaMes(ate) : '…'}` }] : [])]}
+          onTirar={(k) => k.split(',').forEach((x) => definir(x as 'Quem', ''))}
+          onLimpar={limpar}
+        />
+        {verFiltros && (
+          <PainelFiltros resultados={filtrados.length} temAtivos={!!(quem || de || ate)} onLimpar={limpar} onFechar={() => setVerFiltros(false)}>
+            <GrupoFiltro titulo="Quem" icone="👤">
+              <Campo rotulo="Quem fez"><Selecao valor={quem} onChange={(v) => definir('Quem', v)} vazio="Todos" opcoes={pessoas.map((p) => ({ id: p, nome: p }))} /></Campo>
+            </GrupoFiltro>
+            <GrupoFiltro titulo="Quando" icone="📅">
+              <CampoFaixa rotulo="Período">
+                <Entrada type="date" aria-label={t('De')} value={de} max={ate || undefined} onChange={(e) => definir('De', e.target.value)} />
+                <Entrada type="date" aria-label={t('Até')} value={ate} min={de || undefined} onChange={(e) => definir('Ate', e.target.value)} />
+              </CampoFaixa>
+            </GrupoFiltro>
+          </PainelFiltros>
+        )}
         <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm">
           <span className="mr-auto inline-flex items-center text-[var(--suave)]">
             <span className="num">{ativo ? t('{n} de {total}', { n: filtrados.length, total: todos.length }) : t('{n} evento(s)', { n: todos.length })}</span>
@@ -181,9 +186,7 @@ export function LinhaDoTempo({ id, prefixo = 'lt' }: { id: string; prefixo?: str
             {antigoPrimeiro ? `↑ ${t('Mais antigo primeiro')}` : `↓ ${t('Mais novo primeiro')}`}
           </button>
           {visiveis.length > 0 && (
-            <button type="button" onClick={() => setAbertos(tudoAberto ? new Set() : new Set(visiveis.map(chaveDe)))} className="min-h-10 whitespace-nowrap rounded-lg px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">
-              {tudoAberto ? `▴ ${t('Recolher tudo')}` : `▾ ${t('Expandir tudo')}`}
-            </button>
+            <BotaoExpandir aberto={tudoAberto} onClick={() => setAbertos(tudoAberto ? new Set() : new Set(visiveis.map(chaveDe)))} rotuloAberto={t('Recolher tudo')} className="whitespace-nowrap">{t('Expandir tudo')}</BotaoExpandir>
           )}
           {lista.length > 0 && <button type="button" onClick={exportar} className="min-h-10 whitespace-nowrap rounded-lg px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⬇ {t('Exportar CSV')}</button>}
         </div>
@@ -198,9 +201,9 @@ export function LinhaDoTempo({ id, prefixo = 'lt' }: { id: string; prefixo?: str
         <div className="space-y-4">
           {[...dias].map(([dia, evs]) => (
             <section key={dia}>
-              <h4 className="mb-1 text-xs font-bold uppercase tracking-wide text-[var(--suave)]">
+              <TituloSecao className="mb-1">
                 {new Date(dia + 'T12:00:00').toLocaleDateString(loc(), { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
-              </h4>
+              </TituloSecao>
               <ul className="divide-y divide-[var(--borda)] rounded-2xl border border-[var(--borda)]">
                 {evs.map(({ e, c }) => <Evento key={c} e={e} aberto={abertos.has(c)} onAlternar={() => alternar(c)} />)}
               </ul>
@@ -233,10 +236,10 @@ function Evento({ e, aberto, onAlternar }: { e: Ev; aberto: boolean; onAlternar(
               {t(e.titulo)}
               {e.de && e.para && (
                 <span className="ml-2 inline-flex items-center gap-1 text-sm font-semibold">
-                  <span className="rounded-full bg-[var(--borda)] px-2 py-0.5">{t(e.de)}</span>→<span className="rounded-full bg-[var(--marca-suave)] px-2 py-0.5 text-[var(--marca)]">{t(e.para)}</span>
+                  <Pilula>{t(e.de)}</Pilula>→<Pilula tom="marca">{t(e.para)}</Pilula>
                 </span>
               )}
-              {!e.de && e.para && <span className="ml-2 rounded-full bg-[var(--marca-suave)] px-2 py-0.5 text-sm text-[var(--marca)]">{t(e.para)}</span>}
+              {!e.de && e.para && <Pilula tom="marca" className="ml-2">{t(e.para)}</Pilula>}
             </p>
             {e.valor ? (
               <span className={cx('num whitespace-nowrap font-bold', (e.tipo === 'caixa' || e.tipo === 'conta') && (e.valor.valor > 0 ? 'text-[var(--bom)]' : 'text-[var(--ruim)]'))}>

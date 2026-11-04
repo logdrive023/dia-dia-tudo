@@ -12,6 +12,11 @@ import { useT } from './i18n'
 /** Endereço do registro que já usa o código (abre em outra aba: o formulário não se perde). */
 export const enderecoCodigo = (tela: 'lote' | 'pedido', id: Id) => `#/${tela === 'lote' ? 'lotes' : 'pedidos'}/${encodeURIComponent(id)}`
 
+/** Código dentro de uma linha clicável ("P-0007 · Helena"): só o texto, em mono na cor da marca (o selo que copia é o CodigoSelo) */
+export function CodigoTexto({ codigo, className }: { codigo?: string; className?: string }) {
+  return <b className={cx('font-mono font-bold text-[var(--marca)]', className)}>{codigo ?? '—'}</b>
+}
+
 /** Código em destaque (selo). Tocar copia; o toque não abre a linha de baixo. */
 export function CodigoSelo({ codigo, anteriores, grande, className }: { codigo?: string; anteriores?: string[]; grande?: boolean; className?: string }) {
   const t = useT()

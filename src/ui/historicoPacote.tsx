@@ -5,27 +5,23 @@
 import { type ReactNode, useState } from 'react'
 import type { Id } from '../core/domain/tipos'
 import type { MovHistorico } from '../core/services/livro'
-import { Carregando, cx, gramasTexto, loc } from './base'
+import { Carregando, cx, gramasTexto, dataCurta, hora, sinalGramas, diaSemana, Pilula, Vazio } from './base'
 import { useApp, useConsulta } from './contexto'
 import { useT } from './i18n'
 
-const dataCurta = (d: string) => new Date(d.slice(0, 10) + 'T12:00:00').toLocaleDateString(loc(), { day: '2-digit', month: '2-digit', year: '2-digit' })
-const hora = (em: string) => new Date(em).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })
 /** ícone e cor por tipo (os mesmos do Livro do cabelo): bater o olho e saber o que foi */
 const ICONE: Record<string, string> = { entrada: '🛒', venda: '💰', triagemSaida: '✂️', triagemEntrada: '✂️', diferenca: '⚖️', lavagem: '💧', perda: '⚠️', ajuste: '✎', evento: '🏷' }
 const COR: Record<string, string> = { entrada: 'var(--bom)', venda: 'var(--ruim)', triagemSaida: 'var(--marca)', triagemEntrada: 'var(--marca)', diferenca: 'var(--alerta)', lavagem: 'var(--alerta)', perda: 'var(--alerta)', ajuste: 'var(--alerta)', evento: 'var(--suave)' }
-const sinal = (n: number) => (n > 0 ? `+${gramasTexto(n)}` : n < 0 ? `−${gramasTexto(-n)}` : gramasTexto(0))
 
 export function HistoricoPacote({ id }: { id: Id }) {
   const t = useT()
   const { dados } = useConsulta('historicoPacote', { itemId: id })
   const [tudo, setTudo] = useState(false)
   if (!dados) return <Carregando />
-  if (!dados.dias.length) return <p className="text-sm text-[var(--suave)]">{t('Nada registrado ainda.')}</p>
+  if (!dados.dias.length) return <Vazio compacto texto="Nada registrado ainda." />
   // hoje sem movimento não vira um bloco vazio: o saldo de agora vai numa linha no alto
   const comMov = dados.dias.filter((d) => d.movs.length > 0)
   const dias = tudo ? comMov : comMov.slice(0, 7)
-  const semana = (d: string) => new Date(d.slice(0, 10) + 'T12:00:00').toLocaleDateString(loc(), { weekday: 'short' })
   return (
     // cada dia é um bloco próprio: cabeçalho com a data e "começou → terminou" (onde o dia começa e termina) e,
     // dentro, os movimentos do dia — entre um dia e outro, espaço e borda
@@ -39,12 +35,12 @@ export function HistoricoPacote({ id }: { id: Id }) {
             <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-[var(--borda)] bg-[var(--fundo)] px-3 py-2">
               <span className="flex items-center gap-2">
                 <b className="num text-base">{dataCurta(d.data)}</b>
-                <span className="text-xs capitalize text-[var(--suave)]">{semana(d.data)}</span>
-                <span className={cx('rounded-full px-2 py-0.5 text-[11px] font-semibold', d.aberto ? 'bg-[var(--marca-suave)] text-[var(--marca)]' : 'bg-[var(--borda)] text-[var(--suave)]')}>{t(d.aberto ? 'aberto' : 'encerrado')}</span>
+                <span className="text-xs capitalize text-[var(--suave)]">{diaSemana(d.data)}</span>
+                <Pilula pequena tom={d.aberto ? 'marca' : 'suave'}>{t(d.aberto ? 'aberto' : 'encerrado')}</Pilula>
               </span>
               <span className="num text-sm">
                 <span className="text-[var(--suave)]">{gramasTexto(d.inicio)} → </span><b>{gramasTexto(fim)}</b>
-                {mudou !== 0 && <span className={cx('ml-1 text-xs font-semibold', mudou < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>({sinal(mudou)})</span>}
+                {mudou !== 0 && <span className={cx('ml-1 text-xs font-semibold', mudou < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>({sinalGramas(mudou)})</span>}
               </span>
             </header>
             {d.movs.length ? (
@@ -85,7 +81,7 @@ function Movimento({ m, pacote }: { m: MovHistorico; pacote: { id: Id; codigo?: 
           <span className="num block text-xs text-[var(--suave)]">{hora(m.em)}{m.delta !== 0 && <> · {gramasTexto(m.antes)} → <b className="text-[var(--texto)]">{gramasTexto(m.depois)}</b></>}</span>
           <span role="link" tabIndex={0} onClick={(e) => (e.stopPropagation(), abrirRef())} onKeyDown={(e) => e.key === 'Enter' && (e.stopPropagation(), abrirRef())} className="mt-0.5 inline-block text-xs font-semibold text-[var(--marca)] hover:underline">↗ {ref.rotulo}</span>
         </span>
-        {m.delta !== 0 && <b className={cx('num shrink-0 whitespace-nowrap', m.delta < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>{sinal(m.delta)}</b>}
+        {m.delta !== 0 && <b className={cx('num shrink-0 whitespace-nowrap', m.delta < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>{sinalGramas(m.delta)}</b>}
         <span aria-hidden className={cx('shrink-0 text-[var(--suave)] transition-transform', aberto && 'rotate-90')}>›</span>
       </button>
       {aberto && (
@@ -95,7 +91,7 @@ function Movimento({ m, pacote }: { m: MovHistorico; pacote: { id: Id; codigo?: 
           {linha('Antes → depois', (
             <span className="num grid max-w-xs grid-cols-3 gap-1 text-center">
               <span className="rounded-lg bg-[var(--cartao)] px-1 py-1"><span className="block text-[10px] text-[var(--suave)]">{t('antes')}</span>{gramasTexto(m.antes)}</span>
-              <span className={cx('rounded-lg bg-[var(--cartao)] px-1 py-1 font-semibold', m.delta < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}><span className="block text-[10px] font-normal text-[var(--suave)]">{t('movimentou')}</span>{sinal(m.delta)}</span>
+              <span className={cx('rounded-lg bg-[var(--cartao)] px-1 py-1 font-semibold', m.delta < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}><span className="block text-[10px] font-normal text-[var(--suave)]">{t('movimentou')}</span>{sinalGramas(m.delta)}</span>
               <span className="rounded-lg bg-[var(--cartao)] px-1 py-1 font-bold"><span className="block text-[10px] font-normal text-[var(--suave)]">{t('depois')}</span>{gramasTexto(m.depois)}</span>
             </span>
           ))}

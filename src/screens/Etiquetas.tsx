@@ -10,8 +10,8 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { passaEtiqueta } from '../core/services/estoque'
-import { Botao, Campo, Carregando, Entrada, Info, Pilula, Selecao, Titulo, Vazio, cx, fmt, loc } from '../ui/base'
-import { useApp, useConsulta, useParamTela } from '../ui/contexto'
+import { Botao, Campo, Carregando, Entrada, Info, Pilula, Selecao, Titulo, Vazio, cx, fmt, diaMes } from '../ui/base'
+import { useApp, useConsulta, useParamTela, useFiltrosTela } from '../ui/contexto'
 import { ImprimirEtiquetas, RefazerEtiqueta } from '../ui/etiquetas'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
@@ -31,15 +31,12 @@ const CARTOES_ETIQUETA: { f: Filtro; rotulo: string; icone: string; cor: string 
 ]
 const FILTROS = ['compra', 'lote', 'pessoa', 'quem', 'impr', 'medida', 'pmin', 'pmax', 'de', 'ate', 'busca']
 
-/** "03/11" (dia/mês no formato do idioma) */
-const diaMes = (iso: string) => new Date(iso).toLocaleDateString(loc(), { day: '2-digit', month: '2-digit' })
 
 export function Etiquetas() {
   const t = useT()
-  const { nav, ir, ajustarParams } = useApp()
+  const { ir, ajustarParams } = useApp()
   const [filtro, setFiltro] = useParamTela<Filtro>('f', 'sem')
-  const p = (k: string) => (nav.params[k] === undefined ? '' : String(nav.params[k]))
-  const setP = (k: string, v: string) => ajustarParams({ [k]: v || undefined })
+  const { p, setP, tirar } = useFiltrosTela()
   const { dados } = useConsulta('estoque', { moduloId: 'cabelo', somenteComSaldo: true })
   const camposLote = useCamposModulo('cabelo', 'lote')
   // já marcados quando vem de um pacote, da compra, da triagem ou do estoque (?sel=a,b)
@@ -123,7 +120,6 @@ export function Etiquetas() {
     ...(p('pmin') || p('pmax') ? [{ k: 'pmin,pmax', rotulo: `${p('pmin') ? fmt(pmin, 'gramas') : '0'} – ${p('pmax') ? fmt(pmax, 'gramas') : '∞'}` }] : []),
     ...(p('de') || p('ate') ? [{ k: 'de,ate', rotulo: `📅 ${p('de') ? diaMes(p('de')) : '…'} – ${p('ate') ? diaMes(p('ate')) : '…'}` }] : []),
   ]
-  const tirar = (k: string) => ajustarParams(Object.fromEntries(k.split(',').map((x) => [x, undefined])))
   const impressoOk = () => (setSel(new Set()), ajustarParams({ sel: undefined }))
 
   return (

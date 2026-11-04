@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom'
 import type { Id } from '../core/domain/tipos'
 import type { Etiqueta } from '../core/services/fotos'
 import type { ModoEtiqueta } from '../core/services/codigos'
-import { Botao, Campo, Carregando, Entrada, Escolha, Erro, Info, Janela, cx, dataBR, fmt, loc } from './base'
+import { Botao, Campo, Carregando, Entrada, Escolha, Erro, Info, Janela, cx, dataBR, fmt, loc, BotaoExpandir } from './base'
 import { caminhoCode128 } from './code128'
 import { useApp, useComando, useConsulta } from './contexto'
 import { useT } from './i18n'
@@ -291,7 +291,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
               </div>
               {!todasIguais && <p className="mt-1 text-xs text-[var(--alerta)]">{t('Cada pacote com a sua quantidade (abaixo).')}</p>}
               {(dados?.length ?? 0) > 1 && (
-                <button type="button" aria-expanded={verLista} onClick={() => setVerLista(!verLista)} className="mt-2 min-h-10 text-sm font-semibold text-[var(--marca)]">{verLista ? '▾' : '▸'} {t('Ajustar por pacote ({n})', { n: dados!.length })}</button>
+                <BotaoExpandir aberto={verLista} onClick={() => setVerLista(!verLista)} className="-ml-2 mt-2">{t('Ajustar por pacote ({n})', { n: dados!.length })}</BotaoExpandir>
               )}
               {verLista && dados && dados.length > 1 && (
                 <ul className="mt-1 max-h-72 divide-y divide-[var(--borda)] overflow-auto rounded-xl border border-[var(--borda)]">

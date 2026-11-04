@@ -11,8 +11,8 @@ import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { TabelaPreco } from '../core/domain/tipos'
 import { chaveCelula } from '../core/services/precos'
-import { Abas, Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pilula, Selecao, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao } from '../ui/base'
-import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
+import { Abas, Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pilula, Selecao, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, diaCurto } from '../ui/base'
+import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela, useFiltrosTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 import { Trilha } from '../ui/trilha'
 import { MenuAcoes, type Acao } from '../ui/menuAcoes'
@@ -26,12 +26,6 @@ import {
 
 type Rascunho = Pick<TabelaPreco, 'id' | 'moduloId' | 'nome' | 'categoria' | 'validaDesde' | 'moeda' | 'unidadeMedida' | 'fatorPor' | 'linhas' | 'colunas' | 'valores'>
 type T = ReturnType<typeof useT>
-/** "14/10" (ano só quando não é o deste ano) */
-const diaCurto = (iso?: string) => {
-  if (!iso) return ''
-  const d = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso)
-  return d.toLocaleDateString(loc(), d.getFullYear() === new Date().getFullYear() ? { day: '2-digit', month: '2-digit' } : { day: '2-digit', month: '2-digit', year: '2-digit' })
-}
 const CATEGORIAS = ['Tinte', 'CH', 'CH+', 'Rojo', 'Quemado', 'Menudo', 'Entresaque']
 
 /** como o preço sai da tabela (tooltip com exemplos variados) */
@@ -155,7 +149,7 @@ function CartaoTabela({ tb }: { tb: TabelaPreco }) {
       )}
       <div className="mt-3 flex flex-wrap gap-1.5 border-t border-[var(--borda)] px-4 py-2.5">
         {stats.map(([rotulo, valor]) => (
-          <span key={rotulo} className={cx('num inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs', valor ? 'bg-[var(--marca-suave)] text-[var(--marca)]' : 'bg-[var(--fundo)] text-[var(--suave)]')}><b>{valor ?? '…'}</b> {t(rotulo).toLowerCase()}</span>
+          <Pilula key={rotulo} tom={valor ? 'marca' : 'suave'}><b>{valor ?? '…'}</b> <span className="font-normal">{t(rotulo).toLowerCase()}</span></Pilula>
         ))}
       </div>
     </button>
@@ -716,9 +710,8 @@ const AJUDA_USADA = 'Vendas e compras que calcularam o preço com esta tabela. C
  */
 function UsadaEm({ usos, total, moeda: m }: { usos: Uso[]; total: number; moeda: string }) {
   const t = useT()
-  const { nav, ajustarParams } = useApp()
-  const p = (k: string) => (nav.params[k] === undefined ? '' : String(nav.params[k]))
-  const setP = (k: string, v: string) => ajustarParams({ [k]: v || undefined })
+  const { ajustarParams } = useApp()
+  const { p, setP, tirar: tirarFiltro } = useFiltrosTela()
   const [aberto, setAberto] = useState(false)
   const CHAVES = ['ut', 'ub', 'ude', 'uate', 'up', 'uv', 'uc']
   const busca = p('ub').trim().toLowerCase()
@@ -746,7 +739,6 @@ function UsadaEm({ usos, total, moeda: m }: { usos: Uso[]; total: number; moeda:
     ...(p('uv') ? [{ k: 'uv', rotulo: `${t('versão')} v${p('uv')}` }] : []),
     ...(p('uc') ? [{ k: 'uc', rotulo: `▦ ${p('uc')}` }] : []),
   ]
-  const tirarFiltro = (k: string) => ajustarParams(Object.fromEntries(k.split(',').map((x) => [x, undefined])))
   const alternarTipo = (x: 'venda' | 'compra') => setP('ut', p('ut') === x ? '' : x)
   return (
     <section aria-label={t('Usada em')} className="space-y-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:p-4">
@@ -801,8 +793,8 @@ function UsoTabela({ u, moeda }: { u: Uso; moeda: string }) {
           <span className="block font-semibold">{t(compra ? 'Compra' : 'Venda')} {u.codigo ?? ''}{u.pessoa ? ` · ${u.pessoa}` : ''}</span>
           <span className="mt-0.5 block text-xs text-[var(--suave)]">{dataBR(u.data)} · {gramasTexto(u.gramas)} · {u.linhas} {t('linha(s)')}</span>
           <span className="mt-1 flex flex-wrap gap-1">
-            {u.versao !== undefined && <span className="num rounded-full bg-[var(--marca-suave)] px-2 py-0.5 text-[11px] font-semibold text-[var(--marca)]">v{u.versao}</span>}
-            {u.colunas.map((c) => <span key={c} className="rounded-full bg-[var(--fundo)] px-2 py-0.5 text-[11px] text-[var(--suave)]">▦ {c}</span>)}
+            {u.versao !== undefined && <Pilula pequena tom="marca">v{u.versao}</Pilula>}
+            {u.colunas.map((c) => <Pilula key={c} pequena tom="suave">▦ {c}</Pilula>)}
           </span>
         </span>
         <span className="num shrink-0 text-right font-semibold">

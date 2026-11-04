@@ -13,8 +13,8 @@ import type { ModoCompra } from '../core/services/codigos'
 import { CAMPOS_FORM, type CampoFormId, FORM_COMPRA_PADRAO, type FormCompraConfig } from '../core/services/formCompra'
 import { fatorDaTabela } from '../core/services/precos'
 import { CATEGORIAS_CABELO } from '../modules/cabelo'
-import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Erro, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, ehToque } from '../ui/base'
-import { useApp, useAvisoSaida, useParamTela, useComando, useConsulta } from '../ui/contexto'
+import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, ehToque, ErroTela, TituloSecao } from '../ui/base'
+import { useApp, useAvisoSaida, useParamTela, useComando, useConsulta, useFiltrosTela } from '../ui/contexto'
 import { EditorPagamentos, type PagamentoTela, SeletorPessoa, ValoresConvertidos, useCotacoes } from '../ui/compartilhados'
 import { LinhaCotacao, PesoInput, ValorMoedaInput, converterDigitado, cotacaoSistema, moedasDoCampo } from '../ui/valorMoeda'
 import { AbaAnexos, AnexosCurtos } from '../ui/anexos'
@@ -23,7 +23,7 @@ import { LinhaDoTempo } from '../ui/linhaTempo'
 import { FiltroPendencia, SeloPendencias } from '../ui/pendencias'
 import { useT } from '../ui/i18n'
 import { Trilha } from '../ui/trilha'
-import { CampoCodigoCompra, CodigoSelo, TrocarCodigo } from '../ui/codigos'
+import { CampoCodigoCompra, CodigoSelo, TrocarCodigo, CodigoTexto } from '../ui/codigos'
 import { BuscaPessoa } from '../ui/buscaPessoa'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
@@ -72,6 +72,7 @@ type Ordem = 'data' | 'total' | 'parada'
 export function Comprar() {
   const t = useT()
   const { nav, ir, sessao, ajustarParams } = useApp()
+  const { tirar: tirarFiltro } = useFiltrosTela()
   // lista no endereço: voltar do pedido reencontra a mesma aba, filtro, busca e ordem
   const [aba, setAba] = useParamTela<'abertas' | 'encerradas' | 'todas'>('aba', nav.params.encerradas ? 'encerradas' : 'abertas')
   const [pendencia, setPendencia] = useParamTela('pendencia', nav.params.semComprovante ? 'semComprovanteOrigem' : '')
@@ -167,7 +168,7 @@ export function Comprar() {
           {sessao.perfil === 'admin' && <button type="button" onClick={() => ir('config', { aba: 'etapas' })} className="ml-auto min-h-10 whitespace-nowrap rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Etapas e regras')}</button>}
         </div>
         <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar código (atual ou antigo), sigla, fornecedor, item…" ativos={ativosCompra.length} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
-        <ChipsFiltros itens={ativosCompra} onTirar={(k) => ajustarParams(Object.fromEntries(k.split(',').map((x) => [x, undefined])))} onLimpar={() => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined, busca: undefined })} />
+        <ChipsFiltros itens={ativosCompra} onTirar={tirarFiltro} onLimpar={() => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined, busca: undefined })} />
         {verFiltros && (
           <PainelFiltros resultados={lista.length} temAtivos={ativosCompra.length > 0} onLimpar={() => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined })} onFechar={() => setVerFiltros(false)}>
             <GrupoFiltro titulo="O que falta" icone="⚠️">
@@ -204,7 +205,7 @@ export function Comprar() {
                       <b className="num shrink-0 whitespace-nowrap">{formatar(c.totalPrincipal, c.moedaPrincipal)}</b>
                     </span>
                     <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 text-xs">
-                      <span className="font-mono font-bold text-[var(--marca)]">{codigoDe(c)}</span>
+                      <CodigoTexto codigo={codigoDe(c)} />
                       <span className={cx('font-semibold', c.etapa === 'concluido' ? 'text-[var(--bom)]' : ENCERRADAS.includes(c.etapa) ? 'text-[var(--ruim)]' : 'text-[var(--marca)]')}>{t(c.nomeEtapa)}</span>
                       {c.pendencias.length > 0
                         ? <span className={cx('font-semibold', urgente ? 'text-[var(--ruim)]' : 'text-[var(--alerta)]')}>{urgente ? '●' : '○'} {t(c.pendencias.length === 1 ? '1 pendência' : '{n} pendências', { n: c.pendencias.length })}</span>
@@ -291,8 +292,6 @@ export function Comprar() {
 }
 
 const CAMPOS_FIXOS = ['estado', 'comprimento', 'categoria', 'obs']
-/** No jeito "passo a passo": em que passo cada campo do formulário aparece (a ordem dos passos segue a dos campos). */
-const PASSO_DO_CAMPO: Record<CampoFormId, string> = { fornecedor: 'Fornecedor', codigo: 'Fornecedor', comprador: 'Fornecedor', coluna: 'Fornecedor', itens: 'O que veio', atributos: 'O que veio', estado: 'Estado', obs: 'Estado', fotos: 'Fotos', viagem: 'Fornecedor' }
 const SELETOR_CAMPO = 'input:not([type=file]):not([type=checkbox]):not([type=radio]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
 const CAMPOS_TIRAR = ['fator', 'tabelaId', 'colunaId', 'calculo']
 
@@ -489,24 +488,20 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   ]
   const pode = !faltas.length && !ocupado
 
-  // passo a passo (opcional): os passos seguem a ordem dos campos; dá para registrar de qualquer passo quando está completo
+  // os dois jeitos da tela (Configurações › Formulário) usam o passo a passo vertical; "passo a passo" acrescenta o passo
+  // Revisar no fim (confere tudo antes de registrar)
+  const comRevisar = form.layout === 'passos'
   const aplicavel = (c: CampoFormId) => (c === 'coluna' ? ehCabelo && !!tabela : c === 'codigo' ? mostrarCodigo : c === 'viagem' ? viagensAbertas.length > 0 || obrig('viagem') : c !== 'atributos')
   const campos = form.campos.filter((c) => c.visivel && aplicavel(c.id))
-  const passos = form.layout === 'passos' ? [...new Set(campos.map((c) => PASSO_DO_CAMPO[c.id])), 'Revisar'] : []
-  const [passoTxt, setPasso] = useParamTela('passo', '0')
-  const passo = Math.min(Number(passoTxt) || 0, Math.max(0, passos.length - 1))
-  const noPasso = (c: CampoFormId) => !passos.length || PASSO_DO_CAMPO[c] === passos[passo]
-  const revisando = passos.length > 0 && passos[passo] === 'Revisar'
-  const ultimoPasso = !passos.length || passo >= passos.length - 1
 
   // algo digitado e não registrado: sair pede confirmação
   useAvisoSaida(!ocupado && (linhas.some((l) => l.quantidade || l.total) || !!obs.trim() || estado.length > 0))
 
   const caixa = useRef<HTMLDivElement>(null)
-  // começa no primeiro campo (e no primeiro de cada passo)
+  // começa no primeiro campo
   useEffect(() => {
     if (!ehToque()) caixa.current?.querySelector<HTMLElement>(SELETOR_CAMPO)?.focus()
-  }, [passo])
+  }, [])
   // campo aberto pelo "+": o cursor vai para ele
   useEffect(() => {
     if (!focarCampo) return
@@ -543,7 +538,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     aplicarPessoa(p)
     // escolheu: o passo 1 fecha (fica o nome no resumo) e abre "O que veio"
     const k = listaPassos.findIndex((x) => x.id === 'itens')
-    if (p && secoes && k >= 0) irPasso(k + 1)
+    if (p && k >= 0) irPasso(k + 1)
   }
   const trocarModulo = (m: string) => {
     if (m === moduloId) return
@@ -584,7 +579,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       // abre o passo onde está o que falta e rola até ele
       const alvo = obrig('fornecedor') && !pessoaId ? 'fornecedor' : !linhas.length || linhas.some((l, i) => faltasLinha(l, i).length) ? 'itens' : 'detalhes'
       const k = listaPassos.findIndex((p) => p.id === alvo)
-      if (secoes && k >= 0) irPasso(k + 1)
+      if (k >= 0) irPasso(k + 1)
       // a linha com falta abre (as outras ficam fechadas)
       const lf = linhas.find((l, i) => faltasLinha(l, i).length)
       if (lf) setLinhaAberta(lf.id)
@@ -620,8 +615,6 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       ir('pedido', { id: r.id, registrada: true })
     }
   }
-  const proximo = () => setPasso(String(passo + 1))
-  const principal = ultimoPasso ? salvar : proximo
 
   // teclado (desktop): Enter vai para o próximo campo; no último, faz o botão principal. Ctrl+Enter registra.
   const aoTeclar = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -633,7 +626,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     const todos = [...e.currentTarget.querySelectorAll<HTMLElement>(SELETOR_CAMPO)].filter((x) => x.tagName !== 'TEXTAREA')
     const k = todos.indexOf(el)
     if (k >= 0 && k < todos.length - 1) todos[k + 1].focus()
-    else void principal()
+    else void salvar()
   }
 
   const rotuloFalta = faltas.length ? `${t('Falta preencher: {x}', { x: faltas[0] })}${faltas.length > 1 ? ` ${t('(e mais {n})', { n: faltas.length - 1 })}` : ''}` : ''
@@ -642,10 +635,6 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       {pode ? t('Registrar pedido') : rotuloFalta}
     </Botao>
   )
-  const botaoPrincipal = (extra?: string) =>
-    ultimoPasso ? botaoRegistrar(extra) : (
-      <Botao grande onClick={proximo} className={cx('leading-tight', extra)}>{t('Próximo')}: {t(passos[passo + 1])} →</Botao>
-    )
 
   // ---------- cada campo ----------
   const sigla = pessoaId ? siglas[pessoaId] : undefined
@@ -804,11 +793,10 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     )
   }
 
-  // SEÇÕES numeradas (sem passo a passo): 1 De quem · 2 O que veio · 3 Detalhes (o resto, aberto ou no "+")
-  const secoes = !passos.length
+  // PASSOS: 1 Fornecedor · 2 O que veio · 3 Detalhes (o resto, aberto ou no "+") · [4 Revisar]
   const PRINCIPAIS: CampoFormId[] = ['fornecedor', 'itens']
   const numeroDe: Partial<Record<CampoFormId, number>> = {}
-  if (secoes) for (const c of campos) if (PRINCIPAIS.includes(c.id) && estaAberto(c.id)) numeroDe[c.id] = Object.keys(numeroDe).length + 1
+  for (const c of campos) if (PRINCIPAIS.includes(c.id) && estaAberto(c.id)) numeroDe[c.id] = Object.keys(numeroDe).length + 1
   // DETALHES: cada campo aberto pelo "+" tem ✕ (fecha e limpa) e um exemplo do que é; obrigatório e o que a regra
   // abriu sozinho (quem comprou para o código por pessoa, viagem sugerida) ficam sem ✕
   const EXEMPLO: Partial<Record<CampoFormId, string>> = {
@@ -830,18 +818,18 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     else if (c === 'codigo') (setCodigo(''), setModoEscolhido(form.padroes.modoCodigo))
     else if (c === 'coluna') setColuna(undefined)
   }
-  const fechoEExemplo = (c: CampoFormId) => (secoes && !numeroDe[c] ? { exemplo: EXEMPLO[c], onFechar: !obrig(c) && !forcado(c) ? () => fechar(c) : undefined } : {})
+  const fechoEExemplo = (c: CampoFormId) => (!numeroDe[c] ? { exemplo: EXEMPLO[c], onFechar: !obrig(c) && !forcado(c) ? () => fechar(c) : undefined } : {})
   const campoTela = (c: CampoFormId): ReactNode => {
     switch (c) {
       case 'fornecedor':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={!numeroDe[c]} {...fechoEExemplo(c)}>
             <BuscaPessoa rotulo={obrig('fornecedor') ? 'De quem? *' : 'De quem?'} valor={pessoaId} onChange={setPessoaId} papel="fornecedor" recentes={recentes} siglas={siglas} detalhe={detalheFornecedor} erro={tentou && obrig('fornecedor') && !pessoaId ? `${t('Falta')}: ${t('fornecedor')}` : undefined} />
           </Bloco>
         )
       case 'itens':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="O que veio" acao={<span className="num text-sm font-bold">{formatar(total, moeda)}</span>}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={!numeroDe[c]} {...fechoEExemplo(c)} titulo="O que veio" acao={<span className="num text-sm font-bold">{formatar(total, moeda)}</span>}>
             <div className="space-y-2">
               {linhas.map(linhaTela)}
               <Botao variante="secundario" className="min-h-11 w-full sm:w-auto" onClick={() => { const n = novaLinha(ehCabelo, linhas[linhas.length - 1]); setLinhas([...linhas, n]); setLinhaAberta(n.id) }}>+ {t('Outra linha')}</Botao>
@@ -856,7 +844,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         )
       case 'codigo':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Código do pedido" acao={<Info texto="Como este pedido vai ser chamado (e os lotes dele). Escolha o tipo só para esta compra; a regra fica em Configurações › Códigos." />}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={!numeroDe[c]} {...fechoEExemplo(c)} titulo="Código do pedido" acao={<Info texto="Como este pedido vai ser chamado (e os lotes dele). Escolha o tipo só para esta compra; a regra fica em Configurações › Códigos." />}>
             <CampoCodigoCompra
               modo={modoCodigo}
               onModo={(m) => (setModoEscolhido(m), setCodigo(''))}
@@ -870,20 +858,20 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         )
       case 'coluna':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Coluna da tabela" acao={<Info texto="Compra pela tabela: medida | gramas × fator da coluna do fornecedor. Vem a coluna ligada ao fornecedor (ou a da última compra dele)." />}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={!numeroDe[c]} {...fechoEExemplo(c)} titulo="Coluna da tabela" acao={<Info texto="Compra pela tabela: medida | gramas × fator da coluna do fornecedor. Vem a coluna ligada ao fornecedor (ou a da última compra dele)." />}>
             <Selecao valor={col} onChange={setColuna} opcoes={(tabela?.colunas ?? []).map((x) => ({ id: x.id, nome: x.id === colunaUsual ? `${x.nome} · ${t('do fornecedor')}` : x.nome }))} />
           </Bloco>
         )
       case 'comprador':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={!numeroDe[c]} {...fechoEExemplo(c)}>
             <SeletorPessoa rotulo={obrig('comprador') || porComprador ? 'Quem comprou? *' : 'Quem comprou?'} valor={compradorId} onChange={setCompradorId} papel="funcionario" opcional={!obrig('comprador') && !porComprador} />
             <Falta se={tentou && obrig('comprador') && !compradorId} texto={t('quem comprou')} />
           </Bloco>
         )
       case 'estado':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Estado na chegada">
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={!numeroDe[c]} {...fechoEExemplo(c)} titulo="Estado na chegada">
             <div className="flex flex-wrap gap-2">
               {form.estados.map((e) => (
                 <button key={e} type="button" aria-pressed={estado.includes(e)} onClick={() => setEstado(estado.includes(e) ? estado.filter((x) => x !== e) : [...estado, e])} className={cx('min-h-11 rounded-full border px-3 text-sm', estado.includes(e) ? 'border-[var(--marca)] bg-[var(--marca)] font-semibold text-white' : 'border-[var(--borda)] hover:border-[var(--marca)]')}>
@@ -896,21 +884,21 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         )
       case 'obs':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Observação">
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={!numeroDe[c]} {...fechoEExemplo(c)} titulo="Observação">
             <textarea rows={2} aria-label={t('Observação')} value={obs} onChange={(e) => setObs(e.target.value)} placeholder={t('Ex.: veio em 3 sacos, 1 com fios mais curtos.')} className="w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-base outline-none focus:border-[var(--marca)]" />
             <Falta se={tentou && obrig('obs') && !obs.trim()} texto={t('observação')} />
           </Bloco>
         )
       case 'fotos':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Fotos e arquivos">
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={!numeroDe[c]} {...fechoEExemplo(c)} titulo="Fotos e arquivos">
             <AnexosCurtos donoId={id} categorias={CATEGORIAS_COMPRA} padrao="pedido" />
             <Falta se={tentou && obrig('fotos') && !anexos?.length} texto={t('fotos')} />
           </Bloco>
         )
       case 'viagem':
         return (
-          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={secoes && !numeroDe[c]} {...fechoEExemplo(c)} titulo="Viagem" acao={<Info texto="Compra feita numa viagem de compra: os gastos da viagem são divididos entre as compras dela e o resultado da viagem conta com esta." />}>
+          <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={!numeroDe[c]} {...fechoEExemplo(c)} titulo="Viagem" acao={<Info texto="Compra feita numa viagem de compra: os gastos da viagem são divididos entre as compras dela e o resultado da viagem conta com esta." />}>
             <Selecao valor={viagemId ?? ''} onChange={(v) => setViagemEscolhida(v)} vazio={t('Sem viagem')} opcoes={viagensAbertas.map((v) => ({ id: v.id, nome: nomeViagem(v) }))} />
             {viagemSugerida && viagemId === viagemSugerida.id && viagemEscolhida === undefined && <p className="mt-1 text-xs text-[var(--suave)]">{t('Escolhida porque quem comprou está nesta viagem.')}</p>}
             <Falta se={tentou && obrig('viagem') && !viagemId} texto={t('viagem')} />
@@ -948,7 +936,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     fechados = []
   }
   const principalDe: Partial<Record<CampoFormId, ReactNode>> = {}
-  for (const c of campos.filter((x) => noPasso(x.id))) {
+  for (const c of campos) {
     if (numeroDe[c.id]) (principais.push(<Fragment key={c.id}>{campoTela(c.id)}</Fragment>), (principalDe[c.id] = campoTela(c.id)))
     else if (estaAberto(c.id)) {
       soltar()
@@ -959,6 +947,8 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   const detalhesObrigatorios = campos.some((c) => !numeroDe[c.id] && c.obrigatorio)
   // PASSO A PASSO (aprendido no Separar): cada passo fecha numa linha com o resumo; o aberto explica para que serve
   const nomeForn = pessoaId ? (ultima?.pessoa ?? conta?.pessoa?.nome) : undefined
+  const linhasResumo = linhas.map((l) => ({ id: l.id, texto: descLinha(l), qtd: ehCabelo ? gramasTexto(l.quantidade ?? 0) : String(l.quantidade ?? 0), valor: totalLinha(l) }))
+  const nomeFornecedor = ultima?.pessoa ?? (pessoaId ? conta?.pessoa?.nome : undefined)
   const linhasOk = linhas.length > 0 && linhas.every((l, i) => !faltasLinha(l, i).length)
   const preenchidosDetalhe = [
     mostrarCodigo && codigoMostrado ? `# ${codigoMostrado}` : '',
@@ -968,7 +958,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     anexos?.length ? `📎 ${anexos.length}` : '',
   ].filter(Boolean)
   const faltaDetalhe = faltas.some((x) => ![t('fornecedor'), t('o que veio')].includes(x) && !linhas.some((l, i) => faltasLinha(l, i).includes(x)))
-  const listaPassos: { id: CampoFormId | 'detalhes'; titulo: string; resumo: ReactNode; ajuda: string; exemplo?: string; feito: boolean; opcional?: boolean; falta?: boolean; conteudo: ReactNode }[] = [
+  const listaPassos: { id: CampoFormId | 'detalhes' | 'revisar'; titulo: string; resumo: ReactNode; ajuda: string; exemplo?: string; feito: boolean; opcional?: boolean; falta?: boolean; conteudo: ReactNode }[] = [
     ...(principalDe.fornecedor ? [{
       id: 'fornecedor' as const, titulo: 'Fornecedor', opcional: !obrig('fornecedor'), feito: !!pessoaId, falta: tentou && obrig('fornecedor') && !pessoaId,
       resumo: nomeForn ? [nomeForn, sigla, conta ? (saldo < 0 ? `${t('Devo')} ${formatar(-saldo, conta.moeda)}` : saldo > 0 ? `${t('Me deve')} ${formatar(saldo, conta.moeda)}` : t('Conta em dia')) : ''].filter(Boolean).join(' · ') : t('ninguém escolhido'),
@@ -990,8 +980,26 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       exemplo: 'Ex.: + Fotos para anexar a foto do pedido · + Estado na chegada: Úmido',
       conteudo: <div className="space-y-3">{partes}</div>,
     }] : []),
+    ...(comRevisar ? [{
+      id: 'revisar' as const, titulo: 'Revisar e registrar', feito: pode, falta: tentou && !pode,
+      resumo: pode ? t('tudo certo para registrar') : t('Falta preencher: {x}', { x: faltas[0] ?? '' }),
+      ajuda: 'Confira o pedido inteiro antes de registrar: fornecedor, o que veio, valores e detalhes.',
+      exemplo: 'Ex.: Helena · Bruto 10 kg · Bs 30.000 → Registrar pedido',
+      conteudo: (
+        <ul className="divide-y divide-[var(--borda)] rounded-xl bg-[var(--cartao)] px-3 text-sm">
+          {mostrarCodigo && <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Código do pedido')}</span><b className="font-mono">{codigoMostrado ?? '…'}</b></li>}
+          <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Tipo')}</span><b>{modulo?.icone} {t(modulo?.nome ?? moduloId)}</b></li>
+          <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Fornecedor')}</span><b>{nomeFornecedor ?? t('Sem fornecedor')}</b></li>
+          {viagemAtual && <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Viagem')}</span><b className="min-w-0 truncate">✈️ {nomeViagem(viagemAtual)}</b></li>}
+          {linhasResumo.map((l) => (
+            <li key={l.id} className="flex justify-between gap-3 py-2"><span className="min-w-0 truncate">{l.texto}</span><span className="num shrink-0">{l.qtd} · <b>{formatar(l.valor ?? 0, moeda)}</b></span></li>
+          ))}
+          {(estado.length > 0 || obs.trim()) && <li className="py-2"><span className="text-[var(--suave)]">{t('Estado na chegada')}:</span> {[...estado.map((x) => t(x)), obs.trim()].filter(Boolean).join(' · ')}</li>}
+        </ul>
+      ),
+    }] : []),
   ]
-  const corpo: ReactNode = !secoes ? partes : (
+  const corpo: ReactNode = (
     <ol className="space-y-3" aria-label={t('Passos da compra')}>
       {listaPassos.map((p, k) => (
         <Passo key={p.id} n={k + 1} de={listaPassos.length} titulo={p.titulo} resumo={p.resumo} ajuda={p.ajuda} exemplo={p.exemplo} feito={p.feito} opcional={p.opcional} falta={p.falta} aberto={passosAbertos.has(k + 1)} onAlternar={() => alternarPasso(k + 1)}>
@@ -1002,8 +1010,6 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     </ol>
   )
 
-  const linhasResumo = linhas.map((l) => ({ id: l.id, texto: descLinha(l), qtd: ehCabelo ? gramasTexto(l.quantidade ?? 0) : String(l.quantidade ?? 0), valor: totalLinha(l) }))
-  const nomeFornecedor = ultima?.pessoa ?? (pessoaId ? conta?.pessoa?.nome : undefined)
 
   return (
     <div>
@@ -1012,18 +1018,6 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         {admin && <button type="button" onClick={() => ir('config', { aba: 'formCompra' })} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Personalizar')}</button>}
       </div>
       <h1 className="mb-3 text-2xl font-bold">{t(base ? 'Repetir compra' : 'Nova compra')}</h1>
-
-      {passos.length > 0 && (
-        <ol className="mb-3 flex gap-1 overflow-x-auto pb-1" aria-label={t('Passos')}>
-          {passos.map((nome, i) => (
-            <li key={nome} className="shrink-0">
-              <button type="button" aria-current={passo === i ? 'step' : undefined} onClick={() => setPasso(String(i))} className={cx('flex min-h-11 items-center gap-2 rounded-full px-3 text-sm font-semibold', passo === i ? 'bg-[var(--marca)] text-white' : i < passo ? 'bg-[var(--marca-suave)] text-[var(--marca)]' : 'border border-[var(--borda)] text-[var(--suave)]')}>
-                <span className="num">{i < passo ? '✓' : i + 1}</span> {t(nome)}
-              </button>
-            </li>
-          ))}
-        </ol>
-      )}
 
       {trocando && (
         <Confirmar
@@ -1037,7 +1031,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div ref={caixa} onKeyDown={aoTeclar} className="min-w-0 space-y-3">
-          {modulos.length > 1 && (!passos.length || passo === 0) && (
+          {modulos.length > 1 && (
             modulos.length <= 4 ? (
               <div role="radiogroup" aria-label={t('O que está comprando?')} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {modulos.map((m) => (
@@ -1052,32 +1046,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
             )
           )}
 
-          {revisando ? (
-            <Cartao titulo={t('Revisar e registrar')}>
-              <ul className="divide-y divide-[var(--borda)] text-sm">
-                {mostrarCodigo && <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Código do pedido')}</span><b className="font-mono">{codigoMostrado ?? '…'}</b></li>}
-                <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Tipo')}</span><b>{modulo?.icone} {t(modulo?.nome ?? moduloId)}</b></li>
-                <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Fornecedor')}</span><b>{nomeFornecedor ?? t('Sem fornecedor')}</b></li>
-                {viagemAtual && <li className="flex justify-between gap-3 py-2"><span className="text-[var(--suave)]">{t('Viagem')}</span><b className="min-w-0 truncate">✈️ {nomeViagem(viagemAtual)}</b></li>}
-                {linhasResumo.map((l) => (
-                  <li key={l.id} className="flex justify-between gap-3 py-2"><span className="min-w-0 truncate">{l.texto}</span><span className="num shrink-0">{l.qtd} · <b>{formatar(l.valor ?? 0, moeda)}</b></span></li>
-                ))}
-                {(estado.length > 0 || obs.trim()) && <li className="py-2"><span className="text-[var(--suave)]">{t('Estado na chegada')}:</span> {[...estado.map((x) => t(x)), obs.trim()].filter(Boolean).join(' · ')}</li>}
-              </ul>
-            </Cartao>
-          ) : (
-            corpo
-          )}
-
-          {passos.length > 0 && (
-            <div className="hidden flex-wrap justify-between gap-2 lg:flex">
-              <Botao variante="secundario" disabled={passo === 0} onClick={() => setPasso(String(passo - 1))}>← {t('Anterior')}</Botao>
-              <div className="flex flex-wrap gap-2">
-                {!ultimoPasso && pode && <Botao variante="secundario" onClick={salvar}>{t('Registrar agora')}</Botao>}
-                {botaoPrincipal()}
-              </div>
-            </div>
-          )}
+          {corpo}
 
           {/* celular: total e o botão principal sempre à mão */}
           <div className="sticky bottom-[calc(4.75rem_+_env(safe-area-inset-bottom))] z-10 flex items-center gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-2 pl-3 shadow-lg md:bottom-4 lg:hidden">
@@ -1085,9 +1054,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
               <div className="num truncate text-lg font-black leading-tight">{formatar(total, moeda)}</div>
               <div className="num truncate text-xs text-[var(--suave)]">{ehCabelo ? gramasTexto(pesoTotal) : `${linhas.length} ${t('item(ns)')}`}{codigoMostrado && mostrarCodigo ? ` · ${codigoMostrado}` : ''}</div>
             </div>
-            {passos.length > 0 && passo > 0 && <button type="button" aria-label={t('Anterior')} className="h-12 w-11 shrink-0 rounded-xl text-lg text-[var(--marca)] hover:bg-[var(--marca-suave)]" onClick={() => setPasso(String(passo - 1))}>←</button>}
-            {!ultimoPasso && pode && <Botao variante="secundario" className="shrink-0 px-3" aria-label={t('Registrar agora')} title={t('Registrar agora')} onClick={salvar}>✓</Botao>}
-            {botaoPrincipal('max-w-[60%] shrink-0 px-4 text-sm')}
+            {botaoRegistrar('max-w-[60%] shrink-0 px-4 text-sm')}
           </div>
         </div>
 
@@ -1114,8 +1081,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
               {total > 0 && <div className="flex justify-end"><ValoresConvertidos valor={total} moeda={moeda} uso="compra" /></div>}
             </dl>
             <div className="mt-4 flex flex-col gap-2">
-              {botaoPrincipal('w-full')}
-              {!ultimoPasso && pode && <Botao variante="secundario" className="w-full" onClick={salvar}>{t('Registrar agora')}</Botao>}
+              {botaoRegistrar('w-full')}
             </div>
             {!pode && tentou && faltas.length > 1 && <p className="mt-2 text-xs text-[var(--ruim)]">{t('Falta')}: {faltas.join(', ')}</p>}
             <p className="mt-2 text-xs text-[var(--suave)]">{ehCabelo ? `${t('Ao registrar, o cabelo já fica na Triagem, esperando para separar.')} ` : ''}{t('Pagamento e entrega')}: {etapasFluxo.map((e) => t(e.nome)).join(' → ')}.</p>
@@ -1141,7 +1107,7 @@ function LigarViagem({ compraId, onFechar }: { compraId: Id; onFechar(): void })
     <Janela aberta titulo={t('Ligar a uma viagem')} onFechar={onFechar} rodape={
       <Botao grande className="w-full" disabled={ocupado || !viagemId} onClick={async () => (await executar('vincularCompras', { viagemId, compraIds: [compraId] }, t('Compra ligada à viagem.'))) && onFechar()}>✈️ {t('Ligar')}</Botao>
     }>
-      {!dados ? <Carregando /> : !abertas.length ? <p className="text-sm text-[var(--suave)]">{t('Nenhuma viagem aberta.')}</p> : (
+      {!dados ? <Carregando /> : !abertas.length ? <Vazio compacto texto="Nenhuma viagem aberta." /> : (
         <Campo rotulo="Viagem"><Selecao valor={viagemId} onChange={setViagemId} vazio={t('Escolha…')} opcoes={abertas.map((v) => ({ id: v.id, nome: [v.codigo, v.nome, v.destino].filter(Boolean).join(' · ') }))} /></Campo>
       )}
     </Janela>
@@ -1301,7 +1267,7 @@ function DestinoCompra({ dados, admin, onTrocarLote }: { dados: DadosPedido; adm
       {dados.lotes.length > 0 && (
         <>
           <div className="flex items-center justify-between border-t border-[var(--borda)] px-4 pb-1 pt-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('Pacotes desta compra')} · {dados.lotes.length}</h3>
+            <TituloSecao>{t('Pacotes desta compra')} · {dados.lotes.length}</TituloSecao>
             <button type="button" onClick={() => ir('etiquetas', { f: 'todas', compra: codigoDe(c), sel: (dados.lotes.some((l) => l.saldo > 0) ? dados.lotes.filter((l) => l.saldo > 0) : dados.lotes).map((l) => l.id).join(',') })} className="min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">🏷 {t('Etiquetas')}</button>
           </div>
           <ul className="divide-y divide-[var(--borda)]">
@@ -1310,7 +1276,7 @@ function DestinoCompra({ dados, admin, onTrocarLote }: { dados: DadosPedido; adm
                 <MiniaturaLote itemId={l.id} foto={l.foto} marcador={marcadorLote(l.campos, l.nome)} tamanho="sm" />
                 <button type="button" onClick={() => ir('lote', { id: l.id })} className="flex min-h-10 min-w-0 flex-1 items-center justify-between gap-2 text-left hover:text-[var(--marca)]">
                   <span className="min-w-0">
-                    <b className="block font-mono text-sm text-[var(--marca)]">{l.codigo}</b>
+                    <CodigoTexto codigo={l.codigo} className="block text-sm" />
                     <span className="block truncate text-xs text-[var(--suave)]">{l.nome}{l.aguardando ? ` · ${t('aguardando triagem · há {n} dias', { n: l.aguardando.dias })}` : l.saldo <= 0 ? ` · ${t('esgotado')}` : ''}</span>
                   </span>
                   <span className="num shrink-0 font-semibold">{l.unidade === 'grama' ? gramasTexto(l.saldo) : l.saldo}</span>
@@ -1432,7 +1398,7 @@ export function Pedido() {
   // sub-abas (no endereço: #/pedidos/P1?aba=anexos): Resumo · Anexos (N) · Histórico
   const [aba, setAba] = useParamTela<'resumo' | 'pagamento' | 'conta' | 'anexos' | 'historico'>('aba', 'resumo')
   const { dados: anexos } = useConsulta('anexosDe', { donoId: id })
-  if (erro) return <Erro texto={erro} />
+  if (erro) return <ErroTela texto={erro} />
   if (!dados) return <Carregando />
   const c = dados.compra
   const m = c.moedaPrincipal
@@ -1513,12 +1479,12 @@ export function Pedido() {
           </p>
           {dados.outras.length > 0 && (
             <>
-              <h3 className="mb-1 mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('Outras compras com {p}', { p: dados.pessoa.nome })}</h3>
+              <TituloSecao className="mb-1 mt-4">{t('Outras compras com {p}', { p: dados.pessoa.nome })}</TituloSecao>
               <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-xl border border-[var(--borda)] text-sm">
                 {dados.outras.map((o) => (
                   <li key={o.id}>
                     <button type="button" onClick={() => ir('pedido', { id: o.id })} className="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left hover:bg-[var(--fundo)]">
-                      <span className="min-w-0 truncate"><b className="font-mono text-[var(--marca)]">{o.codigo ?? ''}</b> <span className="text-[var(--suave)]">· {dataBR(o.data)} · {t(o.etapa)}</span></span>
+                      <span className="min-w-0 truncate"><CodigoTexto codigo={o.codigo} /> <span className="text-[var(--suave)]">· {dataBR(o.data)} · {t(o.etapa)}</span></span>
                       <span className="num shrink-0 font-semibold">{formatar(o.total, m)}</span>
                     </button>
                   </li>

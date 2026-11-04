@@ -10,7 +10,7 @@ import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import type { Cadeia } from '../core/services/estoque'
 import type { Ligacao } from '../core/services/triagem'
-import { Botao, Info, cx, dataBR, fmt, gramasTexto } from './base'
+import { Botao, Info, cx, dataBR, fmt, gramasTexto, TituloSecao } from './base'
 import { useApp } from './contexto'
 import { useT } from './i18n'
 import { MenuAcoes, acoesLote } from './menuAcoes'
@@ -250,7 +250,7 @@ export function RastreioTotal({ g, admin = true }: { g: Genealogia; admin?: bool
       {n ? <ul className="space-y-2">{itens}</ul> : <p className="rounded-xl border border-dashed border-[var(--borda)] p-3 text-center text-xs text-[var(--suave)]">—</p>}
     </section>
   )
-  const rot = (s: string) => <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--suave)]">{t(s)}</p>
+  const rot = (s: string) => <TituloSecao>{t(s)}</TituloSecao>
   return (
     <div className="space-y-3">
       <p className={cx('num rounded-xl p-2 text-sm font-semibold', tt.confere ? 'bg-[var(--bom)]/10 text-[var(--bom)]' : 'bg-[var(--alerta)]/10 text-[var(--alerta)]')}>

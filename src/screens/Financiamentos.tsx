@@ -4,6 +4,8 @@
 // (dinheiro → entregas → acertos → quitação) e as ações: entrega, receber, abater da comissão, pagar diferença, encerrar.
 
 import { useState } from 'react'
+import { BarraFiltros } from '../ui/filtroPadrao'
+import { NumeroGrande } from '../ui/numeroGrande'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id } from '../core/domain/tipos'
@@ -17,20 +19,6 @@ import { LinhaDoTempo } from '../ui/linhaTempo'
 import { useT } from '../ui/i18n'
 
 type FiltroStatus = 'ativos' | StatusFinanciamento | 'todos'
-
-/** Número clicável do topo (mesmo jeito dos outros painéis). */
-function Numero({ rotulo, valor, sub, cor, onClick }: { rotulo: string; valor: string; sub?: string; cor?: string; onClick?: () => void }) {
-  const t = useT()
-  const dentro = (
-    <>
-      <div className="text-xs text-[var(--suave)]">{t(rotulo)}</div>
-      <div className={cx('num break-words text-xl font-bold', cor)}>{valor}</div>
-      {sub && <div className="text-xs text-[var(--suave)]">{sub}</div>}
-    </>
-  )
-  const cls = 'rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 text-left shadow-sm'
-  return onClick ? <button type="button" onClick={onClick} className={cx(cls, 'hover:border-[var(--marca)]')}>{dentro}</button> : <div className={cls}>{dentro}</div>
-}
 
 export function Financiamentos() {
   const t = useT()
@@ -60,15 +48,15 @@ export function Financiamentos() {
       {erro && <p className="mb-3 text-sm text-[var(--ruim)]">{erro}</p>}
       {dados && (
         <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-          <Numero rotulo="Na mão dos compradores" valor={formatar(dados.totais.naMao, m)} onClick={() => setStatus('aberto')} />
-          <Numero rotulo="Financiado" valor={formatar(dados.totais.financiado, m)} />
-          <Numero rotulo="Cabelo entregue" valor={formatar(dados.totais.entregue, m)} sub={gramasTexto(dados.totais.gramas)} />
-          <Numero rotulo="A pagar a parceiros" valor={formatar(dados.totais.aPagarParceiros, m)} cor={dados.totais.aPagarParceiros ? 'text-[var(--alerta)]' : undefined} onClick={() => setStatus('aPagar')} />
+          <NumeroGrande rotulo="Na mão dos compradores" valor={formatar(dados.totais.naMao, m)} onClick={() => setStatus('aberto')} />
+          <NumeroGrande rotulo="Financiado" valor={formatar(dados.totais.financiado, m)} />
+          <NumeroGrande rotulo="Cabelo entregue" valor={formatar(dados.totais.entregue, m)} sub={gramasTexto(dados.totais.gramas)} />
+          <NumeroGrande rotulo="A pagar a parceiros" valor={formatar(dados.totais.aPagarParceiros, m)} tom={dados.totais.aPagarParceiros ? 'alerta' : undefined} onClick={() => setStatus('aPagar')} />
         </div>
       )}
       <Abas atual={status} onChange={(v) => setStatus(v as FiltroStatus)} abas={abas.map((a) => ({ id: a.id, nome: a.nome, extra: a.n ? <span className="num text-xs opacity-70">{a.n}</span> : undefined }))} />
       <div className="mb-3">
-        <Entrada type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={t('Buscar por código, pessoa ou viagem')} aria-label={t('Buscar')} />
+        <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar por código, pessoa ou viagem" />
       </div>
       {!dados ? <Carregando /> : !dados.linhas.length ? (
         <Vazio texto={status === 'ativos' ? 'Nenhum adiantamento em andamento.' : 'Nenhum adiantamento.'}>
@@ -311,13 +299,14 @@ export function FichaFinanciamento() {
           </div>
         )}
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          <Numero rotulo="Valor financiado" valor={formatar(f.valor, f.moeda)} sub={f.moeda !== mp ? formatar(dados.financiado, mp) : undefined} />
-          <Numero rotulo="Cabelo entregue" valor={formatar(dados.entregue, mp)} sub={gramasTexto(dados.gramas)} />
-          <Numero rotulo="Recebido / abatido" valor={formatar(dados.recebido + dados.comissao, mp)} sub={dados.comissao ? `${t('comissão')} ${formatar(dados.comissao, mp)}` : undefined} />
-          <Numero
+          <NumeroGrande rotulo="Valor financiado" valor={formatar(f.valor, f.moeda)} sub={f.moeda !== mp ? formatar(dados.financiado, mp) : undefined} />
+          <NumeroGrande rotulo="Cabelo entregue" valor={formatar(dados.entregue, mp)} sub={gramasTexto(dados.gramas)} />
+          <NumeroGrande rotulo="Recebido / abatido" valor={formatar(dados.recebido + dados.comissao, mp)} sub={dados.comissao ? `${t('comissão')} ${formatar(dados.comissao, mp)}` : undefined} />
+          <NumeroGrande
             rotulo={dados.saldo < 0 ? 'A pagar ao parceiro' : 'Saldo devedor atual'}
             valor={formatar(Math.abs(dados.saldo), mp)}
-            cor={dados.saldo > 0 ? 'text-[var(--marca)]' : dados.saldo < 0 ? 'text-[var(--alerta)]' : 'text-[var(--bom)]'}
+            tom={dados.saldo > 0 ? 'marca' : dados.saldo < 0 ? 'alerta' : 'bom'}
+            colorirValor
           />
         </div>
         <Cartao>

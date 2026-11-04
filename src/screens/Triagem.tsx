@@ -5,19 +5,20 @@
 // Seleção (juntar e separar, mover, etiquetas) só aparece ao tocar "Selecionar". O resto fica no "⋯" de cada linha.
 
 import { type DragEvent, type ReactNode, useCallback, useState } from 'react'
+import { NumeroGrande, NumeroPequeno } from '../ui/numeroGrande'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { COLUNA_VENDIDO, type ColunaTriagem, camposUnificados } from '../core/services/triagem'
-import { Botao, Campo, Carregando, Confirmar, Entrada, Escolha, ErroTela, GramasInput, Info, Janela, Pilula, Selecao, cx, dataBR, fmt, gramasTexto, moedaPadrao } from '../ui/base'
+import { Botao, Campo, Carregando, Confirmar, Entrada, Escolha, ErroTela, GramasInput, Info, Janela, Pilula, Selecao, cx, dataBR, fmt, gramasTexto, moedaPadrao, Vazio, TituloSecao, BotaoExpandir } from '../ui/base'
 import { resumoCampos } from '../ui/camposDinamicos'
 import { clicavel } from '../ui/compartilhados'
 import { type Params, useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 import { type Acao, MenuAcoes, acoesLote } from '../ui/menuAcoes'
 import { EditarAtributos, useCamposModulo } from './Estoque'
-import { CampoCodigo, TrocarCodigo } from '../ui/codigos'
+import { CampoCodigo, TrocarCodigo, CodigoTexto } from '../ui/codigos'
 import { CadeiaChips, RastreioTotal } from '../ui/rastreioTotal'
 import { LinkTirarFoto, MiniaturaLote, marcadorLote, useTirarFoto } from '../ui/fotos'
 import { AvisoPacotesNovos, ImprimirEtiquetas, SeloEtiqueta } from '../ui/etiquetas'
@@ -95,7 +96,7 @@ export function Triagem() {
   const { tirar } = useTirarFoto()
   // leitor pistola: Enter com o código exato abre o pacote
   const pistola = usePistola(dados?.lotes, (l) => ir('lote', { id: l.id }))
-  if (erro) return <ErroTela texto={erro} onVoltar={() => ir('painel')} />
+  if (erro) return <ErroTela texto={erro} />
   if (!dados) return <Carregando />
 
   const cols = dados.colunas
@@ -527,7 +528,13 @@ function ProntoParaVender({ lotes, total, valor, onLote, onVender, onEstoque, on
         )}
       </div>
       {secaoAberta && <div className="px-2 pb-2 sm:px-4 sm:pb-4">
-      {lotes.length > 0 && verFiltros && <div className="mb-3 rounded-xl bg-[var(--fundo)] p-3"><FiltrosProntos todos={lotes} filtro={filtro} /></div>}
+      {lotes.length > 0 && verFiltros && (
+        <div className="mb-3">
+          <PainelFiltros resultados={filtrados.length} temAtivos={filtro.ativo} onLimpar={filtro.limpar} onFechar={() => setVerFiltros(false)}>
+            <div className="rounded-xl bg-[var(--fundo)] p-3"><FiltrosProntos todos={lotes} filtro={filtro} /></div>
+          </PainelFiltros>
+        </div>
+      )}
       <ResumoFiltroProntos lotes={filtrados} filtro={filtro} />
       {todosFiltrados.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
@@ -541,7 +548,7 @@ function ProntoParaVender({ lotes, total, valor, onLote, onVender, onEstoque, on
       )}
       {imprimir && <ImprimirEtiquetas ids={imprimir} onImpresso={() => setSoSem('')} onFechar={() => setImprimir(undefined)} />}
       {semPreco > 0 && <p className="mb-2 rounded-xl bg-[var(--alerta)]/10 p-2 text-sm font-semibold text-[var(--alerta)]">⚠️ {t('{n} lote(s) triado(s) sem preço na tabela', { n: semPreco })}</p>}
-      {!lotes.length ? <p className="text-sm text-[var(--suave)]">{t('Nada triado ainda: separe um lote para começar a vender.')}</p> : !filtrados.length ? <p className="rounded-xl border border-dashed border-[var(--borda)] p-4 text-center text-sm text-[var(--suave)]">{t('Nenhum lote com esses filtros.')}</p> : (
+      {!lotes.length ? <Vazio compacto texto="Nada triado ainda: separe um lote para começar a vender." /> : !filtrados.length ? <p className="rounded-xl border border-dashed border-[var(--borda)] p-4 text-center text-sm text-[var(--suave)]">{t('Nenhum lote com esses filtros.')}</p> : (
         // tabela por grupo: Medida | Lotes | Peso | Valor | ⋯ (cabeçalho em cima, total embaixo); tocar na linha abre os lotes
         <div className="overflow-hidden rounded-xl border border-[var(--borda)]">
           {filtro.f.agrupar !== 'nenhum' && (
@@ -896,10 +903,10 @@ function ListaTriagens({ aberta }: { aberta?: string }) {
       {imprimir && <ImprimirEtiquetas ids={imprimir} onFechar={() => setImprimir(undefined)} />}
       {/* resumo do que está filtrado */}
       <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-        <NumeroTriagem rotulo="Triagens" valor={String(lista.length)} />
-        <NumeroTriagem rotulo="Entrou" valor={gramasTexto(entrou)} />
-        <NumeroTriagem rotulo="Saiu" valor={gramasTexto(saiu)} />
-        <NumeroTriagem rotulo="Perda" ajuda={AJUDA_PERDA} valor={fmt(perdaBp, 'percentual')} detalhe={gramasTexto(entrou - saiu)} ruim={perdaBp > 500} />
+        <NumeroGrande rotulo="Triagens" valor={String(lista.length)} />
+        <NumeroGrande rotulo="Entrou" valor={gramasTexto(entrou)} />
+        <NumeroGrande rotulo="Saiu" valor={gramasTexto(saiu)} />
+        <NumeroGrande rotulo="Perda" ajuda={AJUDA_PERDA} valor={fmt(perdaBp, 'percentual')} sub={gramasTexto(entrou - saiu)} tom={perdaBp > 500 ? 'ruim' : undefined} />
       </div>
 
       {/* filtros: período e busca à mão; quem, compra, perda e ordem em "Filtros" */}
@@ -933,16 +940,6 @@ function ListaTriagens({ aberta }: { aberta?: string }) {
   )
 }
 
-function NumeroTriagem({ rotulo, valor, detalhe, ajuda, ruim }: { rotulo: string; valor: string; detalhe?: string; ajuda?: string; ruim?: boolean }) {
-  const t = useT()
-  return (
-    <div className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-2 py-2 sm:p-3">
-      <div className="flex items-center truncate text-xs text-[var(--suave)]">{t(rotulo)}{ajuda && <Info texto={ajuda} />}</div>
-      <div className={cx('num truncate text-base font-bold sm:text-xl', ruim && 'text-[var(--ruim)]')}>{valor}{detalhe && <span className="ml-1 hidden text-sm font-normal text-[var(--suave)] sm:inline">{detalhe}</span>}</div>
-    </div>
-  )
-}
-
 /** Uma triagem numa linha; tocar abre no lugar (compras → pacotes → vendas, etiquetas e rastreio). */
 function LinhaTriagem({ x, aberta, t, ir, onAlternar, onImprimir }: { x: TriagemFeita; aberta: boolean; t: T; ir: ReturnType<typeof useApp>['ir']; onAlternar(): void; onImprimir(ids: Id[]): void }) {
   // etiquetas desta separação: '3 de 4 com etiqueta' e imprimir as que faltam (só das que ainda têm peso)
@@ -951,8 +948,8 @@ function LinhaTriagem({ x, aberta, t, ir, onAlternar, onImprimir }: { x: Triagem
   const fornecedores = [...new Set(x.compras.map((c) => c.fornecedor).filter(Boolean))]
   const rotuloImprimir = t(faltam.length === 1 ? 'Imprimir a que falta' : 'Imprimir as {n} que faltam', { n: faltam.length })
   const [verRastreio, setVerRastreio] = useState(false)
-  const corPerda = x.perdaPct > 500 ? 'text-[var(--ruim)]' : x.perda > 0 ? 'text-[var(--alerta)]' : 'text-[var(--suave)]'
-  const titulo = (s: string) => <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t(s)}</h4>
+  const corPerda = x.perdaPct > 500 ? 'var(--ruim)' : x.perda > 0 ? 'var(--alerta)' : undefined
+  const titulo = (s: string) => <TituloSecao className="mb-1.5">{t(s)}</TituloSecao>
   return (
     // cada triagem é um CARTÃO próprio (espaço entre um e outro): cabeçalho, 3 números e, aberto, seções com título
     <li className={cx('overflow-hidden rounded-2xl border bg-[var(--cartao)] shadow-sm', aberta ? 'border-[var(--marca)]' : 'border-[var(--borda)]')}>
@@ -963,9 +960,9 @@ function LinhaTriagem({ x, aberta, t, ir, onAlternar, onImprimir }: { x: Triagem
           <span className="min-w-0 flex-1 truncate text-right text-xs text-[var(--suave)]">{dataBR(x.em)}{x.por ? ` · ${x.por}` : ''}</span>
         </div>
         <div className="num mt-2 grid grid-cols-3 gap-1.5 text-center">
-          <span className="rounded-xl bg-[var(--fundo)] px-1 py-1.5"><span className="block text-[11px] text-[var(--suave)]">{t('Entrou')}</span><b className="block whitespace-nowrap text-sm">{gramasTexto(x.pesoEntrada)}</b></span>
-          <span className="rounded-xl bg-[var(--fundo)] px-1 py-1.5"><span className="block text-[11px] text-[var(--suave)]">{t('Saiu')}</span><b className="block whitespace-nowrap text-sm">{gramasTexto(x.pesoSaida)}</b></span>
-          <span className="rounded-xl bg-[var(--fundo)] px-1 py-1.5"><span className="block text-[11px] text-[var(--suave)]">{t('Perda')}</span><b className={cx('block whitespace-nowrap text-sm', corPerda)}>{fmt(x.perdaPct, 'percentual')}</b>{x.perda > 0 && <span className={cx('block text-[11px]', corPerda)}>{gramasTexto(x.perda)}</span>}</span>
+          <NumeroPequeno rotulo="Entrou" valor={gramasTexto(x.pesoEntrada)} />
+          <NumeroPequeno rotulo="Saiu" valor={gramasTexto(x.pesoSaida)} />
+          <NumeroPequeno rotulo="Perda" valor={fmt(x.perdaPct, 'percentual')} cor={corPerda} sub={x.perda > 0 ? gramasTexto(x.perda) : undefined} />
         </div>
         <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
           <span className="text-[var(--suave)]">{t('{n} pacote(s)', { n: x.saidas.length })}</span>
@@ -990,7 +987,7 @@ function LinhaTriagem({ x, aberta, t, ir, onAlternar, onImprimir }: { x: Triagem
               {x.saidas.map((s) => (
                 <li key={s.id}>
                   <button type="button" onClick={() => ir('lote', { id: s.id })} className="num flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-[var(--fundo)]">
-                    <b className="font-mono text-[var(--marca)]">{s.codigo}</b>
+                    <CodigoTexto codigo={s.codigo} />
                     <span className="min-w-0 flex-1 truncate text-xs text-[var(--suave)]">{s.nome}</span>
                     <b className="whitespace-nowrap">{gramasTexto(s.g)}</b>
                     <span aria-label={t(s.etiquetaImpressaEm ? 'Etiqueta' : 'Sem etiqueta')} className={s.etiquetaImpressaEm ? 'text-[var(--bom)]' : 'text-[var(--alerta)]'}>{s.etiquetaImpressaEm ? '✓' : '🏷'}</span>
@@ -1025,7 +1022,7 @@ function LinhaTriagem({ x, aberta, t, ir, onAlternar, onImprimir }: { x: Triagem
               </ul>
             </section>
           )}
-          <button type="button" aria-expanded={verRastreio} onClick={() => setVerRastreio(!verRastreio)} className="min-h-10 text-sm font-semibold text-[var(--marca)] hover:underline">{verRastreio ? `▾ ${t('Fechar o rastreio')}` : `▸ ${t('Ver rastreio completo (gramas)')}`}</button>
+          <BotaoExpandir aberto={verRastreio} onClick={() => setVerRastreio(!verRastreio)} rotuloAberto={t('Fechar o rastreio')} className="-ml-2">{t('Ver rastreio completo (gramas)')}</BotaoExpandir>
           {verRastreio && <RastreioDaTriagem id={x.id} />}
           <DesfazerTriagem x={x} t={t} />
         </div>
