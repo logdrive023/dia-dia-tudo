@@ -3,12 +3,14 @@
 // serviço: unidade, cliente, o que vai fazer, quem atende, agora ou agendar.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { MenuAcoes, type Acao } from '../ui/menuAcoes'
+import { ListaVendas } from './ListaVendas'
 import { formatar, multiplicarFator, fatorValido } from '../core/domain/dinheiro'
 import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { Id, Item, TabelaPreco } from '../core/domain/tipos'
 import { fatorDaTabela } from '../core/services/precos'
-import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, GramasInput, Info, Selecao, Titulo, ValorInput, Vazio, cx, gramasTexto, loc, moedaPadrao, ehToque } from '../ui/base'
+import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, GramasInput, Selecao, ValorInput, Vazio, cx, gramasTexto, loc, moedaPadrao, ehToque } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { Anexos, EditorPagamentos, type PagamentoTela, SeletorPessoa, ValoresConvertidos, linkWhatsApp, useCotacoes, conv } from '../ui/compartilhados'
 import { useT } from '../ui/i18n'
@@ -93,47 +95,29 @@ export function Vender() {
     const temCabelo = ativos.some((m) => m.id === 'cabelo')
     // o resto (serviço, produto…) vira botões pequenos; cabelo é pelo Modo caixa (ou "por medida", no link)
     const outros = ativos.filter((m) => m.id !== 'cabelo')
+    // "+ Nova venda ▾": os mesmos caminhos de antes (cabelo pela pistola/QR primeiro, o mais usado)
+    const caminhos: Acao[] = [
+      ...(temCabelo ? [
+        { rotulo: 'Vender cabelo (pistola ou QR)', icone: '⚡', onClick: () => ir('vendaRapida') },
+        { rotulo: 'Cabelo sem etiqueta (por medida)', icone: '📏', onClick: () => escolher('cabelo') },
+      ] : []),
+      ...outros.map((m, k) => ({ rotulo: rotuloCurto(m.id, m.nome, t), icone: m.icone, separar: temCabelo && k === 0, onClick: () => escolher(m.id) })),
+    ]
     return (
-      <div className="mx-auto max-w-2xl">
-        <Titulo>{t('Vender')}</Titulo>
-        {temCabelo && (
-          <div className="mb-4">
-            {/* MODO CAIXA: passa a pistola / lê o QR, o pacote entra inteiro com o preço da tabela e fecha num toque */}
-            <button type="button" onClick={() => ir('vendaRapida')} className="flex min-h-24 w-full items-center gap-3 rounded-2xl bg-[var(--marca)] p-4 text-left text-white shadow-md hover:brightness-110">
-              <span className="text-4xl" aria-hidden>⚡</span>
-              <span>
-                <span className="block text-xl font-black">{t('Vender cabelo')}</span>
-                <span className="block text-sm opacity-90">{t('Passe a pistola ou leia o QR')}</span>
-              </span>
-            </button>
-            {/* sem etiqueta: o assistente antigo por medida (pega o pacote mais antigo daquela medida) */}
-            <div className="mt-1 flex items-center">
-              <button type="button" onClick={() => escolher('cabelo')} className="min-h-10 px-1 text-sm font-semibold text-[var(--marca)] underline-offset-4 hover:underline">
-                {t('Sem etiqueta? Vender por medida')}
-              </button>
-              <Info texto="Para pacote sem etiqueta: escolha a medida e o sistema pega o pacote mais antigo. Ex.: 60 cm · 2 kg." />
+      <>
+        {/* VENDER = o módulo de vendas: o cabeçalho com "+ Nova venda" e a lista de todas as vendas (com filtros) */}
+        <ListaVendas
+          novaVenda={<MenuAcoes principal="+ Nova venda" rotulo="Nova venda" acoes={caminhos} />}
+          aviso={emAndamento && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[var(--marca)] bg-[var(--marca-suave)] p-3">
+              <span className="text-sm font-semibold">{emAndamento.icone} {t('Venda em andamento: {n} item(ns).', { n: carrinho!.linhas.length })}</span>
+              <div className="flex gap-2">
+                <Botao variante="leve" onClick={() => setTrocar('')}>{t('Descartar')}</Botao>
+                <Botao onClick={() => setCaminho(emAndamento.id)}>{t('Continuar')}</Botao>
+              </div>
             </div>
-          </div>
-        )}
-        {emAndamento && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[var(--marca)] bg-[var(--marca-suave)] p-3">
-            <span className="text-sm font-semibold">{emAndamento.icone} {t('Venda em andamento: {n} item(ns).', { n: carrinho!.linhas.length })}</span>
-            <div className="flex gap-2">
-              <Botao variante="leve" onClick={() => setTrocar('')}>{t('Descartar')}</Botao>
-              <Botao onClick={() => setCaminho(emAndamento.id)}>{t('Continuar')}</Botao>
-            </div>
-          </div>
-        )}
-        {outros.length > 0 && (
-          <div className={cx('grid gap-2', temCabelo ? 'grid-cols-2 sm:grid-cols-3' : 'sm:grid-cols-2')}>
-            {outros.map((m) => (
-              <button key={m.id} type="button" onClick={() => escolher(m.id)} className="flex min-h-14 items-center gap-2 rounded-xl border-2 border-[var(--borda)] bg-[var(--cartao)] px-3 py-2 text-left font-bold hover:border-[var(--marca)]">
-                <span className="text-2xl" aria-hidden>{m.icone}</span>
-                <span className="min-w-0">{rotuloCurto(m.id, m.nome, t)}</span>
-              </button>
-            ))}
-          </div>
-        )}
+          )}
+        />
         {trocar !== undefined && (
           <Confirmar
             titulo="Descartar a venda em andamento?"
@@ -148,7 +132,7 @@ export function Vender() {
             onFechar={() => setTrocar(undefined)}
           />
         )}
-      </div>
+      </>
     )
   }
 

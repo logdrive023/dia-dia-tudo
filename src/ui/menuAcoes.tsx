@@ -16,7 +16,8 @@ export interface Acao {
   separar?: boolean
 }
 
-export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo }: { acoes: Acao[]; rotulo?: string; className?: string; comRotulo?: boolean }) {
+/** `principal`: o menu é a AÇÃO PRINCIPAL da tela (botão cheio com o texto, ex.: "+ Nova venda ▾") e não o "⋯". */
+export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo, principal }: { acoes: Acao[]; rotulo?: string; className?: string; comRotulo?: boolean; principal?: string }) {
   const t = useT()
   const id = useId()
   const botao = useRef<HTMLButtonElement>(null)
@@ -68,15 +69,17 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
       <button
         ref={botao}
         type="button"
-        aria-label={t(rotulo)}
-        title={t(rotulo)}
+        aria-label={t(principal ?? rotulo)}
+        title={principal ? undefined : t(rotulo)}
         aria-haspopup="menu"
         aria-expanded={aberto}
         aria-controls={aberto ? id : undefined}
         onClick={() => (aberto ? fechar() : abrir())}
-        className={cx('inline-flex h-10 min-w-10 items-center justify-center gap-1 rounded-xl text-lg font-black leading-none hover:bg-[var(--marca-suave)] hover:text-[var(--marca)]', comRotulo ? 'border border-[var(--borda)] px-3 text-[var(--marca)]' : 'text-[var(--suave)]', aberto && 'bg-[var(--marca-suave)] text-[var(--marca)]')}
+        className={principal
+          ? 'inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--marca)] px-5 text-base font-semibold text-white shadow-sm hover:brightness-110'
+          : cx('inline-flex h-10 min-w-10 items-center justify-center gap-1 rounded-xl text-lg font-black leading-none hover:bg-[var(--marca-suave)] hover:text-[var(--marca)]', comRotulo ? 'border border-[var(--borda)] px-3 text-[var(--marca)]' : 'text-[var(--suave)]', aberto && 'bg-[var(--marca-suave)] text-[var(--marca)]')}
       >
-        {comRotulo && <span className="hidden text-sm font-semibold sm:inline">{t('Mais')}</span>}⋯
+        {principal ? <>{t(principal)} <span aria-hidden className={cx('text-xs transition-transform', aberto && 'rotate-180')}>▾</span></> : <>{comRotulo && <span className="hidden text-sm font-semibold sm:inline">{t('Mais')}</span>}⋯</>}
       </button>
       {pos && (
         <div

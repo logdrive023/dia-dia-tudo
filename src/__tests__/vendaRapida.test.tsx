@@ -42,8 +42,8 @@ describe('modo caixa (venda rápida)', () => {
     const erros: string[] = []
     render(<Harness base={{ backend: b, sessao, trocarSessao: () => undefined, voltar: () => undefined, marcarSujo: () => undefined, avisar: (t, tipo) => void (tipo === 'erro' && erros.push(t)) }} />)
 
-    // o cartão do Modo caixa no Vender agora se chama "Vender cabelo"
-    fireEvent.click(await screen.findByText('Vender cabelo', {}, { timeout: 10000 }))
+    // Vender abre na lista de vendas: "+ Nova venda ▾" › "Vender cabelo (pistola ou QR)"
+    fireEvent.click((await screen.findAllByRole('button', { name: '+ Nova venda' }, { timeout: 10000 }))[0]); fireEvent.click(await screen.findByRole('menuitem', { name: /Vender cabelo/ }))
     const campo = (await screen.findByLabelText('Ler ou buscar pacote')) as HTMLInputElement
     // digita o código (a lista de achados aparece quando o estoque carregou) + Enter, como a pistola
     fireEvent.change(campo, { target: { value: codigo } })
@@ -116,8 +116,8 @@ describe('modo caixa (venda rápida)', () => {
     const bruto = lotes.find((i) => i.codigo && i.saldo > 0 && (i.status === 'bruto' || i.status === 'naoIdentificado' || !i.campos.comprimento))
     if (!bruto) return // a demonstração não tem pacote bruto com saldo
     render(<Harness base={{ backend: b, sessao, trocarSessao: () => undefined, voltar: () => undefined, marcarSujo: () => undefined, avisar: () => undefined }} />)
-    // o cartão do Modo caixa no Vender agora se chama "Vender cabelo"
-    fireEvent.click(await screen.findByText('Vender cabelo', {}, { timeout: 10000 }))
+    // Vender abre na lista de vendas: "+ Nova venda ▾" › "Vender cabelo (pistola ou QR)"
+    fireEvent.click((await screen.findAllByRole('button', { name: '+ Nova venda' }, { timeout: 10000 }))[0]); fireEvent.click(await screen.findByRole('menuitem', { name: /Vender cabelo/ }))
     const campo = await screen.findByLabelText('Ler ou buscar pacote')
     fireEvent.change(campo, { target: { value: bruto.codigo } })
     await screen.findByText(bruto.codigo!, { selector: 'li b' }, { timeout: 15000 })
@@ -133,8 +133,8 @@ describe('modo caixa (venda rápida)', () => {
     const lote = lotes.find((i) => i.unidade === 'grama' && i.codigo && Number(i.campos.comprimento) === 60 && (i.status === 'disponivel' || i.status === 'parcial') && i.saldo > 600)!
     const codigo = lote.codigo!
     render(<Harness base={{ backend: b, sessao, trocarSessao: () => undefined, voltar: () => undefined, marcarSujo: () => undefined, avisar: () => undefined }} />)
-    // o cartão do Modo caixa no Vender agora se chama "Vender cabelo"
-    fireEvent.click(await screen.findByText('Vender cabelo', {}, { timeout: 10000 }))
+    // Vender abre na lista de vendas: "+ Nova venda ▾" › "Vender cabelo (pistola ou QR)"
+    fireEvent.click((await screen.findAllByRole('button', { name: '+ Nova venda' }, { timeout: 10000 }))[0]); fireEvent.click(await screen.findByRole('menuitem', { name: /Vender cabelo/ }))
     const campo = await screen.findByLabelText('Ler ou buscar pacote')
     fireEvent.change(campo, { target: { value: codigo } })
     await screen.findByText(codigo, { selector: 'li b' }, { timeout: 15000 })
@@ -179,8 +179,8 @@ describe('modo caixa (venda rápida)', () => {
     const caixaBRL = async () => (await b.consulta('caixaDoDia', { data: r.hoje })).contas.find((c) => c.moeda === 'BRL')?.total ?? 0
     const antes = await caixaBRL()
     render(<Harness base={{ backend: b, sessao, trocarSessao: () => undefined, voltar: () => undefined, marcarSujo: () => undefined, avisar: () => undefined }} />)
-    // o cartão do Modo caixa no Vender agora se chama "Vender cabelo"
-    fireEvent.click(await screen.findByText('Vender cabelo', {}, { timeout: 10000 }))
+    // Vender abre na lista de vendas: "+ Nova venda ▾" › "Vender cabelo (pistola ou QR)"
+    fireEvent.click((await screen.findAllByRole('button', { name: '+ Nova venda' }, { timeout: 10000 }))[0]); fireEvent.click(await screen.findByRole('menuitem', { name: /Vender cabelo/ }))
     const campo = await screen.findByLabelText('Ler ou buscar pacote')
     fireEvent.change(campo, { target: { value: codigo } })
     await screen.findByText(codigo, { selector: 'li b' }, { timeout: 15000 })

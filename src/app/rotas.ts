@@ -21,7 +21,8 @@ export const PAI: Record<string, string> = {
   novoEmprestimo: 'emprestimos',
   venda: 'vendas',
   vendaRapida: 'vender',
-  vendas: 'painel',
+  // a lista de vendas é a tela Vender (o menu acende Vender; endereços antigos #/vendas continuam abrindo a mesma lista)
+  vendas: 'vender',
   configSecao: 'config',
   viagem: 'viagens',
   novaViagem: 'viagens',

@@ -61,8 +61,8 @@ describe('telas (com os dados de exemplo)', () => {
   it('venda de cabelo pela tabela: 60 | 2.008 × 17,5 = Bs 35.140', async () => {
     await abrirComDemo()
     irPara('Vender')
-    // a entrada do Vender não tem mais o cartão "É cabelo?": o assistente por medida é o link "Sem etiqueta? Vender por medida"
-    fireEvent.click(await screen.findByText('Sem etiqueta? Vender por medida'))
+    // Vender abre na lista de vendas: "+ Nova venda ▾" › "Cabelo sem etiqueta (por medida)" (o assistente por medida)
+    fireEvent.click((await screen.findAllByRole('button', { name: '+ Nova venda' }, { timeout: 10000 }))[0]); fireEvent.click(await screen.findByRole('menuitem', { name: /Cabelo sem etiqueta/ }))
     fireEvent.click(await screen.findByRole('button', { name: '60' }))
     fireEvent.change(await screen.findByPlaceholderText('2008'), { target: { value: '2008' } })
     fireEvent.change(screen.getByPlaceholderText('15'), { target: { value: '17,5' } })

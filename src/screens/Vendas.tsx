@@ -1,10 +1,10 @@
-// LISTA DE VENDAS (a lista que forma os números do painel: a soma é o cartão) e DETALHE da venda com linha do tempo.
+// DETALHE da venda com linha do tempo (a LISTA de vendas é a tela Vender: ListaVendas.tsx).
 
 import { type LinhaRastreio, ListaRastreio, RastreioTotal } from '../ui/rastreioTotal'
 import { useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../core/domain/dinheiro'
 import type { Id, Transacao } from '../core/domain/tipos'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, ErroTela, gramasTexto, loc, moedaPadrao, Confirmar } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, ValorInput, cx, dataBR, ErroTela, gramasTexto, loc, Confirmar } from '../ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { cotacaoDoPagamento, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { AnexosCurtos } from '../ui/anexos'
@@ -13,8 +13,7 @@ import { MenuAcoes } from '../ui/menuAcoes'
 import { useT } from '../ui/i18n'
 import { MemoriaLinha } from '../ui/linhaServico'
 import { dividir, memoriaCalculo, pct } from '../core/domain/comissao'
-import { baixarCSV } from './Relatorios'
-import { FiltroPendencia, SeloPendencias } from '../ui/pendencias'
+import { SeloPendencias } from '../ui/pendencias'
 
 /** Nome da etapa para gente (o código fica só nos dados). */
 export const NOME_ETAPA: Record<string, string> = { concluido: 'Concluída', agendado: 'Agendada', cancelado: 'Cancelada' }
@@ -27,76 +26,6 @@ export function Etiqueta({ texto, onTirar }: { texto: string; onTirar(): void })
       <span className="truncate">{texto}</span>
       <button type="button" aria-label={`${t('Tirar filtro')}: ${texto}`} onClick={onTirar} className="h-10 w-10 shrink-0 rounded-full text-lg hover:bg-[var(--marca)]/10">×</button>
     </span>
-  )
-}
-
-const PENDENCIAS = [{ id: 'faltaReceber', nome: 'Falta receber' }, { id: 'semComprovante', nome: 'Sem comprovante' }]
-
-export function Vendas() {
-  const t = useT()
-  const { nav, ir, ajustarParams } = useApp()
-  const f = nav.params
-  const { dados: pessoas } = useConsulta('pessoas', {})
-  const { dados: locais } = useConsulta('locais', {})
-  const { dados: conf } = useConsulta('configuracoes', {})
-  const cfg = conf?.config
-  const [usuarioId, setUsuarioId] = useParamTela('usuarioId', '')
-  const [pendencia, setPendencia] = useParamTela('pendencia', '')
-  const base = { de: f.de as string, ate: f.ate as string, moduloId: f.moduloId as string, forma: f.forma as string, moeda: f.moeda as string, localId: f.localId as string, profissionalId: f.profissionalId as string, pessoaId: f.pessoaId as string, usuarioId: usuarioId || undefined }
-  const { dados: todas } = useConsulta('vendas', base)
-  const dados = todas?.filter((v) => !pendencia || (pendencia === 'qualquer' ? v.pendencias.length > 0 : v.pendencias.some((p) => p.id === pendencia)))
-  const contagem = todas && { '': todas.length, qualquer: todas.filter((v) => v.pendencias.length).length, faltaReceber: todas.filter((v) => v.pendencias.some((p) => p.id === 'faltaReceber')).length, semComprovante: todas.filter((v) => v.pendencias.some((p) => p.id === 'semComprovante')).length }
-  const soma = (dados ?? []).reduce((s, v) => s + v.valor, 0)
-  const moeda = (f.moeda as string) || dados?.[0]?.moedaPrincipal || moedaPadrao()
-  const nomePessoa = (id: string) => pessoas?.find((p) => p.id === id)?.nome ?? id
-  const nomeModulo = f.moduloId ? t(conf?.modulos.find((m) => m.id === f.moduloId)?.nome ?? String(f.moduloId)) : ''
-  const de = f.de as string | undefined
-  const ate = f.ate as string | undefined
-  const periodo = de && ate ? (de === ate ? dataBR(de) : `${dataBR(de)} – ${dataBR(ate)}`) : de ? `${t('desde')} ${dataBR(de)}` : ate ? `${t('até')} ${dataBR(ate)}` : ''
-  const ativos: { chave: string; texto: string; tirar(): void }[] = [
-    ...(periodo ? [{ chave: 'periodo', texto: periodo, tirar: () => ajustarParams({ de: undefined, ate: undefined }) }] : []),
-    ...(['moduloId', 'forma', 'moeda', 'localId', 'profissionalId', 'pessoaId'] as const).filter((k) => f[k]).map((k) => ({
-      chave: k,
-      texto: k === 'moduloId' ? nomeModulo : k === 'forma' ? t(cfg?.formas.find((x) => x.id === f.forma)?.nome ?? String(f.forma)) : k === 'localId' ? (locais?.find((l) => l.id === f.localId)?.nome ?? String(f.localId)) : k === 'profissionalId' || k === 'pessoaId' ? nomePessoa(String(f[k])) : String(f[k]),
-      tirar: () => ajustarParams({ [k]: undefined }),
-    })),
-    ...(usuarioId ? [{ chave: 'usuarioId', texto: `${t('por')} ${nomePessoa(usuarioId)}`, tirar: () => setUsuarioId('') }] : []),
-    ...(pendencia ? [{ chave: 'pendencia', texto: t(pendencia === 'qualquer' ? 'Com pendência' : (PENDENCIAS.find((p) => p.id === pendencia)?.nome ?? pendencia)), tirar: () => setPendencia('') }] : []),
-  ]
-  return (
-    <div>
-      <Titulo subtitulo={[periodo, nomeModulo].filter(Boolean).join(' · ') || undefined} acao={dados && <Botao variante="secundario" onClick={() => baixarCSV('vendas', dados.map((v) => ({ data: v.data, cliente: v.cliente ?? '', itens: v.linhas.map((l) => l.descricao).join(' + '), valor: v.valor / 100, lucro: v.lucroPrincipal / 100, feito_por: v.feitoPor ?? '' })))}>CSV</Botao>}>
-        {t('Vendas')}
-      </Titulo>
-      <div className="mb-2">
-        <FiltroPendencia valor={pendencia} onChange={setPendencia} contagem={contagem} opcoes={PENDENCIAS} />
-      </div>
-      <div className="mb-3 flex flex-wrap gap-2">
-        <Selecao className="w-auto max-w-full" valor={usuarioId} onChange={setUsuarioId} vazio="Feitas por qualquer pessoa" opcoes={(pessoas ?? []).filter((u) => u.papeis.includes('funcionario')).map((u) => ({ id: u.id, nome: u.nome }))} />
-      </div>
-      {ativos.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {ativos.map((a) => <Etiqueta key={a.chave} texto={a.texto} onTirar={a.tirar} />)}
-        </div>
-      )}
-      <Cartao className="mb-3"><div className="flex flex-wrap justify-between gap-2 font-bold"><span>{dados?.length ?? 0} {t('vendas')}</span><span className="num">{formatar(soma, moeda)}</span></div></Cartao>
-      {!dados ? <Carregando /> : !dados.length ? <Vazio texto="Nenhuma venda com esse filtro." /> : (
-        <ul className="divide-y divide-[var(--borda)] rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
-          {dados.map((v) => (
-            <li key={v.id}>
-              <button type="button" onClick={() => ir('venda', { id: v.id })} className="flex w-full justify-between gap-2 p-3 text-left hover:bg-[var(--marca-suave)]">
-                <div className="min-w-0">
-                  <b>{v.cliente ?? t('Sem nome')}</b>
-                  <div className="truncate text-xs text-[var(--suave)]">{dataBR(v.data)} · {v.linhas.map((l) => l.descricao).join(' + ')}{v.feitoPor ? ` · ${t('por')} ${v.feitoPor}` : ''}</div>
-                  <div className="mt-1"><SeloPendencias pendencias={v.pendencias} moeda={v.moedaPrincipal} /></div>
-                </div>
-                <span className="num shrink-0 font-bold">{formatar(v.valor, moeda)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   )
 }
 

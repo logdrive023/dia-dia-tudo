@@ -29,7 +29,7 @@ import { FichaPessoa, Pessoas } from './screens/Pessoas'
 import { Precos } from './screens/Precos'
 import { Relatorios } from './screens/Relatorios'
 import { Novidades } from './screens/Novidades'
-import { DetalheVenda, Vendas } from './screens/Vendas'
+import { DetalheVenda } from './screens/Vendas'
 import { Vender } from './screens/Vender'
 import { VendaRapida } from './screens/VendaRapida'
 import { PacoteVenda } from './screens/PacoteVenda'
@@ -64,7 +64,7 @@ const TELAS: Record<string, () => JSX.Element> = {
   novidades: Novidades,
   config: Config,
   configSecao: Config,
-  vendas: Vendas,
+  vendas: Vender,
   venda: DetalheVenda,
   viagens: Viagens,
   viagem: FichaViagem,
