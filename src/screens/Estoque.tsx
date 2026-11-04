@@ -31,7 +31,7 @@ import { CampoCodigo, CodigoSelo, TrocarCodigo } from '../ui/codigos'
 import { useT } from '../ui/i18n'
 import { Trilha } from '../ui/trilha'
 import { FotosDoLote, MiniaturaLote, marcadorLote, useTirarFoto } from '../ui/fotos'
-import { AvisoPacotesNovos, RefazerEtiqueta } from '../ui/etiquetas'
+import { AvisoPacotesNovos, RefazerEtiqueta, VerEtiqueta } from '../ui/etiquetas'
 import { ReservarLote, SeloReserva, reservado } from '../ui/reserva'
 import { Passo } from '../ui/passoAPasso'
 import { baixarCSV } from './Relatorios'
@@ -795,6 +795,8 @@ export function FichaLote() {
   const [reservar, setReservar] = useState(false)
   const [refazer, setRefazer] = useState(false)
   const [aba, setAba] = useParamTela<'resumo' | 'detalhes' | 'historico' | 'fotos'>('aba', 'resumo')
+  // ?etiqueta=ver: a etiqueta deste pacote à vista (vem do "Ver etiqueta" da triagem/estoque)
+  const [verEtq, setVerEtq] = useParamTela('etiqueta', '')
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
   const i = dados.item
@@ -834,11 +836,11 @@ export function FichaLote() {
           {/* NA LINHA só o que mais se usa: o principal (Vender ou Separar), Etiqueta e Reservar; o resto fica no "Mais ⋯".
               No celular os secundários ficam só com o ícone (o nome vai no title/leitor de tela) */}
           {proximo && <Botao className="min-w-0 flex-1 sm:flex-none" onClick={proximo.f}>{t(proximo.rotulo)}</Botao>}
-          {admin && <Botao variante="secundario" className="shrink-0 px-3" title={t('Etiqueta')} aria-label={t('Etiqueta')} onClick={() => ir('etiquetas', { f: 'todas', sel: i.id })}>🏷<span className="hidden sm:inline"> {t('Etiqueta')}</span></Botao>}
+          {admin && <Botao variante="secundario" className="shrink-0 px-3" title={t(i.etiquetaImpressaEm ? 'Ver etiqueta' : 'Imprimir etiqueta')} aria-label={t(i.etiquetaImpressaEm ? 'Ver etiqueta' : 'Imprimir etiqueta')} onClick={() => (i.etiquetaImpressaEm ? setVerEtq('ver') : ir('etiquetas', { f: 'todas', sel: i.id }))}>🏷<span className="hidden sm:inline"> {t('Etiqueta')}</span></Botao>}
           {podeReservar && <Botao variante="secundario" className="shrink-0 px-3" title={t(reservado(i) ? 'Mudar ou tirar reserva' : 'Reservar para uma cliente')} aria-label={t(reservado(i) ? 'Mudar ou tirar reserva' : 'Reservar para uma cliente')} onClick={() => setReservar(true)}>🔒<span className="hidden sm:inline"> {t(reservado(i) ? 'Reserva' : 'Reservar')}</span></Botao>}
           <MenuAcoes comRotulo className="shrink-0" acoes={acoesLote(
             { id: i.id, saldo: i.saldo, compras: dados.dna.compras.map((c) => ({ id: c.id, codigo: c.codigo, fornecedor: c.fornecedor?.nome, fornecedorId: c.fornecedor?.id })), origens: dados.pai ? [dados.pai] : dados.dna.unificacao?.fontes, vendavel: !bruto, etiquetaImpressa: !!i.etiquetaImpressaEm, reservado: reservado(i) },
-            { ir, t, admin, semAbrir: true, rotuloVender: 'Vender (formulário completo)', sem: ['Imprimir etiqueta', ...(podeReservar ? ['Reservar para uma cliente', 'Mudar ou tirar reserva'] : []), ...(bruto ? ['Separar'] : [])], onAjustar: () => setAjustar(true), onTrocarCodigo: () => setTrocar(true), onRefazerEtiqueta: () => setRefazer(true), onReservar: () => setReservar(true), extras: [
+            { ir, t, admin, semAbrir: true, rotuloVender: 'Vender (formulário completo)', sem: ['Imprimir etiqueta', ...(admin ? ['Ver etiqueta'] : []), ...(podeReservar ? ['Reservar para uma cliente', 'Mudar ou tirar reserva'] : []), ...(bruto ? ['Separar'] : [])], onAjustar: () => setAjustar(true), onTrocarCodigo: () => setTrocar(true), onRefazerEtiqueta: () => setRefazer(true), onReservar: () => setReservar(true), extras: [
               ...(admin ? [{ rotulo: 'Editar atributos', icone: '✎', onClick: () => setEditar(true), separar: true }] : []),
               ...(bruto && i.saldo > 0 ? [{ rotulo: 'Abrir na triagem', icone: '🧺', onClick: () => ir('triagem') }] : []),
             ] },
@@ -879,7 +881,7 @@ export function FichaLote() {
       ) : aba === 'resumo' ? (
       <div className="space-y-4">
         {/* A VIDA DO PACOTE: compra → triagem → etiqueta → venda, cada passo leva direto ao registro */}
-        <VidaDoPacote i={i} gen={gen} compras={dados.dna.compras} onEtiqueta={() => ir('etiquetas', { f: 'todas', sel: i.id })} />
+        <VidaDoPacote i={i} gen={gen} compras={dados.dna.compras} onEtiqueta={() => (i.etiquetaImpressaEm ? setVerEtq('ver') : ir('etiquetas', { f: 'todas', sel: i.id }))} />
         {/* números: peso e dinheiro; bruto já separado não mostra "vendido 0 / lucro 0" (o custo foi para os pacotes) */}
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <Cartao><div className="text-xs text-[var(--suave)]">{t('Agora')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{q(i.saldo)}</div>{f.inicial !== i.saldo && <div className="num text-xs text-[var(--suave)]">{t('entrou')} {q(f.inicial)}</div>}</Cartao>
@@ -931,6 +933,7 @@ export function FichaLote() {
       {trocar && <TrocarCodigo tipo="lote" id={i.id} atual={i.codigo} onFechar={() => setTrocar(false)} />}
       {reservar && <ReservarLote id={i.id} codigo={i.codigo} atual={i.reserva} onFechar={() => setReservar(false)} />}
       {refazer && <RefazerEtiqueta id={i.id} codigo={i.codigo} onFechar={() => setRefazer(false)} />}
+      {verEtq && <VerEtiqueta id={i.id} admin={admin} onFechar={() => setVerEtq('')} />}
     </div>
   )
 }

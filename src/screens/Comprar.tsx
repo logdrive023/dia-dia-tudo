@@ -6,6 +6,7 @@
 // pagamento e a entrega (quem fez fica registrado). A conferência de peso é um lançamento no lote, sem mudar o comprado.
 
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { PagamentoCompra, Progresso } from './PagamentoCompra'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { Paginacao, usePaginacao } from '../ui/paginacao'
 import { TabelaDados, SeloCodigo, SeloSituacao, type TomLista } from '../ui/tabelaDados'
@@ -20,7 +21,7 @@ import { fatorDaTabela } from '../core/services/precos'
 import { CATEGORIAS_CABELO } from '../modules/cabelo'
 import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, ehToque, ErroTela, TituloSecao, Titulo } from '../ui/base'
 import { useApp, useAvisoSaida, useParamTela, useComando, useConsulta, useFiltrosTela } from '../ui/contexto'
-import { EditorPagamentos, type PagamentoTela, SeletorPessoa, ValoresConvertidos, useCotacoes } from '../ui/compartilhados'
+import { type PagamentoTela, SeletorPessoa, ValoresConvertidos, useCotacoes, EditorPagamentos } from '../ui/compartilhados'
 import { LinhaCotacao, PesoInput, ValorMoedaInput, converterDigitado, cotacaoSistema, moedasDoCampo } from '../ui/valorMoeda'
 import { AbaAnexos, AnexosCurtos } from '../ui/anexos'
 import { CamposDinamicos, resumoCampos } from '../ui/camposDinamicos'
@@ -38,38 +39,6 @@ import { CampoFaixa, GrupoFiltro, FiltroLista, VazioFiltro } from '../ui/filtroP
 
 const ENCERRADAS = ['concluido', 'recusado', 'cancelado']
 const codigoDe = (c: { codigo?: string; id: string }) => c.codigo ?? `#${c.id.slice(-5)}`
-
-/** Progresso das etapas em miniatura (lista) ou completo (tela do pedido). */
-function Progresso({ etapas, atual, mini }: { etapas: { id: string; nome: string }[]; atual: string; mini?: boolean }) {
-  const t = useT()
-  const idx = atual === 'concluido' ? etapas.length - 1 : etapas.findIndex((e) => e.id === atual)
-  const parou = atual === 'recusado' || atual === 'cancelado'
-  if (mini)
-    return (
-      <span className="flex items-center gap-1" title={etapas.map((e) => t(e.nome)).join(' → ')}>
-        {etapas.map((e, i) => (
-          <span key={e.id} className={cx('h-1.5 w-5 rounded-full', parou ? 'bg-[var(--ruim)]/40' : i <= idx ? 'bg-[var(--marca)]' : 'bg-[var(--borda)]')} />
-        ))}
-      </span>
-    )
-  return (
-    <ol className="flex w-full items-start">
-      {etapas.map((e, i) => {
-        const feito = !parou && i < idx
-        const agora = !parou && i === idx
-        return (
-          <li key={e.id} className="relative flex flex-1 flex-col items-center text-center">
-            {i > 0 && <span className={cx('absolute right-1/2 top-4 h-0.5 w-full', feito || agora ? 'bg-[var(--marca)]' : 'bg-[var(--borda)]')} aria-hidden />}
-            <span className={cx('relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-bold', feito ? 'border-[var(--marca)] bg-[var(--marca)] text-white' : agora ? 'border-[var(--marca)] bg-[var(--cartao)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] text-[var(--suave)]')}>
-              {feito || (agora && atual === 'concluido') ? '✓' : i + 1}
-            </span>
-            <span className={cx('mt-1 px-1 text-xs', agora ? 'font-bold text-[var(--marca)]' : 'text-[var(--suave)]')}>{t(e.nome)}</span>
-          </li>
-        )
-      })}
-    </ol>
-  )
-}
 
 type Ordem = 'data' | 'total' | 'parada'
 
@@ -352,6 +321,11 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   const { dados: tabelas } = useConsulta('tabelasPreco', { moduloId: 'cabelo' })
   const { dados: catalogo } = useConsulta('catalogo', { moduloId })
   const { dados: cfgApp } = useConsulta('configuracoes', {})
+  // PAGO NO ATO (o normal): a compra já sai paga e concluída; "Pagar depois" deixa em aberto (etapa por etapa)
+  const [pagoAgoraEscolhido, setPagoAgora] = useState<boolean>()
+  const pagoAgora = pagoAgoraEscolhido ?? cfgApp?.config.compraPagaNoAto !== false
+  const [pagsNovos, setPagsNovos] = useState<PagamentoTela[]>([])
+  const pagsEditados = useRef(false)
   const { dados: fila } = useConsulta('filaTriagem', { incluirEncerradas: true })
   const { dados: conta } = useConsulta('contaPessoa', { pessoaId: pessoaId ?? '' }, !!pessoaId)
   const { dados: anexos } = useConsulta('anexosDe', { donoId: id })
@@ -386,6 +360,10 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     return l.total
   }
   const total = linhas.reduce((s, l) => s + (totalLinha(l) ?? 0), 0)
+  useEffect(() => {
+    if (pagsEditados.current) return
+    setPagsNovos((ps) => (total > 0 ? [{ id: ps[0]?.id ?? novoId(), forma: ps[0]?.forma ?? 'dinheiro', moeda, valor: total }] : []))
+  }, [total, moeda])
   const pesoTotal = linhas.reduce((s, l) => s + (l.quantidade ?? 0), 0)
   const custoKg = ehCabelo && pesoTotal > 0 && total > 0 ? Math.round((total * 1000) / pesoTotal) : undefined
   const descLinha = (l: LinhaNova) =>
@@ -524,6 +502,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       modoCodigo: modoEscolhido,
       codigo: modoCodigo === 'manual' ? codigo.trim() || undefined : undefined,
       viagemId,
+      pagarNoAto: pagoAgora && total > 0 ? pagsNovos.filter((p) => p.valor).map((p) => ({ id: p.id, forma: p.forma, moeda: p.moeda, valor: p.valor! })) : undefined,
       obs: [estado.length ? `${t('Estado na chegada')}: ${estado.map((x) => t(x)).join(', ')}` : '', obs.trim(), ...notasMoeda].filter(Boolean).join(' · ') || undefined,
       linhas: linhas.map((l) => {
         const fator = l.modo === 'tabela' && !l.campos.semValor ? fatorDaLinha(l) : undefined
@@ -889,7 +868,9 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     anexos?.length ? `📎 ${anexos.length}` : '',
   ].filter(Boolean)
   const faltaDetalhe = faltas.some((x) => ![t('fornecedor'), t('o que veio')].includes(x) && !linhas.some((l, i) => faltasLinha(l, i).includes(x)))
-  const listaPassos: { id: CampoFormId | 'detalhes' | 'revisar'; titulo: string; resumo: ReactNode; ajuda: string; exemplo?: string; feito: boolean; opcional?: boolean; falta?: boolean; conteudo: ReactNode }[] = [
+  const somaPags = pagsNovos.reduce((s, p) => s + (p.moeda === moeda ? p.valor ?? 0 : 0), 0)
+  const nomeFormaNova = (id: string) => cfgApp?.config.formas.find((f) => f.id === id)?.nome ?? id
+  const listaPassos: { id: CampoFormId | 'detalhes' | 'revisar' | 'pagamento'; titulo: string; resumo: ReactNode; ajuda: string; exemplo?: string; feito: boolean; opcional?: boolean; falta?: boolean; conteudo: ReactNode }[] = [
     ...(principalDe.fornecedor ? [{
       id: 'fornecedor' as const, titulo: 'Fornecedor', opcional: !obrig('fornecedor'), feito: !!pessoaId, falta: tentou && obrig('fornecedor') && !pessoaId,
       resumo: nomeForn ? [nomeForn, sigla, conta ? (saldo < 0 ? `${t('Devo')} ${formatar(-saldo, conta.moeda)}` : saldo > 0 ? `${t('Me deve')} ${formatar(saldo, conta.moeda)}` : t('Conta em dia')) : ''].filter(Boolean).join(' · ') : t('ninguém escolhido'),
@@ -903,6 +884,27 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       ajuda: ehCabelo ? 'O cabelo que chegou: cada linha vira um pacote que vai para a triagem. Bruto = veio misturado (separa depois). Pela tabela = já veio por medida.' : 'O que chegou: cada linha é um produto, com a quantidade e o custo.',
       exemplo: ehCabelo ? 'Ex.: 10 kg bruto por Bs 30.000 · ou · 60 cm | 2 kg × 17,5 = Bs 35.000' : 'Ex.: 12 × shampoo a Bs 45 = Bs 540',
       conteudo: principalDe.itens,
+    }] : []),
+    // PAGAMENTO: pago agora (o normal) ou pagar depois — um toque; pago agora já vem com o total em dinheiro
+    ...(total > 0 ? [{
+      id: 'pagamento' as const, titulo: 'Pagamento', feito: !pagoAgora || somaPags > 0, falta: false,
+      resumo: pagoAgora ? `💵 ${t('Pago agora')} · ${pagsNovos.filter((p) => p.valor).map((p) => `${t(nomeFormaNova(p.forma))} ${formatar(p.valor!, p.moeda)}`).join(' + ') || '—'}` : `⏳ ${t('Pagar depois (fica em aberto)')}`,
+      ajuda: 'Compra paga na hora é o normal: o pedido já fica pago e concluído. Vai pagar depois? Escolha "Pagar depois" e pague na aba Pagamento do pedido.',
+      exemplo: 'Ex.: Pago agora · Dinheiro Bs 15.000 · ou · Bs 10.000 em dinheiro + Bs 5.000 no QR',
+      conteudo: (
+        <div className="space-y-3">
+          <div role="radiogroup" aria-label={t('Pagamento')} className="grid grid-cols-2 gap-2">
+            {([[true, '💵', 'Pago agora', 'fica pago e concluído'], [false, '⏳', 'Pagar depois', 'fica em aberto']] as const).map(([v, ic, nome, sub]) => (
+              <button key={String(v)} type="button" role="radio" aria-checked={pagoAgora === v} onClick={() => setPagoAgora(v)}
+                className={cx('flex min-h-14 items-center gap-2 rounded-2xl border-2 px-3 py-2 text-left text-sm', pagoAgora === v ? 'border-[var(--marca)] bg-[var(--marca-suave)]' : 'border-[var(--borda)] bg-[var(--cartao)] hover:border-[var(--marca)]')}>
+                <span aria-hidden className="text-xl">{ic}</span>
+                <span><b className="block">{t(nome)}</b><span className="text-xs text-[var(--suave)]">{t(sub)}</span></span>
+              </button>
+            ))}
+          </div>
+          {pagoAgora && <EditorPagamentos uso="compra" total={total} moedaTotal={moeda} pagamentos={pagsNovos} onChange={(ps) => { pagsEditados.current = true; setPagsNovos(ps) }} permiteFiado={!!pessoaId} />}
+        </div>
+      ),
     }] : []),
     ...(partes.length ? [{
       id: 'detalhes' as const, titulo: 'Detalhes', opcional: !detalhesObrigatorios, feito: preenchidosDetalhe.length > 0 && !faltaDetalhe, falta: tentou && faltaDetalhe,
@@ -1319,17 +1321,14 @@ export function Pedido() {
   const { nav, ir, sessao, ajustarParams } = useApp()
   const id = nav.params.id as Id
   const { dados, erro } = useConsulta('pedido', { id })
-  const { executar, ocupado } = useComando()
-  const [ajustes, setAjustes] = useState<Record<Id, { quantidade?: number; total?: number }>>({})
-  const [pagamentos, setPagamentos] = useState<PagamentoTela[]>([])
-  const [motivo, setMotivo] = useState('')
+  const { executar } = useComando()
   const [trocar, setTrocar] = useState(false)
   const [trocarLote, setTrocarLote] = useState<{ id: Id; codigo?: string }>()
   const [conferir, setConferir] = useState<Linha>()
   const [corrigirValor, setCorrigirValor] = useState<Linha>()
   const [ligarViagem, setLigarViagem] = useState(false)
   // sub-abas (no endereço: #/pedidos/P1?aba=anexos): Resumo · Anexos (N) · Histórico
-  const [aba, setAba] = useParamTela<'resumo' | 'pagamento' | 'conta' | 'anexos' | 'historico'>('aba', 'resumo')
+  const [aba, setAba] = useParamTela<'resumo' | 'pagamento' | 'anexos' | 'historico'>('aba', 'resumo')
   const { dados: anexos } = useConsulta('anexosDe', { donoId: id })
   if (erro) return <ErroTela texto={erro} />
   if (!dados) return <Carregando />
@@ -1338,7 +1337,6 @@ export function Pedido() {
   const admin = sessao.perfil === 'admin'
   const encerrado = ENCERRADAS.includes(c.etapa)
   const cancelada = c.etapa === 'recusado' || c.etapa === 'cancelado'
-  const falta = c.totalPrincipal - dados.pago
   const loteDaLinha = (l: Linha) => dados.lotes.find((x) => x.daCompra && x.linhaId === l.id)
   return (
     <div>
@@ -1382,11 +1380,10 @@ export function Pedido() {
       {corrigirValor && <CorrigirValor compraId={c.id} linha={corrigirValor} onFechar={() => setCorrigirValor(undefined)} />}
       {ligarViagem && <LigarViagem compraId={c.id} onFechar={() => setLigarViagem(false)} />}
 
-      {/* ABAS (nomes iguais em toda ficha): Resumo · Pagamento · Conta · Arquivos · Histórico */}
+      {/* ABAS (nomes iguais em toda ficha): Resumo · Pagamento (com a conta do fornecedor) · Arquivos · Histórico */}
       <Abas variante="sublinhado" atual={aba} onChange={(x) => setAba(x as typeof aba)} abas={[
         { id: 'resumo', nome: 'Resumo' },
         { id: 'pagamento', nome: 'Pagamento', extra: c.pendencias.length ? <span aria-hidden className="text-[var(--alerta)]">●</span> : undefined },
-        ...(dados.pessoa ? [{ id: 'conta', nome: 'Conta' }] : []),
         { id: 'anexos', nome: 'Arquivos', extra: anexos?.length ? <span className="num text-xs opacity-70">{anexos.length}</span> : undefined },
         { id: 'historico', nome: 'Histórico' },
       ]} />
@@ -1402,153 +1399,9 @@ export function Pedido() {
         </div>
       )}
 
-      {aba === 'conta' && dados.pessoa && (
-        <Cartao titulo={t('Conta do fornecedor')} ajuda="Saldo de tudo com esta pessoa: compras, pagamentos, adiantamentos e acertos. Ex.: comprei Bs 6.000, paguei 5.000 → devo Bs 1.000." acao={<Botao variante="leve" onClick={() => ir('pessoa', { id: dados.pessoa!.id })}>{t('Abrir')} ›</Botao>}>
-          <p className={cx('num rounded-xl px-3 py-3 text-xl font-bold', (dados.saldoConta ?? 0) < 0 ? 'bg-[var(--ruim)]/10 text-[var(--ruim)]' : (dados.saldoConta ?? 0) > 0 ? 'bg-[var(--bom)]/10 text-[var(--bom)]' : 'bg-[var(--fundo)]')}>
-            {(dados.saldoConta ?? 0) < 0 ? `${t('Devo')} ${formatar(-(dados.saldoConta ?? 0), m)}` : (dados.saldoConta ?? 0) > 0 ? `${t('Me deve')} ${formatar(dados.saldoConta ?? 0, m)}` : t('Conta em dia')}
-          </p>
-          {dados.outras.length > 0 && (
-            <>
-              <TituloSecao className="mb-1 mt-4">{t('Outras compras com {p}', { p: dados.pessoa.nome })}</TituloSecao>
-              <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-xl border border-[var(--borda)] text-sm">
-                {dados.outras.map((o) => (
-                  <li key={o.id}>
-                    <button type="button" onClick={() => ir('pedido', { id: o.id })} className="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left hover:bg-[var(--fundo)]">
-                      <span className="min-w-0 truncate"><CodigoTexto codigo={o.codigo} /> <span className="text-[var(--suave)]">· {dataBR(o.data)} · {t(o.etapa)}</span></span>
-                      <span className="num shrink-0 font-semibold">{formatar(o.total, m)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </Cartao>
-      )}
-
-      {aba === 'pagamento' && <div className="grid items-start gap-4 lg:grid-cols-[1fr_22rem]">
-        <div className="min-w-0 space-y-4">
-          <EtapasCompra
-            compra={c}
-            comLote={(linhaId) => c.linhas.some((l) => l.id === linhaId && !!loteDaLinha(l))}
-            ocupado={ocupado}
-            ajustes={ajustes}
-            setAjustes={setAjustes}
-            pagamentos={pagamentos}
-            setPagamentos={setPagamentos}
-            motivo={motivo}
-            setMotivo={setMotivo}
-            avancar={async (para, motivoDado) => {
-              const r = await executar('avancarTriagem', {
-                compraId: c.id,
-                para,
-                motivo: motivoDado || motivo || undefined,
-                ajustes: Object.entries(ajustes).map(([linhaId, a]) => ({ linhaId, ...a })),
-                pagamentos: pagamentos.filter((p) => p.valor).map((p) => ({ id: p.id, forma: p.forma, moeda: p.moeda, valor: p.valor! })),
-              }, t('Etapa registrada.'))
-              if (r) {
-                setAjustes({})
-                setPagamentos([])
-                setMotivo('')
-              }
-            }}
-            cancelar={async (m?: string) => {
-              await executar('cancelarCompra', { compraId: c.id, motivo: m ?? motivo }, t('Compra cancelada.'))
-            }}
-          />
-        </div>
-
-        <aside className="h-fit space-y-4 lg:sticky lg:top-4">
-          <Cartao titulo={t('Pagamento')}>
-            <dl className="space-y-1 text-sm">
-              <div className="flex justify-between"><dt className="text-[var(--suave)]">{t('Total')}</dt><dd className="num">{formatar(c.totalPrincipal, m)}</dd></div>
-              <div className="flex justify-between"><dt className="text-[var(--suave)]">{t('Pago no pedido')}</dt><dd className="num">{formatar(dados.pago, m)}</dd></div>
-              {c.pagamentos.map((p) => (
-                <div key={p.id} className="flex justify-between pl-3 text-xs text-[var(--suave)]"><dt>{t(p.forma)}</dt><dd className="num">{formatar(p.valor, p.moeda)}</dd></div>
-              ))}
-              {c.pagamentos.length > 0 && falta > 0 && <div className="flex justify-between font-semibold"><dt>{t('Diferença no pedido')}</dt><dd className="num">{formatar(falta, m)}</dd></div>}
-            </dl>
-          </Cartao>
-        </aside>
-      </div>}
+      {/* PAGAMENTO: um componente só (a conta deste pedido · pagar agora · a conta do fornecedor · as etapas) */}
+      {(aba === 'pagamento' || (aba as string) === 'conta') && <PagamentoCompra dados={dados} comLote={(linhaId) => c.linhas.some((l) => l.id === linhaId && !!loteDaLinha(l))} />}
     </div>
   )
 }
 
-function EtapasCompra(p: {
-  compra: DadosPedido['compra']
-  /** a linha já tem lote (o peso conferido vira lançamento: aqui só o valor) */
-  comLote(linhaId: Id): boolean
-  ocupado: boolean
-  ajustes: Record<Id, { quantidade?: number; total?: number }>
-  setAjustes(a: Record<Id, { quantidade?: number; total?: number }>): void
-  pagamentos: PagamentoTela[]
-  setPagamentos(x: PagamentoTela[]): void
-  motivo: string
-  setMotivo(m: string): void
-  avancar(para: string, motivo?: string): void
-  cancelar(motivo?: string): void
-}) {
-  const t = useT()
-  const { ir, sessao, nav } = useApp()
-  const admin = sessao.perfil === 'admin'
-  const { dados: cfg } = useConsulta('configuracoes', {})
-  const c = p.compra
-  // as etapas vêm do módulo (genérico: cada modalidade define as suas)
-  const etapas = cfg?.modulos.find((m) => m.id === c.moduloId)?.etapas ?? []
-  const idx = etapas.findIndex((e) => e.id === c.etapa)
-  const prox = etapas[idx + 1]
-  const encerrada = ['concluido', 'recusado', 'cancelado'].includes(c.etapa)
-  const [recusar, setRecusar] = useState(false)
-  const [cancelarConcluida, setCancelarConcluida] = useState(false)
-  return (
-    <Cartao titulo={t('Pagamento e entrega')}>
-      <div className="mb-4">
-        <Progresso etapas={etapas} atual={c.etapa} />
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-sm text-[var(--suave)]">{t('O que falta')}:</span>
-          <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} />
-          {admin && (
-            <button type="button" onClick={() => ir('config', { aba: 'etapas', modulo: c.moduloId })} className="ml-auto min-h-10 rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Personalizar etapas')}</button>
-          )}
-        </div>
-      </div>
-      {prox && !encerrada && <p className="mb-3 text-sm text-[var(--suave)]">{t('Próximo passo')}: <b className="text-[var(--texto)]">{t(prox.nome)}</b> <Info texto={prox.ajuda ?? ''} /></p>}
-      {(c.etapa === 'recusado' || c.etapa === 'cancelado') && <Pilula tom="ruim">{t(c.etapa === 'recusado' ? 'Recusado' : 'Cancelado')}</Pilula>}
-      {!encerrada && prox && (
-        <div className="space-y-3">
-          {!c.pagamentos.length && (
-            <details open={!!nav.params.ajustar}>
-              <summary className="cursor-pointer text-sm font-semibold text-[var(--marca)]">{t('Ajustar o valor (antes de pagar)')}</summary>
-              <div className="mt-2 space-y-2">
-                {c.linhas.map((l) => (
-                  <div key={l.id} className="grid grid-cols-2 gap-2 text-sm">
-                    {!p.comLote(l.id) ? <Campo rotulo={`${l.descricao} · ${t('peso real')}`}><GramasInput valor={p.ajustes[l.id]?.quantidade ?? l.quantidade} onChange={(q) => p.setAjustes({ ...p.ajustes, [l.id]: { ...p.ajustes[l.id], quantidade: q } })} /></Campo> : <span className="self-end pb-3 font-medium">{l.descricao}</span>}
-                    <Campo rotulo="Valor"><ValorInput moeda={l.moeda} valor={p.ajustes[l.id]?.total ?? l.total} onChange={(v) => p.setAjustes({ ...p.ajustes, [l.id]: { ...p.ajustes[l.id], total: v } })} /></Campo>
-                  </div>
-                ))}
-              </div>
-            </details>
-          )}
-          {prox.faz?.includes('pagamento') && (
-            <EditorPagamentos uso="compra" total={c.totalPrincipal} moedaTotal={c.moedaPrincipal} pagamentos={p.pagamentos} onChange={p.setPagamentos} permiteFiado={!!c.pessoaId} />
-          )}
-          <Campo rotulo="Observação / motivo (fica no histórico)"><Entrada value={p.motivo} onChange={(e) => p.setMotivo(e.target.value)} /></Campo>
-          <div className="flex flex-wrap gap-2">
-            <Botao grande disabled={p.ocupado} onClick={() => p.avancar(prox.id)}>→ {t(prox.nome)}</Botao>
-            {!c.pagamentos.length && <Botao variante="perigo" disabled={p.ocupado} onClick={() => setRecusar(true)}>{t('Recusar')}</Botao>}
-            {c.pagamentos.length > 0 && <Botao variante="leve" disabled={p.ocupado || !p.motivo} onClick={() => p.cancelar()}>{t('Cancelar compra')}</Botao>}
-          </div>
-        </div>
-      )}
-      {recusar && <Confirmar titulo="Recusar este pedido?" texto="O pedido é encerrado e o cabelo sai da Triagem (se ninguém separou). Fica no histórico com o motivo." rotulo="Recusar" perigo pedirMotivo motivoPadrao={p.motivo} onFechar={() => setRecusar(false)} onConfirmar={(motivo) => (p.setMotivo(motivo), p.avancar('recusado', motivo))} />}
-      {c.etapa === 'concluido' && (
-        // concluída: um aviso claro; cancelar é exceção → link discreto que pede o motivo numa confirmação
-        <div className="space-y-2">
-          <p className="rounded-xl bg-[var(--bom)]/10 px-3 py-3 font-semibold text-[var(--bom)]">✓ {t('Pago e entregue.')}</p>
-          {admin && <button type="button" disabled={p.ocupado} onClick={() => setCancelarConcluida(true)} className="min-h-10 rounded-lg px-1 text-sm font-semibold text-[var(--ruim)] hover:underline">{t('Cancelar compra…')}</button>}
-        </div>
-      )}
-      {cancelarConcluida && <Confirmar titulo="Cancelar esta compra?" texto="O dinheiro volta e o cabelo sai do estoque (se ainda não foi vendido). Fica no histórico com o motivo." rotulo="Cancelar compra" perigo pedirMotivo motivoPadrao={p.motivo} onFechar={() => setCancelarConcluida(false)} onConfirmar={(motivo) => p.cancelar(motivo)} />}
-    </Cartao>
-  )
-}

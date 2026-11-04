@@ -41,6 +41,14 @@ export function Geral() {
             </div>
             <p className="mt-1 text-xs text-[var(--suave)]">{t('O idioma muda na hora, para todo o sistema.')}</p>
           </Campo>
+          {/* COMPRA PAGA NO ATO (o normal): a nova compra já sai paga e concluída; desligado, ela fica em aberto */}
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl bg-[var(--fundo)] p-3">
+            <input type="checkbox" className="mt-0.5 h-6 w-6 shrink-0" checked={c.compraPagaNoAto !== false} onChange={(e) => executar('salvarConfig', { compraPagaNoAto: e.target.checked }, t('Salvo.'))} />
+            <span className="text-sm">
+              <b className="block">{t('Compra paga no ato')}</b>
+              <span className="text-[var(--suave)]">{t('Ligado (o normal): a nova compra já vem "Pago agora" e a aba Pagamento abre em "Pagar e concluir". Desligado: a compra fica em aberto e segue etapa por etapa (Chegou → Conferido → Pago → Concluído).')}</span>
+            </span>
+          </label>
           {/* venda de pacote BRUTO: nunca trava; aqui só se escolhe se aparece o aviso */}
           <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl bg-[var(--fundo)] p-3">
             <input type="checkbox" className="mt-0.5 h-6 w-6 shrink-0" checked={c.avisarVendaBruto !== false} onChange={(e) => executar('salvarConfig', { avisarVendaBruto: e.target.checked }, t('Salvo.'))} />

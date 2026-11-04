@@ -161,7 +161,7 @@ export function Triagem() {
         }
   const menuDe = (l: Lote): Acao[] =>
     acoesLote(
-      { id: l.id, saldo: l.saldo, compras: l.compras, origens: l.pai ? [l.pai] : l.unificadoDe, vendavel: !!colDe(l.fase)?.pronto },
+      { id: l.id, saldo: l.saldo, compras: l.compras, origens: l.pai ? [l.pai] : l.unificadoDe, vendavel: !!colDe(l.fase)?.pronto, etiquetaImpressa: !!l.etiqueta.impressaEm },
       {
         ir: (tela, p) => (tela === 'vender' ? vender(p ?? {}) : ir(tela, p)),
         t,
@@ -171,12 +171,12 @@ export function Triagem() {
         sem: acaoDe(l)?.rotulo === 'Separar' ? ['Separar'] : [],
         onTrocarCodigo: () => setTrocar(l),
         extras: [
-          { rotulo: 'Tirar foto', icone: '📷', onClick: () => tirar(l.id), separar: true },
-          { rotulo: 'Escolher foto da galeria', icone: '🖼', onClick: () => tirar(l.id, { galeria: true }) },
+          { grupo: 'Foto', rotulo: 'Tirar foto', icone: '📷', onClick: () => tirar(l.id) },
+          { grupo: 'Foto', rotulo: 'Escolher foto da galeria', icone: '🖼', onClick: () => tirar(l.id, { galeria: true }) },
           ...(l.saldo > 0 ? [{ rotulo: 'Editar atributos', icone: '✎', onClick: () => setEditar(l), separar: true }] : []),
           // "Marcar como triado" e "Mover para…" ficam aqui (o caminho principal é Separar; arrastar continua no quadro)
-          ...(primeiraPronta && precisaSeparar(l) && l.saldo > 0 ? [{ rotulo: 'Marcar como triado', icone: '✓', onClick: () => (setSel(new Set([l.id])), setJanela('triado')), separar: true }] : []),
-          ...(l.fase === COLUNA_VENDIDO ? [] : trabalho.filter((c) => c.id !== l.fase).map((c, k) => ({ rotulo: `${t('Mover para')} “${c.nome}”`, icone: '→', onClick: () => entrar(c, [l.id]), separar: k === 0 && !(primeiraPronta && precisaSeparar(l)) }))),
+          ...(primeiraPronta && precisaSeparar(l) && l.saldo > 0 ? [{ grupo: 'Mover na triagem', rotulo: 'Marcar como triado', icone: '✓', onClick: () => (setSel(new Set([l.id])), setJanela('triado')) }] : []),
+          ...(l.fase === COLUNA_VENDIDO ? [] : trabalho.filter((c) => c.id !== l.fase).map((c) => ({ grupo: 'Mover na triagem', rotulo: `${t('Mover para')} “${c.nome}”`, icone: '→', onClick: () => entrar(c, [l.id]) }))),
         ],
       },
     )

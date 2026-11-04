@@ -1,4 +1,6 @@
 // MENU "⋯" (mais ações): o mesmo em toda tela. Abre por toque/clique/teclado, fecha no Esc, ao tocar fora ou ao escolher.
+// Visual padrão: as ações em GRUPOS com um título pequeno (VER · RASTREAR · FAZER · ETIQUETA · MAIS), cada uma com o
+// ícone num quadradinho do mesmo tamanho (tudo alinhado), o nome e, se tiver, uma linha do que faz. Perigo em vermelho.
 // Fica por cima de tudo (posição fixa): não é cortado por cartões com overflow nem por listas com rolagem.
 
 import { useEffect, useId, useRef, useState } from 'react'
@@ -14,8 +16,21 @@ export interface Acao {
   descricao?: string
   onClick(): void
   perigo?: boolean
-  /** linha separadora antes deste item */
+  /** linha separadora antes deste item (sem `grupo`) */
   separar?: boolean
+  /** o grupo (título pequeno em cima): itens seguidos do mesmo grupo ficam juntos */
+  grupo?: string
+}
+
+/** junta as ações em blocos: muda o grupo (ou `separar`) → bloco novo */
+function emGrupos(acoes: Acao[]) {
+  const blocos: { grupo?: string; itens: Acao[] }[] = []
+  for (const a of acoes) {
+    const ult = blocos[blocos.length - 1]
+    if (!ult || (a.grupo !== undefined ? a.grupo !== ult.grupo : !!a.separar)) blocos.push({ grupo: a.grupo, itens: [a] })
+    else ult.itens.push(a)
+  }
+  return blocos
 }
 
 /** `principal`: o menu é a AÇÃO PRINCIPAL da tela (botão cheio com o texto, ex.: "+ Nova venda ▾") e não o "⋯". */
@@ -37,7 +52,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
     const r = botao.current!.getBoundingClientRect()
     const abaixo = window.innerHeight - r.bottom
     // abre para o lado que CABE: alinhado à direita do botão; se o botão está perto da borda esquerda, alinhado à esquerda
-    const largura = Math.min(288, window.innerWidth - 16)
+    const largura = Math.min(300, window.innerWidth - 16)
     const lado = r.right - largura < 8 ? { left: Math.max(8, Math.min(r.left, window.innerWidth - largura - 8)) } : { right: Math.max(8, window.innerWidth - r.right) }
     setPos(abaixo > 260 || abaixo > r.top ? { top: r.bottom + 4, ...lado, maxH: abaixo - 12 } : { bottom: window.innerHeight - r.top + 4, ...lado, maxH: r.top - 12 })
   }
@@ -98,20 +113,23 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
           aria-label={t(rotulo)}
           onKeyDown={andar}
           style={{ top: pos.top, bottom: pos.bottom, right: pos.right, left: pos.left, maxHeight: Math.max(160, pos.maxH) }}
-          className="fixed z-50 w-max min-w-56 max-w-[calc(100vw-16px)] overflow-y-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-1 text-left shadow-xl"
+          className="fixed z-50 w-[min(18.75rem,calc(100vw-16px))] overflow-y-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-1.5 text-left shadow-[0_12px_32px_-8px_rgba(16,24,40,.25)]"
         >
-          {acoes.map((a, k) => (
-            <div key={k}>
-              {a.separar && k > 0 && <div role="separator" className="my-1 border-t border-[var(--borda)]" />}
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => (fechar(false), a.onClick())}
-                className={cx('flex min-h-10 w-full items-center gap-2 rounded-xl px-3 py-1.5 text-left text-sm font-medium outline-none hover:bg-[var(--marca-suave)] focus-visible:bg-[var(--marca-suave)]', a.perigo && 'text-[var(--ruim)]')}
-              >
-                <span aria-hidden className="w-5 shrink-0 text-center">{a.icone}</span>
-                <span className="min-w-0 [overflow-wrap:anywhere]">{t(a.rotulo)}{a.descricao && <span className="block max-w-72 text-xs font-normal leading-snug text-[var(--suave)]">{t(a.descricao)}</span>}</span>
-              </button>
+          {emGrupos(acoes).map((g, k) => (
+            <div key={k} role="group" aria-label={g.grupo ? t(g.grupo) : undefined} className={cx(k > 0 && 'mt-1 border-t border-[var(--borda)] pt-1')}>
+              {g.grupo && <p aria-hidden className="px-2.5 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--suave)]">{t(g.grupo)}</p>}
+              {g.itens.map((a, j) => (
+                <button
+                  key={j}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => (fechar(false), a.onClick())}
+                  className={cx('flex min-h-11 w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left text-sm font-medium outline-none transition-colors hover:bg-[var(--marca-suave)] focus-visible:bg-[var(--marca-suave)]', a.perigo && 'text-[var(--ruim)] hover:bg-[var(--ruim)]/10')}
+                >
+                  <span aria-hidden className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base', a.perigo ? 'bg-[var(--ruim)]/10' : 'bg-[var(--fundo)]')}>{a.icone ?? '•'}</span>
+                  <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(a.rotulo)}{a.descricao && <span className="block text-xs font-normal leading-snug text-[var(--suave)]">{t(a.descricao)}</span>}</span>
+                </button>
+              ))}
             </div>
           ))}
         </div>
@@ -160,25 +178,27 @@ export function acoesLote(
 ): Acao[] {
   const { ir, t, admin } = o
   const acoes: Acao[] = []
-  if (!o.semAbrir) acoes.push({ rotulo: 'Abrir lote', icone: '📄', onClick: () => ir('lote', { id: l.id }) })
+  if (!o.semAbrir) acoes.push({ grupo: 'Ver', rotulo: 'Abrir lote', icone: '📄', onClick: () => ir('lote', { id: l.id }) })
   const compras = l.compras ?? []
   for (const c of compras)
-    acoes.push({ rotulo: compras.length > 1 ? `${t('Compra')} ${c.codigo ?? ''}${c.fornecedor ? ` · ${c.fornecedor}` : ''}` : t('Ver compra de origem'), icone: '🛒', onClick: () => ir('pedido', { id: c.id }) })
+    acoes.push({ grupo: 'Ver', rotulo: compras.length > 1 ? `${t('Compra')} ${c.codigo ?? ''}${c.fornecedor ? ` · ${c.fornecedor}` : ''}` : t('Ver compra de origem'), icone: '🛒', onClick: () => ir('pedido', { id: c.id }) })
   const fornecedores = [...new Map(compras.filter((c) => c.fornecedorId).map((c) => [c.fornecedorId!, c.fornecedor])).entries()]
-  for (const [pid, nome] of fornecedores) acoes.push({ rotulo: fornecedores.length > 1 ? `${t('Ver fornecedor')} · ${nome ?? ''}` : t('Ver fornecedor'), icone: '👤', onClick: () => ir('pessoa', { id: pid }) })
-  for (const x of l.origens ?? []) acoes.push({ rotulo: (l.origens ?? []).length > 1 ? `${t('Ver lote de origem')} ${x.codigo ?? ''}` : t('Ver lote de origem'), icone: '🧬', onClick: () => ir('lote', { id: x.id }) })
-  acoes.push({ rotulo: 'Rastrear origem e destino', icone: '🔎', onClick: () => ir('rastreio', { itemId: l.id }), separar: true })
-  acoes.push({ rotulo: 'Vendas deste lote', icone: '🧾', onClick: () => ir('rastreio', { itemId: l.id }) })
-  if (l.saldo > 0 && l.vendavel !== false) acoes.push({ rotulo: o.rotuloVender ?? 'Vender', icone: '💰', onClick: () => ir('vender', { modulo: 'cabelo', lote: l.id }), separar: true })
+  for (const [pid, nome] of fornecedores) acoes.push({ grupo: 'Ver', rotulo: fornecedores.length > 1 ? `${t('Ver fornecedor')} · ${nome ?? ''}` : t('Ver fornecedor'), icone: '👤', onClick: () => ir('pessoa', { id: pid }) })
+  for (const x of l.origens ?? []) acoes.push({ grupo: 'Ver', rotulo: (l.origens ?? []).length > 1 ? `${t('Ver lote de origem')} ${x.codigo ?? ''}` : t('Ver lote de origem'), icone: '🧬', onClick: () => ir('lote', { id: x.id }) })
+  acoes.push({ grupo: 'Rastrear', rotulo: 'Rastrear origem e destino', icone: '🔎', onClick: () => ir('rastreio', { itemId: l.id }) })
+  acoes.push({ grupo: 'Rastrear', rotulo: 'Vendas deste lote', icone: '🧾', onClick: () => ir('rastreio', { itemId: l.id }) })
+  if (l.saldo > 0 && l.vendavel !== false) acoes.push({ grupo: 'Fazer', rotulo: o.rotuloVender ?? 'Vender', icone: '💰', onClick: () => ir('vender', { modulo: 'cabelo', lote: l.id }) })
   // encomenda: guarda o pacote para uma cliente (🔒 no estoque; a venda avisa se for para outra)
-  if (l.saldo > 0 && l.vendavel !== false && o.onReservar) acoes.push({ rotulo: l.reservado ? 'Mudar ou tirar reserva' : 'Reservar para uma cliente', icone: '🔒', onClick: o.onReservar })
-  if (admin && l.saldo > 0) acoes.push({ rotulo: 'Separar', icone: '✂️', onClick: () => ir('separar', { id: l.id, ...(o.separarParams ?? {}) }) })
-  if (admin && l.saldo > 0 && o.onAjustar) acoes.push({ rotulo: 'Ajustar', icone: '±', onClick: o.onAjustar })
-  // etiqueta: abre a tela Etiquetas com este lote já marcado (lá também ficam os outros sem etiqueta)
-  if (admin) acoes.push({ rotulo: 'Imprimir etiqueta', icone: '🏷', onClick: () => ir('etiquetas', { f: 'todas', sel: l.id }) })
+  if (l.saldo > 0 && l.vendavel !== false && o.onReservar) acoes.push({ grupo: 'Fazer', rotulo: l.reservado ? 'Mudar ou tirar reserva' : 'Reservar para uma cliente', icone: '🔒', onClick: o.onReservar })
+  if (admin && l.saldo > 0) acoes.push({ grupo: 'Fazer', rotulo: 'Separar', icone: '✂️', onClick: () => ir('separar', { id: l.id, ...(o.separarParams ?? {}) }) })
+  if (admin && l.saldo > 0 && o.onAjustar) acoes.push({ grupo: 'Fazer', rotulo: 'Ajustar', icone: '±', onClick: o.onAjustar })
+  // etiqueta: já tem → VER (abre o pacote com a etiqueta à vista: o "voltar" traz de volta para cá);
+  // não tem → imprimir (abre a tela Etiquetas com este lote já marcado, lá também ficam os outros sem etiqueta)
+  if (l.etiquetaImpressa) acoes.push({ grupo: 'Etiqueta', rotulo: 'Ver etiqueta', icone: '🏷', onClick: () => ir('lote', { id: l.id, etiqueta: 'ver' }) })
+  else if (admin) acoes.push({ grupo: 'Etiqueta', rotulo: 'Imprimir etiqueta', icone: '🏷', onClick: () => ir('etiquetas', { f: 'todas', sel: l.id }) })
   // saiu errada / borrou / perdeu: cancela a antiga e imprime nova (aqui mesmo, se a tela abrir a janela; senão na tela Etiquetas)
-  if (admin && l.etiquetaImpressa) acoes.push({ rotulo: 'Errou? Gerar nova', icone: '↻', onClick: o.onRefazerEtiqueta ?? (() => ir('etiquetas', { f: 'todas', sel: l.id, refazer: l.id })) })
-  if (admin && o.onTrocarCodigo) acoes.push({ rotulo: 'Trocar código', icone: '#', onClick: o.onTrocarCodigo, separar: true })
+  if (admin && l.etiquetaImpressa) acoes.push({ grupo: 'Etiqueta', rotulo: 'Errou? Gerar nova', icone: '↻', onClick: o.onRefazerEtiqueta ?? (() => ir('etiquetas', { f: 'todas', sel: l.id, refazer: l.id })) })
+  if (admin && o.onTrocarCodigo) acoes.push({ grupo: 'Mais', rotulo: 'Trocar código', icone: '#', onClick: o.onTrocarCodigo })
   // `sem`: o que a tela já mostra em botão na linha (não repete no ⋯)
-  return [...acoes, ...(o.extras ?? [])].filter((a) => !o.sem?.includes(a.rotulo))
+  return [...acoes, ...(o.extras ?? []).map((a) => ({ grupo: 'Mais', ...a, separar: undefined }))].filter((a) => !o.sem?.includes(a.rotulo))
 }

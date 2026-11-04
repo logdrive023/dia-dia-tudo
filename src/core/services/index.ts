@@ -62,6 +62,7 @@ export const comandos = {
   // compras e triagem
   criarCompra: compras.criarCompra,
   avancarTriagem: compras.avancarTriagem,
+  pagarCompra: compras.pagarCompra,
   cancelarCompra: compras.cancelarCompra,
   conferirPesoCompra: compras.conferirPesoCompra,
   definirValorCompra: compras.definirValorCompra,

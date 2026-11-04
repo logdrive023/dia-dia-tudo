@@ -432,6 +432,46 @@ const pararEv = (e: React.SyntheticEvent) => e.stopPropagation()
  * Situação da etiqueta numa linha (Triagem e listas): "🏷 Sem etiqueta" (âmbar; um toque abre a impressão deste pacote)
  * ou "✓ Etiqueta" (verde discreto; "impressa em 03/11 por Paula · 2ª via" no title).
  */
+/**
+ * VER A ETIQUETA de um pacote que já tem etiqueta: a etiqueta como ela saiu no papel (QR, código, medida, peso), quando
+ * e por quem foi impressa e quantas vias; embaixo, "Imprimir de novo" e "Errou? Gerar nova". É o que abre no "Ver
+ * etiqueta" (⋯ da triagem e do estoque, botão 🏷 do pacote).
+ */
+export function VerEtiqueta({ id, onFechar, admin }: { id: Id; onFechar(): void; admin?: boolean }) {
+  const t = useT()
+  const { dados } = useConsulta('etiquetas', { ids: [id] })
+  const { dados: modo } = useConsulta('modoEtiqueta', {})
+  const { dados: ficha } = useConsulta('fichaItem', { id })
+  const [imprimir, setImprimir] = useState(false)
+  const [refazer, setRefazer] = useState(false)
+  const e = dados?.[0]
+  const i = ficha?.item
+  if (imprimir) return <ImprimirEtiquetas ids={[id]} onImpresso={() => setImprimir(false)} onFechar={() => setImprimir(false)} />
+  if (refazer) return <RefazerEtiqueta id={id} codigo={i?.codigo} onFechar={() => setRefazer(false)} />
+  return (
+    <Janela aberta titulo={`🏷 ${t('Etiqueta')} ${i?.codigo ?? ''}`} onFechar={onFechar}
+      rodape={admin && <div className="flex flex-wrap justify-end gap-2">
+        <Botao variante="leve" onClick={() => setRefazer(true)}>↻ {t('Errou? Gerar nova')}</Botao>
+        <Botao onClick={() => setImprimir(true)}>🖨 {t('Imprimir de novo')}</Botao>
+      </div>}>
+      <div className="space-y-3">
+        <div className="flex justify-center overflow-x-auto rounded-xl bg-[var(--fundo)] p-4">
+          {e ? <UmaEtiqueta e={e} s={TAM.pequena} barras={modo === 'qrBarras'} /> : <span className="text-sm text-[var(--suave)]">{t('Carregando…')}</span>}
+        </div>
+        {i && (
+          <p className="num flex flex-wrap items-center gap-1.5 text-sm">
+            {i.etiquetaImpressaEm
+              ? <span className="rounded-full bg-[var(--bom)]/12 px-2.5 py-1 font-semibold text-[var(--bom)]">✓ {i.etiquetaImpressaPor ? t('impressa em {d} por {p}', { d: diaMesEtiqueta(i.etiquetaImpressaEm), p: i.etiquetaImpressaPor }) : t('impressa em {d}', { d: diaMesEtiqueta(i.etiquetaImpressaEm) })}</span>
+              : <span className="rounded-full bg-[var(--alerta)]/15 px-2.5 py-1 font-semibold text-[var(--alerta)]">🏷 {t('Sem etiqueta')}</span>}
+            {(i.etiquetaVia ?? 1) > 1 && <span className="rounded-full bg-[var(--fundo)] px-2.5 py-1 ring-1 ring-[var(--borda)]">{t('{n}ª via', { n: i.etiquetaVia! })}</span>}
+          </p>
+        )}
+        <p className="text-xs text-[var(--suave)]">{t('O peso na etiqueta é o de agora. Mudou o peso ou rasgou? "Imprimir de novo"; saiu errada? "Errou? Gerar nova" (a antiga deixa de valer).')}</p>
+      </div>
+    </Janela>
+  )
+}
+
 export function SeloEtiqueta({ id, impressaEm, por, via, className }: { id: Id; impressaEm?: string; por?: string; via?: number; className?: string }) {
   const t = useT()
   const [imprimir, setImprimir] = useState(false)

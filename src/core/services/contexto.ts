@@ -103,6 +103,8 @@ export interface Configuracoes {
   juntarMesmaEtapa: boolean
   /** avisar (sem travar) ao vender pacote ainda bruto */
   avisarVendaBruto: boolean
+  /** compra paga NO ATO (o normal): a nova compra já sai paga e a aba Pagamento abre em "Pagar e concluir" */
+  compraPagaNoAto: boolean
   /** TRIAGEM: abaixo disso (gramas) o pacote é "sobra pequena" — só avisa, não bloqueia */
   saldoPequenoG: number
 }
@@ -125,6 +127,7 @@ export const CONFIG_PADRAO: Configuracoes = {
   // desligada por padrão: o sistema sempre deixou juntar um separado com um bruto (re-triagem); quem quiser, liga
   juntarMesmaEtapa: false,
   avisarVendaBruto: true,
+  compraPagaNoAto: true,
   saldoPequenoG: 50,
 }
 

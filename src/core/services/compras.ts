@@ -22,6 +22,7 @@ import { origemDoPacote } from './origem'
 
 export const ETAPA_RECUSADO = 'recusado'
 export const ETAPA_CANCELADO = 'cancelado'
+export const ETAPA_CONCLUIDO = 'concluido'
 
 export interface LinhaCompraEntrada {
   id: Id
@@ -104,9 +105,37 @@ export async function criarCompra(
     /** cabelo que já tínhamos / valor depois: registra só o peso (total 0) e fica a pendência "Sem valor".
      *  Por LINHA: a linha vem com `campos.semValor: true` e total 0 (as outras linhas da mesma compra têm valor). */
     semValor?: boolean
+    /** PAGO NO ATO (o normal: negócio de liquidez): o pagamento já vem junto e a compra vai direto até Concluído */
+    pagarNoAto?: PagamentoEntrada[]
   },
 ) {
   if (await ctx.repos.transacoes.obter(d.id)) return { id: d.id }
+  const r = await criarCompraSemPagar(ctx, d)
+  if (d.pagarNoAto?.some((p) => p.valor > 0)) await pagarCompra(ctx, { compraId: r.id, pagamentos: d.pagarNoAto.filter((p) => p.valor > 0) })
+  return r
+}
+
+/**
+ * PAGAR E CONCLUIR num toque: a compra passa por todas as etapas que faltam até Concluído (a que pede pagamento recebe
+ * o pagamento; as outras só avançam). É o caminho normal — compra paga na hora. Quem usa as etapas uma a uma (pagar
+ * depois, conferir antes) continua com "avançar etapa".
+ */
+export async function pagarCompra(ctx: Ctx, d: { compraId: Id; pagamentos: PagamentoEntrada[]; motivo?: string }) {
+  const t = await ctx.repos.transacoes.obter(d.compraId)
+  exigir(t && t.tipo === 'compra', 'Compra não encontrada.')
+  if (t.etapa === ETAPA_CONCLUIDO) return { id: t.id }
+  exigir(t.etapa !== ETAPA_CANCELADO && t.etapa !== ETAPA_RECUSADO, 'Essa compra já foi encerrada.')
+  const c = etapasDe(ctx, t.moduloId)
+  const fim = c.etapas.findIndex((e) => e.id === ETAPA_CONCLUIDO)
+  const idx = c.etapas.findIndex((e) => e.id === t.etapa)
+  exigir(fim > idx, 'Essa compra já terminou.')
+  const pagaEm = c.etapas.slice(idx + 1, fim + 1).find((e) => e.faz?.includes('pagamento'))?.id ?? c.etapas[fim].id
+  for (const e of c.etapas.slice(idx + 1, fim + 1))
+    await avancarTriagem(ctx, { compraId: t.id, para: e.id, motivo: d.motivo, pagamentos: e.id === pagaEm ? d.pagamentos : undefined })
+  return { id: t.id }
+}
+
+async function criarCompraSemPagar(ctx: Ctx, d: Parameters<typeof criarCompra>[1]) {
   const c = etapasDe(ctx, d.moduloId)
   exigir(d.linhas?.length, 'Coloque pelo menos um item na compra.')
   // o que o formulário de compra pede como obrigatório (Configurações › Formulário de compra)
