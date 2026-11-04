@@ -102,7 +102,7 @@ function Secao({ id, titulo, subtitulo, resumo, children, acao, fechadaPadrao }:
       <div className="mb-3 flex items-center gap-2">
         <button type="button" onClick={alternar} aria-expanded={aberta} className="flex min-h-10 min-w-0 items-center gap-2 rounded-lg pr-2 text-left">
           <span className={cx('inline-block text-[var(--suave)] transition-transform', aberta ? 'rotate-90' : '')} aria-hidden>›</span>
-          <span className="min-w-0">
+          <span className="min-w-min">
             <h2 className="text-base font-bold">{t(titulo)}</h2>
             {aberta && subtitulo && <span className="block text-xs text-[var(--suave)]">{t(subtitulo)}</span>}
           </span>
@@ -383,7 +383,7 @@ export function Painel() {
                 <ul className="space-y-2 text-sm">
                   {p.caixa.map((m) => (
                     <li key={m.moeda} className="flex items-center justify-between gap-2">
-                      <span className="font-semibold">{m.moeda}</span>
+                      <span className="shrink-0 font-semibold">{m.moeda}</span>
                       <span className="num text-right">
                         <b>{formatar(m.total, m.moeda)}</b>
                         <span className="block text-xs text-[var(--suave)]">{t('mão')} {formatar(m.mao, m.moeda)} · {t('banco')} {formatar(m.banco, m.moeda)}</span>

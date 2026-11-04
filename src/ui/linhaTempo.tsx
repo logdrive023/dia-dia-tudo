@@ -313,7 +313,7 @@ function Detalhes({ e, daTela }: { e: Ev; daTela: string }) {
                 {e.refs?.[k] ? (
                   <button type="button" onClick={() => ir(e.refs![k]!.tela, { id: e.refs![k]!.id })} className="min-w-0 text-left font-semibold text-[var(--marca)] hover:underline">{it.texto} →</button>
                 ) : (
-                  <span className="min-w-0 [overflow-wrap:anywhere]">{it.texto}</span>
+                  <span className="min-w-0 break-words">{it.texto}</span>
                 )}
                 <span className="num shrink-0 text-right">
                   {it.quantidade !== undefined && <b>{quantidade(it.quantidade, it.unidade)}</b>}

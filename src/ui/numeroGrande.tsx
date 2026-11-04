@@ -30,10 +30,10 @@ export function NumeroGrande({ rotulo, valor, sub, selos, icone, cor, tom, ativo
   const dentro = (
     <>
       <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: c }} />
-      <span className="flex items-center gap-2 text-xs font-semibold text-[var(--suave)]">
-        {icone && <span aria-hidden className="icone-num flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm" style={{ background: `color-mix(in srgb, ${c} 15%, transparent)` }}>{icone}</span>}
-        {/* rótulo em até 2 linhas (3 cartões lado a lado no celular: "Sem etiqueta" inteiro, sem "Sem eti…") */}
-        <span className="line-clamp-2 min-w-0 leading-tight">{t(rotulo)}</span>
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-[var(--suave)]">
+        {icone && <span aria-hidden className="icone-num flex h-7 w-7 shrink-0 max-xs:hidden items-center justify-center rounded-lg text-sm" style={{ background: `color-mix(in srgb, ${c} 15%, transparent)` }}>{icone}</span>}
+        {/* rótulo em até 2 linhas, sem line-clamp (o Chrome não remede o line-clamp ao girar o celular e a palavra ficava partida) */}
+        <span className="min-w-min leading-tight">{t(rotulo)}</span>
         {ajuda && <Info texto={ajuda} />}
       </span>
       {carregando
@@ -47,7 +47,7 @@ export function NumeroGrande({ rotulo, valor, sub, selos, icone, cor, tom, ativo
       )}
     </>
   )
-  const base = cx('relative min-w-0 overflow-hidden rounded-2xl border bg-[var(--cartao)] p-3 text-left shadow-sm sm:p-4', ativo ? 'border-[var(--marca)] ring-2 ring-[var(--marca-suave)]' : 'border-[var(--borda)]')
+  const base = cx('relative min-w-0 overflow-hidden rounded-2xl border bg-[var(--cartao)] p-2.5 text-left shadow-sm xs:p-3 sm:p-4', ativo ? 'border-[var(--marca)] ring-2 ring-[var(--marca-suave)]' : 'border-[var(--borda)]')
   // com ⓘ e clicável: div com papel de botão (o ⓘ também é botão, e botão dentro de botão não vale)
   if (clicavel && ajuda)
     return (
@@ -83,7 +83,7 @@ export function GrupoNumeros({ children, colunas, celular = 2, abas, rotulo, cla
   const t = useT()
   return (
     <div role={abas ? 'tablist' : undefined} aria-label={rotulo ? t(rotulo) : undefined}
-      className={cx('mb-4 grid gap-2 sm:gap-3', celular === 3 ? 'grid-cols-3 max-sm:[&_.icone-num]:hidden' : 'grid-cols-2', COLUNAS[colunas], className)}>
+      className={cx('mb-4 grid gap-2 sm:gap-3', celular === 3 ? 'grid-cols-2 min-[400px]:grid-cols-3 max-sm:[&_.icone-num]:hidden' : 'grid-cols-2', COLUNAS[colunas], className)}>
       {children}
     </div>
   )

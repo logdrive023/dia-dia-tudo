@@ -150,9 +150,9 @@ function Idioma() {
   const { executar } = useComando()
   const atual = dados?.config.idioma ?? 'pt'
   return (
-    <div role="radiogroup" aria-label={t('Idioma')} className="flex gap-1 rounded-xl bg-[var(--marca-suave)] p-1">
+    <div role="radiogroup" aria-label={t('Idioma')} className="flex flex-wrap gap-1 rounded-xl bg-[var(--marca-suave)] p-1">
       {(['pt', 'es'] as const).map((i) => (
-        <button key={i} type="button" role="radio" aria-checked={atual === i} onClick={() => atual !== i && executar('salvarConfig', { idioma: i })} className={cx('min-h-11 rounded-lg px-3 text-sm font-semibold', atual === i ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
+        <button key={i} type="button" role="radio" aria-checked={atual === i} onClick={() => atual !== i && executar('salvarConfig', { idioma: i })} className={cx('min-h-11 min-w-max flex-1 rounded-lg px-3 text-sm font-semibold', atual === i ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
           {i === 'pt' ? '🇧🇷 Português' : '🇧🇴 Español'}
         </button>
       ))}

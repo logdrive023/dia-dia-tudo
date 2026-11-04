@@ -59,7 +59,7 @@ export function Historico({ id, versoes }: { id: string; versoes: Versao[] }) {
                     {v.numero === b && <Pilula tom="marca">{t('ficou')}</Pilula>}
                   </div>
                   <p className="mt-0.5 text-xs text-[var(--suave)]">{dataHora(v.em)}{v.por ? ` · ${v.por}` : ''}</p>
-                  {v.nota && <p className="mt-1 text-sm [overflow-wrap:anywhere]">“{v.nota}”</p>}
+                  {v.nota && <p className="mt-1 text-sm break-words">“{v.nota}”</p>}
                   {anterior && !(a === anterior.numero && b === v.numero) && (
                     <button type="button" onClick={() => (setDe(anterior.numero), setPara(v.numero))} className="mt-1 min-h-9 text-sm font-semibold text-[var(--marca)] hover:underline">
                       {t('Ver o que mudou da v{a} para a v{b}', { a: anterior.numero, b: v.numero })} →

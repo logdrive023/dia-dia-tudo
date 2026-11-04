@@ -52,7 +52,7 @@ export function CabecalhoFicha({ midia, titulo, codigo, anteriores, selos, detal
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-2xl">{titulo}</h1>
+            <h1 className="text-xl font-bold leading-tight tracking-tight break-words sm:text-2xl">{titulo}</h1>
             {(codigo || selos) && (
               <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                 {codigo && <CodigoSelo codigo={codigo} anteriores={anteriores} />}

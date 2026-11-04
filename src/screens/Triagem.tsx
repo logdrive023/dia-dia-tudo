@@ -377,7 +377,7 @@ export function Triagem() {
                 <li key={r.icone} className={cx('flex min-w-0 items-start gap-2.5 rounded-xl bg-[var(--cartao)] p-2.5', !r.ligado && 'opacity-70')}>
                   {/* o ícone num quadrado fixo: nunca encavala no texto, em qualquer largura */}
                   <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--fundo)] text-base leading-none">{r.icone}</span>
-                  <span className="min-w-0 flex-1"><b className="block text-[var(--texto)] [overflow-wrap:anywhere]">{t(r.titulo)}</b><span className="block text-[var(--suave)]">{t(r.texto)}</span></span>
+                  <span className="min-w-0 flex-1"><b className="block text-[var(--texto)] break-words">{t(r.titulo)}</b><span className="block text-[var(--suave)]">{t(r.texto)}</span></span>
                 </li>
               ))}
             </ul>
@@ -815,11 +815,11 @@ function CartaoLote(p: {
       </div>
       <div className="mt-1 flex items-start gap-2">
         <MiniaturaLote itemId={l.id} foto={l.foto} marcador={marcadorLote(l.campos, l.nome)} />
-        <button type="button" onClick={p.onAbrir} className="block min-w-0 flex-1 text-left font-semibold leading-tight [overflow-wrap:anywhere] hover:underline">{l.nome}</button>
+        <button type="button" onClick={p.onAbrir} className="block min-w-0 flex-1 text-left font-semibold leading-tight break-words hover:underline">{l.nome}</button>
       </div>
       <div className="mt-1 space-y-0.5 text-xs text-[var(--suave)]">
         <CadeiaChips cadeia={l.cadeia} />
-        {(l.pai || l.unificadoDe?.length) && <p className="[overflow-wrap:anywhere]">{l.pai ? `${t('separado de')} ${l.pai.codigo ?? '?'}` : `${t('unificado de')} ${l.unificadoDe!.map((x) => x.codigo ?? '?').join(' + ')}`}</p>}
+        {(l.pai || l.unificadoDe?.length) && <p className="break-words">{l.pai ? `${t('separado de')} ${l.pai.codigo ?? '?'}` : `${t('unificado de')} ${l.unificadoDe!.map((x) => x.codigo ?? '?').join(' + ')}`}</p>}
         <p className="num">
           {vendido ? `${t('vendido em')} ${dataBR(l.vendidoEm)}` : col?.pronto ? `${t('desde')} ${dataBR(l.desde)}` : t('há {n} dia(s) nesta coluna', { n: l.dias })}
           {l.custoKg !== undefined && !col?.pronto && !vendido && ` · ${formatar(l.custoKg, m)}/kg`}
@@ -845,7 +845,7 @@ function CartaoLote(p: {
       )}
       {p.acao && (
         <div className="mt-2 flex">
-          <Botao className="min-w-0 flex-1 [overflow-wrap:anywhere]" disabled={p.ocupado} onClick={p.acao.f}>{t(p.acao.rotulo)}</Botao>
+          <Botao className="min-w-0 flex-1 break-words" disabled={p.ocupado} onClick={p.acao.f}>{t(p.acao.rotulo)}</Botao>
         </div>
       )}
     </li>

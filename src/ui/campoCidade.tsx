@@ -63,6 +63,8 @@ export function CampoCidade({ valor, onChange, opcoes, permitirNovo = true, rotu
     return [...new Set(opcoes)].map((s) => porTexto.get(s) ?? { texto: s, nome: s })
   }, [dados, opcoes])
   const deptos = DEPARTAMENTOS_BOLIVIA.filter((d) => todas.some((o) => o.departamento === d))
+  // poucas opções (ex.: no filtro, 2 destinos): só a lista — departamentos e contagem só ajudam na lista grande
+  const muitas = todas.length > 12
 
   const b = semAcento(busca)
   const achados = todas
@@ -130,7 +132,7 @@ export function CampoCidade({ valor, onChange, opcoes, permitirNovo = true, rotu
       {aberta && (
         <div className="mt-1 overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
           {/* os departamentos: um toque mostra só as cidades dele (achar sem saber escrever) */}
-          {deptos.length > 1 && (
+          {muitas && deptos.length > 1 && (
             <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-b border-[var(--borda)] bg-[var(--fundo)] px-2 py-2" aria-label={t('Departamento')}>
               {['', ...deptos].map((d) => (
                 <button key={d || 'todos'} type="button" aria-pressed={depto === d} onClick={() => setDepto(d)}
@@ -142,10 +144,10 @@ export function CampoCidade({ valor, onChange, opcoes, permitirNovo = true, rotu
           )}
           {!dados ? <p className="px-3 py-3 text-sm text-[var(--suave)]">{t('Carregando…')}</p> : (
             <>
-              <p className="num flex justify-between gap-2 px-3 pt-2 text-xs text-[var(--suave)]">
+              {muitas && <p className="num flex flex-wrap justify-between gap-x-2 px-3 pt-2 text-xs text-[var(--suave)]">
                 <span>{achados.length > lista.length ? t('{n} de {total} · continue digitando', { n: lista.length, total: achados.length }) : t('{n} cidade(s)', { n: achados.length })}</span>
                 {!b && !depto && <span>⭐ {t('capitais primeiro')}</span>}
-              </p>
+              </p>}
               {lista.length > 0 && (
                 <ul id={idLista} role="listbox" aria-label={t(rotulo)} className="max-h-[min(20rem,50vh)] overflow-y-auto overscroll-contain py-1">
                   {lista.map((o, k) => (

@@ -98,7 +98,7 @@ export function ListaRastreio({ linhas, max = 5 }: { linhas: LinhaRastreio[]; ma
       {vis.map((l) => (
         <li key={l.id} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 py-2 text-sm">
           {/* basis: o texto não encolhe até uma palavra por linha; o botão desce quando não cabe */}
-          <span className="min-w-0 flex-1 basis-48 [overflow-wrap:anywhere]">
+          <span className="min-w-0 flex-1 basis-48 break-words">
             {l.onClick ? <button type="button" onClick={l.onClick} className="text-left font-semibold hover:underline">{l.principal}</button> : <span className="font-semibold">{l.principal}</span>}
             {l.detalhe && <span className="text-[var(--suave)]"> · {l.detalhe}</span>}
           </span>
@@ -183,7 +183,7 @@ export function RastreioResumo({ g, admin = true, linhas }: { g: Genealogia; adm
         ? <>{l.compras.slice(0, 2).map((c, k) => <span key={c.id}>{k > 0 && ', '}{link({ tipo: 'compra', id: c.id, codigo: c.codigo, g: 0 })}</span>)}{l.compras.length > 2 && ` +${l.compras.length - 2}`} → </>
         : null
       const linha = (rotulo: string, conteudo: ReactNode) => (
-        <li className="flex min-w-0 flex-wrap items-baseline gap-x-2 py-2 text-sm"><span className="text-xs font-semibold text-[var(--suave)]">{t(rotulo)}</span><span className="min-w-0 flex-1 text-[var(--suave)] [overflow-wrap:anywhere]">{conteudo}</span></li>
+        <li className="flex min-w-0 flex-wrap items-baseline gap-x-2 py-2 text-sm"><span className="text-xs font-semibold text-[var(--suave)]">{t(rotulo)}</span><span className="min-w-0 flex-1 text-[var(--suave)] break-words">{conteudo}</span></li>
       )
       corpo = (
         <ul className="divide-y divide-[var(--borda)]">

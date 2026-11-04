@@ -83,8 +83,8 @@ export function CartaoEvento({ icone, tom = 'marca', titulo, etapa, resumo, selo
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <p className="font-semibold leading-snug [overflow-wrap:anywhere]">{titulo}</p>
-              {resumo && <p className="mt-0.5 line-clamp-2 text-sm text-[var(--suave)] [overflow-wrap:anywhere]">{resumo}</p>}
+              <p className="font-semibold leading-snug break-words">{titulo}</p>
+              {resumo && <p className="mt-0.5 line-clamp-2 text-sm text-[var(--suave)] break-words">{resumo}</p>}
             </div>
             {valor !== undefined && valor !== null && valor !== '' && (
               <div className="shrink-0 text-right">
@@ -137,7 +137,7 @@ export function BlocoDetalhe({ rotulo, largo, children }: { rotulo: string; larg
   return (
     <div className={cx('min-w-0 rounded-lg bg-[var(--cartao)] px-3 py-2 ring-1 ring-[var(--borda)]', largo && 'sm:col-span-2')}>
       <dt className="text-[11px] font-semibold uppercase tracking-wide text-[var(--suave)]">{t(rotulo)}</dt>
-      <dd className="mt-1 text-sm [overflow-wrap:anywhere]">{children}</dd>
+      <dd className="mt-1 text-sm break-words">{children}</dd>
     </div>
   )
 }

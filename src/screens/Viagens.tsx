@@ -148,16 +148,16 @@ function ListaViagens({ linhas }: { linhas: LinhaLista[] }) {
         const aberta = v.status === 'aberta'
         return (
           <li key={v.id}>
-            <button type="button" onClick={() => ir('viagem', { id: v.id })} className={cx('flex h-full w-full flex-col gap-3 rounded-2xl border bg-[var(--cartao)] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md', aberta ? 'border-[var(--marca)]' : 'border-[var(--borda)]')}>
+            <button type="button" onClick={() => ir('viagem', { id: v.id })} className={cx('flex h-full w-full flex-col gap-3 rounded-2xl border bg-[var(--cartao)] p-3 text-left xs:p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md', aberta ? 'border-[var(--marca)]' : 'border-[var(--borda)]')}>
               <div className="flex items-start gap-3">
-                <span aria-hidden className={cx('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl', aberta ? 'bg-[var(--marca-suave)]' : 'bg-[var(--fundo)]')}>{aberta ? '✈️' : '🏁'}</span>
+                <span aria-hidden className={cx('hidden h-11 w-11 shrink-0 items-center xs:flex justify-center rounded-xl text-xl', aberta ? 'bg-[var(--marca-suave)]' : 'bg-[var(--fundo)]')}>{aberta ? '✈️' : '🏁'}</span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-1.5">
                     <CodigoTexto codigo={v.codigo} className="text-sm" />
                     <Pilula tom={TOM_STATUS[v.status]}>{t(NOME_STATUS[v.status])}</Pilula>
                     {v.prospeccao && <Pilula>{t('prospecção')}</Pilula>}
                   </span>
-                  <b className="mt-0.5 block text-base leading-tight [overflow-wrap:anywhere]">{v.nome}</b>
+                  <b className="mt-0.5 block text-base leading-tight break-words">{v.nome}</b>
                   <span className="mt-0.5 block text-xs text-[var(--suave)]">{[v.destino ? `📍 ${v.destino}` : '', `👤 ${v.viajantes.map((x) => x.nome).join(', ')}`, `📅 ${dataBR(v.inicio)}${v.fim ? ` → ${dataBR(v.fim)}` : ''} · ${t('{n} dia(s)', { n: v.dias })}`].filter(Boolean).join('  ·  ')}</span>
                 </span>
                 <span aria-hidden className="text-xl text-[var(--suave)]">›</span>
@@ -277,7 +277,7 @@ function FormViagem({ viagem }: { viagem?: Viagem }) {
           {naBolivia === 'sim'
             ? <Campo comoDiv rotulo="Destino"><CampoCidade rotulo="Destino" valor={destino} onChange={setDestino} placeholder="Buscar cidade (ex.: Oruro)" /></Campo>
             : <Campo rotulo="Destino"><Entrada value={destino} onChange={(e) => setDestino(e.target.value)} placeholder={t('Ex.: Lima, Peru')} /></Campo>}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-2 xs:grid-cols-2">
             <Campo rotulo="Ida"><Entrada type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} /></Campo>
             <Campo rotulo="Volta (prevista)"><Entrada type="date" value={fim} onChange={(e) => setFim(e.target.value)} /></Campo>
           </div>

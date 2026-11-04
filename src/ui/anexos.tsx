@@ -195,7 +195,7 @@ export function ListaAnexos({ anexos, comFiltro, compacta }: { anexos: AnexoTela
         <Janela aberta={!!aberto} titulo={aberto ? t(NOMES_ANEXO[aberto.categoria]) : t('Anexo')} onFechar={() => setVer(undefined)}>
           {aberto && (
             <div className="space-y-2 text-sm">
-              <p className="[overflow-wrap:anywhere]"><b>{aberto.nome}</b><span className="block text-xs text-[var(--suave)]">{quando(aberto)}</span></p>
+              <p className="break-words"><b>{aberto.nome}</b><span className="block text-xs text-[var(--suave)]">{quando(aberto)}</span></p>
               {urls[aberto.id] ? <a href={urls[aberto.id]} target="_blank" rel="noreferrer" download={aberto.nome} className="inline-flex min-h-10 items-center rounded-xl bg-[var(--marca)] px-4 font-semibold text-white">{t('Abrir arquivo')}</a> : <p className="text-[var(--suave)]">…</p>}
             </div>
           )}

@@ -127,7 +127,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
                   className={cx('flex min-h-11 w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left text-sm font-medium outline-none transition-colors hover:bg-[var(--marca-suave)] focus-visible:bg-[var(--marca-suave)]', a.perigo && 'text-[var(--ruim)] hover:bg-[var(--ruim)]/10')}
                 >
                   <span aria-hidden className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base', a.perigo ? 'bg-[var(--ruim)]/10' : 'bg-[var(--fundo)]')}>{a.icone ?? '•'}</span>
-                  <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(a.rotulo)}{a.descricao && <span className="block text-xs font-normal leading-snug text-[var(--suave)]">{t(a.descricao)}</span>}</span>
+                  <span className="min-w-0 flex-1 break-words">{t(a.rotulo)}{a.descricao && <span className="block text-xs font-normal leading-snug text-[var(--suave)]">{t(a.descricao)}</span>}</span>
                 </button>
               ))}
             </div>
@@ -143,7 +143,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
                 <button type="button" onClick={() => (setFolha(false), a.onClick())}
                   className={cx('flex min-h-16 w-full items-center gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left shadow-sm transition active:scale-[.99] hover:border-[var(--marca)]', k === 0 && 'border-[var(--marca)] bg-[var(--marca-suave)]', a.perigo && 'text-[var(--ruim)]')}>
                   <span aria-hidden className={cx('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-2xl', k === 0 ? 'bg-[var(--marca)] text-white' : 'bg-[var(--fundo)]')}>{a.icone}</span>
-                  <span className="min-w-0 flex-1 font-semibold [overflow-wrap:anywhere]">{t(a.rotulo)}{a.descricao && <span className="block text-xs font-normal text-[var(--suave)]">{t(a.descricao)}</span>}</span>
+                  <span className="min-w-0 flex-1 font-semibold break-words">{t(a.rotulo)}{a.descricao && <span className="block text-xs font-normal text-[var(--suave)]">{t(a.descricao)}</span>}</span>
                   <span aria-hidden className="text-[var(--suave)]">›</span>
                 </button>
               </li>

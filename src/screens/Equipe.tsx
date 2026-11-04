@@ -95,8 +95,8 @@ function CartaoPessoa({ n, nivel, onClick, largura }: { n: NoOrganograma; nivel:
       <span className="min-w-0 flex-1">
         <b className="block truncate">{n.pessoa.nome}</b>
         <span className="block truncate text-xs text-[var(--suave)]">{n.pessoa.cargo ?? '—'}</span>
-        <span className="num mt-1 flex gap-1.5 text-[11px]">
-          <span className="rounded-md bg-[var(--fundo)] px-1.5 py-0.5"><b>{n.atendimentos}</b> {t('atend.')}</span>
+        <span className="num mt-1 flex flex-wrap gap-1.5 text-[11px]">
+          <span className="whitespace-nowrap rounded-md bg-[var(--fundo)] px-1.5 py-0.5"><b>{n.atendimentos}</b> {t('atend.')}</span>
           {n.faturamento > 0 && <span className="truncate rounded-md bg-[var(--fundo)] px-1.5 py-0.5"><b>{formatar(n.faturamento, m)}</b></span>}
         </span>
       </span>

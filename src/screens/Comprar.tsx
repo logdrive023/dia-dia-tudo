@@ -970,11 +970,11 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         <div ref={caixa} onKeyDown={aoTeclar} className="min-w-0 space-y-3">
           {modulos.length > 1 && (
             modulos.length <= 4 ? (
-              <div role="radiogroup" aria-label={t('O que está comprando?')} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div role="radiogroup" aria-label={t('O que está comprando?')} className="grid grid-cols-[repeat(auto-fit,minmax(min(8.5rem,100%),1fr))] gap-2">
                 {modulos.map((m) => (
                   <button key={m.id} type="button" role="radio" aria-checked={m.id === moduloId} onClick={() => trocarModulo(m.id)} className={cx('flex min-h-14 min-w-0 items-center gap-2 rounded-2xl border-2 px-2 py-2 text-left text-sm font-semibold', m.id === moduloId ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] hover:border-[var(--marca)]')}>
                     <span className="text-2xl" aria-hidden>{m.icone}</span>
-                    <span className="min-w-0 break-words leading-tight [overflow-wrap:anywhere]">{t(m.nome)}</span>
+                    <span className="min-w-0 break-words leading-tight">{t(m.nome)}</span>
                   </button>
                 ))}
               </div>
@@ -1071,7 +1071,7 @@ function ResumoPedido({ dados, admin, onLigarViagem, onPagamento }: { dados: Dad
       ) : (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-[var(--borda)] p-3">
           <span aria-hidden className="text-xl opacity-60">✈️</span>
-          <span className="min-w-0 flex-1 text-sm text-[var(--suave)]">{t('Sem viagem: compra feita fora de uma viagem de compra.')}</span>
+          <span className="linha-texto text-sm text-[var(--suave)]">{t('Sem viagem: compra feita fora de uma viagem de compra.')}</span>
           {admin && !encerradaSemViagem(c.etapa) && <Botao variante="secundario" onClick={onLigarViagem}>✈️ {t('Ligar a uma viagem')}</Botao>}
         </div>
       )}
@@ -1087,7 +1087,7 @@ function ResumoPedido({ dados, admin, onLigarViagem, onPagamento }: { dados: Dad
       {(c.pendencias.length > 0 || c.obs) && (
         <div className="flex flex-wrap items-center gap-2 border-t border-[var(--borda)] pt-3 text-sm">
           {c.pendencias.length > 0 && <><span className="text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('O que falta')}</span><SeloPendencias pendencias={c.pendencias} moeda={m} /></>}
-          {c.obs && <span className="min-w-0 basis-full text-[var(--suave)] [overflow-wrap:anywhere]">📝 {c.obs}</span>}
+          {c.obs && <span className="min-w-0 basis-full text-[var(--suave)] break-words">📝 {c.obs}</span>}
         </div>
       )}
     </section>
@@ -1199,7 +1199,7 @@ function ItensCompra({ dados, admin, cancelada, onConferir, onAjustarValor }: { 
             <li key={l.id} className="px-4 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <b className="block [overflow-wrap:anywhere]">{l.descricao}</b>
+                  <b className="block break-words">{l.descricao}</b>
                   <span className="num block text-xs text-[var(--suave)]">{[conta, porKg ? `${formatar(porKg, m)}/kg` : ''].filter(Boolean).join(' · ')}</span>
                 </div>
                 <div className="shrink-0 text-right">

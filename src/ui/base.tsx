@@ -92,7 +92,7 @@ export function Botao({
     <button
       type="button"
       {...p}
-      className={cx('rounded-xl font-semibold transition disabled:opacity-50', grande ? 'min-h-12 px-5 py-3 text-base' : 'min-h-10 px-4 py-2 text-sm', estilos, className)}
+      className={cx('rounded-xl font-semibold transition disabled:opacity-50', !/(^|s)min-w-/.test(className ?? '') && 'min-w-min', grande ? 'min-h-12 px-5 py-3 text-base' : 'min-h-10 px-4 py-2 text-sm', estilos, className)}
     >
       {children}
     </button>
@@ -101,10 +101,10 @@ export function Botao({
 
 export function Cartao({ titulo, acao, children, className, ajuda }: { titulo?: ReactNode; acao?: ReactNode; children: ReactNode; className?: string; ajuda?: string }) {
   return (
-    <section className={cx('rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 shadow-sm', className)}>
+    <section className={cx('rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm xs:p-4', className)}>
       {(titulo || acao) && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-1 text-base font-bold">
+          <h2 className="flex min-w-min items-center gap-1 text-base font-bold">
             {titulo}
             {ajuda && <Info texto={ajuda} />}
           </h2>
@@ -353,7 +353,7 @@ export function Titulo({ children, acao, subtitulo, icone }: { children: ReactNo
   for (let i = 0; i < 3 && !temIcone(modulo) && PAI[modulo]; i++) modulo = PAI[modulo]
   const nomeIcone = icone ?? (temIcone(modulo) ? modulo : undefined)
   return (
-    <header className="relative mb-4 overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-4 py-4 shadow-[0_1px_2px_rgba(16,24,40,.04),0_4px_16px_-8px_rgba(16,24,40,.08)] sm:px-5">
+    <header className="relative mb-4 overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-3 py-3 xs:px-4 xs:py-4 shadow-[0_1px_2px_rgba(16,24,40,.04),0_4px_16px_-8px_rgba(16,24,40,.08)] sm:px-5">
       {/* brilho da marca (decoração: não pega toque, não é lido) */}
       <span aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_140%_at_0%_0%,color-mix(in_srgb,var(--marca)_9%,transparent)_0%,transparent_55%)]" />
       <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,var(--marca),color-mix(in_srgb,var(--marca)_55%,#ec4899),transparent)]" />
@@ -361,14 +361,14 @@ export function Titulo({ children, acao, subtitulo, icone }: { children: ReactNo
       {/* SE AJUSTA SOZINHO a qualquer conteúdo: o título nunca fica mais estreito que ~18rem (não espreme); as ações
           ficam ao lado enquanto couberem e, se não, descem inteiras para a linha de baixo (e quebram entre si) */}
       <div className="relative flex flex-wrap items-center gap-x-4 gap-y-3">
-        <div className="flex min-w-0 flex-[1_1_18rem] items-center gap-3 sm:gap-4">
+        <div className="flex min-w-0 flex-[1_1_min(18rem,100%)] items-center gap-3 sm:gap-4">
           {nomeIcone && (
-            <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,var(--marca),color-mix(in_srgb,var(--marca)_70%,#ec4899))] text-white shadow-[0_6px_14px_-6px_color-mix(in_srgb,var(--marca)_70%,transparent)] sm:h-12 sm:w-12">
+            <span aria-hidden className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,var(--marca),color-mix(in_srgb,var(--marca)_70%,#ec4899))] xs:flex text-white shadow-[0_6px_14px_-6px_color-mix(in_srgb,var(--marca)_70%,transparent)] sm:h-12 sm:w-12">
               <Icone nome={nomeIcone} className="h-6 w-6" />
             </span>
           )}
           <div className="flex min-h-11 min-w-0 flex-1 flex-col justify-center">
-            <h1 className="text-xl font-bold leading-tight tracking-tight sm:text-2xl">{children}</h1>
+            <h1 className="text-lg font-bold leading-tight tracking-tight xs:text-xl sm:text-2xl">{children}</h1>
             {subtitulo && <p className="mt-1 text-sm leading-snug text-[var(--suave)]">{subtitulo}</p>}
           </div>
         </div>
@@ -382,11 +382,10 @@ export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { i
   const t = useT()
   if (variante === 'sublinhado') {
     // até 4 abas: dividem a largura (cabem em 360 px, sem barra de rolar); mais que isso: rolam, sem barra aparente
-    const cabe = abas.length <= 4
     return (
-      <div role="tablist" style={cabe ? { gridTemplateColumns: `repeat(${abas.length}, minmax(0, 1fr))` } : undefined} className={cx('mb-4 gap-1 overflow-y-hidden border-b border-[var(--borda)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', cabe ? 'grid sm:flex' : 'flex overflow-x-auto')}>
+      <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-[var(--borda)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {abas.map((a) => (
-          <button key={a.id} role="tab" aria-selected={a.id === atual} type="button" disabled={a.desativada} title={a.desativada ? t('Em breve') : undefined} onClick={() => onChange(a.id)} className={cx('-mb-px disabled:cursor-not-allowed disabled:opacity-40 min-h-11 min-w-0 border-b-2 px-2 text-sm font-semibold sm:shrink-0 sm:px-3', cabe ? 'py-1 text-center leading-tight' : 'shrink-0', a.id === atual ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}>
+          <button key={a.id} role="tab" aria-selected={a.id === atual} type="button" disabled={a.desativada} title={a.desativada ? t('Em breve') : undefined} onClick={() => onChange(a.id)} className={cx('-mb-px min-h-11 shrink-0 grow whitespace-nowrap border-b-2 px-3 text-center text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 sm:grow-0', a.id === atual ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}>
             {t(a.nome)} {a.extra}
           </button>
         ))}
@@ -419,7 +418,7 @@ export function Escolha<T extends string>({ opcoes, valor, onChange, rotulo }: {
   return (
     <div role="radiogroup" aria-label={rotulo ? t(rotulo) : undefined} className="flex flex-wrap gap-1 rounded-xl bg-[var(--marca-suave)] p-1">
       {opcoes.map((o) => (
-        <button key={o.id} type="button" role="radio" aria-checked={o.id === valor} onClick={() => onChange(o.id)} className={cx('min-h-10 flex-1 rounded-lg px-3 text-sm font-semibold', o.id === valor ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
+        <button key={o.id} type="button" role="radio" aria-checked={o.id === valor} onClick={() => onChange(o.id)} className={cx('min-h-10 min-w-max flex-1 rounded-lg px-3 text-sm font-semibold', o.id === valor ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
           {t(o.nome)}
         </button>
       ))}

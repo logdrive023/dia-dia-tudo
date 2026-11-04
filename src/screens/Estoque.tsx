@@ -289,7 +289,7 @@ export function Estoque() {
     const chips = chipsDe(i)
     return (
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-        <span className={cx('min-w-0 max-w-full font-semibold', quebrar ? 'line-clamp-2 leading-snug' : 'truncate')} title={i.nome}>{i.nome}</span>
+        <span className={cx('min-w-min max-w-full font-semibold', quebrar ? 'line-clamp-2 leading-snug' : 'truncate')} title={i.nome}>{i.nome}</span>
         {chips.map((x) => <span key={x.id} className={chip}>{x.texto}</span>)}
         <SeloReserva i={i} />
       </div>
@@ -415,7 +415,7 @@ export function Estoque() {
                   <Peso i={i} />
                 </div>
                 <div className="mt-1"><VeioDe i={i} /></div>
-                {extras.length > 0 && <p className="mt-1 text-xs text-[var(--suave)] [overflow-wrap:anywhere]">{extras.map(([c, v]) => `${t(c.nome)}: ${v}`).join(' · ')}</p>}
+                {extras.length > 0 && <p className="mt-1 text-xs text-[var(--suave)] break-words">{extras.map(([c, v]) => `${t(c.nome)}: ${v}`).join(' · ')}</p>}
               </li>
             )
           })}
@@ -929,7 +929,7 @@ export function FichaLote() {
       <Cartao titulo={t('Atributos')} acao={admin && campos.length > 0 ? <Botao variante="secundario" onClick={() => setEditar(true)}>✎ {t('Editar atributos')}</Botao> : undefined}>
         {!atributos.length ? <Vazio compacto texto="Nenhum atributo preenchido." /> : (
           <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-sm">
-            {atributos.map((a) => <div key={a.id} className="contents"><dt className="text-[var(--suave)]">{t(a.nome)}</dt><dd className="font-semibold [overflow-wrap:anywhere]">{t(a.valor)}</dd></div>)}
+            {atributos.map((a) => <div key={a.id} className="contents"><dt className="text-[var(--suave)]">{t(a.nome)}</dt><dd className="font-semibold break-words">{t(a.valor)}</dd></div>)}
           </dl>
         )}
       </Cartao>

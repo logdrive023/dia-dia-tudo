@@ -188,7 +188,7 @@ export function PainelSelecao({ itens, unidade = 'pacote', fatos = [], aviso, to
                 className={cx('flex min-h-12 items-start gap-2 rounded-xl border border-[var(--borda)] bg-[var(--fundo)] px-3 py-2 text-left text-sm transition hover:border-[var(--marca)] hover:bg-[var(--marca-suave)] disabled:opacity-50', a.perigo && 'text-[var(--ruim)]')}>
                 <span aria-hidden className="w-4 shrink-0 text-center">{a.icone}</span>
                 <span className="min-w-0">
-                  <b className="block font-semibold [overflow-wrap:anywhere]">{t(a.rotulo)}</b>
+                  <b className="block font-semibold break-words">{t(a.rotulo)}</b>
                   {a.descricao && <span className="block text-xs leading-snug text-[var(--suave)]">{t(a.descricao)}</span>}
                 </span>
               </button>

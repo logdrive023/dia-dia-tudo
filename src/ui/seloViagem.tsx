@@ -91,11 +91,11 @@ export function FiltroViagem({ valor, onChange, nasLinhas }: { valor: string; on
         <Janela aberta titulo={`✈️ ${t('Filtrar por viagem')}`} onFechar={() => setAberta(false)}>
           <div className="space-y-3">
             {/* as duas escolhas gerais */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-2">
               {([['', 'Todas as viagens', nasLinhas.length], ['sem', 'Sem viagem', semViagem]] as const).map(([id, n, q]) => (
                 <button key={id || 'todas'} type="button" aria-pressed={valor === id} onClick={() => escolher(id)}
                   className={cx('flex min-h-12 items-center justify-between gap-2 rounded-2xl border-2 px-3 text-left text-sm font-semibold', valor === id ? 'border-sky-500 bg-sky-500/10' : 'border-[var(--borda)] hover:border-sky-500')}>
-                  <span>{t(n)}</span><span className="num rounded-full bg-[var(--fundo)] px-2 text-xs">{q}</span>
+                  <span className="min-w-0 leading-tight">{t(n)}</span><span className="num shrink-0 rounded-full bg-[var(--fundo)] px-2 text-xs">{q}</span>
                 </button>
               ))}
             </div>
@@ -137,7 +137,7 @@ export function FiltroViagem({ valor, onChange, nasLinhas }: { valor: string; on
                           <li key={v.id}>
                             <button type="button" aria-pressed={on} onClick={() => escolher(v.id)}
                               className={cx('flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left transition', on ? 'border-sky-500 bg-sky-500/10' : 'border-[var(--borda)] hover:border-sky-500', !n && 'opacity-70')}>
-                              <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-lg">✈️</span>
+                              <span aria-hidden className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-lg min-[360px]:flex">✈️</span>
                               <span className="min-w-0 flex-1">
                                 <span className="flex flex-wrap items-center gap-x-2"><b className="font-mono">{v.codigo}</b><span className={cx('rounded-full px-2 text-[11px] font-semibold', v.status === 'aberta' ? 'bg-[var(--bom)]/12 text-[var(--bom)]' : 'bg-[var(--fundo)] text-[var(--suave)]')}>{t(v.status === 'aberta' ? 'em andamento' : 'encerrada')}</span></span>
                                 <b className="block truncate text-sm">{v.nome}</b>

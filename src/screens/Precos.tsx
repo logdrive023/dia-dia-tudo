@@ -114,7 +114,7 @@ function CartaoTabela({ tb }: { tb: TabelaPreco }) {
       <div className="flex w-full items-start gap-2 p-4 pb-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-lg font-bold leading-tight [overflow-wrap:anywhere]">{tb.nome}</span>
+            <span className="text-lg font-bold leading-tight break-words">{tb.nome}</span>
             {tb.categoria ? <Pilula tom="marca">{t(tb.categoria)}</Pilula> : <Pilula tom="bom">★ {t('Padrão')}</Pilula>}
           </div>
           {v && <p className="mt-0.5 truncate text-xs text-[var(--suave)]"><b className="text-[var(--marca)]">v{v.numero}</b> · {t('mudou em {d}', { d: diaCurto(v.em) })}{v.nota ? ` · “${v.nota}”` : ''}</p>}
@@ -305,7 +305,7 @@ function TabelaTela() {
       ) : (
         <h1 className="min-w-0 text-2xl font-bold leading-tight">
           <button type="button" onClick={() => setEditandoNome(g.nome)} className="group inline-flex items-center gap-2 rounded-lg text-left hover:text-[var(--marca)]" aria-label={`${g.nome} · ${t('Mudar o nome')}`}>
-            <span className="[overflow-wrap:anywhere]">{g.nome}</span>
+            <span className="break-words">{g.nome}</span>
             <span aria-hidden className="text-base text-[var(--suave)] group-hover:text-[var(--marca)]">✎</span>
           </button>
         </h1>

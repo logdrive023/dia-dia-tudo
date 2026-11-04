@@ -322,9 +322,9 @@ function Linha({ l, onAbrir, compacto }: { l: LinhaLivro; onAbrir(): void; compa
   const ate = 2
   const link = 'font-mono font-semibold text-[var(--marca)] hover:underline'
   return (
-    <li {...clicavel(onAbrir)} style={{ borderLeftColor: cor }} className="flex cursor-pointer items-start gap-2 border-l-4 bg-[var(--cartao)] py-2.5 pl-3 pr-3 text-sm outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
+    <li {...clicavel(onAbrir)} style={{ borderLeftColor: cor }} className="flex cursor-pointer flex-wrap items-start gap-2 border-l-4 bg-[var(--cartao)] py-2.5 pl-3 pr-3 text-sm outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]">
       <span aria-hidden className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm" style={{ background: `color-mix(in srgb, ${cor} 15%, transparent)` }}>{iconeDe(l.tipo)}</span>
-      <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+      <span className="linha-texto break-words">
         <span className="flex flex-wrap items-baseline gap-x-2">
           <b>{l.titulo}</b>
           <span className="num text-xs text-[var(--suave)]">{hora(l.em)}</span>
@@ -346,7 +346,7 @@ function Linha({ l, onAbrir, compacto }: { l: LinhaLivro; onAbrir(): void; compa
           {l.por && <> · {l.por}</>}
         </span>
       </span>
-      <span className="shrink-0 text-right">
+      <span className="ml-auto shrink-0 text-right">
         <span className="num block whitespace-nowrap font-bold" style={{ color: cor }}>{sinalGramas(l.delta)}</span>
         <span className="num block whitespace-nowrap text-[11px] text-[var(--suave)]">{gramasTexto(l.antes)} → {gramasTexto(l.depois)}</span>
       </span>

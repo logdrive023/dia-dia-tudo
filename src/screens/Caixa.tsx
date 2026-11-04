@@ -472,12 +472,12 @@ function SaldoDoCaixa({ contas, movimentos, data, cot, linha, onOntem }: { conta
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--fundo)] p-3">
           <div className="text-sm font-semibold">💵 {t('Na mão')}</div>
-          <div className={cx('num break-words text-lg font-black', (mao ?? 0) < 0 && 'text-[var(--ruim)]')}>{mostrar(mao)}</div>
+          <div className={cx('num whitespace-nowrap text-base font-black xs:text-lg', (mao ?? 0) < 0 && 'text-[var(--ruim)]')}>{mostrar(mao)}</div>
           <div className="text-xs text-[var(--suave)]">{t('dinheiro vivo')}</div>
         </div>
         <div className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--fundo)] p-3">
           <div className="text-sm font-semibold">🏦 {t('No banco')}</div>
-          <div className={cx('num break-words text-lg font-black', (banco ?? 0) < 0 && 'text-[var(--ruim)]')}>{mostrar(banco)}</div>
+          <div className={cx('num whitespace-nowrap text-base font-black xs:text-lg', (banco ?? 0) < 0 && 'text-[var(--ruim)]')}>{mostrar(banco)}</div>
           <div className="text-xs text-[var(--suave)]">{t('Pix/QR e cartão')}</div>
         </div>
       </div>

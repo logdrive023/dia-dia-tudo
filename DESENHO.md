@@ -449,3 +449,22 @@ Pedido, Pacote, Venda e Triagem feita usam só este (nada de "histórico" + "lin
 ### 11.6 Regras que o dono muda sem código
 
 Regra de operação que pode ser diferente de um negócio para outro vira configuração com um ⚙ ao lado de onde ela aparece (ex.: "⚙ Mudar regras" na Triagem: juntar só da mesma etapa — ligado/desligado — e o limite da sobra pequena). A tela mostra a regra como está e o servidor respeita a mesma configuração.
+
+### 11.7 Responsividade: o mesmo padrão em toda tela (de 240 px a tela grande)
+
+**Larguras padrão** (`tailwind.config.js` → `screens`): sem prefixo = celular pequeno (240–359 px) · `xs` 360 (celular comum) · `sm` 640 · `md` 768 (tablet, menu ao lado) · `lg` 1024 · `xl` 1280 · `2xl` 1536. Toda tela é feita primeiro para 240 px e vai ganhando espaço — nunca o contrário.
+
+**Duas regras que nunca quebram:**
+1. **Nada sai da tela.** Só rola de lado o que foi feito para rolar (faixa de abas, chips, tabela larga), sem barra aparente.
+2. **Palavra nunca parte no meio** ("Toda / s as viage / ns"). Se não cabe, a PEÇA muda (desce de linha, some o ícone, vira faixa que rola) — o texto não é espremido.
+
+**Como (peças prontas — use em vez de inventar):**
+- Texto que cresce + peça ao lado (botão, número, "passo 2 de 4"): linha `flex flex-wrap` e o texto com a classe **`linha-texto`** (`src/index.css`): nunca menos que ~12rem; sem espaço, a peça desce.
+- Grade de cartões/opções: **`grid-cols-[repeat(auto-fit,minmax(min(8.5rem,100%),1fr))]`** — as colunas se acertam sozinhas pelo espaço, não pela largura da tela (funciona dentro de janela, painel lateral e tela cheia).
+- Botões de escolha lado a lado (`Escolha`, idioma, Sim/Não): `flex flex-wrap` + botão **`min-w-max flex-1`** (se não cabem, descem).
+- `Botao` já não fica mais estreito que a maior palavra (`min-w-min`); `Abas` sublinhadas viram faixa que rola; `NumeroGrande` tira o ícone abaixo de 360; `Titulo` tira o ícone e desce a letra abaixo de 360; `Cartao`, `Passo`, a página e o cabeçalho apertam o espaço interno abaixo de 360.
+- Detalhe que só ajuda com espaço ("passo 2 de 4", ícone decorativo, contagem): `hidden sm:inline` / `hidden xs:flex` — a informação principal nunca some.
+- **Proibido:** `[overflow-wrap:anywhere]` (deixa a caixa encolher até uma letra e parte as palavras); use `break-words` (só parte o que não cabe sozinho numa linha, ex.: um link enorme).
+- Lista que abre dentro de cartão (ex.: `CampoCidade`): abre **no lugar** (empurra o resto), não flutuando — senão o cartão corta.
+
+**Conferir (antes de entregar tela nova ou mexida):** `npm run dev` → **http://localhost:5174/varredura.html** abre cada tela em todas as larguras (240, 320, 360, 390, 414, 768, 1024, 1280, 1440) e lista 🔴 o que sai da tela e 🟠 palavra partida. `?rotas=viagens/novo,estoque` escolhe as telas, `?larguras=240,360` as larguras, `?so=problemas` mostra só o que tem problema. Só abre e lê (não salva nada).

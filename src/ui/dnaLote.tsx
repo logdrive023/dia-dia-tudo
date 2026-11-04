@@ -29,7 +29,7 @@ export function LogTriagem({ linhas }: { linhas: Ficha['logTriagem'] }) {
             <tr key={l.id} className="border-t border-[var(--borda)] align-top">
               <td className="num whitespace-nowrap p-2">{dataHora(l.em)}</td>
               <td className="p-2">{l.por ?? '—'}</td>
-              <td className="min-w-[12rem] p-2"><b>{t(l.nome)}</b><div className="text-xs text-[var(--suave)] [overflow-wrap:anywhere]">{l.resumo}</div></td>
+              <td className="min-w-[12rem] p-2"><b>{t(l.nome)}</b><div className="text-xs text-[var(--suave)] break-words">{l.resumo}</div></td>
               <td className="num whitespace-nowrap p-2 text-right">{l.pesoBruto !== undefined ? gramasTexto(l.pesoBruto) : '—'}</td>
               <td className="num whitespace-nowrap p-2 text-right">{l.pesoLiquido !== undefined ? gramasTexto(l.pesoLiquido) : '—'}</td>
               <td className={cx('num whitespace-nowrap p-2 text-right', l.perda ? 'text-[var(--ruim)]' : undefined)}>{l.perda !== undefined ? `${gramasTexto(l.perda)} (${fmt(l.perdaPct ?? 0, 'percentual')})` : '—'}</td>
