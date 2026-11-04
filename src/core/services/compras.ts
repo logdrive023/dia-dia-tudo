@@ -105,13 +105,26 @@ export async function criarCompra(
     /** cabelo que já tínhamos / valor depois: registra só o peso (total 0) e fica a pendência "Sem valor".
      *  Por LINHA: a linha vem com `campos.semValor: true` e total 0 (as outras linhas da mesma compra têm valor). */
     semValor?: boolean
-    /** PAGO NO ATO (o normal: negócio de liquidez): o pagamento já vem junto e a compra vai direto até Concluído */
+    /** PAGO NO ATO (todas as linhas já pagas): o pagamento já vem junto e a compra vai direto até Concluído */
     pagarNoAto?: PagamentoEntrada[]
+    /** SÓ ALGUMAS LINHAS já pagas: o valor delas sai do caixa agora (entrada); a compra segue em aberto e o
+     *  pagamento da etapa "Pago" cobra só o que falta */
+    pagoParcial?: PagamentoEntrada[]
   },
 ) {
   if (await ctx.repos.transacoes.obter(d.id)) return { id: d.id }
   const r = await criarCompraSemPagar(ctx, d)
-  if (d.pagarNoAto?.some((p) => p.valor > 0)) await pagarCompra(ctx, { compraId: r.id, pagamentos: d.pagarNoAto.filter((p) => p.valor > 0) })
+  if (!d.pagarNoAto && d.pagoParcial?.some((p) => p.valor > 0)) {
+    const t = (await ctx.repos.transacoes.obter(r.id))!
+    const pags = await montarPagamentos(ctx, d.pagoParcial.filter((p) => p.valor > 0), t.totalPrincipal, t.linhas, true, 'compra')
+    const pago = pags.reduce((s, p) => s + p.valorPrincipal, 0)
+    exigir(pago <= t.totalPrincipal, 'O que já foi pago passa do total da compra.')
+    for (const p of pags)
+      await moverCaixa(ctx, { data: ctx.relogio.hoje(), moeda: p.moeda, forma: p.forma, delta: -p.valor, tipo: 'compra', origemId: t.id, descricao: `Compra · linhas já pagas · ${t.linhas.filter((l) => l.campos.jaPaga).map((l) => l.descricao).join(', ')}` })
+    await ctx.repos.transacoes.salvar(tocar(ctx, { ...t, pagamentos: pags }))
+    await auditar(ctx, 'pagamentoParcialCompra', t.id, `${t.codigo} · ${formatar(pago, t.moedaPrincipal)} já pago (linhas marcadas) · falta ${formatar(t.totalPrincipal - pago, t.moedaPrincipal)}`, [t.pessoaId!])
+  }
+  if (d.pagarNoAto) await pagarCompra(ctx, { compraId: r.id, pagamentos: d.pagarNoAto.filter((p) => p.valor > 0) })
   return r
 }
 
@@ -284,7 +297,9 @@ export async function avancarTriagem(
     const prox = c.etapas[idx + 1]
     exigir(prox.id === d.para, `A próxima etapa é "${prox.nome}".`)
     if (prox.faz?.includes('pagamento')) {
-      const pagamentos = await montarPagamentos(ctx, d.pagamentos ?? [], compra.totalPrincipal, compra.linhas, !!compra.pessoaId, 'compra')
+      const antes = compra.pagamentos
+      const jaPago = antes.reduce((s, p) => s + p.valorPrincipal, 0)
+      const pagamentos = await montarPagamentos(ctx, d.pagamentos ?? [], compra.totalPrincipal - jaPago, compra.linhas, !!compra.pessoaId, 'compra')
       for (const p of pagamentos)
         await moverCaixa(ctx, {
           data: ctx.relogio.hoje(),
@@ -295,12 +310,12 @@ export async function avancarTriagem(
           origemId: compra.id,
           descricao: `Compra · ${compra.linhas.map((l) => l.descricao).join(', ')}`,
         })
-      compra.pagamentos = pagamentos
+      compra.pagamentos = [...antes, ...pagamentos]
       if (compra.pessoaId) {
         // o que não foi pago agora fica na conta dela (eu devo); adiantamento já dado abate sozinho
         const resumo = compra.linhas.map((l) => l.descricao).join(', ')
         await moverConta(ctx, { pessoaId: compra.pessoaId, delta: -compra.totalPrincipal, tipo: 'compra', origemId: compra.id, descricao: `Compra · ${resumo}` })
-        await moverConta(ctx, { pessoaId: compra.pessoaId, delta: pagamentos.reduce((s, p) => s + p.valorPrincipal, 0), tipo: 'pagamento', origemId: compra.id, descricao: 'Pago na entrega' })
+        await moverConta(ctx, { pessoaId: compra.pessoaId, delta: compra.pagamentos.reduce((s, p) => s + p.valorPrincipal, 0), tipo: 'pagamento', origemId: compra.id, descricao: jaPago ? 'Pago (linhas já pagas + na entrega)' : 'Pago na entrega' })
       }
     }
     if (prox.faz?.includes('estoque')) await entrarNoEstoque(ctx, compra, d.codigosLotes)

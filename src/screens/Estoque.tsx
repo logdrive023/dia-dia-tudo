@@ -31,7 +31,7 @@ import { CampoCodigo, CodigoSelo, TrocarCodigo } from '../ui/codigos'
 import { useT } from '../ui/i18n'
 import { Trilha } from '../ui/trilha'
 import { FotosDoLote, MiniaturaLote, marcadorLote, useTirarFoto } from '../ui/fotos'
-import { AvisoPacotesNovos, RefazerEtiqueta, VerEtiqueta } from '../ui/etiquetas'
+import { AvisoPacotesNovos, RefazerEtiqueta, VerEtiqueta, SeloEtiqueta } from '../ui/etiquetas'
 import { ReservarLote, SeloReserva, reservado } from '../ui/reserva'
 import { Passo } from '../ui/passoAPasso'
 import { baixarCSV } from './Relatorios'
@@ -384,6 +384,8 @@ export function Estoque() {
             colunas={[
               { id: 'foto', titulo: '', classe: 'w-12', celula: (i) => <MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} tamanho="sm" iconeSemFoto /> },
               { id: 'codigo', titulo: 'Código', classe: 'whitespace-nowrap', celula: (i) => <CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /> },
+              // a etiqueta sempre à vista (coluna fixa): ✓ impressa · 🏷 sem etiqueta (toque imprime)
+              { id: 'etiqueta', titulo: 'Etiqueta', classe: 'whitespace-nowrap', celula: (i) => (i.saldo > 0 ? <SeloEtiqueta id={i.id} impressaEm={i.etiquetaImpressaEm} por={i.etiquetaImpressaPor} via={i.etiquetaVia} /> : <span className="text-xs text-[var(--suave)]">—</span>) },
               { id: 'nome', titulo: 'Lote / item', classe: 'w-full min-w-[11rem] max-w-0', celula: (i) => nomeLote(i) },
               ...visiveis.map((c) => ({ id: c.id, titulo: c.nome, direita: c.num, classe: cx(c.id === 'origem' && 'min-w-[10rem] max-w-[16rem]', c.id === 'status' && 'whitespace-nowrap'), celula: (i: Linha) => (c.celula ? c.celula(i) : c.texto(i) || '—') })),
             ]}
@@ -404,7 +406,7 @@ export function Estoque() {
                   <div className="-mr-1 shrink-0">{acoes(i)}</div>
                 </div>
                 <div className="mt-2 flex items-start gap-2 border-t border-[var(--borda)] pt-2">
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1"><CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /><StatusPonto status={i.status} /></div>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1"><CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /><StatusPonto status={i.status} />{i.saldo > 0 && <SeloEtiqueta id={i.id} impressaEm={i.etiquetaImpressaEm} por={i.etiquetaImpressaPor} via={i.etiquetaVia} />}</div>
                   <Peso i={i} />
                 </div>
                 <div className="mt-1"><VeioDe i={i} /></div>

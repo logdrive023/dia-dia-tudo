@@ -3447,4 +3447,11 @@ export const ES: Record<string, string> = {
   'Ligado (o normal): a nova compra já vem "Pago agora" e a aba Pagamento abre em "Pagar e concluir". Desligado: a compra fica em aberto e segue etapa por etapa (Chegou → Conferido → Pago → Concluído).': 'Activado (lo normal): la compra nueva ya viene "Pagado ahora" y la pestaña Pago abre en "Pagar y concluir". Desactivado: la compra queda pendiente y sigue etapa por etapa (Llegó → Revisado → Pagado → Concluido).',
   'Fazer': 'Hacer',
   'Mover na triagem': 'Mover en la selección',
+  'Esta linha já está paga': 'Esta línea ya está pagada',
+  'Marque a linha que já foi paga: registra e pronto, sem entrar no pedido depois para dizer que pagou. Vale linha por linha. Ex.: 3 linhas, a 1ª paga na hora em dinheiro e as outras 2 a pagar → marque só a 1ª: o valor dela sai do caixa agora e o pedido fica em aberto só com o resto. Todas marcadas → o pedido já entra pago e concluído. Também serve para só catalogar o cabelo que já foi pago antes.': 'Marque la línea que ya fue pagada: registra y listo, sin entrar al pedido después para decir que pagó. Vale línea por línea. Ej.: 3 líneas, la 1ª pagada en el momento en efectivo y las otras 2 por pagar → marque solo la 1ª: su valor sale de la caja ahora y el pedido queda pendiente solo con el resto. Todas marcadas → el pedido ya entra pagado y concluido. También sirve para solo catalogar el cabello que ya se pagó antes.',
+  'todas as linhas: o pedido entra pago e concluído': 'todas las líneas: el pedido entra pagado y concluido',
+  '{n} de {m} linha(s) · o resto ({v}) fica para pagar no pedido': '{n} de {m} línea(s) · el resto ({v}) queda por pagar en el pedido',
+  'Pago em': 'Pagado en',
+  '{n} já paga(s)': '{n} ya pagada(s)',
+  'Compra já paga': 'Compra ya pagada',
 }

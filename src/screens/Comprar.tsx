@@ -21,7 +21,7 @@ import { fatorDaTabela } from '../core/services/precos'
 import { CATEGORIAS_CABELO } from '../modules/cabelo'
 import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, ehToque, ErroTela, TituloSecao, Titulo } from '../ui/base'
 import { useApp, useAvisoSaida, useParamTela, useComando, useConsulta, useFiltrosTela } from '../ui/contexto'
-import { type PagamentoTela, SeletorPessoa, ValoresConvertidos, useCotacoes, EditorPagamentos } from '../ui/compartilhados'
+import { SeletorPessoa, ValoresConvertidos, useCotacoes } from '../ui/compartilhados'
 import { LinhaCotacao, PesoInput, ValorMoedaInput, converterDigitado, cotacaoSistema, moedasDoCampo } from '../ui/valorMoeda'
 import { AbaAnexos, AnexosCurtos } from '../ui/anexos'
 import { CamposDinamicos, resumoCampos } from '../ui/camposDinamicos'
@@ -173,6 +173,7 @@ export function Comprar() {
         celular={{
           titulo: (c) => c.pessoa ?? t('Sem fornecedor'),
           valor: (c) => formatar(c.totalPrincipal, c.moedaPrincipal),
+          resumo: (c) => `${c.linhas[0]?.descricao ?? '—'}${c.linhas.length > 1 ? ` + ${t('{n} item(ns)', { n: c.linhas.length - 1 })}` : ''}`,
           valorSub: (c) => gramasTexto(c.linhas.reduce((s, l) => s + l.quantidade, 0)),
           codigo: (c) => codigoDe(c),
           situacao: (c) => ({ texto: c.nomeEtapa, tom: tomEtapa(c.etapa) }),
@@ -321,11 +322,8 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   const { dados: tabelas } = useConsulta('tabelasPreco', { moduloId: 'cabelo' })
   const { dados: catalogo } = useConsulta('catalogo', { moduloId })
   const { dados: cfgApp } = useConsulta('configuracoes', {})
-  // PAGO NO ATO (o normal): a compra já sai paga e concluída; "Pagar depois" deixa em aberto (etapa por etapa)
-  const [pagoAgoraEscolhido, setPagoAgora] = useState<boolean>()
-  const pagoAgora = pagoAgoraEscolhido ?? cfgApp?.config.compraPagaNoAto !== false
-  const [pagsNovos, setPagsNovos] = useState<PagamentoTela[]>([])
-  const pagsEditados = useRef(false)
+  // LINHA JÁ PAGA (por linha): a forma em que as linhas marcadas foram pagas (uma só para todas; dinheiro é o comum)
+  const [formaPaga, setFormaPaga] = useState('dinheiro')
   const { dados: fila } = useConsulta('filaTriagem', { incluirEncerradas: true })
   const { dados: conta } = useConsulta('contaPessoa', { pessoaId: pessoaId ?? '' }, !!pessoaId)
   const { dados: anexos } = useConsulta('anexosDe', { donoId: id })
@@ -360,10 +358,10 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     return l.total
   }
   const total = linhas.reduce((s, l) => s + (totalLinha(l) ?? 0), 0)
-  useEffect(() => {
-    if (pagsEditados.current) return
-    setPagsNovos((ps) => (total > 0 ? [{ id: ps[0]?.id ?? novoId(), forma: ps[0]?.forma ?? 'dinheiro', moeda, valor: total }] : []))
-  }, [total, moeda])
+  const pagas = linhas.filter((l) => l.campos.jaPaga)
+  const totalPago = pagas.reduce((s, l) => s + (totalLinha(l) ?? 0), 0)
+  // todas pagas → a compra entra paga e concluída; só algumas → o valor delas entra como já pago e o resto fica em aberto
+  const todasPagas = linhas.length > 0 && pagas.length === linhas.length
   const pesoTotal = linhas.reduce((s, l) => s + (l.quantidade ?? 0), 0)
   const custoKg = ehCabelo && pesoTotal > 0 && total > 0 ? Math.round((total * 1000) / pesoTotal) : undefined
   const descLinha = (l: LinhaNova) =>
@@ -502,7 +500,8 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       modoCodigo: modoEscolhido,
       codigo: modoCodigo === 'manual' ? codigo.trim() || undefined : undefined,
       viagemId,
-      pagarNoAto: pagoAgora && total > 0 ? pagsNovos.filter((p) => p.valor).map((p) => ({ id: p.id, forma: p.forma, moeda: p.moeda, valor: p.valor! })) : undefined,
+      pagarNoAto: todasPagas ? (totalPago > 0 ? [{ id: `${id}-pg`, forma: formaPaga, moeda, valor: totalPago }] : []) : undefined,
+      pagoParcial: !todasPagas && totalPago > 0 ? [{ id: `${id}-pg`, forma: formaPaga, moeda, valor: totalPago }] : undefined,
       obs: [estado.length ? `${t('Estado na chegada')}: ${estado.map((x) => t(x)).join(', ')}` : '', obs.trim(), ...notasMoeda].filter(Boolean).join(' · ') || undefined,
       linhas: linhas.map((l) => {
         const fator = l.modo === 'tabela' && !l.campos.semValor ? fatorDaLinha(l) : undefined
@@ -689,9 +688,16 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
 
         {/* SEM VALOR desta linha (as outras da mesma compra podem ter): registra só o peso; o valor vem depois no pedido */}
         <label className={cx('flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2 py-1 text-sm', l.campos.semValor ? 'bg-[var(--alerta)]/10 font-semibold text-[var(--alerta)]' : 'text-[var(--suave)]')}>
-          <input type="checkbox" className="h-5 w-5" checked={!!l.campos.semValor} onChange={(e) => att(i, { campos: { ...l.campos, semValor: e.target.checked || undefined } })} />
+          <input type="checkbox" className="h-5 w-5" checked={!!l.campos.semValor} onChange={(e) => att(i, { campos: { ...l.campos, semValor: e.target.checked || undefined, ...(e.target.checked ? { jaPaga: undefined } : {}) } })} />
           <span className="min-w-0 flex-1">{t('Esta linha ainda não tem valor (pôr depois)')}</span>
           <Info texto="Marque só a linha que ainda não tem preço; as outras da mesma compra seguem com o valor. Ex.: 20 kg a Bs 30.000 + 10 kg sem preço → a compra fica com Bs 30.000 e a pendência Sem valor. Depois, no pedido: ✎ Pôr o valor na linha — o custo vai para os pacotes, mesmo já separados." />
+        </label>
+
+        {/* JÁ PAGA (esta linha): registra e pronto — não precisa abrir o pedido depois para dizer que pagou */}
+        <label className={cx('flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2 py-1 text-sm', l.campos.jaPaga ? 'bg-[var(--bom)]/10 font-semibold text-[var(--bom)]' : 'text-[var(--suave)]')}>
+          <input type="checkbox" className="h-5 w-5 accent-[var(--bom)]" checked={!!l.campos.jaPaga} onChange={(e) => att(i, { campos: { ...l.campos, jaPaga: e.target.checked || undefined, ...(e.target.checked ? { semValor: undefined } : {}) } })} />
+          <span className="min-w-0 flex-1">{t('Esta linha já está paga')}</span>
+          <Info texto="Marque a linha que já foi paga: registra e pronto, sem entrar no pedido depois para dizer que pagou. Vale linha por linha. Ex.: 3 linhas, a 1ª paga na hora em dinheiro e as outras 2 a pagar → marque só a 1ª: o valor dela sai do caixa agora e o pedido fica em aberto só com o resto. Todas marcadas → o pedido já entra pago e concluído. Também serve para só catalogar o cabelo que já foi pago antes." />
         </label>
 
         {mostrarAttr && (
@@ -868,9 +874,22 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     anexos?.length ? `📎 ${anexos.length}` : '',
   ].filter(Boolean)
   const faltaDetalhe = faltas.some((x) => ![t('fornecedor'), t('o que veio')].includes(x) && !linhas.some((l, i) => faltasLinha(l, i).includes(x)))
-  const somaPags = pagsNovos.reduce((s, p) => s + (p.moeda === moeda ? p.valor ?? 0 : 0), 0)
-  const nomeFormaNova = (id: string) => cfgApp?.config.formas.find((f) => f.id === id)?.nome ?? id
-  const listaPassos: { id: CampoFormId | 'detalhes' | 'revisar' | 'pagamento'; titulo: string; resumo: ReactNode; ajuda: string; exemplo?: string; feito: boolean; opcional?: boolean; falta?: boolean; conteudo: ReactNode }[] = [
+  // O QUE JÁ FOI PAGO (só aparece com alguma linha marcada "já paga"): quanto, de quantas linhas e em que forma
+  const blocoJaPaga = pagas.length > 0 && (
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border-2 border-[var(--bom)] bg-[var(--bom)]/5 p-3 text-sm">
+      <span className="min-w-0 flex-1">
+        <b className="num block text-[var(--bom)]">✓ {t('Já pago')}: {formatar(totalPago, moeda)}</b>
+        <span className="text-xs text-[var(--suave)]">{todasPagas ? t('todas as linhas: o pedido entra pago e concluído') : t('{n} de {m} linha(s) · o resto ({v}) fica para pagar no pedido', { n: pagas.length, m: linhas.length, v: formatar(Math.max(0, total - totalPago), moeda) })}</span>
+      </span>
+      {totalPago > 0 && (
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-[var(--suave)]">{t('Pago em')}</span>
+          <Selecao className="w-auto" valor={formaPaga} onChange={setFormaPaga} opcoes={(cfgApp?.config.formas ?? []).filter((f) => f.moedas.includes(moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} />
+        </label>
+      )}
+    </div>
+  )
+  const listaPassos: { id: CampoFormId | 'detalhes' | 'revisar'; titulo: string; resumo: ReactNode; ajuda: string; exemplo?: string; feito: boolean; opcional?: boolean; falta?: boolean; conteudo: ReactNode }[] = [
     ...(principalDe.fornecedor ? [{
       id: 'fornecedor' as const, titulo: 'Fornecedor', opcional: !obrig('fornecedor'), feito: !!pessoaId, falta: tentou && obrig('fornecedor') && !pessoaId,
       resumo: nomeForn ? [nomeForn, sigla, conta ? (saldo < 0 ? `${t('Devo')} ${formatar(-saldo, conta.moeda)}` : saldo > 0 ? `${t('Me deve')} ${formatar(saldo, conta.moeda)}` : t('Conta em dia')) : ''].filter(Boolean).join(' · ') : t('ninguém escolhido'),
@@ -880,31 +899,10 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     }] : []),
     ...(principalDe.itens ? [{
       id: 'itens' as const, titulo: 'Itens da compra', feito: linhasOk, falta: tentou && !linhasOk,
-      resumo: `${t('{n} linha(s)', { n: linhas.length })} · ${ehCabelo ? gramasTexto(pesoTotal) : `${linhas.length} ${t('item(ns)')}`} · ${formatar(total, moeda)}${linhas.some((l) => l.campos.semValor) ? ` · ${t('{n} sem valor', { n: linhas.filter((l) => l.campos.semValor).length })}` : ''}`,
+      resumo: `${t('{n} linha(s)', { n: linhas.length })} · ${ehCabelo ? gramasTexto(pesoTotal) : `${linhas.length} ${t('item(ns)')}`} · ${formatar(total, moeda)}${linhas.some((l) => l.campos.semValor) ? ` · ${t('{n} sem valor', { n: linhas.filter((l) => l.campos.semValor).length })}` : ''}${pagas.length ? ` · ✓ ${t('{n} já paga(s)', { n: pagas.length })}` : ''}`,
       ajuda: ehCabelo ? 'O cabelo que chegou: cada linha vira um pacote que vai para a triagem. Bruto = veio misturado (separa depois). Pela tabela = já veio por medida.' : 'O que chegou: cada linha é um produto, com a quantidade e o custo.',
       exemplo: ehCabelo ? 'Ex.: 10 kg bruto por Bs 30.000 · ou · 60 cm | 2 kg × 17,5 = Bs 35.000' : 'Ex.: 12 × shampoo a Bs 45 = Bs 540',
-      conteudo: principalDe.itens,
-    }] : []),
-    // PAGAMENTO: pago agora (o normal) ou pagar depois — um toque; pago agora já vem com o total em dinheiro
-    ...(total > 0 ? [{
-      id: 'pagamento' as const, titulo: 'Pagamento', feito: !pagoAgora || somaPags > 0, falta: false,
-      resumo: pagoAgora ? `💵 ${t('Pago agora')} · ${pagsNovos.filter((p) => p.valor).map((p) => `${t(nomeFormaNova(p.forma))} ${formatar(p.valor!, p.moeda)}`).join(' + ') || '—'}` : `⏳ ${t('Pagar depois (fica em aberto)')}`,
-      ajuda: 'Compra paga na hora é o normal: o pedido já fica pago e concluído. Vai pagar depois? Escolha "Pagar depois" e pague na aba Pagamento do pedido.',
-      exemplo: 'Ex.: Pago agora · Dinheiro Bs 15.000 · ou · Bs 10.000 em dinheiro + Bs 5.000 no QR',
-      conteudo: (
-        <div className="space-y-3">
-          <div role="radiogroup" aria-label={t('Pagamento')} className="grid grid-cols-2 gap-2">
-            {([[true, '💵', 'Pago agora', 'fica pago e concluído'], [false, '⏳', 'Pagar depois', 'fica em aberto']] as const).map(([v, ic, nome, sub]) => (
-              <button key={String(v)} type="button" role="radio" aria-checked={pagoAgora === v} onClick={() => setPagoAgora(v)}
-                className={cx('flex min-h-14 items-center gap-2 rounded-2xl border-2 px-3 py-2 text-left text-sm', pagoAgora === v ? 'border-[var(--marca)] bg-[var(--marca-suave)]' : 'border-[var(--borda)] bg-[var(--cartao)] hover:border-[var(--marca)]')}>
-                <span aria-hidden className="text-xl">{ic}</span>
-                <span><b className="block">{t(nome)}</b><span className="text-xs text-[var(--suave)]">{t(sub)}</span></span>
-              </button>
-            ))}
-          </div>
-          {pagoAgora && <EditorPagamentos uso="compra" total={total} moedaTotal={moeda} pagamentos={pagsNovos} onChange={(ps) => { pagsEditados.current = true; setPagsNovos(ps) }} permiteFiado={!!pessoaId} />}
-        </div>
-      ),
+      conteudo: <>{principalDe.itens}{blocoJaPaga}</>,
     }] : []),
     ...(partes.length ? [{
       id: 'detalhes' as const, titulo: 'Detalhes', opcional: !detalhesObrigatorios, feito: preenchidosDetalhe.length > 0 && !faltaDetalhe, falta: tentou && faltaDetalhe,
@@ -1139,6 +1137,7 @@ function ItensCompra({ dados, admin, cancelada, onConferir, onAjustarValor }: { 
                   {l.campos.semValor && !l.totalPrincipal
                     ? <Pilula tom="alerta">{t('sem valor')}</Pilula>
                     : <span className="num block whitespace-nowrap text-sm text-[var(--suave)]">{formatar(l.total, l.moeda)}</span>}
+                  {!!l.campos.jaPaga && <Pilula tom="bom">✓ {t('paga')}</Pilula>}
                 </div>
               </div>
               {confs.map((x) => (

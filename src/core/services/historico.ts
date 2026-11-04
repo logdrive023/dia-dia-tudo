@@ -87,6 +87,7 @@ async function linkDe(ctx: Ctx, id: Id, cache: Map<Id, LinkEvento | null>): Prom
 
 const NOMES_ACAO: Record<string, string> = {
   recusado: 'Tentativa recusada',
+  pagamentoParcialCompra: 'Linhas já pagas no registro',
   criarCompra: 'Pedido de compra registrado',
   avancarTriagem: 'Etapa da triagem',
   cancelarCompra: 'Compra cancelada',

@@ -3,9 +3,11 @@
 // cabeçalho das colunas, alinhamento (texto à esquerda; datas, números e valores à direita e com algarismos iguais),
 // altura e espaçamento das linhas, realce no passar do mouse e no foco do teclado, carregando, vazio e erro.
 //
-// CELULAR: em vez da tabela, a LINHA PADRÃO por registro — sempre no mesmo lugar, em toda lista:
-//   Título (quem)                                         Valor
-//   [CÓDIGO] ● situação   ○ alerta (pendência)            detalhe do valor (3 kg)   ›
+// CELULAR: em vez da tabela, a LINHA PADRÃO por registro — três linhas curtas, cada coisa no seu lugar, sem selo em
+// cima de selo (o que é normal não aparece: venda concluída não diz "Concluída"):
+//   Quem (título)                                         Valor
+//   o que aconteceu (resumo, uma linha)                   quando / quanto (valorSub)
+//   CÓDIGO · ● situação · ⚠ o que pede atenção                                       ›
 // tocar abre no lugar: o progresso, os fatos em selos (📅 data · 📦 itens · ⏱ parada), o extra da tela e a linha de
 // ações ("Abrir →" + ⋯). Regra do sistema: lista resumida que expande. Sem `celular`, a tabela rola de lado.
 // Os selos (SeloCodigo, SeloSituacao, SeloAlerta) são os mesmos nas colunas da tabela do computador.
@@ -47,8 +49,10 @@ const COR_TOM: Record<TomLista, string> = { bom: 'var(--bom)', ruim: 'var(--ruim
 export interface LinhaCelular<T> {
   titulo(l: T): ReactNode
   valor?(l: T): ReactNode
-  /** embaixo do valor, pequeno (ex.: "3 kg") */
+  /** embaixo do valor, pequeno (ex.: "3 kg", "02/11 11:00") */
   valorSub?(l: T): ReactNode
+  /** o que aconteceu, numa linha (ex.: "60 cm · Normal · Preto + 1 item") */
+  resumo?(l: T): ReactNode
   /** o código do registro (P-0005), no selo padrão */
   codigo?(l: T): string | undefined
   /** a situação/etapa (● Chegou), na cor do tom */
@@ -150,28 +154,34 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
                 {selecao && <span className="flex h-6 shrink-0 items-center">{caixa(l)}</span>}
                 <button type="button" aria-expanded={aberta} onClick={() => alternar(id)} className="flex min-w-0 flex-1 items-start gap-3 text-left">
                   <span className="min-w-0 flex-1">
-                    <b className="block truncate text-[15px] leading-snug">{celular.titulo(l)}</b>
+                    {/* 1. quem · valor */}
+                    <span className="flex min-w-0 items-baseline gap-3">
+                      <b className="min-w-0 flex-1 truncate text-[15px] leading-snug">{celular.titulo(l)}</b>
+                      {celular.valor && <b className={cx('num shrink-0 whitespace-nowrap text-[15px]', apagada(l) && 'line-through')}>{celular.valor(l)}</b>}
+                    </span>
+                    {/* 2. o que aconteceu · quando/quanto */}
+                    {(celular.resumo || celular.valorSub) && (
+                      <span className="mt-0.5 flex min-w-0 items-baseline gap-3 text-[13px] text-[var(--suave)]">
+                        <span className="min-w-0 flex-1 truncate">{celular.resumo?.(l)}</span>
+                        {celular.valorSub && <span className="num shrink-0 whitespace-nowrap text-xs">{celular.valorSub(l)}</span>}
+                      </span>
+                    )}
+                    {/* 3. código · situação · atenção (texto leve, sem caixa em cima de caixa) */}
                     {(() => {
                       const cod = celular.codigo?.(l)
                       const sit = celular.situacao?.(l)
                       const al = celular.alerta?.(l)
                       return (cod !== undefined || sit || al) && (
-                        <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                          {celular.codigo && <SeloCodigo codigo={cod} />}
+                        <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs">
+                          {celular.codigo && <span className="font-mono font-semibold text-[var(--suave)]">{cod ?? '—'}</span>}
                           {sit && <SeloSituacao {...sit} />}
-                          {al && <SeloAlerta {...al} />}
+                          {al && <span className="inline-flex min-w-0 items-center gap-1 font-semibold" style={{ color: COR_TOM[al.tom] }}><span aria-hidden>{al.tom === 'bom' ? '✓' : '⚠'}</span><span className="truncate">{t(al.texto.replace(/^✓\s*/, ''))}</span></span>}
                         </span>
                       )
                     })()}
                     {celular.sub && <span className="num mt-0.5 block truncate text-xs text-[var(--suave)]">{celular.sub(l)}</span>}
                     {celular.selo && <span className="mt-1 block">{celular.selo(l)}</span>}
                   </span>
-                  {celular.valor && (
-                    <span className="shrink-0 text-right">
-                      <b className={cx('num block whitespace-nowrap text-[15px]', apagada(l) && 'line-through')}>{celular.valor(l)}</b>
-                      {celular.valorSub && <span className="num mt-1 block whitespace-nowrap text-xs text-[var(--suave)]">{celular.valorSub(l)}</span>}
-                    </span>
-                  )}
                   <span aria-hidden className={cx('mt-0.5 shrink-0 text-lg leading-none text-[var(--suave)] transition-transform', aberta && 'rotate-90')}>›</span>
                 </button>
               </div>

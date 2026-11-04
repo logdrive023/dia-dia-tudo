@@ -165,16 +165,18 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
         celular={{
           titulo: (v) => v.cliente ?? t('Sem nome'),
           valor: (v) => formatar(v.valor, moeda),
-          valorSub: (v) => `${dataBR(v.data)} ${hora(v.criadoEm)}`,
+          // o que vendeu, numa linha (o 1º item + quantos mais) · quando · e só o que foge do normal (cancelada, pendência)
+          resumo: (v) => `${v.linhas[0]?.descricao ?? '—'}${v.linhas.length > 1 ? ` + ${t('{n} item(ns)', { n: v.linhas.length - 1 })}` : ''}`,
+          valorSub: (v) => `${dataBR(v.data).slice(0, 5)} ${hora(v.criadoEm)}`,
           codigo: (v) => v.codigo,
-          situacao: (v) => (v.etapa === 'cancelado' ? { texto: 'Cancelada', tom: 'suave' } : { texto: 'Concluída', tom: 'bom' }),
+          situacao: (v) => (v.etapa === 'cancelado' ? { texto: 'Cancelada', tom: 'suave' } : undefined),
           alerta: (v) => (v.etapa !== 'cancelado' && v.pendencias.length
             ? { texto: v.pendencias.length === 1 ? t(v.pendencias[0].texto) : t('{n} pendências', { n: v.pendencias.length }), tom: v.pendencias.some((x) => x.nivel === 'urgente') ? 'ruim' : 'alerta' }
             : undefined),
-          fatos: (v) => [`📦 ${t('{n} item(ns)', { n: v.linhas.length })}`, formas(v) && `💳 ${formas(v)}`, v.feitoPor && `👤 ${v.feitoPor}`],
+          fatos: (v) => [formas(v) && `💳 ${formas(v)}`, v.feitoPor && `👤 ${v.feitoPor}`, `📅 ${dataBR(v.data)}`],
           aberto: (v) => <>
-            <p>{v.linhas.map((l) => l.descricao).join(' + ')}</p>
-            {v.etapa !== 'cancelado' && v.pendencias.length > 0 && <SeloPendencias pendencias={v.pendencias} moeda={v.moedaPrincipal} />}
+            {v.linhas.length > 1 && <ul className="space-y-0.5">{v.linhas.map((l, k) => <li key={k} className="flex justify-between gap-3"><span className="min-w-0 truncate">{l.descricao}</span></li>)}</ul>}
+            {v.etapa !== 'cancelado' && v.pendencias.length > 1 && <SeloPendencias pendencias={v.pendencias} moeda={v.moedaPrincipal} />}
           </>,
         }}
       />
