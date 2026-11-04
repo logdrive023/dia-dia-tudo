@@ -435,11 +435,14 @@ Toda tela que deixa marcar itens usa o mesmo painel (Triagem, Estoque, Etiquetas
 - **Opções** em cartões (ícone, nome, uma linha do que faz, ⓘ com exemplo; a principal em destaque; as que não valem ficam apagadas dizendo por quê). **Outras ações** à vista, cada uma com a explicação embaixo, e um ⓘ do grupo.
 - Fica preso ao rodapé, na largura da coluna de conteúdo, e reserva o mesmo espaço no fim da página (nunca cobre a lista).
 
-### 11.5 Linha do tempo do cabelo (`CaminhoDoCabelo` em `src/ui/caminhoCabelo.tsx`)
+### 11.5 Caminho do cabelo (`CaminhoDoCabelo` em `src/ui/caminhoCabelo.tsx`) — o ÚNICO histórico
 
-Uma só, igual em Compra (pedido), Triagem (triagem feita), Estoque (pacote) e Venda: 🛒 Compra → ✂️ Triagem → 📦 Estoque → 💰 Venda.
-✓ verde = já aconteceu (resumo: quanto, quando, quem) · destaque = a etapa desta tela ("você está aqui") · cinza tracejado = ainda vai acontecer.
-Cada código abre o registro num clique (da venda direto para a triagem ou a compra). O log detalhado de cada tela continua embaixo. Dados: consulta `genealogia`.
+Pedido, Pacote, Venda e Triagem feita usam só este (nada de "histórico" + "linha do tempo" repetidos):
+
+- **Agora:** uma frase com a situação ("3 kg no estoque · 2 sem etiqueta · 1 venda").
+- **5 etapas em lista**: 🛒 Compra → ✂️ Triagem → 📦 Estoque → 🏷 Etiqueta → 💰 Venda; ✓ já passou · "você está aqui" · tracejado = ainda vai passar. Cada etapa lista seus registros (código · o que é · quanto ›), todos à vista, o desta tela marcado; um clique abre. Triagem sem registro mostra a referência ("separado pela tabela na compra P-0002").
+- **Filtro por etapa** (Tudo · Compra · Triagem · Estoque · Etiqueta · Venda) e, embaixo, o **detalhe** de cada etapa num cartão: o registro do pedido, a conta da triagem, o pacote grama a grama, as etiquetas (imprimir as que faltam) e o registro da venda.
+- Quem não é administrador vê só o registro da própria tela (`semCadeia`). `compacto` = só as etapas (dentro de cartões de lista).
 
 ### 11.6 Regras que o dono muda sem código
 

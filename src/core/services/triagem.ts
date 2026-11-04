@@ -667,7 +667,7 @@ export async function genealogia(ctx: Ctx, p: { compraId?: Id; itemId?: Id; vend
       const ajustes = -soma(i.id, (m) => m.motivo === 'ajuste' || m.motivo === 'perda')
       // compra recusada/cancelada: o cabelo devolvido sai do lote (movimento 'cancelamento' ligado à compra)
       const cancelado = -soma(i.id, (m) => m.motivo === 'cancelamento' && !!m.origemId && L.compras.has(m.origemId))
-      return { tipo: 'lote' as const, id: i.id, codigo: i.codigo, nome: i.nome, entrou: de.reduce((s, x) => s + x.g, 0) || i.quantidadeInicial || 0, saldo: i.saldo, vendido: para.filter((x) => x.tipo === 'venda').reduce((s, x) => s + x.g, 0), triado: para.filter((x) => x.tipo === 'triagem').reduce((s, x) => s + x.g, 0), ajustes, cancelado, de, para, compras: comprasDe(i).map(L.compraCurta), bruto: i.campos.estado === 'Bruto', foto: F.principal(i.id), criadoEm: i.criadoEm, campos: { comprimento: i.campos.comprimento, categoria: i.campos.categoria } }
+      return { tipo: 'lote' as const, id: i.id, codigo: i.codigo, nome: i.nome, entrou: de.reduce((s, x) => s + x.g, 0) || i.quantidadeInicial || 0, saldo: i.saldo, vendido: para.filter((x) => x.tipo === 'venda').reduce((s, x) => s + x.g, 0), triado: para.filter((x) => x.tipo === 'triagem').reduce((s, x) => s + x.g, 0), ajustes, cancelado, de, para, compras: comprasDe(i).map(L.compraCurta), bruto: i.campos.estado === 'Bruto', etiquetaEm: i.etiquetaImpressaEm, etiquetaPor: i.etiquetaImpressaPor, foto: F.principal(i.id), criadoEm: i.criadoEm, campos: { comprimento: i.campos.comprimento, categoria: i.campos.categoria } }
     })
     .sort((a, b) => ((a.codigo ?? '') < (b.codigo ?? '') ? -1 : 1))
   triagens.sort((a, b) => (a.em < b.em ? -1 : 1))

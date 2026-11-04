@@ -1063,7 +1063,7 @@ function LinhaTriagem({ x, aberta, t, ir, onAlternar, onImprimir }: { x: Triagem
       )}
       {aberta && (
         <div className="space-y-4 border-t border-[var(--borda)] bg-[var(--fundo)] px-4 py-3">
-          <CaminhoDoCabelo de={{ triagemId: x.id }} atual="triagem" />
+          <CaminhoDoCabelo de={{ triagemId: x.id }} atual="triagem" compacto />
           <section>
             {titulo('Veio de')}
             <CadeiaChips cadeia={{ compras: x.compras, triagens: [], vendas: [] }} max={6} />

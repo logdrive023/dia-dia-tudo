@@ -63,7 +63,8 @@ const textoLivre = (e: EventoTempo) => e.texto ?? (e.detalhe && !e.detalhe.start
  * `prefixo`: nome dos filtros no endereço (#/pedidos/P1?aba=historico&ltTipo=estoque&ltQuem=Paula…). Duas linhas do
  * tempo na mesma tela com o mesmo prefixo dividem os filtros.
  */
-export function LinhaDoTempo({ id, prefixo = 'lt' }: { id: string; prefixo?: string }) {
+/** `simples`: só a lista (sem a fileira de filtros e busca) — dentro do Caminho do cabelo, onde o filtro é o das etapas */
+export function LinhaDoTempo({ id, prefixo = 'lt', simples }: { id: string; prefixo?: string; simples?: boolean }) {
   const t = useT()
   const { nav, ajustarParams } = useApp()
   const { dados } = useConsulta('linhaDoTempo', { id })
@@ -148,7 +149,7 @@ export function LinhaDoTempo({ id, prefixo = 'lt' }: { id: string; prefixo?: str
   return (
     <div>
       {/* filtros (no endereço: voltar para a tela reencontra os mesmos) */}
-      <div className="mb-3 space-y-2">
+      <div className={cx('mb-3 space-y-2', simples && 'hidden')}>
         <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 sm:flex-wrap" role="group" aria-label={t('Filtrar')}>
           <button type="button" aria-pressed={!filtro} onClick={() => definir('Tipo', '')} className={chip(!filtro)}>{t('Tudo')} <span className="num">{base.length}</span></button>
           {FILTROS.filter((f) => f === filtro || contagem(f) > 0).map((f) => (

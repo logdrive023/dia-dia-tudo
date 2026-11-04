@@ -870,12 +870,8 @@ export function FichaLote() {
         { id: 'fotos', nome: 'Arquivos', extra: dados.fotos.length ? <span className="num text-xs opacity-70">{dados.fotos.length}</span> : undefined },
       ]} />
       {aba === 'historico' ? (
-        <div className="space-y-3">
-          <CaminhoDoCabelo de={{ itemId: i.id }} atual={bruto ? 'triagem' : 'estoque'} />
-          <Cartao titulo={t('Histórico do pacote')} ajuda="Tudo o que entrou e saiu deste pacote, dia a dia. Ex.: 6.000 → 4.500 g na venda V-9.">
-            <HistoricoPacote id={i.id} />
-          </Cartao>
-        </div>
+        // UM bloco só: o caminho do cabelo (o histórico em gramas deste pacote fica dentro, na etapa Estoque)
+        <CaminhoDoCabelo de={{ itemId: i.id }} atual={bruto ? 'triagem' : 'estoque'} semCadeia={<HistoricoPacote id={i.id} />} />
       ) : aba === 'fotos' ? (
         <div className="space-y-4">
           <Cartao titulo={`${t('Fotos do lote')}${dados.fotos.length ? ` · ${dados.fotos.length}` : ''}`}><FotosDoLote itemId={i.id} codigo={i.codigo} /></Cartao>

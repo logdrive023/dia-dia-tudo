@@ -90,10 +90,10 @@ export function DetalheVenda() {
           ...(correcoes.length ? [{ id: 'correcoes', nome: 'Correções', extra: <span className="num text-xs opacity-70">{correcoes.length}</span> }] : []),
         ]} />
         {aba === 'tempo' ? (
-          <div className="space-y-3">
-            {v.linhas.some((l) => l.itemId) && <CaminhoDoCabelo de={{ vendaId: v.id }} atual="venda" />}
-            <Cartao titulo={t('O que aconteceu nesta venda')}><LinhaDoTempo id={v.id} /></Cartao>
-          </div>
+          // UM bloco só: o caminho do cabelo (com o registro desta venda dentro); venda sem cabelo: só o registro
+          v.linhas.some((l) => l.itemId)
+            ? <CaminhoDoCabelo de={{ vendaId: v.id }} atual="venda" semCadeia={<LinhaDoTempo id={v.id} />} />
+            : <Cartao titulo={t('Linha do tempo')}><LinhaDoTempo id={v.id} /></Cartao>
         ) : aba === 'arquivos' ? (
           <Cartao titulo={t('Fotos e comprovantes')}><AnexosCurtos donoId={v.id} categorias={['comprovante', 'pedido', 'resultado']} padrao="comprovante" /></Cartao>
         ) : aba === 'correcoes' && correcoes.length ? (

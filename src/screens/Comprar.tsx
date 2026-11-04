@@ -1400,12 +1400,8 @@ export function Pedido() {
       ]} />
 
       {aba === 'anexos' && <AbaAnexos donoId={c.id} categorias={CATEGORIAS_COMPRA} padrao="pedido" />}
-      {aba === 'historico' && (
-        <div className="space-y-3">
-          <CaminhoDoCabelo de={{ compraId: c.id }} atual="compra" />
-          <Cartao titulo={t('O que aconteceu neste pedido')}><LinhaDoTempo id={c.id} /></Cartao>
-        </div>
-      )}
+      {/* UM bloco só: o caminho do cabelo (com o registro deste pedido dentro, na etapa Compra) */}
+      {aba === 'historico' && <CaminhoDoCabelo de={{ compraId: c.id }} atual="compra" semCadeia={<LinhaDoTempo id={c.id} />} />}
 
       {aba === 'resumo' && (
         <div className="grid items-start gap-4 lg:grid-cols-2">
