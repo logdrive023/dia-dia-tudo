@@ -3,6 +3,7 @@
 
 import { converter, formatar, moeda as moedaDe, multiplicarFator, proporcao, type CodigoMoeda, type Cotacao } from '../domain/dinheiro'
 import { ErroNegocio, exigir } from '../domain/erros'
+import { aoConcluirVenda } from './vendasAbertas'
 import { dataDeInstante } from '../domain/datas'
 import type { Id, Item, Linha, RegraComissao, Transacao } from '../domain/tipos'
 import { dividir, pct, resolverComissao } from '../domain/comissao'
@@ -290,6 +291,7 @@ export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
   await ctx.repos.transacoes.salvar(v)
   await auditar(ctx, d.agendadoPara ? 'agendar' : 'concluirVenda', v.id, linhas.map((l) => l.descricao).join(', '), [v.pessoaId!, v.profissionalId!, ...linhas.map((l) => l.itemId!)])
   await auditarAjustes(ctx, v)
+  if (!d.agendadoPara) await aoConcluirVenda(ctx, v.id, linhas.map((l) => l.itemId).filter((x): x is Id => !!x), v.codigo)
   // RESERVA: vendeu um pacote reservado (para a própria pessoa ou para outra — a reserva pode ter caído e ninguém
   // atualizou): nada trava, a reserva acaba aqui e o porquê fica no histórico do pacote
   if (!d.agendadoPara) {

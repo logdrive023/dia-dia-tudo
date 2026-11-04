@@ -17,23 +17,23 @@ afterEach(() => {
 
 type B = Awaited<ReturnType<typeof novoBackend>>['b']
 
-function Harness({ base }: { base: Omit<AppCtx, 'nav' | 'ajustarParams' | 'ir'> }) {
-  const [nav, setNav] = useState<Navegacao>({ tela: 'vendaRapida', params: {} })
+function Harness({ base, params = {} }: { base: Omit<AppCtx, 'nav' | 'ajustarParams' | 'ir'>; params?: Record<string, string> }) {
+  const [nav, setNav] = useState<Navegacao>({ tela: 'vendaRapida', params })
   const ctx: AppCtx = { ...base, nav, ir: (tela, params = {}) => setNav({ tela, params }), ajustarParams: (p) => setNav((n) => ({ ...n, params: { ...n.params, ...p } })) }
   return <Ctx.Provider value={ctx}>{nav.tela === 'vendaRapida' ? <VendaRapida /> : <p>tela {nav.tela}</p>}</Ctx.Provider>
 }
 
 /** abre o caixa com os dados de exemplo; devolve o backend, o campo e os pacotes vendáveis (com tabela, 40–60 cm) */
-async function abrir(preparar?: (b: B) => Promise<void>) {
+async function abrir(preparar?: (b: B) => Promise<void>, params?: Record<string, string>) {
   const { b, sessao } = await novoBackend()
   await carregarDemo(b)
   await preparar?.(b)
   const estoque = await b.consulta('estoque', { moduloId: 'cabelo' })
   const vendaveis = estoque.filter((i) => i.codigo && i.saldo > 0 && (i.status === 'disponivel' || i.status === 'parcial') && i.campos.comprimento)
   const erros: string[] = []
-  render(<Harness base={{ backend: b, sessao, trocarSessao: () => undefined, voltar: () => undefined, marcarSujo: () => undefined, avisar: (t, tipo) => void (tipo === 'erro' && erros.push(t)) }} />)
+  const r = render(<Harness params={params} base={{ backend: b, sessao, trocarSessao: () => undefined, voltar: () => undefined, marcarSujo: () => undefined, avisar: (t, tipo) => void (tipo === 'erro' && erros.push(t)) }} />)
   const campo = (await screen.findByLabelText('Ler ou buscar pacote')) as HTMLInputElement
-  return { b, campo, vendaveis, estoque, erros }
+  return { b, campo, vendaveis, estoque, erros, sair: () => r.unmount() }
 }
 /** passa a pistola: digita o código e Enter (espera o estoque aparecer na lista na 1ª vez) */
 async function ler(campo: HTMLInputElement, codigo: string, esperarLista = true) {
@@ -211,5 +211,91 @@ describe('lerCodigoPacote (servidor)', () => {
     const r = await b.consulta('lerCodigoPacote', { texto: triado.codigo! })
     expect(r.situacao).toBe('separado')
     expect(r.viraram.length).toBeGreaterThan(0)
+  }, 60000)
+})
+
+describe('vendas em aberto (sair no meio não perde)', () => {
+  it('SAIR no meio: a venda fica guardada em aberto (sem baixar estoque nem mexer no caixa)', async () => {
+    const { b, campo, vendaveis, sair } = await abrir()
+    const p = vendaveis[0]
+    await ler(campo, p.codigo!)
+    await waitFor(() => expect(linhas()).toHaveLength(1))
+    sair()
+    await waitFor(async () => expect(await b.consulta('vendasAbertas', {})).toHaveLength(1), { timeout: 5000 })
+    const [a] = await b.consulta('vendasAbertas', {})
+    expect(a.linhas.map((l) => l.itemId)).toEqual([p.id])
+    expect((await b.consulta('fichaItem', { id: p.id })).item.saldo).toBe(p.saldo)
+    expect((await b.consulta('diagnostico', {})).problemas).toEqual([])
+  }, 60000)
+
+  it('RETOMAR (?aberta=id) traz os pacotes de volta; pagar apaga a em aberto', async () => {
+    let abertaId = ''
+    let item = ''
+    const { b } = await abrir(async (bb) => {
+      const p = (await bb.consulta('estoque', { moduloId: 'cabelo' })).find((i) => i.codigo && i.saldo > 0 && i.campos.comprimento)!
+      item = p.id
+      abertaId = 'va-1'
+      await bb.comando('salvarVendaAberta', { id: abertaId, linhas: [{ id: 'l1', itemId: p.id, quantidade: p.saldo }] })
+    }, { aberta: 'va-1' })
+    await waitFor(() => expect(linhas()).toHaveLength(1), { timeout: 10000 })
+    fireEvent.click(screen.getAllByRole('button', { name: 'FECHAR' })[0])
+    fireEvent.click(await screen.findByRole('button', { name: /QR/ }))
+    await screen.findByText('Recibo WhatsApp', {}, { timeout: 10000 })
+    expect(await b.consulta('vendasAbertas', {})).toHaveLength(0)
+    expect((await b.consulta('fichaItem', { id: item })).item.saldo).toBe(0)
+  }, 60000)
+
+  it('pacote que está noutra venda EM ABERTO: aviso claro antes; confirmando, sai de lá e entra aqui', async () => {
+    let c = ''
+    const { b, campo, vendaveis } = await abrir(async (bb) => {
+      const p = (await bb.consulta('estoque', { moduloId: 'cabelo' })).find((i) => i.codigo && i.saldo > 0 && i.campos.comprimento)!
+      c = p.codigo!
+      await bb.comando('salvarVendaAberta', { id: 'va-2', linhas: [{ id: 'l1', itemId: p.id, quantidade: p.saldo }] })
+    })
+    expect(vendaveis.length).toBeGreaterThan(0)
+    await ler(campo, c)
+    expect(await screen.findByText('Este pacote está numa venda em aberto', {}, { timeout: 10000 })).toBeTruthy()
+    expect(linhas()).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Tirar de lá e vender aqui' }))
+    await waitFor(() => expect(linhas()).toHaveLength(1), { timeout: 10000 })
+    expect(await b.consulta('vendasAbertas', {})).toHaveLength(0) // ficou vazia → descartada
+    expect((await b.consulta('logDetalhado', { acao: 'tirarDaVendaAberta' })).linhas).toHaveLength(1)
+  }, 60000)
+
+  it('servidor: vender (de qualquer tela) um pacote que estava em aberto tira ele de lá e registra', async () => {
+    const { b } = await novoBackend()
+    await carregarDemo(b)
+    const [p1, p2] = (await b.consulta('estoque', { moduloId: 'cabelo' })).filter((i) => i.codigo && i.saldo > 0 && i.campos.comprimento)
+    await b.comando('salvarVendaAberta', { id: 'va', linhas: [{ id: 'a', itemId: p1.id, quantidade: p1.saldo }, { id: 'b', itemId: p2.id, quantidade: p2.saldo }] })
+    await b.comando('concluirVenda', { id: 'v', linhas: [{ id: 'l', itemId: p1.id, quantidade: p1.saldo, moeda: 'BOB', total: 100 }], pagamentos: [{ id: 'p', forma: 'dinheiro', moeda: 'BOB', valor: 100 }] })
+    const [a] = await b.consulta('vendasAbertas', {})
+    expect(a.linhas.map((l) => l.itemId)).toEqual([p2.id])
+    expect((await b.consulta('logDetalhado', { acao: 'tirarDaVendaAberta' })).linhas[0].resumo).toMatch(/foi para V-/)
+    // quantidade inválida e pacote inexistente: recusa
+    await expect(b.comando('salvarVendaAberta', { id: 'x', linhas: [{ id: 'a', itemId: p2.id, quantidade: 0 }] })).rejects.toThrow()
+    await expect(b.comando('salvarVendaAberta', { id: 'x', linhas: [{ id: 'a', itemId: 'nada', quantidade: 1 }] })).rejects.toThrow()
+    // descartar: some da lista e o estoque nem mexeu
+    await b.comando('descartarVendaAberta', { id: 'va' })
+    expect(await b.consulta('vendasAbertas', {})).toHaveLength(0)
+    expect((await b.consulta('diagnostico', {})).problemas).toEqual([])
+  }, 60000)
+})
+
+describe('lista "Em aberto" no Vender', () => {
+  it('com uma venda em aberto: a aba conta e a lista mostra (com busca ligada, nada quebra)', async () => {
+    const { ListaVendas } = await import('../screens/ListaVendas')
+    const { b, sessao } = await novoBackend()
+    await carregarDemo(b)
+    const p = (await b.consulta('estoque', { moduloId: 'cabelo' })).find((i) => i.codigo && i.saldo > 0 && i.campos.comprimento)!
+    await b.comando('salvarVendaAberta', { id: 'va-l', linhas: [{ id: 'l1', itemId: p.id, quantidade: p.saldo }] })
+    function H() {
+      const [nav, setNav] = useState<Navegacao>({ tela: 'vender', params: { aba: 'abertas', busca: p.codigo!.toLowerCase() } })
+      const ctx: AppCtx = { backend: b, sessao, trocarSessao: () => undefined, voltar: () => undefined, marcarSujo: () => undefined, avisar: () => undefined, nav, ir: (tela, params = {}) => setNav({ tela, params }), ajustarParams: (x) => setNav((n) => ({ ...n, params: { ...n.params, ...x } })) }
+      return <Ctx.Provider value={ctx}><ListaVendas novaVenda={null} /></Ctx.Provider>
+    }
+    render(<H />)
+    await screen.findByRole('tab', { name: /Em aberto 1/ }, { timeout: 15000 })
+    expect(await screen.findAllByText(new RegExp(p.codigo!), {}, { timeout: 10000 })).toBeTruthy()
+    expect(screen.queryByText('Algo deu errado nesta tela.')).toBeNull()
   }, 60000)
 })

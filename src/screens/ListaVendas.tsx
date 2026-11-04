@@ -17,8 +17,8 @@ import { Paginacao, usePaginacao } from '../ui/paginacao'
 import { SeloPendencias } from '../ui/pendencias'
 import { baixarCSV } from './Relatorios'
 
-/** as abas (situação): concluídas · com pendência · canceladas · todas */
-const ABAS = [{ id: '', nome: 'Concluídas' }, { id: 'pendencia', nome: 'Com pendência' }, { id: 'canceladas', nome: 'Canceladas' }, { id: 'todas', nome: 'Todas' }] as const
+/** as abas (situação): concluídas · com pendência · EM ABERTO (começou no caixa e saiu) · canceladas · todas */
+const ABAS = [{ id: '', nome: 'Concluídas' }, { id: 'pendencia', nome: 'Com pendência' }, { id: 'abertas', nome: 'Em aberto' }, { id: 'canceladas', nome: 'Canceladas' }, { id: 'todas', nome: 'Todas' }] as const
 const PENDENCIAS = [{ id: 'faltaReceber', nome: 'Falta receber' }, { id: 'semComprovante', nome: 'Sem comprovante' }]
 /** os filtros do endereço (para "Limpar"); a aba e a página ficam de fora */
 const CHAVES = ['busca', 'de', 'ate', 'pendencia', 'forma', 'moeda', 'usuarioId', 'profissionalId', 'pessoaId', 'moduloId', 'localId'] as const
@@ -38,10 +38,14 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
   const { dados: concluidas } = useConsulta('vendas', base)
   const { dados: canceladas } = useConsulta('vendas', { ...base, etapa: 'cancelado' })
   const [cancelar, setCancelar] = useState<string>()
+  // VENDAS EM ABERTO (o servidor guarda; aqui só mostra): retomar no caixa ou descartar
+  const { dados: abertas } = useConsulta('vendasAbertas', {})
+  const [descartar, setDescartar] = useState<string>()
 
   const aba = p('aba') as (typeof ABAS)[number]['id']
   const pendencia = p('pendencia')
   const termo = p('busca').trim().toLowerCase()
+  const abertasFiltradas = (abertas ?? []).filter((a) => !termo || [a.cliente, a.porNome, ...a.linhas.map((l) => `${l.codigo ?? ''} ${l.nome}`)].filter(Boolean).join(' ').toLowerCase().includes(termo))
   const ordem = p('ordem') || 'data'
   const carregando = !concluidas || !canceladas
   type V = NonNullable<typeof concluidas>[number]
@@ -108,8 +112,8 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
       <FiltroLista
         className="mb-3"
         situacao={{ valor: aba, onChange: (id) => irAba(id as typeof aba), opcoes: ABAS.map((a) => ({
-          id: a.id, nome: a.nome, tom: a.id === 'pendencia' ? 'alerta' as const : undefined,
-          n: carregando ? undefined : a.id === 'canceladas' ? canc.length : a.id === 'todas' ? conc.length + canc.length : a.id === 'pendencia' ? comPend.length : conc.length,
+          id: a.id, nome: a.nome, tom: a.id === 'pendencia' || a.id === 'abertas' ? 'alerta' as const : undefined,
+          n: a.id === 'abertas' ? abertas?.length : carregando ? undefined : a.id === 'canceladas' ? canc.length : a.id === 'todas' ? conc.length + canc.length : a.id === 'pendencia' ? comPend.length : conc.length,
         })) }}
         periodo={{ de: p('de'), ate: p('ate'), onChange: (de, ate) => ajustarParams({ de, ate, pagina: undefined }) }}
         busca={p('busca')} onBusca={(v) => mudar('busca', v)} placeholder="Buscar cliente, código (V-0001), item ou quem vendeu"
@@ -138,6 +142,38 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
         </>}
       />
 
+      {aba === 'abertas' ? (
+        // EM ABERTO: a mesma listagem padrão — quem · total / o que tem dentro · quando guardou / quem guardou
+        <TabelaDados
+          linhas={abertasFiltradas}
+          chave={(a) => a.id}
+          carregando={!abertas}
+          vazio={<Vazio texto="Nenhuma venda em aberto. Começou no caixa e saiu? Ela aparece aqui para retomar." />}
+          onAbrir={(a) => ir('vendaRapida', { aberta: a.id })}
+          rotuloAbrir="Retomar no caixa"
+          rotuloLinha={(a) => `${a.cliente ?? t('Sem cliente')} · ${a.linhas.length}`}
+          acoes={(a) => [
+            { rotulo: 'Retomar no caixa', icone: '🧾', onClick: () => ir('vendaRapida', { aberta: a.id }) },
+            { rotulo: 'Descartar', icone: '✕', perigo: true, separar: true, onClick: () => setDescartar(a.id) },
+          ]}
+          colunas={[
+            { id: 'quem', titulo: 'Cliente', celula: (a) => <><b className="block">{a.cliente ?? t('Sem cliente')}</b><span className="text-xs text-[var(--suave)]">{a.porNome ? t('guardada por {p}', { p: a.porNome }) : ''}</span></> },
+            { id: 'itens', titulo: 'Pacotes', classe: 'max-w-72', celula: (a) => <span className="line-clamp-2">{a.linhas.map((l) => `${l.codigo ?? '—'} ${l.nome}`).join(' + ')}</span> },
+            { id: 'quando', titulo: 'Guardada', classe: 'num whitespace-nowrap', celula: (a) => <>{dataBR(a.salvaEm)}<span className="block text-xs text-[var(--suave)]">{hora(a.salvaEm)}</span></> },
+            { id: 'total', titulo: 'Total', direita: true, celula: (a) => <b>{a.total !== undefined && a.moedaTotal ? formatar(a.total, a.moedaTotal) : '—'}</b> },
+          ]}
+          celular={{
+            titulo: (a) => a.cliente ?? t('Sem cliente'),
+            valor: (a) => (a.total !== undefined && a.moedaTotal ? formatar(a.total, a.moedaTotal) : '—'),
+            valorSub: (a) => `${dataBR(a.salvaEm).slice(0, 5)} ${hora(a.salvaEm)}`,
+            resumo: (a) => a.linhas.map((l) => l.codigo ?? '—').join(', '),
+            situacao: () => ({ texto: 'Em aberto', tom: 'alerta' }),
+            alerta: (a) => (a.linhas.some((l) => l.saldo < l.quantidade) ? { texto: t('um pacote já saiu do estoque'), tom: 'ruim' } : undefined),
+            fatos: (a) => [a.porNome && `👤 ${a.porNome}`, `📦 ${t('{n} pacote(s)', { n: a.linhas.length })}`],
+          }}
+        />
+      ) : (
+      <>
       {/* LISTAGEM PADRÃO (TabelaDados): só as colunas, as ações e o que abre; carregando/vazio/celular são dela */}
       <TabelaDados
         linhas={pag.itens}
@@ -181,6 +217,13 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
         }}
       />
       {!carregando && <Paginacao {...pag} unidade="venda(s)" />}
+      </>
+      )}
+      {descartar && (
+        <Confirmar perigo titulo="Descartar a venda em aberto?" texto="Os pacotes continuam no estoque, como estavam. Nada foi vendido." rotulo="Descartar"
+          onConfirmar={() => executar('descartarVendaAberta', { id: descartar }, t('Venda em aberto descartada.'))}
+          onFechar={() => setDescartar(undefined)} />
+      )}
 
       {cancelar && (
         <Confirmar perigo pedirMotivo titulo="Cancelar venda" texto="O estoque volta e cada pagamento é estornado. Nada é apagado." rotulo="Cancelar venda"

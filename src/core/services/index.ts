@@ -27,6 +27,7 @@ import * as servicosSalao from './servicosSalao'
 import * as usuarios from './usuarios'
 import * as vendas from './vendas'
 import * as viagens from './viagens'
+import * as vendasAbertas from './vendasAbertas'
 
 export const comandos = {
   // caixa
@@ -63,6 +64,9 @@ export const comandos = {
   // compras e triagem
   criarCompra: compras.criarCompra,
   avancarTriagem: compras.avancarTriagem,
+  salvarVendaAberta: vendasAbertas.salvarVendaAberta,
+  descartarVendaAberta: vendasAbertas.descartarVendaAberta,
+  tirarDaVendaAberta: vendasAbertas.tirarDaVendaAberta,
   pagarCompra: compras.pagarCompra,
   cancelarCompra: compras.cancelarCompra,
   conferirPesoCompra: compras.conferirPesoCompra,
@@ -150,6 +154,7 @@ export const consultas = {
   // origem em gramas por compra (pacote misturado e venda)
   origemDoPacote: origem.origemDoPacote,
   lerCodigoPacote: leitura.lerCodigoPacote,
+  vendasAbertas: vendasAbertas.vendasAbertas,
   origemDaVenda: origem.origemDaVenda,
   triagens: triagem.triagens,
   // livro do cabelo (lançamentos de gramas) e histórico de cada pacote

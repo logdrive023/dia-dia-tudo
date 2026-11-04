@@ -15,10 +15,10 @@ import { type Cotacao, type TabelaCotacoes, formatar, moeda as moedaDe, multipli
 import { novoId } from '../core/domain/ids'
 import type { Id, TabelaPreco } from '../core/domain/tipos'
 import { fatorDaTabela } from '../core/services/precos'
-import { Botao, Info, cx, gramasTexto, loc, moedaPadrao, Titulo } from '../ui/base'
+import { Botao, Confirmar, Info, cx, gramasTexto, loc, moedaPadrao, Titulo } from '../ui/base'
 import { BuscaPacote } from '../ui/buscaPacote'
 import { reservado } from '../ui/reserva'
-import { useApp, useAvisoSaida, useComando, useConsulta } from '../ui/contexto'
+import { useApp, useComando, useConsulta } from '../ui/contexto'
 import { type PagamentoTela, conv, cotacaoDigitada, cotacaoTexto, linkWhatsApp, textoCotacaoPagamento, useCotacoes } from '../ui/compartilhados'
 import { LeitorCodigo } from '../ui/estoqueUi'
 import { useT } from '../ui/i18n'
@@ -40,6 +40,7 @@ export function VendaRapida() {
   const { dados: tabelas } = useConsulta('tabelasPreco', {})
   const { dados: pessoas } = useConsulta('pessoas', {})
   const { dados: locais } = useConsulta('locais', {})
+  const { dados: abertas } = useConsulta('vendasAbertas', {})
   const { ref: raiz, w } = useLargura()
   // duas colunas só com espaço de verdade (abaixo de 900 px o total vai para a barra de baixo e nada é cortado)
   const tablet = w >= 900
@@ -65,13 +66,16 @@ export function VendaRapida() {
   const [leitura, setLeitura] = useState(0)
   const [teclado, setTeclado] = useState(false)
   const [feita, setFeita] = useState<Feita>()
+  /** o pacote lido está noutra venda EM ABERTO: pergunta antes de tirar de lá */
+  const [deOutraAberta, setDeOutraAberta] = useState<{ p: Pacote; abertaId: Id; quem: string }>()
+  /** a venda atual já foi guardada em aberto (o caixa salva sozinho) */
+  const [guardada, setGuardada] = useState<string>()
   /** leu um pacote que já deu baixa: o servidor diz para onde foi (JaSaiu) */
   const [jaSaiu, setJaSaiu] = useState<string>()
   const [vendedorId, setVendedorId] = useState<Id | undefined>(sessao.perfil === 'funcionario' ? sessao.pessoaId ?? sessao.usuarioId : undefined)
   const [localId, setLocalId] = useState<Id | undefined>(sessao.localId)
   const campo = useRef<HTMLInputElement>(null)
   const ultimaLida = useRef<{ c: string; em: number }>()
-  useAvisoSaida(linhas.length > 0)
 
   const focar = useCallback(() => {
     setTimeout(() => campo.current?.focus({ preventScroll: true }), 0)
@@ -170,7 +174,13 @@ export function VendaRapida() {
     bipe(ok !== false)
   }
 
-  const adicionar = (i: Pacote) => {
+  const adicionar = (i: Pacote, jaConfirmou = false) => {
+    const outra = !jaConfirmou ? abertas?.find((a) => a.id !== vendaId && a.linhas.some((l) => l.itemId === i.id)) : undefined
+    if (outra) {
+      setBusca('')
+      bipe(false)
+      return setDeOutraAberta({ p: i, abertaId: outra.id, quem: [outra.cliente ?? t('sem cliente'), outra.porNome && t('guardada por {p}', { p: outra.porNome })].filter(Boolean).join(' · ') })
+    }
     setBusca('')
     setTeclado(false)
     focar()
@@ -273,12 +283,77 @@ export function VendaRapida() {
       ? { moeda: moedaVenda, ...(modoDesconto === 'pct' && pct !== undefined ? { pct } : { valor: descontoValido }), ...(mc !== moedaVenda ? { cobrado: descontoCobranca } : {}) }
       : undefined
 
+  // ---------- VENDA EM ABERTO: guarda sozinha (o servidor decide; aqui só manda o que está na tela) ----------
+  const { backend } = useApp()
+  const rascunho = () => ({
+    id: vendaId,
+    linhas: linhas.map((l) => ({ id: l.id, itemId: l.itemId, quantidade: l.quantidade, ...(l.precoManual !== undefined ? { precoManual: l.precoManual } : {}) })),
+    pessoaId, colunaId, vendedorId, localId, obs: obs.trim() || undefined,
+    desconto: { modo: modoDesconto, pct: descontoPct || undefined, valor: desconto },
+    moeda: mc, total: totalCobrado, moedaTotal: mc,
+  })
+  const atual = useRef(rascunho)
+  atual.current = rascunho
+  const timer = useRef<ReturnType<typeof setTimeout>>()
+  const fechando = useRef(false)
+  const guardar = useCallback(async () => {
+    if (fechando.current) return
+    const r = atual.current()
+    try {
+      await backend.comando('salvarVendaAberta', r)
+      setGuardada(r.linhas.length ? new Date().toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' }) : undefined)
+    } catch {
+      /* sem guardar agora: tenta de novo na próxima mudança */
+    }
+  }, [backend])
+  const chaveRascunho = JSON.stringify(rascunho())
+  const tinhaLinhas = useRef(false)
+  useEffect(() => {
+    if (!linhas.length && !tinhaLinhas.current) return
+    tinhaLinhas.current = linhas.length > 0
+    clearTimeout(timer.current)
+    timer.current = setTimeout(guardar, 1000)
+    return () => clearTimeout(timer.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveRascunho])
+  // saiu da tela no meio da venda: guarda NA HORA (nada de "sair sem salvar")
+  useEffect(() => () => { clearTimeout(timer.current); if (atual.current().linhas.length) void guardar() }, [guardar])
+  // retomar: #/venda-rapida?aberta=<id> (da lista "Em aberto" ou do aviso aqui em cima)
+  const abertaUrl = typeof nav.params.aberta === 'string' ? nav.params.aberta : undefined
+  const retomada = useRef<string>()
+  const retomar = (id: string) => {
+    const a = abertas?.find((x) => x.id === id)
+    if (!a) return
+    retomada.current = id
+    const v = a.venda
+    setVendaId(a.id)
+    setLinhas(v.linhas.map((l) => ({ id: l.id, itemId: l.itemId, quantidade: l.quantidade, ...(l.precoManual !== undefined ? { precoManual: l.precoManual } : {}) })))
+    setPessoaId(v.pessoaId)
+    setColunaId(v.colunaId)
+    setVendedorId(v.vendedorId)
+    setLocalId(v.localId)
+    setObs(v.obs ?? '')
+    if (v.desconto) { setModoDesconto(v.desconto.modo); setDescontoPct(v.desconto.pct ?? ''); setDesconto(v.desconto.valor) }
+    if (v.moeda) setMoedaEscolhida(v.moeda)
+    setFeita(undefined)
+    setAviso({ texto: t('Venda em aberto retomada: {n} pacote(s).', { n: v.linhas.length }), ok: true })
+    ajustarParams({ aberta: undefined })
+    focar()
+  }
+  useEffect(() => {
+    if (abertaUrl && abertas && retomada.current !== abertaUrl) retomar(abertaUrl)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abertaUrl, abertas])
+  const outrasAbertas = (abertas ?? []).filter((a) => a.id !== vendaId)
+
   const pagar = async (pags: PagamentoTela[], troco?: number) => {
     const semPreco = vistas.find((l) => l.preco.erro)
     if (semPreco) return avisar(t('Digite o preço de {c}.', { c: semPreco.item.codigo ?? semPreco.item.nome }), false, semPreco.item.id)
     const valendo = pags.filter((x) => x.valor)
     const semCotacao = valendo.find((x) => x.moeda !== principal && !cotacaoDe(x))
     if (semCotacao) return avisar(t('Digite a cotação de {m}.', { m: moedaDe(semCotacao.moeda).simbolo }), false)
+    clearTimeout(timer.current)
+    fechando.current = true
     const r = await executar('concluirVenda', {
       id: vendaId,
       pessoaId,
@@ -294,7 +369,10 @@ export function VendaRapida() {
       cobranca: { moeda: mc, cotacao: cotacaoCobranca },
       obs: [obs.trim(), textoCobranca].filter(Boolean).join(' · ') || undefined,
     })
+    fechando.current = false
     if (!r) return bipe(false)
+    tinhaLinhas.current = false
+    setGuardada(undefined)
     const tabDe = (x: PagamentoTela): TabelaCotacoes => {
       const c = cotacaoDe(x)
       return c ? { ...cotTab, [x.moeda]: c } : cotTab
@@ -398,6 +476,37 @@ export function VendaRapida() {
             <button type="button" aria-label={t('Fechar')} className="min-h-10 min-w-10 rounded-full text-lg" onClick={() => (setFeita(undefined), focar())}>×</button>
           </span>
         </div>
+      )}
+
+      {/* VENDAS EM ABERTO: as que ficaram guardadas (venda vazia aqui → dá para retomar uma delas) */}
+      {!linhas.length && outrasAbertas.length > 0 && (
+        <section aria-label={t('Vendas em aberto')} className="mb-3 rounded-2xl border border-[var(--marca)] bg-[var(--marca-suave)]/50 p-3">
+          <p className="mb-2 text-sm font-bold">🗂 {t('{n} venda(s) em aberto', { n: outrasAbertas.length })} <span className="font-normal text-[var(--suave)]">· {t('começou e saiu: está guardada')}</span></p>
+          <ul className="space-y-1.5">
+            {outrasAbertas.slice(0, 3).map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-[var(--cartao)] px-3 py-2 text-sm">
+                <span className="min-w-0 flex-1 truncate"><b>{a.cliente ?? t('Sem cliente')}</b> · {a.linhas.map((l) => l.codigo ?? '—').join(', ')}</span>
+                {a.total !== undefined && a.moedaTotal && <b className="num">{formatar(a.total, a.moedaTotal)}</b>}
+                <Botao variante="secundario" onClick={() => retomar(a.id)}>{t('Retomar')}</Botao>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {linhas.length > 0 && guardada && <p className="mb-2 text-right text-xs text-[var(--suave)]">💾 {t('guardada em aberto · {h} — pode sair, nada se perde', { h: guardada })}</p>}
+      {deOutraAberta && (
+        <Confirmar
+          titulo="Este pacote está numa venda em aberto"
+          texto={t('{c} está na venda em aberto de {q}. Para vender aqui, ele SAI daquela venda (fica anotado no histórico).', { c: deOutraAberta.p.codigo ?? deOutraAberta.p.nome, q: deOutraAberta.quem })}
+          rotulo="Tirar de lá e vender aqui"
+          onFechar={() => (setDeOutraAberta(undefined), focar())}
+          onConfirmar={async () => {
+            const x = deOutraAberta
+            setDeOutraAberta(undefined)
+            const ok = await executar('tirarDaVendaAberta', { id: x.abertaId, itemId: x.p.id, para: t('outra venda no caixa') })
+            if (ok) adicionar(x.p, true)
+          }}
+        />
       )}
 
       {/* LAYOUT: computador/tablet largo = venda à esquerda e cobrança fixa à direita; celular = tudo em coluna e a

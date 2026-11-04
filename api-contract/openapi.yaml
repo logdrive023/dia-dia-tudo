@@ -132,6 +132,9 @@ components:
         - separarLote
         - marcarLotes
         - editarAtributosLote
+        - marcarEtiquetasImpressas
+        - refazerEtiqueta
+        - reservarLote
         - salvarCodigos
         - salvarSigla
         - trocarCodigoCompra
@@ -140,18 +143,29 @@ components:
         - moverFaseTriagem
         - salvarFluxoTriagem
         - triarLotes
+        - desfazerTriagem
         - salvarTabelaPreco
         - registrarAcerto
         - ajustarConta
         - criarCompra
         - avancarTriagem
+        - salvarVendaAberta
+        - descartarVendaAberta
+        - tirarDaVendaAberta
+        - pagarCompra
         - cancelarCompra
+        - conferirPesoCompra
+        - definirValorCompra
         - salvarFormCompra
         - concluirVenda
         - atenderAgendamento
         - cancelarVenda
         - corrigirVenda
         - pagarComissao
+        - salvarEvento
+        - excluirEvento
+        - concluirEvento
+        - receberAtendimento
         - criarServicoRapido
         - revisarServico
         - restaurarBibliotecaServicos
@@ -182,6 +196,13 @@ components:
         - incorporarCustoViagem
         - reabrirViagem
         - salvarCategoriasViagem
+        - criarFinanciamento
+        - registrarEntregaFinanciamento
+        - receberFinanciamento
+        - pagarDiferencaFinanciamento
+        - abaterComissaoFinanciamento
+        - encerrarFinanciamento
+        - ajustarFinanciamento
     NomeConsulta:
       description: 'Consultas (só leitura). Fonte da verdade: src/core/services/index.ts'
       type: string
@@ -189,6 +210,7 @@ components:
         - fluxosCompra
         - atributosItem
         - painel
+        - operacao
         - resumoMenu
         - diagnostico
         - caixaDoDia
@@ -197,13 +219,21 @@ components:
         - catalogo
         - movimentosDoItem
         - fichaItem
+        - pacoteVenda
         - codigos
         - codigoDisponivel
+        - modoEtiqueta
         - rastreio
         - triagem
         - fluxosTriagem
         - genealogia
+        - origemDoPacote
+        - lerCodigoPacote
+        - vendasAbertas
+        - origemDaVenda
         - triagens
+        - livroCabelo
+        - historicoPacote
         - tabelasPreco
         - tabelaVigente
         - historicoTabela
@@ -234,6 +264,8 @@ components:
         - venda
         - agenda
         - conflitosAgenda
+        - calendario
+        - evento
         - comissoes
         - servicosReceitaInsumos
         - usuarios
@@ -252,3 +284,6 @@ components:
         - viagem
         - painelViajante
         - categoriasViagem
+        - financiamentos
+        - financiamento
+        - origemFinanciamento

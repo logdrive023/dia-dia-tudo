@@ -14,6 +14,9 @@ import type { NomeComando, NomeConsulta } from '.'
 
 export const COMANDOS_FUNCIONARIO = new Set<NomeComando>([
   'concluirVenda',
+  'salvarVendaAberta',
+  'descartarVendaAberta',
+  'tirarDaVendaAberta',
   'atenderAgendamento',
   'criarServicoRapido',
   'cancelarVenda',
@@ -40,6 +43,7 @@ export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
   'catalogo',
   'estoque',
   'lerCodigoPacote',
+  'vendasAbertas',
   'tabelasPreco',
   'tabelaVigente',
   'calcularPreco',
