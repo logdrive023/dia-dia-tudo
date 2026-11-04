@@ -2,6 +2,7 @@
 // CSV), SEPARAR lote bruto em N lotes, ajustar, PRONTUÁRIO do lote (compra → triagem → venda) e RASTREIO.
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { CabecalhoFicha } from '../ui/cabecalhoFicha'
 import { GrupoFiltro, CampoFaixa, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
@@ -799,39 +800,37 @@ export function FichaLote() {
   const viraram = i.saldo > 0 ? [] : (gen?.triagens ?? []).filter((x) => x.separou && x.entradas.some((e) => e.id === i.id) && x.saidas.length > 0)
   // só foi separado (nada vendido direto dele): vendido/lucro aqui seriam sempre 0 e confundem
   const soSeparado = f.separado > 0 && !dados.vendido
+  const podeReservar = i.saldo > 0 && !bruto
   const proximo = !admin ? undefined : i.saldo > 0 && bruto ? { rotulo: '✂️ Separar', f: separar } : i.saldo > 0 ? { rotulo: '💰 Vender', f: vender } : viraram.length ? undefined : { rotulo: '📊 Ver para onde foi', f: verRastreio }
   return (
     <div className="space-y-4">
       <Trilha atual={i.codigo ?? i.nome} />
       <AvisoPacotesNovos />
-      {/* cabeçalho compacto: foto pequena + nome; código e situação numa linha; UMA linha de ações (principal + Etiqueta + ⋯) */}
-      <header className="space-y-3">
-        <div className="flex items-start gap-3">
-          <MiniaturaLote itemId={i.id} foto={dados.fotoPrincipal} marcador={marcadorLote(i.campos, i.nome)} tamanho="ficha" iconeSemFoto />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold leading-tight [overflow-wrap:anywhere] sm:text-2xl">{i.nome}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--suave)]">
-              <CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} />
-              <span className="inline-flex items-center"><StatusBadge status={dados.status} /><Info texto={AJUDA_SITUACAO} /></span>
-              <span className="whitespace-nowrap text-xs">{t('desde')} {dataBR(i.criadoEm)}</span>
-              {reservado(i) && <button type="button" onClick={() => setReservar(true)}><SeloReserva i={i} /></button>}
-              {!!i.codigosAnteriores?.length && <span className="text-xs">{t('antes')}: <span className="font-mono">{i.codigosAnteriores.join(', ')}</span></span>}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* um botão principal (Vender ou Separar, conforme a situação); o resto fica no ⋯ */}
+      {/* CABEÇALHO DE FICHA (o mesmo do pedido e da viagem): foto · nome · código + situação · detalhes · ações */}
+      <CabecalhoFicha
+        midia={<MiniaturaLote itemId={i.id} foto={dados.fotoPrincipal} marcador={marcadorLote(i.campos, i.nome)} tamanho="ficha" iconeSemFoto />}
+        titulo={i.nome}
+        codigo={i.codigo} anteriores={i.codigosAnteriores}
+        selos={<>
+          <span className="inline-flex items-center"><StatusBadge status={dados.status} /><Info texto={AJUDA_SITUACAO} /></span>
+          {reservado(i) && <button type="button" onClick={() => setReservar(true)}><SeloReserva i={i} /></button>}
+        </>}
+        detalhes={[`${t('desde')} ${dataBR(i.criadoEm)}`, dados.dna.compras[0]?.fornecedor?.nome]}
+        acoes={<>
+          {/* NA LINHA só o que mais se usa: o principal (Vender ou Separar), Etiqueta e Reservar; o resto fica no "Mais ⋯".
+              No celular os secundários ficam só com o ícone (o nome vai no title/leitor de tela) */}
           {proximo && <Botao className="min-w-0 flex-1 sm:flex-none" onClick={proximo.f}>{t(proximo.rotulo)}</Botao>}
-          {admin && <Botao variante="secundario" className="shrink-0" onClick={() => ir('etiquetas', { f: 'todas', sel: i.id })}>🏷 {t('Etiqueta')}</Botao>}
+          {admin && <Botao variante="secundario" className="shrink-0 px-3" title={t('Etiqueta')} aria-label={t('Etiqueta')} onClick={() => ir('etiquetas', { f: 'todas', sel: i.id })}>🏷<span className="hidden sm:inline"> {t('Etiqueta')}</span></Botao>}
+          {podeReservar && <Botao variante="secundario" className="shrink-0 px-3" title={t(reservado(i) ? 'Mudar ou tirar reserva' : 'Reservar para uma cliente')} aria-label={t(reservado(i) ? 'Mudar ou tirar reserva' : 'Reservar para uma cliente')} onClick={() => setReservar(true)}>🔒<span className="hidden sm:inline"> {t(reservado(i) ? 'Reserva' : 'Reservar')}</span></Botao>}
           <MenuAcoes comRotulo className="shrink-0" acoes={acoesLote(
             { id: i.id, saldo: i.saldo, compras: dados.dna.compras.map((c) => ({ id: c.id, codigo: c.codigo, fornecedor: c.fornecedor?.nome, fornecedorId: c.fornecedor?.id })), origens: dados.pai ? [dados.pai] : dados.dna.unificacao?.fontes, vendavel: !bruto, etiquetaImpressa: !!i.etiquetaImpressaEm, reservado: reservado(i) },
-            { ir, t, admin, semAbrir: true, onAjustar: () => setAjustar(true), onTrocarCodigo: () => setTrocar(true), onRefazerEtiqueta: () => setRefazer(true), onReservar: () => setReservar(true), extras: [
+            { ir, t, admin, semAbrir: true, rotuloVender: 'Vender (formulário completo)', sem: ['Imprimir etiqueta', ...(podeReservar ? ['Reservar para uma cliente', 'Mudar ou tirar reserva'] : []), ...(bruto ? ['Separar'] : [])], onAjustar: () => setAjustar(true), onTrocarCodigo: () => setTrocar(true), onRefazerEtiqueta: () => setRefazer(true), onReservar: () => setReservar(true), extras: [
               ...(admin ? [{ rotulo: 'Editar atributos', icone: '✎', onClick: () => setEditar(true), separar: true }] : []),
               ...(bruto && i.saldo > 0 ? [{ rotulo: 'Abrir na triagem', icone: '🧺', onClick: () => ir('triagem') }] : []),
             ] },
           )} />
-        </div>
-      </header>
+        </>}
+      />
       {/* JÁ SEPARADO (bruto que zerou): a primeira coisa é em que pacotes ele virou, com o atalho para cada um */}
       {viraram.length > 0 && (
         <section aria-label={t('Virou')} className="rounded-2xl border-2 border-[var(--marca)] bg-[var(--marca-suave)] p-3">

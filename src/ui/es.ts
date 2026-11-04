@@ -3180,4 +3180,6 @@ export const ES: Record<string, string> = {
   'Como mostrar': 'Cómo mostrar',
   'Quem e de onde': 'Quién y de dónde',
   'Perda e ordem': 'Pérdida y orden',
+  'Reserva': 'Reserva',
+  'Vender (formulário completo)': 'Vender (formulario completo)',
 }

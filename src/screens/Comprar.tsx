@@ -6,6 +6,7 @@
 // pagamento e a entrega (quem fez fica registrado). A conferência de peso é um lançamento no lote, sem mudar o comprado.
 
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { CabecalhoFicha } from '../ui/cabecalhoFicha'
 import { formatar, multiplicarFator, fatorValido, moeda as moedaDe } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { CategoriaAnexo, Campos, Id, Linha, Transacao } from '../core/domain/tipos'
@@ -23,7 +24,7 @@ import { LinhaDoTempo } from '../ui/linhaTempo'
 import { FiltroPendencia, SeloPendencias } from '../ui/pendencias'
 import { useT } from '../ui/i18n'
 import { Trilha } from '../ui/trilha'
-import { CampoCodigoCompra, CodigoSelo, TrocarCodigo, CodigoTexto } from '../ui/codigos'
+import { CampoCodigoCompra, TrocarCodigo, CodigoTexto } from '../ui/codigos'
 import { BuscaPessoa } from '../ui/buscaPessoa'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
@@ -706,7 +707,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
             {ehCabelo && (
               <div role="radiogroup" aria-label={t('Como veio')} className="flex min-w-0 flex-1 gap-1 rounded-xl bg-[var(--marca-suave)] p-1 sm:flex-none">
                 {(['bruto', 'tabela'] as const).map((m) => (
-                  <button key={m} type="button" role="radio" aria-checked={l.modo === m} onClick={() => attValor(i, { modo: m })} className={cx('min-h-9 flex-1 whitespace-nowrap rounded-lg px-3 text-sm font-semibold', l.modo === m ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
+                  <button key={m} type="button" role="radio" aria-checked={l.modo === m} onClick={() => attValor(i, { modo: m })} className={cx('min-h-9 flex-1 whitespace-nowrap rounded-lg px-3 text-sm font-semibold sm:flex-initial', l.modo === m ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
                     {t(m === 'bruto' ? 'Bruto' : 'Pela tabela')}
                   </button>
                 ))}
@@ -1414,12 +1415,15 @@ export function Pedido() {
 
       {nav.params.registrada && !cancelada && <AvisoRegistrada dados={dados} onFechar={() => ajustarParams({ registrada: undefined })} />}
 
-      {/* cabeçalho */}
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <CodigoSelo grande codigo={codigoDe(c)} anteriores={c.codigosAnteriores} />
-            {!!c.codigosAnteriores?.length && <span className="text-xs text-[var(--suave)]">{t('antes')}: <span className="font-mono">{c.codigosAnteriores.join(', ')}</span></span>}
+      {/* CABEÇALHO DE FICHA (o mesmo do pacote e da viagem): fornecedor · código + etapa · detalhes · total · ações */}
+      <CabecalhoFicha
+        className="mb-4"
+        titulo={dados.pessoa?.nome ?? t('Sem fornecedor')}
+        codigo={codigoDe(c)} anteriores={c.codigosAnteriores}
+        valor={formatar(c.totalPrincipal, m)}
+        valorDetalhe={<>{gramasTexto(dados.gramas)}{dados.custoKg ? ` · ${formatar(dados.custoKg, m)}/kg` : ''}</>}
+        detalhes={[dataBR(c.data), dados.comprador && `${t('comprou')}: ${dados.comprador.nome}`, c.obs, !encerrado && t('parada há {n} dias', { n: c.diasParada })]}
+        selos={<>
             <Pilula tom={c.etapa === 'concluido' ? 'bom' : encerrado ? 'ruim' : 'marca'}>{t(c.nomeEtapa)}</Pilula>
             <span className="text-sm text-[var(--suave)]">{dados.modulo.icone} {t(dados.modulo.nome)}</span>
             {dados.viagem && (
@@ -1427,12 +1431,9 @@ export function Pedido() {
                 ✈️ <span className="truncate">{t('Viagem')} {dados.viagem.codigo}{dados.viagem.destino ? ` · ${dados.viagem.destino}` : ''}</span>
               </button>
             )}
-          </div>
-          <h1 className="mt-1 text-2xl font-bold">{dados.pessoa?.nome ?? t('Sem fornecedor')}</h1>
-          <p className="text-sm text-[var(--suave)]">{dataBR(c.data)}{dados.comprador ? ` · ${t('comprou')}: ${dados.comprador.nome}` : ''}{c.obs ? ` · ${c.obs}` : ''}{!encerrado ? ` · ${t('parada há {n} dias', { n: c.diasParada })}` : ''}</p>
-        </div>
-        <div className="flex items-start gap-2 text-right">
-          {/* Repetir e Rastrear ficam só aqui (uma vez cada) */}
+        </>}
+        acoes={
+          // Repetir e Rastrear ficam só aqui (uma vez cada)
           <MenuAcoes comRotulo acoes={[
             ...(dados.pessoa ? [{ rotulo: 'Ver fornecedor', icone: '👤', onClick: () => ir('pessoa', { id: dados.pessoa!.id }) }] : []),
             ...(dados.lotes.length ? [{ rotulo: 'Rastrear: para onde foi', icone: '🔎', onClick: () => ir('rastreio', { compraId: c.id }) }] : []),
@@ -1441,12 +1442,8 @@ export function Pedido() {
             ...(admin && !dados.viagem && !encerradaSemViagem(c.etapa) ? [{ rotulo: 'Ligar a uma viagem', icone: '✈️', onClick: () => setLigarViagem(true) }] : []),
             ...(admin && dados.viagem?.status === 'aberta' ? [{ rotulo: 'Tirar da viagem', icone: '✈️', perigo: true, onClick: () => void executar('desvincularCompra', { viagemId: dados.viagem!.id, compraId: c.id }, t('Compra tirada da viagem.')) }] : []),
           ]} />
-          <div>
-          <div className="num text-3xl font-black">{formatar(c.totalPrincipal, m)}</div>
-          <div className="num text-sm text-[var(--suave)]">{gramasTexto(dados.gramas)}{dados.custoKg ? ` · ${formatar(dados.custoKg, m)}/kg` : ''}</div>
-          </div>
-        </div>
-      </div>
+        }
+      />
       {trocar && <TrocarCodigo tipo="compra" id={c.id} atual={c.codigo} onFechar={() => setTrocar(false)} />}
       {trocarLote && <TrocarCodigo tipo="lote" id={trocarLote.id} atual={trocarLote.codigo} onFechar={() => setTrocarLote(undefined)} />}
       {conferir && <ConferirPeso compraId={c.id} linha={conferir} onFechar={() => setConferir(undefined)} />}

@@ -3,6 +3,8 @@
 // Funcionária que viaja vê só o painel do viajante (lança os gastos dela; sem custos nem resultado).
 
 import { useState } from 'react'
+import { Trilha } from '../ui/trilha'
+import { CabecalhoFicha } from '../ui/cabecalhoFicha'
 import { BarraFiltros, ChipsFiltros, PainelFiltros, GrupoFiltro } from '../ui/filtroPadrao'
 import { CodigoTexto } from '../ui/codigos'
 import { BarraLimite } from '../ui/barras'
@@ -331,15 +333,16 @@ export function FichaViagem() {
   const v = dados.viagem
   const aberta = v.status === 'aberta'
   return (
-    <Pagina
-      titulo={<span className="flex flex-wrap items-center gap-2">{v.codigo} · {v.nome} <Pilula tom={TOM_STATUS[v.status]}>{t(NOME_STATUS[v.status])}</Pilula>{dados.acimaOrcamento && <Pilula tom="ruim">{t('Acima do orçamento')}</Pilula>}</span>}
-      subtitulo={`${dados.viajantes.map((x) => x.nome).join(', ')} · ${dataBR(v.inicio)}${v.fim ? ` – ${dataBR(v.fim)}` : ''} · ${dados.kpis.dias} d${v.destino ? ` · ${v.destino}` : ''}`}
-      voltarRotulo="Viagens"
-      trilha={v.codigo}
-      onVoltar={voltar}
-    >
-      {/* UMA linha de ações (padrão da página do pacote): as duas principais dividem a largura; editar no ⋯ */}
-      <div className="mb-3 flex items-center gap-2">
+    <div className="mx-auto max-w-4xl pb-4">
+      <Trilha atual={v.codigo} />
+      {/* CABEÇALHO DE FICHA (o mesmo do pacote e do pedido): nome · código + situação · quem/quando/onde · ações */}
+      <CabecalhoFicha
+        className="mb-3"
+        titulo={v.nome}
+        codigo={v.codigo}
+        selos={<><Pilula tom={TOM_STATUS[v.status]}>{t(NOME_STATUS[v.status])}</Pilula>{dados.acimaOrcamento && <Pilula tom="ruim">{t('Acima do orçamento')}</Pilula>}</>}
+        detalhes={[dados.viajantes.map((x) => x.nome).join(', '), `${dataBR(v.inicio)}${v.fim ? ` – ${dataBR(v.fim)}` : ''} · ${dados.kpis.dias} d`, v.destino]}
+        acoes={<>
         {aberta ? (
           <>
             <Botao className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => setFolha(true)}>⛽ {t('Gasto')}</Botao>
@@ -347,7 +350,8 @@ export function FichaViagem() {
           </>
         ) : <Botao variante="secundario" className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => ir('novaViagem', { editar: v.id })}>✎ {t('Editar')}</Botao>}
         {aberta && <MenuAcoes comRotulo className="shrink-0" acoes={[{ rotulo: 'Editar viagem', icone: '✎', onClick: () => ir('novaViagem', { editar: v.id }) }]} />}
-      </div>
+        </>}
+      />
       <Abas variante="sublinhado" atual={aba} onChange={(x) => setAba(x as typeof aba)} abas={[
         { id: 'resumo', nome: 'Resumo' },
         { id: 'gastos', nome: 'Gastos', extra: <span className="text-xs">({dados.despesas.filter((x) => !x.anulada).length})</span> },
@@ -365,7 +369,7 @@ export function FichaViagem() {
       {aba === 'historico' && <AbaHistorico d={dados} />}
       {folha && <FolhaDespesa aberta onFechar={() => setFolha(false)} viagemId={v.id} categorias={dados.categorias} moedas={cfg?.config.moedasAtivas ?? [dados.moeda]} moedaPadrao={dados.moeda} />}
       {adiantar && <FormAdiantamento viagemId={v.id} onFechar={() => setAdiantar(false)} />}
-    </Pagina>
+    </div>
   )
 }
 

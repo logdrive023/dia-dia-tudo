@@ -127,7 +127,7 @@ export interface LoteMenu {
  */
 export function acoesLote(
   l: LoteMenu,
-  o: { ir(tela: string, p?: Params): void; t(s: string, v?: Record<string, string | number>): string; admin: boolean; extras?: Acao[]; separarParams?: Params; onAjustar?(): void; onTrocarCodigo?(): void; semAbrir?: boolean; onRefazerEtiqueta?(): void; onReservar?(): void },
+  o: { ir(tela: string, p?: Params): void; t(s: string, v?: Record<string, string | number>): string; admin: boolean; extras?: Acao[]; separarParams?: Params; onAjustar?(): void; onTrocarCodigo?(): void; semAbrir?: boolean; onRefazerEtiqueta?(): void; onReservar?(): void; sem?: string[]; rotuloVender?: string },
 ): Acao[] {
   const { ir, t, admin } = o
   const acoes: Acao[] = []
@@ -140,7 +140,7 @@ export function acoesLote(
   for (const x of l.origens ?? []) acoes.push({ rotulo: (l.origens ?? []).length > 1 ? `${t('Ver lote de origem')} ${x.codigo ?? ''}` : t('Ver lote de origem'), icone: '🧬', onClick: () => ir('lote', { id: x.id }) })
   acoes.push({ rotulo: 'Rastrear origem e destino', icone: '🔎', onClick: () => ir('rastreio', { itemId: l.id }), separar: true })
   acoes.push({ rotulo: 'Vendas deste lote', icone: '🧾', onClick: () => ir('rastreio', { itemId: l.id }) })
-  if (l.saldo > 0 && l.vendavel !== false) acoes.push({ rotulo: 'Vender', icone: '💰', onClick: () => ir('vender', { modulo: 'cabelo', lote: l.id }), separar: true })
+  if (l.saldo > 0 && l.vendavel !== false) acoes.push({ rotulo: o.rotuloVender ?? 'Vender', icone: '💰', onClick: () => ir('vender', { modulo: 'cabelo', lote: l.id }), separar: true })
   // encomenda: guarda o pacote para uma cliente (🔒 no estoque; a venda avisa se for para outra)
   if (l.saldo > 0 && l.vendavel !== false && o.onReservar) acoes.push({ rotulo: l.reservado ? 'Mudar ou tirar reserva' : 'Reservar para uma cliente', icone: '🔒', onClick: o.onReservar })
   if (admin && l.saldo > 0) acoes.push({ rotulo: 'Separar', icone: '✂️', onClick: () => ir('separar', { id: l.id, ...(o.separarParams ?? {}) }) })
@@ -150,5 +150,6 @@ export function acoesLote(
   // saiu errada / borrou / perdeu: cancela a antiga e imprime nova (aqui mesmo, se a tela abrir a janela; senão na tela Etiquetas)
   if (admin && l.etiquetaImpressa) acoes.push({ rotulo: 'Errou? Gerar nova', icone: '↻', onClick: o.onRefazerEtiqueta ?? (() => ir('etiquetas', { f: 'todas', sel: l.id, refazer: l.id })) })
   if (admin && o.onTrocarCodigo) acoes.push({ rotulo: 'Trocar código', icone: '#', onClick: o.onTrocarCodigo, separar: true })
-  return [...acoes, ...(o.extras ?? [])]
+  // `sem`: o que a tela já mostra em botão na linha (não repete no ⋯)
+  return [...acoes, ...(o.extras ?? [])].filter((a) => !o.sem?.includes(a.rotulo))
 }
