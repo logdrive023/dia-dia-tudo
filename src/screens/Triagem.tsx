@@ -45,6 +45,8 @@ type Lote = Dados['lotes'][number]
 type T = ReturnType<typeof useT>
 
 const MAX_COLUNA = 20
+/** abaixo disso (g) o pacote é "sobra pequena": aparece ⚠ na lista e no painel da seleção (não bloqueia) */
+const SALDO_PEQUENO = 50
 const MAX_PRONTOS = 12
 /** colunas da tabela "Prontos para vender": grupo | lotes | peso | valor | ⋯ (iguais no cabeçalho, nas linhas e no total) */
 const GRADE_PRONTOS = 'grid grid-cols-[minmax(0,1fr)_3.75rem_6rem_2.5rem] items-center gap-x-1.5 sm:grid-cols-[minmax(0,1fr)_3.5rem_6rem_8rem_2.75rem] sm:gap-x-3'
@@ -122,6 +124,9 @@ export function Triagem() {
   const selecionados = dados.lotes.filter((l) => sel.has(l.id))
   const brutos = selecionados.length > 0 && selecionados.every((l) => precisaSeparar(l) && l.fase !== COLUNA_VENDIDO)
   const marcar = (id: Id, v: boolean) => setSel((s) => { const n = new Set(s); if (v) n.add(id); else n.delete(id); return n })
+  // REGRA (na tela): juntar/separar só pacotes da MESMA ETAPA do quadro — a seleção fica presa à etapa do 1º marcado
+  const etapaSel = selecionados[0]?.fase
+  const foraDaEtapa = (l: Lote) => sel.size > 0 && !!etapaSel && l.fase !== etapaSel && !sel.has(l.id)
   const limparSel = () => setSel(new Set())
   const comSelecao = selecionando || sel.size > 0
 
@@ -242,6 +247,13 @@ export function Triagem() {
   const prontos = dados.lotes.filter((l) => ehPronto(l) && passaBusca(l) && (!filtroDePronto || passaFiltro(l)))
   const nomeFiltro = (f: string) => colDe(f)?.nome ?? { atrasados: 'Esperando há mais tempo', depois: 'Para depois', semana: 'Triado nesta semana', mes: 'Triado neste mês', pronto: 'Pronto para vender' }[f] ?? f
   const verPronto = () => irAba('prontos')
+  // a página da fila em SEÇÕES POR ETAPA, na ordem do quadro (todos = a etapa inteira, para "Selecionar todos desta etapa")
+  const etapasDaPagina = (pagina: Lote[]) => {
+    const fases = [...new Set(paraSeparar.map((l) => l.fase))]
+    const varias = fases.length > 1
+    return trabalho.filter((c) => pagina.some((l) => l.fase === c.id)).map((c) => ({ fase: c.id, nome: c.nome, varias, ls: pagina.filter((l) => l.fase === c.id), todos: paraSeparar.filter((l) => l.fase === c.id) }))
+      .concat(pagina.some((l) => !trabalho.some((c) => c.id === l.fase)) ? [{ fase: '?', nome: 'Outras', varias, ls: pagina.filter((l) => !trabalho.some((c) => c.id === l.fase)), todos: [] }] : [])
+  }
   const alternarQuadro = () => { setQuadroLembrado(visao !== 'quadro'); if (visaoP) setVisao('') }
 
   return (
@@ -337,16 +349,20 @@ export function Triagem() {
 
         {/* MISTURAR COMPRAS: com 2+ pacotes, mostra como juntar (ex.: compra 1 + compra 2 numa separação só); a origem
             de cada grama fica guardada (a ligação aparece no pacote novo e na triagem feita) */}
-        {visao !== 'quadro' && daAba.length >= 2 && !comSelecao && (
-          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-[var(--marca)] bg-[var(--marca-suave)] px-3 py-2.5">
-            <span className="min-w-0 flex-1 text-sm">
-              <b className="block">🔗 {t('Misturar compras numa separação só?')}</b>
-              <span className="block text-xs text-[var(--suave)]">{t('Marque 2 ou mais pacotes e toque em “Juntar e separar”. Ex.: 2 kg da compra P-0005 + 4 kg da P-0007 → uma separação, cada grama sabe de onde veio.')}</span>
-            </span>
-            <Botao variante="secundario" className="shrink-0" onClick={() => setSelecionando(true)}>🔗 {t('Juntar pacotes')}</Botao>
-          </div>
+        {/* AS REGRAS DE JUNTAR, à vista (cada uma com ícone): mesma etapa · compras diferentes pode · saldo pequeno avisa */}
+        {visao !== 'quadro' && daAba.length >= 2 && (!comSelecao || sel.size < 2) && (
+          <section aria-label={t('Como juntar pacotes')} className="mb-3 rounded-2xl border border-[var(--marca)]/40 bg-[var(--marca-suave)] p-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <b className="min-w-0 flex-1 text-sm">🔗 {t(comSelecao ? 'Marque os pacotes que vão juntos (2 ou mais)' : 'Juntar pacotes numa separação só')}</b>
+              {!comSelecao && <Botao variante="secundario" className="shrink-0" onClick={() => setSelecionando(true)}>☑ {t('Começar a marcar')}</Botao>}
+            </div>
+            <ul className="grid gap-1.5 text-xs sm:grid-cols-3">
+              <li className="flex items-start gap-2 rounded-xl bg-[var(--cartao)] p-2"><span aria-hidden className="text-base">📍</span><span><b className="block text-[var(--texto)]">{t('Uma etapa por vez')}</b><span className="text-[var(--suave)]">{t('Só junta quem está na mesma etapa do quadro. Ex.: todos em “Aguardando triagem”.')}</span></span></li>
+              <li className="flex items-start gap-2 rounded-xl bg-[var(--cartao)] p-2"><span aria-hidden className="text-base">🧬</span><span><b className="block text-[var(--texto)]">{t('Compras diferentes, pode')}</b><span className="text-[var(--suave)]">{t('Cada grama guarda de qual compra veio. Ex.: 2 kg da P-0005 + 4 kg da P-0007.')}</span></span></li>
+              <li className="flex items-start gap-2 rounded-xl bg-[var(--cartao)] p-2"><span aria-hidden className="text-base">⚠️</span><span><b className="block text-[var(--texto)]">{t('Menos de {n} g: aviso', { n: SALDO_PEQUENO })}</b><span className="text-[var(--suave)]">{t('Sobra pequena: junte com outro ou ajuste como perda.')}</span></span></li>
+            </ul>
+          </section>
         )}
-        {comSelecao && sel.size < 2 && daAba.length >= 2 && <p className="mb-2 rounded-xl bg-[var(--marca-suave)] px-3 py-2 text-sm text-[var(--marca)]">☑ {t('Marque os pacotes que vão juntos (2 ou mais). A barra de baixo mostra “Juntar e separar”.')}</p>}
         {/* FILTRO PADRÃO (o mesmo de Compras, Estoque e Etiquetas): busca + ⚙ Filtros → painel em grupos → resultado + chips ✕ */}
         {visao !== 'quadro' && daAba.length > 0 && (
           <FiltroLista
@@ -384,20 +400,32 @@ export function Triagem() {
           <p className="rounded-2xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nada encontrado.')}</p>
         ) : (
           <Paginada itens={paraSeparar} unidade="pacote(s)" reiniciar={JSON.stringify([abaReal, busca, fp('sf'), fp('sc'), fp('sd'), fp('set'), filtro, medida])}>{(pagina) => (
+            <div className="space-y-3">{etapasDaPagina(pagina).map((grupo) => (
+            <section key={grupo.fase} aria-label={grupo.nome}>
+              {/* a ETAPA: nome · quantos e quanto pesa · selecionar todos desta etapa (só quando há mais de uma etapa) */}
+              {grupo.varias && (
+                <div className="mb-1.5 flex flex-wrap items-center gap-2 px-1 text-sm">
+                  <b className="flex items-center gap-1.5">📍 {t(grupo.nome)}</b>
+                  <span className="num text-xs text-[var(--suave)]">{t('{n} pacote(s)', { n: grupo.todos.length })} · {gramasTexto(grupo.todos.reduce((x, l) => x + l.saldo, 0))}</span>
+                  {grupo.todos.length >= 2 && <Botao variante="leve" className="ml-auto" onClick={() => (setSelecionando(true), setSel(new Set(grupo.todos.map((l) => l.id))))}>☑ {t('Selecionar todos desta etapa')}</Botao>}
+                </div>
+              )}
             <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-              {pagina.map((l) => {
+              {grupo.ls.map((l) => {
                 const col = colDe(l.fase)
                 const acao = acaoDe(l)
                 const fornecedores = [...new Set(l.compras.map((c) => c.fornecedor).filter(Boolean))]
                 return (
                   // celular: foto · código e peso · ⋯ em cima, o botão principal com a largura toda embaixo
-                  <li key={l.id} className={cx('flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-3 sm:flex-nowrap sm:gap-3', sel.has(l.id) && 'bg-[var(--marca-suave)]')}>
-                    {comSelecao && <input type="checkbox" className="h-5 w-5 shrink-0" checked={sel.has(l.id)} onChange={(e) => marcar(l.id, e.target.checked)} aria-label={t('Selecionar {c}', { c: l.codigo ?? l.nome })} />}
+                  <li key={l.id} className={cx('flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-3 sm:flex-nowrap sm:gap-3', sel.has(l.id) && 'bg-[var(--marca-suave)]', comSelecao && foraDaEtapa(l) && 'bg-[var(--fundo)]')}>
+                    {comSelecao && <input type="checkbox" className="h-5 w-5 shrink-0 disabled:cursor-not-allowed disabled:opacity-40" checked={sel.has(l.id)} disabled={foraDaEtapa(l)} title={foraDaEtapa(l) ? t('Está em “{a}”; a seleção é de “{b}”. Só junta quem está na mesma etapa.', { a: colDe(l.fase)?.nome ?? l.fase, b: colDe(etapaSel ?? '')?.nome ?? '' }) : undefined} onChange={(e) => marcar(l.id, e.target.checked)} aria-label={t('Selecionar {c}', { c: l.codigo ?? l.nome })} />}
                     <FotoOuIcone l={l} />
                     <div {...clicavel(() => ir('lote', { id: l.id }))} className="min-w-0 flex-1 cursor-pointer rounded-lg outline-none focus-visible:bg-[var(--marca-suave)]">
                       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="font-mono text-base font-bold">{l.codigo ?? '—'}</span>
                         <span className="min-w-0 truncate text-base">{rotuloCurto(l, t)}</span>
+                        {comSelecao && foraDaEtapa(l) && <button type="button" onClick={(e) => (e.stopPropagation(), setSel(new Set([l.id])))} title={t('Está em “{a}”; a seleção é de “{b}”. Só junta quem está na mesma etapa.', { a: colDe(l.fase)?.nome ?? l.fase, b: colDe(etapaSel ?? '')?.nome ?? '' })} className="inline-flex min-h-7 items-center gap-1 rounded-full border border-dashed border-[var(--borda)] bg-[var(--cartao)] px-2 text-xs font-semibold text-[var(--suave)] hover:border-[var(--marca)] hover:text-[var(--marca)]">🔒 {t('outra etapa')} · {t('começar com este')}</button>}
+                        {l.saldo < SALDO_PEQUENO && <span title={t('Sobra pequena: junte com outro ou ajuste como perda.')}><Pilula tom="alerta">⚠️ {t('só {g}', { g: gramasTexto(l.saldo) })}</Pilula></span>}
                         {l.atrasado && <span title={t('Esperando para separar há mais de {n} dias', { n: dados.diasParado })}><Pilula tom="ruim">⏰ {t('parado')}</Pilula></span>}
                         {l.campos.estado === NAO_ID && <Pilula tom="alerta">❓ {t('para depois')}</Pilula>}
                         {col && !col.entrada && <Pilula>{t(col.nome)}</Pilula>}
@@ -415,6 +443,8 @@ export function Triagem() {
                 )
               })}
             </ul>
+            </section>
+          ))}</div>
           )}</Paginada>
         )}
       </section>
@@ -429,9 +459,12 @@ export function Triagem() {
         const custoKg = gSel && selecionados.every((l) => l.custo !== undefined) ? Math.round((selecionados.reduce((s, l) => s + (l.custo ?? 0), 0) * 1000) / gSel) : undefined
         return (
           <PainelSelecao
-            itens={selecionados.map((l) => ({ id: l.id, codigo: l.codigo, peso: l.saldo, detalhe: [l.compras[0]?.codigo, l.compras[0]?.fornecedor].filter(Boolean).join(' · ') }))}
-            fatos={[...(compras.length ? [{ icone: '🛒', texto: t(compras.length === 1 ? 'de 1 compra' : 'de {n} compras', { n: compras.length }) }] : []), ...(custoKg !== undefined ? [{ icone: '💵', texto: `${t('custo médio')} ${formatar(custoKg, moedaPadrao())}/kg` }] : [])]}
-            aviso={varios && compras.length > 1 ? `🧬 ${t('Misturando compras: cada grama guarda de qual compra veio (aparece no pacote novo e na venda).')}` : undefined}
+            itens={selecionados.map((l) => ({ id: l.id, codigo: l.codigo, peso: l.saldo, alerta: l.saldo < SALDO_PEQUENO, detalhe: [l.compras[0]?.codigo, l.compras[0]?.fornecedor].filter(Boolean).join(' · ') }))}
+            fatos={[{ icone: '📍', texto: `${t('Etapa')}: ${colDe(etapaSel ?? '')?.nome ?? '—'}` }, ...(compras.length ? [{ icone: '🛒', texto: t(compras.length === 1 ? 'de 1 compra' : 'de {n} compras', { n: compras.length }) }] : []), ...(custoKg !== undefined ? [{ icone: '💵', texto: `${t('custo médio')} ${formatar(custoKg, moedaPadrao())}/kg` }] : [])]}
+            aviso={[
+              ...(selecionados.some((l) => l.saldo < SALDO_PEQUENO) ? [`⚠️ ${t('Sobra pequena em {c}: junte com outro ou ajuste como perda.', { c: selecionados.filter((l) => l.saldo < SALDO_PEQUENO).map((l) => `${l.codigo ?? ''} (${gramasTexto(l.saldo)})`).join(', ') })}`] : []),
+              ...(varios && compras.length > 1 ? [`🧬 ${t('Misturando compras: cada grama guarda de qual compra veio (aparece no pacote novo e na venda).')}`] : []),
+            ].join('  ') || undefined}
             ocupado={ocupado}
             onTirar={(id) => marcar(id, false)}
             onLimpar={() => (limparSel(), setSelecionando(false))}

@@ -24,6 +24,8 @@ export interface ItemSelecionado {
   peso: number
   /** origem curta no chip ("P-0005 · Wagner") */
   detalhe?: string
+  /** pede atenção (ex.: sobra pequena): o chip fica em âmbar com ⚠ */
+  alerta?: boolean
 }
 
 export interface OpcaoSelecao {
@@ -147,8 +149,9 @@ export function PainelSelecao({ itens, unidade = 'pacote', fatos = [], aviso, to
             máxima e corta a origem com … ; o ✕ tira só ele */}
         {verChips && <ul className="-mx-1 mt-2 flex snap-x gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
           {itens.map((i, k) => (
-            <li key={i.id} className="inline-flex min-h-10 w-max max-w-[15rem] shrink-0 snap-start items-center gap-2 rounded-full border border-[var(--borda)] bg-[var(--cartao)] pl-2.5 pr-1 text-sm shadow-sm sm:max-w-[20rem]">
+            <li key={i.id} className={cx('inline-flex min-h-10 w-max max-w-[15rem] shrink-0 snap-start items-center gap-2 rounded-full border pl-2.5 pr-1 text-sm shadow-sm sm:max-w-[20rem]', i.alerta ? 'border-[var(--alerta)] bg-[var(--alerta)]/10' : 'border-[var(--borda)] bg-[var(--cartao)]')}>
               <span aria-hidden className="h-3 w-3 shrink-0 rounded-full" style={{ background: cor(k) }} />
+              {i.alerta && <span aria-hidden>⚠️</span>}
               <b className="shrink-0 font-mono">{i.codigo ?? '—'}</b>
               <span className="num shrink-0 whitespace-nowrap font-semibold">{gramasTexto(i.peso)}</span>
               {i.detalhe && <span className="min-w-0 truncate text-xs text-[var(--suave)]" title={i.detalhe}>{i.detalhe}</span>}
