@@ -108,8 +108,8 @@ export default function App() {
   // voltar: pelo histórico; se a tela foi aberta direto por um link, vai para a lista "pai" (nunca sai do app)
   const pilhaRef = useRef(pilha)
   pilhaRef.current = pilha
-  // regra: veio de uma LISTA (tela sem "pai") → volta para ela (com os filtros); veio de um formulário ou de outro
-  // detalhe (ex.: Nova compra → Pedido) → vai para a lista da área (Pedido → Compras), nunca para o formulário enviado
+  // regra IR E VOLTAR: veio de outra tela (lista ou detalhe) → volta para ela (com a aba e os filtros); veio de um
+  // formulário (ex.: Nova compra → Pedido) → vai para a lista da área (Pedido → Compras), nunca para o formulário enviado
   // (a regra fica em destinoVoltar: a trilha de navegação usa a mesma para mostrar para onde volta)
   const voltar = useCallback(() => {
     const d = destinoVoltar(pilhaRef.current)

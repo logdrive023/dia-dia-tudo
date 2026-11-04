@@ -290,6 +290,17 @@ export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
   await ctx.repos.transacoes.salvar(v)
   await auditar(ctx, d.agendadoPara ? 'agendar' : 'concluirVenda', v.id, linhas.map((l) => l.descricao).join(', '), [v.pessoaId!, v.profissionalId!, ...linhas.map((l) => l.itemId!)])
   await auditarAjustes(ctx, v)
+  // RESERVA: vendeu um pacote reservado (para a própria pessoa ou para outra — a reserva pode ter caído e ninguém
+  // atualizou): nada trava, a reserva acaba aqui e o porquê fica no histórico do pacote
+  if (!d.agendadoPara) {
+    const cliente = v.pessoaId ? (await ctx.repos.pessoas.obter(v.pessoaId))?.nome : undefined
+    for (const id of new Set(linhas.map((l) => l.itemId).filter((x): x is Id => !!x))) {
+      const it = await ctx.repos.itens.obter(id)
+      if (!it?.reserva) continue
+      await ctx.repos.itens.salvar(tocar(ctx, { ...it, reserva: undefined }))
+      await auditar(ctx, 'reservarLote', it.id, `${it.codigo ?? it.nome}: reserva para ${it.reserva.para} encerrada pela venda ${v.codigo ?? ''}${cliente ? ` para ${cliente}` : ''}`)
+    }
+  }
   // cotação digitada na hora (não a do sistema): fica no log
   const manuais = d.pagamentos.filter((p) => p.cotacao && p.moeda !== cfg.moedaPrincipal)
   if (manuais.length)

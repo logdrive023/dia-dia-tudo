@@ -10,11 +10,15 @@
 //      (entrou → saiu, perda, quem), o histórico em gramas do pacote, as etiquetas (quais faltam, imprimir) e a venda.
 // Boas práticas seguidas: estados completo/atual/não iniciado com nomes curtos (Carbon), situação atual em linguagem
 // simples no topo e códigos sempre clicáveis (Baymard), lista vertical com data e título no detalhe.
+// O CAMINHO DESTE REGISTRO em destaque: só o que levou até ele e o que veio dele (a venda V-4 mostra P-1 → L-1 → T-1 →
+// L-2, L-3 → V-4). O resto da família (outros pacotes do mesmo cabelo, outras vendas) fica recolhido em "outros do
+// mesmo cabelo ▾". O registro completo (linha do tempo) só do registro DESTA tela; os outros são uma linha que abre.
 // Dados: a consulta "genealogia" (a mesma do rastreio em gramas) + os registros de cada etapa. Quem não é administrador
 // não vê a cadeia (o rastreio é do administrador): vê só o registro da própria tela (\`semCadeia\`).
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import type { Id } from '../core/domain/tipos'
+import type { ResultadoConsulta } from '../core/services'
 import { cx, dataBR, gramasTexto, pctBp } from './base'
 import { useApp, useConsulta, useParamTela } from './contexto'
 import { HistoricoPacote } from './historicoPacote'
@@ -45,15 +49,29 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
   if (!g) return semCadeia ? <section className={cx('rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:p-4', className)}>{semCadeia}</section> : null
   const itemDaTela = 'itemId' in de ? de.itemId : undefined
   const vendaDaTela = 'vendaId' in de ? de.vendaId : undefined
-  const compras = g.compras
-  const triagens = g.triagens
-  const lotes = g.lotes.filter((l) => !l.bruto)
-  // o bruto JÁ está no estoque (esperando a triagem): conta na etapa Estoque
+  const compraDaTela = 'compraId' in de ? de.compraId : undefined
+  const proprio = caminhoProprio(g, de)
+  const meu = (id: Id) => proprio.has(id)
+  const compras = g.compras.filter((c) => meu(c.id))
+  const triagens = g.triagens.filter((x) => meu(x.id))
+  const lotes = g.lotes.filter((l) => !l.bruto && meu(l.id))
   // a compra entra no estoque como BRUTO (o primeiro registro do estoque); os que já foram triados ficam com "já triado"
-  const brutos = g.lotes.filter((l) => l.bruto)
+  const brutos = g.lotes.filter((l) => l.bruto && meu(l.id))
   const noEstoque = [...brutos, ...lotes]
   // vendas: a desta tela primeiro
-  const vendas = [...g.vendas].sort((a, b) => Number(b.id === vendaDaTela) - Number(a.id === vendaDaTela))
+  const vendas = [...g.vendas.filter((v) => meu(v.id))].sort((a, b) => Number(b.id === vendaDaTela) - Number(a.id === vendaDaTela))
+  // o resto da família (recolhido)
+  const outros = {
+    compra: g.compras.filter((c) => !meu(c.id)).map((c) => ({ id: c.id, codigo: c.codigo, info: [c.fornecedor, c.data && dataBR(c.data)].filter(Boolean).join(' · '), valor: gramasTexto(c.g), abrir: () => ir('pedido', { id: c.id }) })),
+    estoque: g.lotes.filter((l) => !meu(l.id)).map((l) => ({ id: l.id, codigo: l.codigo, info: l.nome, valor: l.saldo > 0 ? gramasTexto(l.saldo) : t('sem saldo'), abrir: () => ir('lote', { id: l.id }) })),
+    triagem: g.triagens.filter((x) => !meu(x.id)).map((x) => ({ id: x.id, codigo: x.codigo, info: x.por, abrir: () => ir('triagem', { aba: 'triagens', t: x.id }) })),
+    etiqueta: [] as ItemEtapa[],
+    venda: g.vendas.filter((v) => !meu(v.id)).map((v) => ({ id: v.id, codigo: v.codigo, info: [v.cliente, v.data && dataBR(v.data)].filter(Boolean).join(' · '), valor: gramasTexto(v.g), abrir: () => ir('venda', { id: v.id }) })),
+  } satisfies Record<EtapaCabelo, ItemEtapa[]>
+  const vendaAqui = vendaDaTela ? g.vendas.find((v) => v.id === vendaDaTela) : undefined
+  const loteAqui = itemDaTela ? g.lotes.find((l) => l.id === itemDaTela) : undefined
+  /** o que entrou de verdade no estoque como bruto (o comprado menos a conferência de peso) */
+  const entrouBruto = (l: (typeof g.lotes)[number]) => l.entrou - Math.max(0, l.ajustes)
   const comprado = compras.reduce((s, c) => s + c.g, 0) || g.totais.entrou
   const veioSeparado = !triagens.length && lotes.length > 0
   const comSaldo = lotes.filter((l) => l.saldo > 0)
@@ -67,9 +85,9 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
     },
     {
       id: 'estoque', feito: noEstoque.length > 0, n: noEstoque.length,
-      resumo: lotes.length ? `${t('{n} pacote(s)', { n: lotes.length })} · ${t('{g} agora', { g: gramasTexto(g.totais.emEstoque) })}` : brutos.some((l) => l.saldo > 0) ? `${gramasTexto(brutos.reduce((s, l) => s + l.saldo, 0))} ${t('bruto · aguardando triagem')}` : t('ainda não'),
-      detalhe: lotes.length ? t('entraram {g}', { g: gramasTexto(lotes.reduce((s, l) => s + l.entrou, 0)) }) : undefined,
-      itens: [...noEstoque].sort((a, b) => Number(b.id === itemDaTela) - Number(a.id === itemDaTela)).map((l) => ({ id: l.id, codigo: l.codigo, desta: l.id === itemDaTela, info: l.bruto ? `${t('entrou bruto')} · ${t(l.saldo > 0 ? 'aguardando triagem' : 'já triado')}` : l.nome, valor: l.saldo > 0 ? gramasTexto(l.saldo) : l.bruto ? gramasTexto(l.entrou) : t('sem saldo'), abrir: () => ir('lote', { id: l.id }) })),
+      resumo: lotes.length ? `${t('{n} pacote(s)', { n: noEstoque.length })} · ${t('{g} agora', { g: gramasTexto(noEstoque.reduce((s, l) => s + Math.max(0, l.saldo), 0)) })}` : brutos.some((l) => l.saldo > 0) ? `${gramasTexto(brutos.reduce((s, l) => s + l.saldo, 0))} ${t('bruto · aguardando triagem')}` : t('ainda não'),
+      detalhe: brutos.length ? t('entrou bruto: {g}', { g: gramasTexto(brutos.reduce((s, l) => s + entrouBruto(l), 0)) }) : undefined,
+      itens: [...noEstoque].sort((a, b) => Number(b.id === itemDaTela) - Number(a.id === itemDaTela)).map((l) => ({ id: l.id, codigo: l.codigo, desta: l.id === itemDaTela, info: l.bruto ? `${t('entrou bruto')} · ${t(l.saldo > 0 ? 'aguardando triagem' : 'já triado')}` : l.nome, valor: l.saldo > 0 ? gramasTexto(l.saldo) : l.bruto ? gramasTexto(entrouBruto(l)) : t('sem saldo'), abrir: () => ir('lote', { id: l.id }) })),
     },
     {
       id: 'triagem', feito: triagens.length > 0 || veioSeparado, n: triagens.length,
@@ -89,7 +107,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
     },
     {
       id: 'venda', feito: vendas.length > 0, n: vendas.length,
-      resumo: vendas.length ? `${t('{n} venda(s)', { n: vendas.length })} · ${gramasTexto(g.totais.vendido)}` : t('ainda não vendido'),
+      resumo: vendas.length ? `${t('{n} venda(s)', { n: vendas.length })} · ${gramasTexto(vendas.reduce((s, v) => s + v.g, 0))}` : t('ainda não vendido'),
       detalhe: vendas.length ? [...new Set(vendas.map((v) => v.cliente).filter(Boolean))].slice(0, 3).join(', ') || undefined : undefined,
       itens: vendas.map((v) => ({ id: v.id, codigo: v.codigo, desta: v.id === vendaDaTela, info: [v.cliente, v.data && dataBR(v.data)].filter(Boolean).join(' · '), valor: gramasTexto(v.g), abrir: () => ir('venda', { id: v.id }) })),
     },
@@ -106,11 +124,15 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
         </div>
         {/* 0. A SITUAÇÃO AGORA, em uma frase */}
         <p className="num mb-4 rounded-xl bg-[var(--cartao)] px-3 py-2 text-sm shadow-sm ring-1 ring-[var(--borda)]">
-          <b>{t('Agora')}:</b> {[
-            g.totais.emEstoque > 0 ? t('{g} no estoque', { g: gramasTexto(g.totais.emEstoque) }) : vendas.length ? t('tudo vendido') : t('sem saldo'),
-            lotes.length ? (semEtiqueta.length ? t('{n} sem etiqueta', { n: semEtiqueta.length }) : t('etiquetas em dia')) : t('ainda não separado'),
-            vendas.length ? t('{n} venda(s)', { n: vendas.length }) : t('nada vendido ainda'),
-          ].join(' · ')}
+          <b>{t('Agora')}:</b> {(vendaAqui
+            ? [t('vendido para {c}', { c: vendaAqui.cliente ?? t('cliente sem nome') }), `${gramasTexto(vendaAqui.g)} ${t('de')} ${vendaAqui.lotes.map((l) => l.codigo ?? '—').join(', ')}`]
+            : loteAqui
+              ? [loteAqui.saldo > 0 ? t('{g} neste pacote', { g: gramasTexto(loteAqui.saldo) }) : t('pacote vazio'), loteAqui.bruto ? t('esperando triagem') : loteAqui.etiquetaEm ? t('com etiqueta') : t('sem etiqueta'), vendas.length ? t('{n} venda(s)', { n: vendas.length }) : t('nada vendido ainda')]
+              : [
+                  noEstoque.some((l) => l.saldo > 0) ? t('{g} no estoque', { g: gramasTexto(noEstoque.reduce((s, l) => s + Math.max(0, l.saldo), 0)) }) : vendas.length ? t('tudo vendido') : t('sem saldo'),
+                  lotes.length ? (semEtiqueta.length ? t('{n} sem etiqueta', { n: semEtiqueta.length }) : t('etiquetas em dia')) : t('ainda não separado'),
+                  vendas.length ? t('{n} venda(s)', { n: vendas.length }) : t('nada vendido ainda'),
+                ]).join(' · ')}
         </p>
         <ol className="space-y-0">
           {etapas.map((e, k) => {
@@ -136,20 +158,8 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
                   </p>
                   <p className={cx('num mt-0.5 text-sm', estado === 'falta' ? 'text-[var(--suave)]' : 'font-semibold')}>{e.resumo}</p>
                   {e.detalhe && <p className="num text-xs text-[var(--suave)]">{e.detalhe}</p>}
-                  {e.itens.length > 0 && (
-                    <ul className="mt-2.5 divide-y divide-[var(--borda)] overflow-hidden rounded-xl border border-[var(--borda)] bg-[var(--cartao)]">
-                      {e.itens.map((x) => (
-                        <li key={x.id}>
-                          <button type="button" onClick={x.abrir} title={t('Abrir')} className={cx('num flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition hover:bg-[var(--marca-suave)]', x.desta && 'bg-[var(--marca-suave)]')}>
-                            <b className={cx('shrink-0 rounded-md px-1.5 py-0.5 font-mono text-xs', x.desta ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>{x.codigo ?? '—'}</b>
-                            <span className="min-w-0 flex-1 truncate text-[var(--suave)]">{x.desta && <b className="mr-1 text-[var(--marca)]">{t('este')} ·</b>}{x.info}</span>
-                            {x.valor && <b className="shrink-0 whitespace-nowrap">{x.valor}</b>}
-                            <span aria-hidden className="shrink-0 text-[var(--suave)]">›</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  {e.itens.length > 0 && <ListaItens itens={e.itens} />}
+                  {!compacto && outros[e.id].length > 0 && <Outros itens={outros[e.id]} />}
                 </div>
               </li>
             )
@@ -178,7 +188,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
               {compras.map((c, k) => (
                 <div key={c.id} className="space-y-3">
                   <Cabeca codigo={c.codigo} nome={c.fornecedor} data={c.data && dataBR(c.data)} valor={gramasTexto(c.g)} onAbrir={() => ir('pedido', { id: c.id })} rotulo="Abrir pedido" destaque={'compraId' in de && de.compraId === c.id} />
-                  <LinhaDoTempo id={c.id} prefixo={`cc${k}`} simples />
+                  {c.id === compraDaTela && <LinhaDoTempo id={c.id} prefixo={`cc${k}`} simples />}
                 </div>
               ))}
             </Bloco>
@@ -198,7 +208,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
                       <button type="button" onClick={() => ir('lote', { id: l.id })} className="num flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-left text-sm hover:bg-[var(--fundo)]">
                         <b className="font-mono text-[var(--marca)]">{l.codigo ?? '—'}</b>
                         <span className="min-w-0 flex-1 truncate">{l.nome}</span>
-                        <span className="text-xs text-[var(--suave)]">{t('entrou')} {gramasTexto(l.entrou)} · {t('vendeu')} {gramasTexto(l.vendido)}</span>
+                        <span className="text-xs text-[var(--suave)]">{t('entrou')} {gramasTexto(l.bruto ? entrouBruto(l) : l.entrou)} · {t('vendeu')} {gramasTexto(l.vendido)}</span>
                         <b>{gramasTexto(l.saldo)}</b>
                         <span aria-hidden className="text-[var(--suave)]">›</span>
                       </button>
@@ -258,6 +268,72 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
         </div>
       </>}
     </section>
+  )
+}
+
+type ItemEtapa = { id: Id; codigo?: string; desta?: boolean; info?: string; valor?: string; abrir(): void }
+
+/**
+ * O CAMINHO PRÓPRIO do registro (ids): o que levou até ele (para trás) e o que saiu dele (para a frente).
+ *  · compra → tudo o que veio dela   · pacote → de onde veio + para onde foi   · triagem → as entradas para trás e as
+ *    saídas para a frente   · venda → só de onde veio (as outras vendas do mesmo pacote NÃO são o caminho dela)
+ */
+function caminhoProprio(g: NonNullable<ResultadoConsulta<'genealogia'>>, de: { compraId: Id } | { itemId: Id } | { vendaId: Id } | { triagemId: Id }) {
+  const lote = new Map(g.lotes.map((l) => [l.id, l]))
+  const triagem = new Map(g.triagens.map((x) => [x.id, x]))
+  const compra = new Map(g.compras.map((c) => [c.id, c]))
+  const venda = new Map(g.vendas.map((v) => [v.id, v]))
+  const ids = new Set<Id>()
+  const tras = (id: Id) => {
+    if (ids.has(id) && !lote.has(id)) return
+    ids.add(id)
+    const l = lote.get(id)
+    if (l) for (const x of l.de) { if (x.tipo === 'triagem') { if (!ids.has(x.id)) { ids.add(x.id); for (const e of triagem.get(x.id)?.entradas ?? []) if (!ids.has(e.id)) tras(e.id) } } else ids.add(x.id) }
+  }
+  const frente = (id: Id) => {
+    ids.add(id)
+    const c = compra.get(id)
+    if (c) for (const x of c.lotes) if (!ids.has(x.id)) frente(x.id)
+    const l = lote.get(id)
+    if (l) for (const x of l.para) { if (x.tipo === 'triagem') { if (!ids.has(x.id)) { ids.add(x.id); for (const s of triagem.get(x.id)?.saidas ?? []) if (!ids.has(s.id)) frente(s.id) } } else ids.add(x.id) }
+  }
+  if ('compraId' in de) frente(de.compraId)
+  else if ('itemId' in de) { tras(de.itemId); frente(de.itemId) }
+  else if ('vendaId' in de) { ids.add(de.vendaId); for (const l of venda.get(de.vendaId)?.lotes ?? []) tras(l.id) }
+  else { ids.add(de.triagemId); const x = triagem.get(de.triagemId); for (const e of x?.entradas ?? []) tras(e.id); for (const s of x?.saidas ?? []) frente(s.id) }
+  return ids
+}
+
+/** a lista de registros de uma etapa (código · o que é · quanto ›) */
+function ListaItens({ itens, apagado }: { itens: ItemEtapa[]; apagado?: boolean }) {
+  const t = useT()
+  return (
+    <ul className={cx('mt-2.5 divide-y divide-[var(--borda)] overflow-hidden rounded-xl border border-[var(--borda)] bg-[var(--cartao)]', apagado && 'opacity-80')}>
+      {itens.map((x) => (
+        <li key={x.id}>
+          <button type="button" onClick={x.abrir} title={t('Abrir')} className={cx('num flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition hover:bg-[var(--marca-suave)]', x.desta && 'bg-[var(--marca-suave)]')}>
+            <b className={cx('shrink-0 rounded-md px-1.5 py-0.5 font-mono text-xs', x.desta ? 'bg-[var(--marca)] text-white' : apagado ? 'bg-[var(--fundo)] text-[var(--suave)]' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>{x.codigo ?? '—'}</b>
+            <span className="min-w-0 flex-1 truncate text-[var(--suave)]">{x.desta && <b className="mr-1 text-[var(--marca)]">{t('este')} ·</b>}{x.info}</span>
+            {x.valor && <b className="shrink-0 whitespace-nowrap">{x.valor}</b>}
+            <span aria-hidden className="shrink-0 text-[var(--suave)]">›</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** "outros do mesmo cabelo (N) ▾": a família que não é o caminho deste registro, fechada por padrão */
+function Outros({ itens }: { itens: ItemEtapa[] }) {
+  const t = useT()
+  const [aberto, setAberto] = useState(false)
+  return (
+    <div className="mt-1.5">
+      <button type="button" aria-expanded={aberto} onClick={() => setAberto(!aberto)} className="-ml-2 inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-[var(--suave)] hover:bg-[var(--cartao)] hover:text-[var(--marca)]">
+        {t('outros do mesmo cabelo ({n})', { n: itens.length })}<span aria-hidden className={cx('transition-transform', aberto && 'rotate-180')}>▾</span>
+      </button>
+      {aberto && <ListaItens itens={itens} apagado />}
+    </div>
   )
 }
 

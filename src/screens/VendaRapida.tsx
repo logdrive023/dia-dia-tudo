@@ -28,6 +28,8 @@ interface LinhaCaixa {
   itemId: Id
   /** gramas (cabelo) ou unidades (produto) */
   quantidade: number
+  /** preço digitado (pacote sem preço de tabela: bruto, sem medida) — na moeda principal */
+  precoManual?: number
 }
 
 interface Preco {
@@ -116,6 +118,7 @@ function useMidia(q: string, padrao: boolean) {
   return v
 }
 
+/** ainda não separado: pode vender (nunca trava), com um aviso; o preço é digitado se a tabela não tiver */
 const NAO_SEPARADO = new Set(['bruto', 'naoIdentificado', 'preparando'])
 
 /** modo do desconto (% ou valor): o último escolhido fica no aparelho */
@@ -175,6 +178,7 @@ export function VendaRapida() {
   const t = useT()
   const { ir, sessao, nav, ajustarParams } = useApp()
   const { executar, ocupado } = useComando()
+  const { executar: executarCfg } = useComando()
   const { cot } = useCotacoes('venda')
   const { dados: cfg } = useConsulta('configuracoes', {})
   const { dados: estoqueTodo } = useConsulta('estoque', {})
@@ -190,7 +194,7 @@ export function VendaRapida() {
   const [vendaId, setVendaId] = useState(() => novoId())
   const [linhas, setLinhas] = useState<LinhaCaixa[]>([])
   const [busca, setBusca] = useState('')
-  const [aviso, setAviso] = useState<{ texto: string; ok: boolean; itemId?: Id }>()
+  const [aviso, setAviso] = useState<{ texto: string; ok: boolean | 'alerta'; itemId?: Id }>()
   const [conferindo, setConferindo] = useState<Id>()
   const [mais, setMais] = useState(false)
   const [pessoaId, setPessoaId] = useState<Id>()
@@ -252,7 +256,7 @@ export function VendaRapida() {
   const vistas = linhas
     .map((l) => {
       const item = porId.get(l.itemId)
-      return item ? { ...l, item, preco: precoDe(item, l.quantidade) } : undefined
+      return item ? { ...l, item, preco: l.precoManual !== undefined ? { moeda: cfg?.config.moedaPrincipal ?? moedaPadrao(), total: l.precoManual } as Preco : precoDe(item, l.quantidade) } : undefined
     })
     .filter((x): x is NonNullable<typeof x> => !!x)
   const moedaVenda = vistas.find((l) => l.preco.calculo)?.preco.moeda ?? vistas[0]?.preco.moeda ?? cfg?.config.moedaPrincipal ?? moedaPadrao()
@@ -303,9 +307,9 @@ export function VendaRapida() {
   const sm = moedaDe(mc).simbolo
   const textoCobranca = mc === principal ? '' : `${t('Cobrado em {m}', { m: sm })} · ${t('cotação')} 1 ${sm} = ${cotValor ?? '?'} ${moedaDe(principal).simbolo}`
 
-  const avisar = (texto: string, ok: boolean, itemId?: Id) => {
+  const avisar = (texto: string, ok: boolean | 'alerta', itemId?: Id) => {
     setAviso({ texto, ok, itemId })
-    bipe(ok)
+    bipe(ok !== false)
   }
 
   const adicionar = (i: Pacote) => {
@@ -315,12 +319,17 @@ export function VendaRapida() {
     const c = i.codigo ?? i.nome
     if (linhas.some((l) => l.itemId === i.id)) return avisar(t('{c} já está na venda.', { c }), false)
     if (i.saldo <= 0) return avisar(t('{c} está esgotado.', { c }), false)
-    if (i.unidade === 'grama' && (NAO_SEPARADO.has(i.status) || !i.campos.comprimento)) return avisar(t('{c} ainda não está separado: separe na Triagem antes de vender.', { c }), false)
     const q = i.unidade === 'grama' ? i.saldo : 1
     const p = precoDe(i, q)
-    if (p.erro) return avisar(p.erro, false)
     setLinhas((ls) => [...ls, { id: novoId(), itemId: i.id, quantidade: q }])
     setFeita(undefined)
+    // NUNCA trava: bruto, reservado ou sem preço entram; o aviso diz o que é e o que fazer (nada quebra)
+    const notas = [
+      i.unidade === 'grama' && NAO_SEPARADO.has(i.status) && cfg?.config.avisarVendaBruto !== false && t('ainda está bruto (não passou pela triagem) — tudo bem vender assim'),
+      reservado(i) && t('estava reservado para {p} — tudo bem vender para outra pessoa: a reserva sai sozinha e fica anotada no histórico', { p: i.reserva!.para }),
+      p.erro && t('digite o preço na linha'),
+    ].filter(Boolean)
+    if (notas.length) return avisar(`${c} · ${i.unidade === 'grama' ? gramasTexto(q) : q}: ${notas.join(' · ')}`, 'alerta', i.id)
     avisar(`✓ ${c} · ${i.unidade === 'grama' ? gramasTexto(q) : q} · ${formatar(p.total, p.moeda)}`, true, i.id)
   }
   const naoAchou = (texto: string) => {
@@ -402,6 +411,8 @@ export function VendaRapida() {
       : undefined
 
   const pagar = async (pags: PagamentoTela[], troco?: number) => {
+    const semPreco = vistas.find((l) => l.preco.erro)
+    if (semPreco) return avisar(t('Digite o preço de {c}.', { c: semPreco.item.codigo ?? semPreco.item.nome }), false, semPreco.item.id)
     const valendo = pags.filter((x) => x.valor)
     const semCotacao = valendo.find((x) => x.moeda !== principal && !cotacaoDe(x))
     if (semCotacao) return avisar(t('Digite a cotação de {m}.', { m: moedaDe(semCotacao.moeda).simbolo }), false)
@@ -502,9 +513,12 @@ export function VendaRapida() {
         </ul>
       )}
       {aviso && (
-        <p role="status" className={cx('mt-2 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold', aviso.ok ? 'bg-[var(--bom)]/10 text-[var(--bom)]' : 'bg-[var(--ruim)]/10 text-[var(--ruim)]')}>
+        <p role="status" className={cx('mt-2 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold', aviso.ok === 'alerta' ? 'bg-[var(--alerta)]/12 text-[var(--texto)]' : aviso.ok ? 'bg-[var(--bom)]/10 text-[var(--bom)]' : 'bg-[var(--ruim)]/10 text-[var(--ruim)]')}>
           {aviso.itemId && porId.get(aviso.itemId) && <Miniatura item={porId.get(aviso.itemId)!} tamanho="h-12 w-12" />}
-          <span>{aviso.texto}</span>
+          <span className="min-w-0 flex-1">{aviso.texto}</span>
+          {aviso.ok === 'alerta' && sessao.perfil === 'admin' && cfg?.config.avisarVendaBruto !== false && aviso.itemId && NAO_SEPARADO.has(porId.get(aviso.itemId)?.status ?? '') && (
+            <button type="button" onClick={() => executarCfg('salvarConfig', { avisarVendaBruto: false }, t('Pronto: não aviso mais. Dá para ligar de novo em Configurações › Geral.'))} className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-[var(--marca)] underline-offset-2 hover:underline">{t('Não avisar mais')}</button>
+          )}
         </p>
       )}
     </div>
@@ -513,7 +527,8 @@ export function VendaRapida() {
   const ajudaLinha = <Info texto="Vendeu só uma parte? Toque e digite as gramas. Ex.: 500 g do P4" />
   type Vista = (typeof vistas)[number]
   const qtdTexto = (l: Vista) => (l.item.unidade === 'grama' ? `${l.quantidade.toLocaleString(loc())} g` : `${l.quantidade}`)
-  const contaTexto = (l: Vista) => (l.preco.calculo ? `${qtdTexto(l)} × ${l.preco.calculo.fator}` : `${qtdTexto(l)} × ${formatar(l.item.precoSugerido?.valor ?? 0, l.preco.moeda)}`)
+  // sem preço de tabela/catálogo (bruto, preço digitado): só a quantidade — nada de "× Bs" vazio
+  const contaTexto = (l: Vista) => (l.preco.calculo ? `${qtdTexto(l)} × ${l.preco.calculo.fator}` : l.item.precoSugerido && l.precoManual === undefined ? `${qtdTexto(l)} × ${formatar(l.item.precoSugerido.valor, l.preco.moeda)}` : qtdTexto(l))
   const ficaTexto = (l: Vista) => {
     const resta = l.item.saldo - l.quantidade
     if (resta <= 0) return t('acaba o pacote')
@@ -544,6 +559,15 @@ export function VendaRapida() {
       <span className={cx('block text-xs font-normal', l.item.saldo - l.quantidade <= 0 ? 'text-[var(--alerta)]' : 'text-[var(--suave)]')}>{ficaTexto(l)}</span>
     </button>
   )
+  /** o preço da linha; sem preço de tabela (bruto, sem medida): um campo para digitar o valor */
+  const precoDaLinha = (l: Vista) => (l.preco.erro || l.precoManual !== undefined) ? (
+    <label className="inline-flex items-center gap-1">
+      <span className="text-xs font-normal text-[var(--suave)]">{t('Preço')}</span>
+      <input inputMode="decimal" aria-label={t('Preço de {c}', { c: l.item.codigo ?? l.item.nome })} placeholder="0,00" defaultValue={l.precoManual ? (l.precoManual / 100).toLocaleString(loc(), { minimumFractionDigits: 2 }) : ''}
+        onChange={(e) => { const v = Number(e.target.value.replace(/\./g, '').replace(',', '.')); setLinhas((ls) => ls.map((x) => (x.id === l.id ? { ...x, precoManual: Number.isFinite(v) && v > 0 ? Math.round(v * 100) : undefined } : x))) }}
+        className="num w-28 rounded-lg border-2 border-[var(--alerta)] bg-[var(--cartao)] px-2 py-1 text-right font-bold" />
+    </label>
+  ) : formatar(l.preco.total, l.preco.moeda)
   const dica = <span className="flex items-center text-xs text-[var(--suave)]">{t('Toque na foto para conferir o pacote · toque nas gramas para vender só uma parte.')} {ajudaLinha}</span>
 
   const lista = !vistas.length ? (
@@ -568,7 +592,7 @@ export function VendaRapida() {
             <tr key={l.id} className="border-b border-[var(--borda)]">
               <td className="max-w-0 py-2 pr-2">{botaoConferir(l)}</td>
               <td className="py-2 pr-2 text-right">{botaoGramas(l)}</td>
-              <td className="num whitespace-nowrap py-2 pr-2 text-right text-base font-bold">{formatar(l.preco.total, l.preco.moeda)}</td>
+              <td className="num whitespace-nowrap py-2 pr-2 text-right text-base font-bold">{precoDaLinha(l)}</td>
               <td className="text-right">{botaoTirar(l)}</td>
             </tr>
           ))}
@@ -586,7 +610,7 @@ export function VendaRapida() {
           </div>
           <div className="mt-1 flex items-center justify-between gap-2 pl-1">
             {botaoGramas(l)}
-            <b className="num text-lg">{formatar(l.preco.total, l.preco.moeda)}</b>
+            <b className="num text-lg">{precoDaLinha(l)}</b>
           </div>
         </li>
       ))}

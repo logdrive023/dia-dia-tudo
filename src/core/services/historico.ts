@@ -86,6 +86,7 @@ async function linkDe(ctx: Ctx, id: Id, cache: Map<Id, LinkEvento | null>): Prom
 }
 
 const NOMES_ACAO: Record<string, string> = {
+  recusado: 'Tentativa recusada',
   criarCompra: 'Pedido de compra registrado',
   avancarTriagem: 'Etapa da triagem',
   cancelarCompra: 'Compra cancelada',
@@ -188,7 +189,7 @@ export async function linhaDoTempo(ctx: Ctx, p: { id: Id }) {
     const nomesEtapa = new Map<string, string>()
     if (ctx.modulos.tem(t.moduloId)) for (const e of ctx.modulos.obter(t.moduloId).compra?.etapas ?? []) nomesEtapa.set(e.id, e.nome)
     const nomeEtapa = (id: string) =>
-      nomesEtapa.get(id) ?? ({ agendado: 'Agendado', concluido: 'Concluído', cancelado: 'Cancelado', recusado: 'Recusado' } as Record<string, string>)[id] ?? id
+      nomesEtapa.get(id) ?? ({ novo: 'Nova', agendado: 'Agendado', concluido: 'Concluído', cancelado: 'Cancelado', recusado: 'Recusado' } as Record<string, string>)[id] ?? id
     const unidadeDe = async (itemId?: Id) => (itemId ? (await ctx.repos.itens.obter(itemId))?.unidade : undefined)
     const pagamentos = t.pagamentos.map((pg) => ({
       forma: nomeForma.get(pg.forma) ?? pg.forma,
@@ -293,7 +294,28 @@ export async function linhaDoTempo(ctx: Ctx, p: { id: Id }) {
     }
   }
   // conta corrente do registro: saldo da pessoa antes e depois (+ = a pessoa me deve)
-  for (const m of await ctx.repos.movConta.listar({ origemId: p.id })) {
+  const movsConta = await ctx.repos.movConta.listar({ origemId: p.id })
+  // lançou e pagou NA HORA (+X e −X da mesma pessoa, no mesmo minuto): vira UM evento "pago na hora", sem o vai e vem
+  const pares = new Set<Id>()
+  for (const m of movsConta) {
+    if (pares.has(m.id)) continue
+    const par = movsConta.find((x) => x.id !== m.id && !pares.has(x.id) && x.pessoaId === m.pessoaId && x.moeda === m.moeda && x.delta === -m.delta && x.criadoEm.slice(0, 16) === m.criadoEm.slice(0, 16) && x.tipo !== 'ajuste' && m.tipo !== 'ajuste')
+    if (!par) continue
+    pares.add(m.id).add(par.id)
+    const pessoa = await linkDe(ctx, m.pessoaId, cache)
+    const pago = m.delta < 0 ? m : par
+    eventos.push({
+      em: m.criadoEm < par.criadoEm ? m.criadoEm : par.criadoEm,
+      tipo: 'conta',
+      titulo: 'Lançado na conta e pago na hora',
+      valor: { valor: Math.abs(m.delta), moeda: m.moeda, forma: pago.forma ? nomeForma.get(pago.forma) ?? pago.forma : undefined },
+      por: usuarios.get(m.criadoPor),
+      chave: `k${m.id}`,
+      texto: 'A conta da pessoa não mudou: entrou e saiu o mesmo valor.',
+      links: pessoa ? [pessoa] : undefined,
+    })
+  }
+  for (const m of movsConta.filter((x) => !pares.has(x.id))) {
     const daPessoa = (await ctx.repos.movConta.listar({ pessoaId: m.pessoaId })).sort(porData)
     const antes = daPessoa.slice(0, Math.max(0, daPessoa.findIndex((x) => x.id === m.id))).reduce((s, x) => s + x.delta, 0)
     const pessoa = await linkDe(ctx, m.pessoaId, cache)

@@ -41,6 +41,14 @@ export function Geral() {
             </div>
             <p className="mt-1 text-xs text-[var(--suave)]">{t('O idioma muda na hora, para todo o sistema.')}</p>
           </Campo>
+          {/* venda de pacote BRUTO: nunca trava; aqui só se escolhe se aparece o aviso */}
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl bg-[var(--fundo)] p-3">
+            <input type="checkbox" className="mt-0.5 h-6 w-6 shrink-0" checked={c.avisarVendaBruto !== false} onChange={(e) => executar('salvarConfig', { avisarVendaBruto: e.target.checked }, t('Salvo.'))} />
+            <span className="text-sm">
+              <b className="block">{t('Avisar ao vender pacote bruto')}</b>
+              <span className="text-[var(--suave)]">{t('A venda passa sempre (nada trava). Ligado: o caixa mostra "ainda está bruto" para conferir o preço.')}</span>
+            </span>
+          </label>
         </div>
       </Cartao>
       <BarraSalvar sujo={sujo}>

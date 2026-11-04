@@ -194,17 +194,25 @@ describe('3. venda no limite', () => {
     await semProblema(b)
   })
 
-  it.fails('ACHADO: vende pacote BRUTO (ainda na fila da triagem) sem avisar nem recusar', async () => {
+  it('vender pacote BRUTO (ainda na fila da triagem): NUNCA trava (decisão: só avisa na tela); o rastreio fecha', async () => {
     const { b } = await novoBackend()
     const a = await comprar(b, 'c1', 'ana', 1000)
-    expect(await recusa(vender(b, 'v', a, 500))).toBeTruthy()
+    expect(await recusa(vender(b, 'v', a, 500))).toBeUndefined()
+    expect(await saldo(b, a)).toBe(500)
+    expect((await b.consulta('genealogia', { compraId: 'c1' })).totais).toMatchObject({ vendido: 500, emEstoque: 500, confere: true })
+    await semProblema(b)
   })
 
-  it.fails('ACHADO: vende pacote RESERVADO para outra pessoa sem pedir para tirar a reserva', async () => {
+  it('vender pacote RESERVADO (Matheus desistiu e ninguém atualizou): passa, a reserva acaba e fica anotada', async () => {
     const { b } = await novoBackend()
     const p = await pronto(b)
-    await b.comando('reservarLote', { id: p, para: 'Ana', ate: '2026-11-30' })
-    expect(await recusa(vender(b, 'v', p, 1000))).toBeTruthy()
+    await b.comando('reservarLote', { id: p, para: 'Matheus', ate: '2026-11-30' })
+    await b.comando('salvarPessoa', { id: 'ana', nome: 'Ana', papeis: ['cliente'] })
+    await b.comando('concluirVenda', { id: 'v', pessoaId: 'ana', linhas: [{ id: 'vl', itemId: p, quantidade: 400, moeda: 'BOB', total: bs(100) }], pagamentos: [{ id: 'vp', forma: 'dinheiro', moeda: 'BOB', valor: bs(100) }] })
+    expect((await b.consulta('fichaItem', { id: p })).item.reserva).toBeUndefined()
+    const log = (await b.consulta('logDetalhado', { acao: 'reservarLote' })).linhas
+    expect(log[0].resumo).toMatch(/reserva para Matheus encerrada pela venda V-\d+ para Ana/)
+    await semProblema(b)
   })
 
   it('DUPLO CLIQUE no finalizar (mesmo id, ao mesmo tempo): baixa uma vez só', async () => {
@@ -251,13 +259,19 @@ describe('4. livro do cabelo, registro e desfazer', () => {
     expect(log.every((l) => l.usuarioNome && l.criadoEm)).toBe(true)
   })
 
-  it.fails('ACHADO: tentativas BLOQUEADAS (vender mais do que tem) não ficam registradas em lugar nenhum', async () => {
+  it('tentativas BLOQUEADAS (vender mais do que tem) ficam no registro, ligadas ao pacote, com o motivo', async () => {
     const { b } = await novoBackend()
     const a = await comprar(b, 'c1', 'ana', 1000)
     const p = (await b.comando('triarLotes', { id: 't1', ids: [a], quantidadeUsada: 1000, saidas: [saida('s1', 1000)] })).lotes[0]
     await recusa(vender(b, 'vx', p, 5000))
-    const log = (await b.consulta('logDetalhado', {})).linhas
-    expect(log.some((l) => /recus|bloque/i.test(`${l.acao} ${l.resumo}`))).toBe(true)
+    const log = (await b.consulta('logDetalhado', { acao: 'recusado' })).linhas
+    expect(log).toHaveLength(1)
+    expect(log[0]).toMatchObject({ nomeAcao: 'Tentativa recusada', usuarioNome: 'Administrador' })
+    expect(log[0].ligados).toContain(p)
+    // e aparece na linha do tempo do pacote
+    expect(JSON.stringify(await b.consulta('linhaDoTempo', { id: p }))).toMatch(/Tentativa recusada|recusad/i)
+    // a tentativa não mexeu no estoque
+    expect(await saldo(b, p)).toBe(1000)
   })
 
   it('DESFAZER a triagem: o bruto volta inteiro, as partes somem do estoque, o rastreio fecha e o livro guarda a ida e a volta', async () => {

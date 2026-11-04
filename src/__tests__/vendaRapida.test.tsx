@@ -109,7 +109,7 @@ describe('modo caixa (venda rápida)', () => {
     expect(depois.saldo).toBe(lote.saldo - 500)
   }, 120000)
 
-  it('pacote ainda não separado não entra: pede para separar na Triagem', async () => {
+  it('pacote ainda não separado ENTRA (nunca trava): aviso amarelo e o preço digitado na linha', async () => {
     const { b, sessao } = await novoBackend()
     await carregarDemo(b)
     const lotes = await b.consulta('estoque', { moduloId: 'cabelo' })
@@ -122,8 +122,9 @@ describe('modo caixa (venda rápida)', () => {
     fireEvent.change(campo, { target: { value: bruto.codigo } })
     await screen.findByText(bruto.codigo!, { selector: 'li b' }, { timeout: 15000 })
     fireEvent.keyDown(campo, { key: 'Enter' })
-    await screen.findByText(`${bruto.codigo} ainda não está separado: separe na Triagem antes de vender.`)
-    expect(screen.queryByRole('table')).toBeNull()
+    await screen.findByText(/tudo bem vender assim|digite o preço na linha/, {}, { timeout: 10000 })
+    // sem preço de tabela: o campo do preço aparece na linha e pagar pede o valor
+    if (!bruto.campos.comprimento) expect(await screen.findByLabelText(`Preço de ${bruto.codigo}`)).toBeTruthy()
   }, 120000)
 
   it('desconto em %: mostra o valor na hora, guarda o modo e a venda sai com o total descontado', async () => {

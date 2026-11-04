@@ -39,18 +39,22 @@ export const NOME_TELA: Record<string, string> = {
   pessoa: 'Pessoa', viagem: 'Viagem', tabelaPreco: 'Tabela de preço', configSecao: 'Configurações',
 }
 
+/** Formulários: depois de salvar, o "voltar" não cai de novo neles (pula para a lista da área). */
+const FORMULARIOS = new Set(['novaCompra', 'novoEmprestimo', 'novaViagem', 'novoFinanciamento', 'separar'])
+
 /**
  * PARA ONDE O "VOLTAR" LEVA (regra única, usada pelo voltar do App e pela trilha de navegação, que mostra o destino):
- *  · veio de uma LISTA (tela sem "pai") ou a tela atual não tem pai → a tela anterior (history.back, com os filtros)
- *  · veio de um formulário/outro detalhe → a lista "pai" da área: se ela está mais atrás no histórico, volta até ela;
- *    se não (abriu por link), troca a tela atual pela lista
+ *  · IR E VOLTAR: veio de outra tela (lista OU detalhe: a venda, o pedido, o rastreio) → volta exatamente para ela
+ *    (history.back: com a aba, os filtros e a rolagem de antes)
+ *  · veio de um FORMULÁRIO (nova compra, separar…) → a lista "pai" da área (pulando até ela se está no histórico)
+ *  · abriu por link (sem tela antes) → troca a tela atual pela lista da área
  */
 export type DestinoVoltar = { alvo: Navegacao } & ({ modo: 'anterior' } | { modo: 'pular'; passos: number } | { modo: 'trocar' })
 export function destinoVoltar(pl: Navegacao[]): DestinoVoltar {
   const atual = pl[pl.length - 1]
   const anterior = pl[pl.length - 2]
   const pai = PAI[atual.tela]
-  if (anterior && (!PAI[anterior.tela] || !pai)) return { modo: 'anterior', alvo: anterior }
+  if (anterior && !FORMULARIOS.has(anterior.tela)) return { modo: 'anterior', alvo: anterior }
   if (pai) for (let k = pl.length - 2; k >= 0; k--) if (pl[k].tela === pai && !pl[k].params.id) return { modo: 'pular', passos: k - (pl.length - 1), alvo: pl[k] }
   return { modo: 'trocar', alvo: { tela: pai ?? 'painel', params: {} } }
 }
@@ -110,5 +114,5 @@ export function hashParaNav(hash: string): Navegacao | undefined {
     if (b === 'novo' && col.novo) return { tela: col.novo, params }
     return { tela: col.item, params: { ...params, id: b } }
   }
-  return { tela: a, params }
+  return { tela: a, params: b && params.id === undefined ? { ...params, id: b } : params }
 }

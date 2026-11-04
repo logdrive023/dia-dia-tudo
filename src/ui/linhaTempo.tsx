@@ -205,7 +205,7 @@ export function LinhaDoTempo({ id, prefixo = 'lt', simples }: { id: string; pref
             <section key={dia} aria-label={dia}>
               <CabecalhoDia data={dia} quantos={evs.length} />
               <ListaEventos>
-                {evs.map(({ e, c }) => <Evento key={c} e={e} aberto={abertos.has(c)} onAlternar={() => alternar(c)} />)}
+                {evs.map(({ e, c }) => <Evento key={c} e={e} daTela={id} aberto={abertos.has(c)} onAlternar={() => alternar(c)} />)}
               </ListaEventos>
             </section>
           ))}
@@ -225,7 +225,7 @@ function tomDe(e: Ev, n?: number): TomEvento {
 }
 
 /** Um evento da linha do tempo, no cartão padrão (CartaoEvento): o que foi, o número, os selos, a referência. */
-function Evento({ e, aberto, onAlternar }: { e: Ev; aberto: boolean; onAlternar(): void }) {
+function Evento({ e, daTela, aberto, onAlternar }: { e: Ev; daTela: string; aberto: boolean; onAlternar(): void }) {
   const t = useT()
   const { ir } = useApp()
   const hora = new Date(e.em).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })
@@ -240,7 +240,7 @@ function Evento({ e, aberto, onAlternar }: { e: Ev; aberto: boolean; onAlternar(
     ? `${comSinal && e.valor.valor > 0 ? '+' : ''}${formatar(e.valor.valor, e.valor.moeda)}`
     : totalQtd !== undefined && e.tipo === 'estoque' ? `${totalQtd > 0 ? '+' : ''}${quantidade(totalQtd, unidade)}` : undefined
   const resumo = e.itens?.length === 1 ? e.itens[0].texto : e.itens && e.itens.length > 1 ? t('{n} item(ns)', { n: e.itens.length }) : textoLivre(e)
-  const links = linksDe(e)
+  const links = linksDe(e, daTela)
   return (
     <CartaoEvento
       icone={e.correcao && e.tipo !== 'etapa' ? ICONES.correcao : ICONES[e.tipo]}
@@ -262,26 +262,30 @@ function Evento({ e, aberto, onAlternar }: { e: Ev; aberto: boolean; onAlternar(
       aberto={aberto}
       onAlternar={onAlternar}
     >
-      <Detalhes e={e} />
+      <Detalhes e={e} daTela={daTela} />
     </CartaoEvento>
   )
 }
 
-/** As referências do evento (para onde ele leva): os links dele ou, sem links, o registro de origem. */
-function linksDe(e: Ev) {
+/** As referências do evento (para onde ele leva): os links dele ou, sem links, o registro de origem. Nunca a própria
+ * tela ("↗ V-0004" dentro da V-0004 não leva a lugar nenhum). */
+function linksDe(e: Ev, daTela?: string) {
+  return linksTodos(e).filter((l) => !daTela || String(l.params?.id ?? '') !== daTela)
+}
+function linksTodos(e: Ev) {
   return e.links?.length ? e.links : e.ref ? [{ tipo: e.ref.tela, tela: e.ref.tela, params: { id: e.ref.id }, rotulo: e.ref.tela === 'venda' ? 'Abrir venda' : e.ref.tela === 'lote' ? 'Abrir lote' : 'Abrir' }] : []
 }
 
 const ICONE_LINK: Record<string, string> = { lote: '📦', venda: '🧾', compra: '🛒', triagem: '🧺', viagem: '🧳', adiantamento: '🤝', pessoa: '👤', emprestimo: '💸', caixa: '💵' }
 
 /** Ficha do evento: cada informação num bloco (rótulo em cima, valor embaixo); o "antes → depois" primeiro e largo. */
-function Detalhes({ e }: { e: Ev }) {
+function Detalhes({ e, daTela }: { e: Ev; daTela: string }) {
   const t = useT()
   const { ir } = useApp()
   const unidade = e.itens?.[0]?.unidade
   const texto = textoLivre(e)
   const saldos = e.grupo ? e.grupo.filter((g) => g.saldo) : e.saldo ? [e] : []
-  const links = linksDe(e)
+  const links = linksDe(e, daTela)
   const somaItens = !!e.itens && e.itens.length > 1 && e.itens.every((it) => it.quantidade !== undefined && it.unidade === unidade)
   return (
     <DetalhesEvento>

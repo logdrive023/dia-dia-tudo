@@ -2,16 +2,20 @@
 // Cada comando: fila (um por vez) → transação (tudo ou nada) → registro na fila de saída (outbox) → avisa as telas.
 
 import type { Base, Id, Outbox } from '../core/domain/tipos'
+import { nomeAcao } from '../core/services/historico'
 import { ErroNegocio } from '../core/domain/erros'
 import type { RegistroModulos } from '../core/modulos'
 import type { Backend, Backup, TipoArmazenamento } from '../core/ports/backend'
 import { type ArquivosStore, type ExecutarEmTransacao, NOMES_COLECOES, type Relogio, type Repos, type Sessao } from '../core/ports/portas'
 import { comandos, consultas, type DadosComando, type NomeComando, type NomeConsulta, type ParamsConsulta, type ResultadoComando, type ResultadoConsulta } from '../core/services'
-import { type Ctx, novo } from '../core/services/contexto'
+import { type Ctx, novo, auditar } from '../core/services/contexto'
 import { type ModuloConfig, moduloDeConfig } from '../core/modulosConfig'
 import type { AtributosConfig, FluxoCompraConfig } from '../core/modulos'
 import { SEM_LOGIN, podeComando, podeConsulta } from '../core/services/permissoes'
 import { entrar, hashSenha, prepararSenhas } from '../core/services/usuarios'
+
+/** comandos cuja recusa não vai para o log (senha: o aviso basta e não se guarda rastro) */
+const SEM_LOG_RECUSA = new Set(['trocarMinhaSenha', 'salvarUsuario'])
 
 export class BackendNoAparelho implements Backend {
   private fila: Promise<unknown> = Promise.resolve()
@@ -50,22 +54,51 @@ export class BackendNoAparelho implements Backend {
   comando<N extends NomeComando>(nome: N, dados: DadosComando<N>, relogio?: Relogio): Promise<ResultadoComando<N>> {
     const handler = comandos[nome] as unknown as (ctx: Ctx, d: unknown) => Promise<ResultadoComando<N>>
     if (!handler) return Promise.reject(new ErroNegocio(`Comando desconhecido: ${String(nome)}`))
-    if (!this.sessao.usuarioId || !podeComando(this.sessao.perfil, nome)) return Promise.reject(new ErroNegocio('Sem permissão para isso. Peça a um administrador.'))
+    if (!this.sessao.usuarioId) return Promise.reject(new ErroNegocio('Sem permissão para isso. Peça a um administrador.'))
     const ctx = this.ctx(relogio)
+    if (!podeComando(this.sessao.perfil, nome)) {
+      const erro = new ErroNegocio('Sem permissão para isso. Peça a um administrador.')
+      return this.enfileirar(async () => { await this.registrarRecusa(ctx, nome, dados, erro); throw erro })
+    }
     return this.enfileirar(async (): Promise<ResultadoComando<N>> => {
       await this.carregarModulos()
       // criptografia antes da transação (o IndexedDB não espera); a senha em texto não segue adiante
       const prontos = await prepararSenhas(ctx, nome, (dados ?? {}) as Record<string, unknown>)
-      const r = await this.transacao<ResultadoComando<N>>(async () => {
-        const res: ResultadoComando<N> = await handler(ctx, prontos)
-        // fila de saída: hoje só fica guardada; com a API, um sincronizador envia (nunca com senha)
-        const { _senha: _a, _atualHash: _b, ...semSegredo } = prontos as Record<string, unknown>
-        await this.repos.outbox.salvar(novo<Outbox>(ctx, { comando: nome, dados: JSON.parse(JSON.stringify(semSegredo)) }))
-        return res
-      })
+      let r: ResultadoComando<N>
+      try {
+        r = await this.transacao<ResultadoComando<N>>(async () => {
+          const res: ResultadoComando<N> = await handler(ctx, prontos)
+          // fila de saída: hoje só fica guardada; com a API, um sincronizador envia (nunca com senha)
+          const { _senha: _a, _atualHash: _b, ...semSegredo } = prontos as Record<string, unknown>
+          await this.repos.outbox.salvar(novo<Outbox>(ctx, { comando: nome, dados: JSON.parse(JSON.stringify(semSegredo)) }))
+          return res
+        })
+      } catch (e) {
+        // TENTATIVA RECUSADA (regra do negócio): a transação desfez tudo; o registro da tentativa fica (fora dela)
+        if (e instanceof ErroNegocio) await this.registrarRecusa(ctx, nome, dados, e)
+        throw e
+      }
       this.avisar()
       return r
     })
+  }
+
+  /**
+   * LOG DAS TENTATIVAS RECUSADAS: quem tentou o quê, quando, e por que o sistema não deixou ("Vender: só tem 1.000 g
+   * no L-0002"). Fica no registro e na linha do tempo do que foi tentado (pacote, venda, compra). Nunca guarda senha.
+   */
+  private async registrarRecusa(ctx: Ctx, nome: string, dados: unknown, e: ErroNegocio) {
+    if (SEM_LOG_RECUSA.has(nome)) return
+    try {
+      const d = (dados ?? {}) as Record<string, unknown>
+      const ids = (x: unknown) => (typeof x === 'string' && x ? [x] : [])
+      const alvo = [d.itemId, d.compraId, d.vendaId, d.triagemId, d.viagemId, d.id].find((x) => typeof x === 'string' && x) as Id | undefined
+      const linhas = Array.isArray(d.linhas) ? (d.linhas as Record<string, unknown>[]).flatMap((l) => ids(l.itemId)) : []
+      const ligados = [...ids(d.itemId), ...(Array.isArray(d.ids) ? (d.ids as unknown[]).flatMap(ids) : []), ...linhas]
+      await this.transacao(() => auditar(ctx, 'recusado', alvo, `${nomeAcao(nome)} · ${e.message}`, ligados))
+    } catch {
+      // o registro da tentativa nunca atrapalha o aviso para a pessoa
+    }
   }
 
   /** Só para os dados de exemplo: roda um comando "como se fosse" outra data. */

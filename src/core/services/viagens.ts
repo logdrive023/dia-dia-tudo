@@ -321,7 +321,7 @@ export async function encerrarViagem(
   const encerrada: Viagem = tocar(ctx, { ...v, carteira, status: 'encerrada', fim, encerramento: { em: agora, data: hoje, porNome: ctx.sessao.nome, obs: d.obs?.trim() || undefined } })
   await ctx.repos.viagens.salvar(encerrada)
   await auditar(ctx, 'encerrarViagem', v.id, `${v.codigo} encerrada${resumo.length ? `: ${resumo.join('; ')}` : ''}${d.obs?.trim() ? ` · ${d.obs.trim()}` : ''}`, v.viajantes)
-  if (d.incorporar) await incorporarCustoViagem(ctx, { viagemId: v.id })
+  if (d.incorporar) await incorporarCustoViagem(ctx, { viagemId: v.id, seHouver: true })
   return { id: v.id }
 }
 
@@ -330,7 +330,8 @@ export async function encerrarViagem(
  * gramas em estoque ÷ gramas que sobreviveram — vendidas + em estoque). O custo por grama do lote sobe; triagem,
  * margem e o lucro das próximas vendas passam a contar com a logística. Antes → depois fica no log.
  */
-export async function incorporarCustoViagem(ctx: Ctx, d: { viagemId: Id }) {
+/** `seHouver`: chamado pelo encerrar — sem nada a incorporar, só segue (a viagem encerra do mesmo jeito) */
+export async function incorporarCustoViagem(ctx: Ctx, d: { viagemId: Id; seHouver?: boolean }) {
   exigirAdmin(ctx, 'Só o administrador muda o custo dos lotes.')
   const v = await obterViagem(ctx, d.viagemId)
   exigir(v.status === 'encerrada', 'Encerre a viagem (prestação de contas) antes de incorporar o gasto.')
@@ -338,6 +339,7 @@ export async function incorporarCustoViagem(ctx: Ctx, d: { viagemId: Id }) {
   const base = await carregarBase(ctx)
   const a = analisar(ctx, v, base)
   const plano = a.incorporacao.lotes.filter((l) => l.extra > 0)
+  if (!plano.length && d.seHouver) return { id: v.id }
   exigir(plano.length, 'Nada a incorporar: não há gasto ou não sobrou cabelo desta viagem em estoque.')
   const lotes: NonNullable<Viagem['incorporacao']>['lotes'] = []
   for (const l of plano) {

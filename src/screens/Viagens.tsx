@@ -347,6 +347,8 @@ export function FichaViagem() {
           <>
             <Botao className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => setFolha(true)}>⛽ {t('Gasto')}</Botao>
             <Botao variante="secundario" className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => setAdiantar(true)}>💵 {t('Adiantamento')}</Botao>
+            {/* voltou da viagem: a prestação de contas em um toque (antes ficava escondida no fim da aba Contas) */}
+            <Botao variante="secundario" className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => { setAba('contas'); setTimeout(() => document.getElementById('prestacao')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250) }}>🏁 {t('Encerrar')}</Botao>
           </>
         ) : <Botao variante="secundario" className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => ir('novaViagem', { editar: v.id })}>✎ {t('Editar')}</Botao>}
         {aberta && <MenuAcoes comRotulo className="shrink-0" acoes={[{ rotulo: 'Editar viagem', icone: '✎', onClick: () => ir('novaViagem', { editar: v.id }) }]} />}
@@ -410,9 +412,20 @@ function AbaResumo({ d }: { d: Dados }) {
           <p>{t('Os gastos desta viagem ({v}) são custo de prospecção: não há cabelo para dividir, então não existe ROI. Se alguma compra foi feita, ligue em "Compras".', { v: formatar(k.gasto, m) })}</p>
         </div>
       )}
+      {d.prospeccao ? (
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+          <NumeroGrande rotulo="Gastos da viagem" tom="ruim" valor={formatar(k.gasto, m)} ajuda="Custo de prospecção: combustível, hospedagem, comida… sem cabelo comprado." />
+          <NumeroGrande rotulo="Dias" valor={k.dias} />
+          <NumeroGrande rotulo="Custo por dia" valor={formatar(k.custoDia, m)} ajuda="Gastos da viagem ÷ dias de viagem." />
+        </div>
+      ) : (
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <NumeroGrande rotulo="Resultado" tom={d.prospeccao ? undefined : k.resultado < 0 ? 'ruim' : 'bom'} valor={formatar(k.resultado, m)} ajuda="Receita das vendas do cabelo desta viagem − (custo do cabelo + gastos da viagem). Enquanto houver estoque ele tende a ser negativo: veja o potencial. Ex.: vendeu Bs 8.000 de Bs 14.800 investidos = −Bs 6.800." sub={!d.prospeccao ? `${t('com o estoque')}: ${formatar(k.resultadoPotencial, m)}` : undefined} />
-        <NumeroGrande rotulo="ROI" tom={k.roiBp === undefined ? undefined : k.roiBp < 0 ? 'ruim' : 'bom'} valor={pctBp(k.roiBp)} ajuda="Resultado ÷ o que foi investido (cabelo + gastos). Ex.: −6.800 ÷ 14.800 = −45,9%." sub={k.roiPotencialBp !== undefined ? `${t('com o estoque')}: ${pctBp(k.roiPotencialBp)}` : undefined} />
+        {k.gramasEstoque > 0 ? (
+          <NumeroGrande rotulo="Resultado contando o estoque" tom={k.resultadoPotencial < 0 ? 'ruim' : 'bom'} valor={formatar(k.resultadoPotencial, m)} ajuda="O que já entrou das vendas + o que o estoque desta viagem vale pela tabela − (cabelo + gastos). É o número para julgar a viagem enquanto ainda tem cabelo para vender." sub={`${t('realizado até agora')}: ${formatar(k.resultado, m)}`} />
+        ) : <NumeroGrande rotulo="Resultado" tom={d.prospeccao ? undefined : k.resultado < 0 ? 'ruim' : 'bom'} valor={formatar(k.resultado, m)} ajuda="Receita das vendas do cabelo desta viagem − (custo do cabelo + gastos da viagem). Enquanto houver estoque ele tende a ser negativo: veja o potencial. Ex.: vendeu Bs 8.000 de Bs 14.800 investidos = −Bs 6.800." />}
+        {k.gramasEstoque > 0 && k.roiPotencialBp !== undefined
+          ? <NumeroGrande rotulo="ROI contando o estoque" tom={k.roiPotencialBp < 0 ? 'ruim' : 'bom'} valor={pctBp(k.roiPotencialBp)} ajuda="Resultado contando o estoque ÷ o que foi investido (cabelo + gastos)." sub={`${t('realizado até agora')}: ${pctBp(k.roiBp)}`} />
+          : <NumeroGrande rotulo="ROI" tom={k.roiBp === undefined ? undefined : k.roiBp < 0 ? 'ruim' : 'bom'} valor={pctBp(k.roiBp)} ajuda="Resultado ÷ o que foi investido (cabelo + gastos). Ex.: −6.800 ÷ 14.800 = −45,9%." />}
         <NumeroGrande rotulo="Receita gerada" valor={formatar(k.receita, m)} ajuda="Vendas do cabelo que veio desta viagem (pela genealogia: compra → triagem → lote → venda), proporcional às gramas." sub={`${gramasTexto(k.gramasVendidas)} ${t('vendidos')}`} />
         <NumeroGrande rotulo="Investido" valor={formatar(k.investido, m)} ajuda="Custo do cabelo comprado na viagem + gastos operacionais da viagem." sub={`${t('cabelo')} ${formatar(k.custoCabelo, m)} · ${t('gastos')} ${formatar(k.gasto, m)}`} />
         <NumeroGrande rotulo="Custo/kg sem logística" valor={k.custoKg !== undefined ? formatar(k.custoKg, m) : '—'} ajuda="Só o que se pagou pelo cabelo ÷ kg comprados." sub={k.custoGrama !== undefined ? `${formatar(Math.round(k.custoGrama), m)}/g` : undefined} />
@@ -421,11 +434,11 @@ function AbaResumo({ d }: { d: Dados }) {
         <NumeroGrande rotulo="Ainda em estoque" valor={`${pctBp(k.pctEstoqueBp)}`} ajuda="Gramas desta viagem que ainda estão no estoque e quanto valem pela tabela de preço (sem preço na tabela: pelo custo)." sub={`${gramasTexto(k.gramasEstoque)} · ${t('potencial')} ${formatar(k.potencial, m)}`} />
         <NumeroGrande rotulo="Dias" valor={k.dias} />
         <NumeroGrande rotulo="Custo por dia" valor={formatar(k.custoDia, m)} ajuda="Gastos da viagem ÷ dias de viagem." />
-        <NumeroGrande rotulo="Gastos da viagem" valor={formatar(k.gasto, m)} ajuda="Gastos operacionais (logística): combustível, hospedagem, comida, transporte… Não inclui o cabelo." />
-        <NumeroGrande rotulo="Lucro sobre o vendido" tom={d.prospeccao ? undefined : k.lucroVendido < 0 ? 'ruim' : 'bom'} valor={d.prospeccao ? '—' : formatar(k.lucroVendido, m)} ajuda="Receita − (custo do cabelo + gastos) proporcional às gramas já vendidas. Mostra se o que já saiu deu lucro." />
+        <NumeroGrande rotulo="Lucro sobre o vendido" tom={k.lucroVendido < 0 ? 'ruim' : 'bom'} valor={formatar(k.lucroVendido, m)} ajuda="Receita − (custo do cabelo + gastos) proporcional às gramas já vendidas. Mostra se o que já saiu deu lucro." />
       </div>
+      )}
       <div className="grid gap-3 lg:grid-cols-2">
-        <Cartao titulo={t('Resultado da viagem (DRE)')}>
+        {!d.prospeccao && <Cartao titulo={t('Resultado da viagem (DRE)')}>
           <table className="w-full text-sm">
             <tbody>
               {d.dre.filter((l) => l.nivel < 2 || l.valor).map((l) => (
@@ -437,7 +450,7 @@ function AbaResumo({ d }: { d: Dados }) {
             </tbody>
           </table>
           {k.semPreco > 0 && <p className="mt-2 text-xs text-[var(--suave)]">{t('{n} lote(s) sem preço na tabela: entram no potencial pelo custo.', { n: k.semPreco })}</p>}
-        </Cartao>
+        </Cartao>}
         <div className="space-y-3">
           <Cartao titulo={t('Orçamento')}>
             <div className="space-y-3">
@@ -674,14 +687,18 @@ function AbaContas({ d, onAdiantar }: { d: Dados; onAdiantar(): void }) {
             {d.caixa.map((m) => (
               <li key={m.id} className="flex justify-between gap-2 py-1.5">
                 <span className={cx('min-w-0', m.estornadoPor && 'line-through opacity-60')}>{m.descricao} <span className="text-xs text-[var(--suave)]">{dataBR(m.data)} · {t(nomeForma.get(m.forma) ?? m.forma)}</span></span>
-                <span className={cx('num shrink-0 font-semibold', m.delta < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>{m.delta > 0 ? '+' : ''}{formatar(m.delta, m.moeda)}</span>
+                {/* aqui é a carteira DA VIAGEM: o que saiu do caixa da loja entrou nela (+), o que voltou ao caixa saiu dela (−) */}
+                <span className={cx('num shrink-0 text-right font-semibold', m.delta < 0 ? 'text-[var(--bom)]' : 'text-[var(--texto)]')}>
+                  {m.delta < 0 ? '+' : '−'}{formatar(Math.abs(m.delta), m.moeda)}
+                  <span className="block text-[11px] font-normal text-[var(--suave)]">{t(m.delta < 0 ? 'levou' : 'voltou ao caixa')}</span>
+                </span>
               </li>
             ))}
           </ul>
         )}
       </Cartao>
       {aberta ? (
-        <Cartao titulo={t('Prestação de contas (encerrar a viagem)')}>
+        <div id="prestacao" className="scroll-mt-4"><Cartao titulo={t('Prestação de contas (encerrar a viagem)')}>
           <div className="space-y-3">
             {!d.carteira.length && <p className="text-sm text-[var(--suave)]">{t('Sem adiantamento nem gasto: é só encerrar.')}</p>}
             {d.carteira.map((c) => (
@@ -703,7 +720,7 @@ function AbaContas({ d, onAdiantar }: { d: Dados; onAdiantar(): void }) {
             </div>
             <Botao grande className="w-full" disabled={ocupado} onClick={() => setConfirmar(true)}>{t('Encerrar a viagem')}</Botao>
           </div>
-        </Cartao>
+        </Cartao></div>
       ) : (
         <Cartao titulo={t('Prestação de contas')}>
           <p className="text-sm">✓ {t('Encerrada em {d} por {p}.', { d: dataBR(v.encerramento?.em), p: v.encerramento?.porNome ?? '' })}{v.encerramento?.obs ? ` · ${v.encerramento.obs}` : ''}</p>
