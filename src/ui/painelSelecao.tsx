@@ -47,7 +47,7 @@ const CORES = ['#7c3aed', '#ec4899', '#0ea5e9', '#f59e0b', '#10b981', '#ef4444',
 export function PainelSelecao({ itens, unidade = 'pacote', fatos = [], aviso, topo, opcoes, mais, ajudaMais, ocupado, onTirar, onLimpar }: {
   itens: ItemSelecionado[]
   /** "pacote" → "1 pacote selecionado" / "3 pacotes selecionados" */
-  unidade?: 'pacote' | 'lote'
+  unidade?: 'pacote' | 'lote' | 'compra'
   /** os dados da seleção em selos padronizados, depois do peso: [{ icone: '🛒', texto: 'de 2 compras' }] */
   fatos?: { icone: string; texto: string }[]
   /** uma linha de aviso embaixo dos chips (ex.: misturando compras) */
@@ -96,7 +96,7 @@ export function PainelSelecao({ itens, unidade = 'pacote', fatos = [], aviso, to
   const muitos = itens.length > 6
   useEffect(() => { if (muitos) setVerChips(false) }, [muitos])
   const cor = (k: number) => CORES[k % CORES.length]
-  const nome = unidade === 'lote' ? (itens.length === 1 ? '1 lote selecionado' : '{n} lotes selecionados') : itens.length === 1 ? '1 pacote selecionado' : '{n} pacotes selecionados'
+  const nome = unidade === 'compra' ? (itens.length === 1 ? '1 compra selecionada' : '{n} compras selecionadas') : unidade === 'lote' ? (itens.length === 1 ? '1 lote selecionado' : '{n} lotes selecionados') : itens.length === 1 ? '1 pacote selecionado' : '{n} pacotes selecionados'
   return (
     <>
     {/* o lugar reservado: mede a coluna e guarda o espaço do painel no fim da página */}

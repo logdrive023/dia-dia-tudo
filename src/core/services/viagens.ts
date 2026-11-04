@@ -20,6 +20,7 @@ import type { DespesaViagem, Id, Item, MovCaixa, MovCarteiraViagem, MovEstoque, 
 import { auditar, type Ctx, exigirInteiroPositivo, lerConfig, novo, paraPrincipal, tocar } from './contexto'
 import { moverCaixa } from './caixa'
 import { proximoCodigo, unidadeTexto } from './estoque'
+import { semAcento } from '../dados/cidadesBolivia'
 import { fatorDaTabela, tabelaVigente } from './precos'
 
 export const CATEGORIA_CAIXA_VIAGEM = 'Viagens'
@@ -105,7 +106,7 @@ export async function salvarCategoriasViagem(ctx: Ctx, d: { categorias: Categori
 /** Cria ou edita a viagem (só admin). Código "VG-0001" na criação. */
 export async function salvarViagem(
   ctx: Ctx,
-  d: { id: Id; nome: string; destino?: string; naBolivia?: boolean; viajantes: Id[]; inicio: string; fim?: string; orcamento?: number; orcamentoCompra?: number; rateio?: 'grama' | 'valor'; obs?: string },
+  d: { id: Id; nome: string; destino?: string; naBolivia?: boolean; viajantes: Id[]; inicio: string; fim?: string; orcamento?: number; orcamentoCompra?: number; rateio?: 'grama' | 'valor'; obs?: string; confirmarParecida?: boolean },
 ) {
   exigirAdmin(ctx, 'Só o administrador cria ou muda uma viagem.')
   const nome = d.nome?.trim()
@@ -119,6 +120,10 @@ export async function salvarViagem(
   if (d.orcamentoCompra !== undefined) exigirInteiroPositivo(d.orcamentoCompra, 'Orçamento de compra', true)
   exigir(!d.rateio || d.rateio === 'grama' || d.rateio === 'valor', 'Rateio inválido.')
   const antes = await ctx.repos.viagens.obter(d.id)
+  if (!antes && !d.confirmarParecida) {
+    const parecidas = await viagensParecidas(ctx, { id: d.id, nome, destino: d.destino, inicio: d.inicio, fim: d.fim })
+    if (parecidas.length) throw new ErroNegocio(`Já existe uma viagem parecida em andamento: ${parecidas.map((x) => `${x.codigo} · ${x.nome}`).join(', ')}. Confirme para criar outra.`, 'parecida')
+  }
   const campos = { nome, destino: d.destino?.trim() || undefined, naBolivia: d.naBolivia || undefined, viajantes, inicio: d.inicio, fim: d.fim || undefined, orcamento: d.orcamento, orcamentoCompra: d.orcamentoCompra, obs: d.obs?.trim() || undefined }
   if (!antes) {
     const v = novo<Viagem>(ctx, { id: d.id, codigo: await proximoCodigo(ctx, 'VG'), ...campos, status: 'aberta', rateio: d.rateio ?? 'grama', despesas: [], carteira: [] })
@@ -222,45 +227,181 @@ export async function anularDespesaViagem(ctx: Ctx, d: { viagemId: Id; despesaId
   return { id: x.id }
 }
 
+// ---------- compras da viagem: UMA regra (ligar, tirar e mover valem sempre, em qualquer tela) ----------
+// · viagem aberta ou encerrada: tanto faz (esqueceu de ligar na hora → liga depois; ligou na errada → tira ou move)
+// · se o gasto da viagem já entrou no custo dos pacotes, o rateio é REFEITO sozinho (nunca fica custo errado)
+// · em massa: a prévia diz o que vai acontecer com cada compra; o que já está nesta viagem fica como está; o que está
+//   em outra só muda com `mover: true` (a tela pergunta antes)
+// · desfazer: a resposta traz como cada compra estava (`antes`), e `desfazerLigacao` volta exatamente aquilo
+
 /**
- * Liga compras (de lugares e fornecedores diferentes) à viagem. Uma compra só pertence a uma viagem.
- * Vale A QUALQUER MOMENTO, também com a viagem encerrada (esqueceu de ligar na hora: não trava a operação). O registro
- * diz que ela já estava encerrada (e, se o gasto já entrou no custo dos lotes, que esse rateio não muda).
+ * Refaz o rateio do gasto de uma viagem que já foi incorporado ao custo dos pacotes: tira o que foi somado e soma de
+ * novo com as compras de agora. Chamado por toda operação que muda as compras de uma viagem encerrada.
  */
-export async function vincularCompras(ctx: Ctx, d: { viagemId: Id; compraIds: Id[] }) {
-  exigirAdmin(ctx)
-  const v = await obterViagem(ctx, d.viagemId)
-  const ids = [...new Set(d.compraIds ?? [])]
-  exigir(ids.length, 'Escolha pelo menos uma compra.')
-  const ligadas: Transacao[] = []
-  for (const id of ids) {
-    const t = await ctx.repos.transacoes.obter(id)
-    exigir(t && t.tipo === 'compra', 'Compra não encontrada.')
-    if (t.viagemId === v.id) continue
-    exigir(!ETAPAS_FORA.has(t.etapa), `A compra ${t.codigo ?? ''} foi cancelada/recusada.`)
-    if (t.viagemId) {
-      const outra = await ctx.repos.viagens.obter(t.viagemId)
-      if (outra && !outra.apagadoEm) throw new ErroNegocio(`A compra ${t.codigo ?? ''} já está na viagem ${outra.codigo}. Tire de lá antes.`)
-    }
-    ligadas.push(t)
+export async function redividirGasto(ctx: Ctx, viagemId: Id) {
+  const v = await ctx.repos.viagens.obter(viagemId)
+  if (!v || v.apagadoEm || !v.incorporacao) return false
+  for (const l of v.incorporacao.lotes) {
+    const item = await ctx.repos.itens.obter(l.itemId)
+    if (!item) continue
+    await ctx.repos.itens.salvar(tocar(ctx, { ...item, custoPrincipal: Math.max(0, (item.custoPrincipal ?? 0) - (l.depois - l.antes)) }))
   }
-  for (const t of ligadas) await ctx.repos.transacoes.salvar(tocar(ctx, { ...t, viagemId: v.id }))
-  const nota = v.status === 'encerrada'
-    ? ` · viagem já encerrada${v.encerramento?.data ? ` há ${diasEntre(v.encerramento.data, ctx.relogio.hoje())} dia(s)` : ''}${v.incorporacao ? ' (o gasto já incorporado aos lotes não muda)' : ''}`
-    : ''
-  if (ligadas.length) await auditar(ctx, 'vincularCompras', v.id, `${v.codigo} ← ${ligadas.map((t) => t.codigo ?? t.id).join(', ')}${nota}`, ligadas.map((t) => t.id))
-  return { id: v.id, ligadas: ligadas.map((t) => t.id) }
+  await ctx.repos.viagens.salvar(tocar(ctx, { ...v, incorporacao: undefined, incorporacoesDesfeitas: [...(v.incorporacoesDesfeitas ?? []), v.incorporacao] }))
+  await incorporar(ctx, { viagemId, seHouver: true })
+  await auditar(ctx, 'redividirGastoViagem', v.id, `${v.codigo}: as compras mudaram — o gasto foi redividido entre os pacotes de novo`)
+  return true
 }
 
+type SituacaoLigar = 'ligar' | 'jaNesta' | 'outra' | 'encerradaCompra' | 'naoExiste'
+
+/** o que vai acontecer com cada compra se for ligada a esta viagem (a tela mostra antes de confirmar) */
+async function planoLigar(ctx: Ctx, v: Viagem, compraIds: Id[]) {
+  const ids = [...new Set(compraIds ?? [])]
+  const viagens = new Map((await ctx.repos.viagens.listar()).filter((x) => !x.apagadoEm).map((x) => [x.id, x]))
+  const fim = v.fim ?? ctx.relogio.hoje()
+  const linhas = []
+  for (const id of ids) {
+    const t = await ctx.repos.transacoes.obter(id)
+    const outra = t?.viagemId && t.viagemId !== v.id ? viagens.get(t.viagemId) : undefined
+    const situacao: SituacaoLigar = !t || t.tipo !== 'compra' ? 'naoExiste' : ETAPAS_FORA.has(t.etapa) ? 'encerradaCompra' : t.viagemId === v.id ? 'jaNesta' : outra ? 'outra' : 'ligar'
+    linhas.push({
+      id,
+      codigo: t?.codigo,
+      data: t?.data,
+      situacao,
+      /** em que viagem está agora (quando é outra) */
+      de: outra ? { id: outra.id, codigo: outra.codigo, nome: outra.nome, incorporada: !!outra.incorporacao } : undefined,
+      /** comprada fora das datas da viagem (só aviso: pode ser correção) */
+      foraDoPeriodo: !!t?.data && (t.data < v.inicio || t.data > fim),
+    })
+  }
+  return linhas
+}
+
+/** PRÉVIA de ligar compras a uma viagem: quantas entram, quantas já estão nela, quantas estão em outra e os avisos */
+export async function previaLigarCompras(ctx: Ctx, p: { viagemId: Id; compraIds: Id[] }) {
+  exigirAdmin(ctx)
+  const v = await obterViagem(ctx, p.viagemId)
+  const linhas = await planoLigar(ctx, v, p.compraIds)
+  const de = (s: SituacaoLigar) => linhas.filter((l) => l.situacao === s)
+  const outras = de('outra')
+  return {
+    viagem: { id: v.id, codigo: v.codigo, nome: v.nome, status: v.status, inicio: v.inicio, fim: v.fim, encerradaEm: v.encerramento?.data, diasEncerrada: v.encerramento?.data ? diasEntre(v.encerramento.data, ctx.relogio.hoje()) : undefined },
+    linhas,
+    ligar: de('ligar').length,
+    jaNesta: de('jaNesta').length,
+    outra: outras.length,
+    /** as viagens de onde sairiam as que já estão em outra (VG-0003 ×2) */
+    deViagens: [...outras.reduce((m, l) => m.set(l.de!.codigo, (m.get(l.de!.codigo) ?? 0) + 1), new Map<string, number>())].map(([codigo, n]) => ({ codigo, n })),
+    canceladas: de('encerradaCompra').length,
+    foraDoPeriodo: linhas.filter((l) => l.foraDoPeriodo && (l.situacao === 'ligar' || l.situacao === 'outra')).map((l) => ({ codigo: l.codigo, data: l.data })),
+    /** o gasto desta viagem (ou de uma de onde as compras saem) vai ser redividido */
+    redivide: !!v.incorporacao || outras.some((l) => !!l.de?.incorporada),
+  }
+}
+
+/**
+ * Liga compras à viagem (uma ou muitas, de qualquer lugar e fornecedor; viagem aberta ou encerrada).
+ * Já nesta: ficam como estão. Em outra viagem: só muda com `mover: true` (sem isso, recusa dizendo quais e de onde —
+ * nada é ligado pela metade). Canceladas/recusadas ficam de fora. Refaz o rateio das viagens afetadas.
+ */
+export async function vincularCompras(ctx: Ctx, d: { viagemId: Id; compraIds: Id[]; mover?: boolean }) {
+  exigirAdmin(ctx)
+  const v = await obterViagem(ctx, d.viagemId)
+  const linhas = await planoLigar(ctx, v, d.compraIds)
+  exigir(linhas.length, 'Escolha pelo menos uma compra.')
+  exigir(!linhas.some((l) => l.situacao === 'naoExiste'), 'Compra não encontrada.')
+  const emOutra = linhas.filter((l) => l.situacao === 'outra')
+  if (emOutra.length && !d.mover)
+    throw new ErroNegocio(`${emOutra.length === 1 ? 'A compra' : `${emOutra.length} compras`} ${emOutra.map((l) => `${l.codigo} (em ${l.de!.codigo})`).join(', ')} já ${emOutra.length === 1 ? 'está' : 'estão'} em outra viagem. Confirme para mover.`, 'mover')
+  const mudar = linhas.filter((l) => l.situacao === 'ligar' || l.situacao === 'outra')
+  const antes = mudar.map((l) => ({ compraId: l.id, viagemId: l.de?.id }))
+  for (const l of mudar) {
+    const t = (await ctx.repos.transacoes.obter(l.id))!
+    await ctx.repos.transacoes.salvar(tocar(ctx, { ...t, viagemId: v.id }))
+  }
+  if (mudar.length) {
+    const nota = v.status === 'encerrada' ? ` · viagem já encerrada${v.encerramento?.data ? ` há ${diasEntre(v.encerramento.data, ctx.relogio.hoje())} dia(s)` : ''}` : ''
+    const movidas = mudar.filter((l) => l.de)
+    await auditar(ctx, 'vincularCompras', v.id, `${v.codigo} ← ${mudar.map((l) => l.codigo ?? l.id).join(', ')}${movidas.length ? ` · movidas de ${[...new Set(movidas.map((l) => l.de!.codigo))].join(', ')}` : ''}${nota}`, mudar.map((l) => l.id))
+    for (const id of new Set([v.id, ...movidas.map((l) => l.de!.id)])) await redividirGasto(ctx, id)
+  }
+  return {
+    id: v.id,
+    ligadas: mudar.filter((l) => !l.de).map((l) => l.id),
+    movidas: mudar.filter((l) => l.de).map((l) => l.id),
+    jaNesta: linhas.filter((l) => l.situacao === 'jaNesta').map((l) => l.id),
+    /** como estavam (para o "Desfazer") */
+    antes,
+  }
+}
+
+/** Tira compras da viagem (aberta ou encerrada): a compra continua existindo, só deixa de contar nesta viagem. */
 export async function desvincularCompra(ctx: Ctx, d: { viagemId: Id; compraId: Id }) {
   exigirAdmin(ctx)
   const v = await obterViagem(ctx, d.viagemId)
-  exigirAberta(v)
   const t = await ctx.repos.transacoes.obter(d.compraId)
   exigir(t && t.viagemId === v.id, 'Essa compra não está nesta viagem.')
   await ctx.repos.transacoes.salvar(tocar(ctx, { ...t, viagemId: undefined }))
   await auditar(ctx, 'desvincularCompra', v.id, `${v.codigo}: tirou ${t.codigo ?? t.id}`, [t.id])
+  await redividirGasto(ctx, v.id)
+  return { id: v.id, antes: [{ compraId: t.id, viagemId: v.id }] }
+}
+
+/** DESFAZER: volta cada compra para a viagem em que estava (ou sem viagem), como a resposta de ligar/tirar devolveu. */
+export async function desfazerLigacao(ctx: Ctx, d: { antes: { compraId: Id; viagemId?: Id }[] }) {
+  exigirAdmin(ctx)
+  exigir(d.antes?.length, 'Nada para desfazer.')
+  const afetadas = new Set<Id>()
+  for (const a of d.antes) {
+    const t = await ctx.repos.transacoes.obter(a.compraId)
+    exigir(t && t.tipo === 'compra', 'Compra não encontrada.')
+    if (a.viagemId) exigir(await ctx.repos.viagens.obter(a.viagemId), 'Viagem não encontrada.')
+    if ((t.viagemId ?? '') === (a.viagemId ?? '')) continue
+    if (t.viagemId) afetadas.add(t.viagemId)
+    if (a.viagemId) afetadas.add(a.viagemId)
+    await ctx.repos.transacoes.salvar(tocar(ctx, { ...t, viagemId: a.viagemId }))
+  }
+  await auditar(ctx, 'desfazerLigacao', undefined, `desfeito: ${d.antes.length} compra(s) voltaram para onde estavam`, d.antes.map((a) => a.compraId))
+  for (const id of afetadas) await redividirGasto(ctx, id)
+  return { desfeitas: d.antes.length }
+}
+
+/** APAGAR VIAGEM (ex.: criada repetida): só sem compras, sem gastos e sem dinheiro adiantado — nada fica órfão. */
+export async function apagarViagem(ctx: Ctx, d: { viagemId: Id; motivo?: string }) {
+  exigirAdmin(ctx, 'Só o administrador apaga uma viagem.')
+  const v = await obterViagem(ctx, d.viagemId)
+  const compras = (await ctx.repos.transacoes.listar({ tipo: 'compra' })).filter((t) => t.viagemId === v.id && !ETAPAS_FORA.has(t.etapa))
+  exigir(!compras.length, `A viagem ${v.codigo} tem ${compras.length} compra(s): tire ou mova as compras antes de apagar.`)
+  exigir(!v.despesas.some((x) => !x.anulada), `A viagem ${v.codigo} tem gastos lançados: anule os gastos antes de apagar.`)
+  exigir(!v.carteira.some((m) => !m.anulada), `A viagem ${v.codigo} tem dinheiro adiantado ou devolvido: não dá para apagar.`)
+  await ctx.repos.viagens.salvar(tocar(ctx, { ...v, apagadoEm: ctx.relogio.agora() }))
+  await auditar(ctx, 'apagarViagem', v.id, `${v.codigo} · ${v.nome} apagada${d.motivo?.trim() ? ` · ${d.motivo.trim()}` : ''}`, v.viajantes)
   return { id: v.id }
+}
+
+/**
+ * VIAGENS PARECIDAS EM ANDAMENTO (antes de criar): mesma cidade ou nome parecido, com datas que se encostam (até 7 dias).
+ * Pode ser de propósito (duas equipes, duas viagens): a tela avisa e a pessoa escolhe continuar ou usar a que existe.
+ */
+export async function viagensParecidas(ctx: Ctx, p: { id?: Id; nome?: string; destino?: string; inicio?: string; fim?: string }) {
+  const nome = semAcento(p.nome ?? '')
+  const destino = semAcento(p.destino ?? '')
+  if (!nome && !destino) return []
+  const ini = p.inicio || ctx.relogio.hoje()
+  const fim = p.fim || ini
+  const longe = (a: string, b: string) => Math.abs(diasEntre(a, b)) > 7
+  return (await ctx.repos.viagens.listar())
+    .filter((x) => !x.apagadoEm && x.id !== p.id && x.status === 'aberta')
+    .filter((x) => {
+      const n = semAcento(x.nome)
+      const mesmoNome = !!nome && nome.length >= 3 && (n === nome || n.includes(nome) || nome.includes(n))
+      const mesmoDestino = !!destino && semAcento(x.destino ?? '') === destino
+      const xFim = x.fim ?? ctx.relogio.hoje()
+      const datasPerto = !(longe(x.inicio, fim) && longe(xFim, ini)) || (x.inicio <= fim && xFim >= ini)
+      return (mesmoNome || mesmoDestino) && datasPerto
+    })
+    .map((x) => ({ id: x.id, codigo: x.codigo, nome: x.nome, destino: x.destino, inicio: x.inicio, fim: x.fim }))
 }
 
 /**
@@ -327,7 +468,7 @@ export async function encerrarViagem(
   const encerrada: Viagem = tocar(ctx, { ...v, carteira, status: 'encerrada', fim, encerramento: { em: agora, data: hoje, porNome: ctx.sessao.nome, obs: d.obs?.trim() || undefined } })
   await ctx.repos.viagens.salvar(encerrada)
   await auditar(ctx, 'encerrarViagem', v.id, `${v.codigo} encerrada${resumo.length ? `: ${resumo.join('; ')}` : ''}${d.obs?.trim() ? ` · ${d.obs.trim()}` : ''}`, v.viajantes)
-  if (d.incorporar) await incorporarCustoViagem(ctx, { viagemId: v.id, seHouver: true })
+  if (d.incorporar) await incorporar(ctx, { viagemId: v.id, seHouver: true })
   return { id: v.id }
 }
 
@@ -339,6 +480,11 @@ export async function encerrarViagem(
 /** `seHouver`: chamado pelo encerrar — sem nada a incorporar, só segue (a viagem encerra do mesmo jeito) */
 export async function incorporarCustoViagem(ctx: Ctx, d: { viagemId: Id; seHouver?: boolean }) {
   exigirAdmin(ctx, 'Só o administrador muda o custo dos lotes.')
+  return incorporar(ctx, d)
+}
+
+/** o rateio em si (sem conferir o perfil: também roda sozinho quando as compras de uma viagem encerrada mudam) */
+async function incorporar(ctx: Ctx, d: { viagemId: Id; seHouver?: boolean }) {
   const v = await obterViagem(ctx, d.viagemId)
   exigir(v.status === 'encerrada', 'Encerre a viagem (prestação de contas) antes de incorporar o gasto.')
   exigir(!v.incorporacao, 'O gasto desta viagem já entrou no custo dos lotes.')

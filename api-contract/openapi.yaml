@@ -194,6 +194,8 @@ components:
         - vincularCompras
         - desvincularCompra
         - encerrarViagem
+        - desfazerLigacao
+        - apagarViagem
         - incorporarCustoViagem
         - reabrirViagem
         - salvarCategoriasViagem
@@ -285,6 +287,8 @@ components:
         - etiquetas
         - viagens
         - viagem
+        - previaLigarCompras
+        - viagensParecidas
         - painelViajante
         - categoriasViagem
         - financiamentos

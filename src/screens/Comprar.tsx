@@ -6,7 +6,9 @@
 // pagamento e a entrega (quem fez fica registrado). A conferência de peso é um lançamento no lote, sem mudar o comprado.
 
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { EscolhaViagem, FiltroViagem, SeloViagem, passaViagem, situacaoViagem, viagensDasLinhas } from '../ui/seloViagem'
+import { PainelSelecao } from '../ui/painelSelecao'
+import { FiltroViagem, SeloViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
+import { LigarCompras } from './compra/LigarCompras'
 import { PagamentoCompra, Progresso } from './PagamentoCompra'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { Paginacao, usePaginacao } from '../ui/paginacao'
@@ -43,6 +45,8 @@ import { type DadosPedido, codigoDe } from './compra/pecas'
 import { CampoFaixa, GrupoFiltro, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 
 const ENCERRADAS = ['concluido', 'recusado', 'cancelado']
+/** compra cancelada ou recusada não entra em viagem (nem na seleção para ligar) */
+const FORA_VIAGEM = ['recusado', 'cancelado']
 
 type Ordem = 'data' | 'total' | 'parada'
 
@@ -62,6 +66,11 @@ export function Comprar() {
   // celular: lista de linhas curtas que abrem no lugar; computador/tablet: a tabela
   const [abertos, setAbertos] = useState<Set<Id>>(new Set())
   const alternarAberto = (id: Id) => setAbertos((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  // SELEÇÃO EM MASSA (admin): marcar várias compras e ligar/mover/tirar de viagem de uma vez (o painel padrão)
+  const [sel, setSel] = useState<Set<Id>>(new Set())
+  const [ligarSel, setLigarSel] = useState(false)
+  const [tirarSel, setTirarSel] = useState(false)
+  const { executar: executarLista, ocupado: ocupadoLista } = useComando()
   if (nav.params.id) return <Pedido />
   const etapasDo = (moduloId: string) => cfg?.modulos.find((m) => m.id === moduloId)?.etapas ?? []
   const todas = fila ?? []
@@ -107,6 +116,9 @@ export function Comprar() {
     ...(de || ate ? [{ k: 'de,ate', rotulo: `📅 ${de ? dataBR(de) : '…'} – ${ate ? dataBR(ate) : '…'}` }] : []),
   ]
   const limparCompra = () => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined, vg: undefined, busca: undefined })
+  const marcadas = todas.filter((c) => sel.has(c.id))
+  const semViagemSel = marcadas.filter((c) => !c.viagem).length
+  const comViagemSel = marcadas.length - semViagemSel
   const pag = usePaginacao(lista, { reiniciar: JSON.stringify([aba, busca, pendencia, forn, de, ate, vg, ordem]) })
   const tomEtapa = (e: string): TomLista => (e === 'concluido' ? 'bom' : ENCERRADAS.includes(e) ? 'ruim' : 'marca')
   const contaAba = { abertas: abertas.length, encerradas: todas.length - abertas.length, todas: todas.length }
@@ -157,6 +169,13 @@ export function Comprar() {
         carregando={!fila}
         vazio={<VazioFiltro texto="Nenhum pedido com esse filtro." filtrando={ativosCompra.length > 0 || !!busca.trim()} onLimpar={limparCompra} />}
         onAbrir={(c) => ir('pedido', { id: c.id })}
+        selecao={sessao.perfil === 'admin' ? {
+          marcados: sel,
+          onAlternar: (id) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n }),
+          onTodos: () => setSel((s) => (lista.filter((c) => !FORA_VIAGEM.includes(c.etapa)).every((c) => s.has(c.id)) ? new Set() : new Set(lista.filter((c) => !FORA_VIAGEM.includes(c.etapa)).map((c) => c.id)))),
+          desabilitado: (id) => (FORA_VIAGEM.includes(todas.find((c) => c.id === id)?.etapa ?? '') ? t('Compra cancelada ou recusada') : undefined),
+          rotulo: (id) => `${t('Selecionar')} ${codigoDe(todas.find((c) => c.id === id) ?? { id })}`,
+        } : undefined}
         rotuloAbrir="Abrir pedido"
         rotuloLinha={(c) => `${codigoDe(c)} · ${c.pessoa ?? ''}`}
         ordem={ordem}
@@ -196,6 +215,29 @@ export function Comprar() {
         }}
       />
       {fila && <Paginacao {...pag} unidade="pedido(s)" />}
+      {marcadas.length > 0 && (
+        <PainelSelecao
+          unidade="compra"
+          itens={marcadas.map((c) => ({ id: c.id, codigo: codigoDe(c), peso: c.linhas.reduce((s, l) => s + l.quantidade, 0), detalhe: c.viagem ? `✈️ ${c.viagem.codigo}` : t('sem viagem') }))}
+          fatos={[{ icone: '✈️', texto: semViagemSel === marcadas.length ? t('todas sem viagem') : !semViagemSel ? t('todas já têm viagem') : t('{n} sem viagem · {m} com viagem', { n: semViagemSel, m: marcadas.length - semViagemSel }) }]}
+          topo={lista.length > marcadas.length ? <button type="button" onClick={() => setSel(new Set(lista.filter((c) => !FORA_VIAGEM.includes(c.etapa)).map((c) => c.id)))} className="min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t('Selecionar as {n} filtradas', { n: lista.filter((c) => !FORA_VIAGEM.includes(c.etapa)).length })}</button> : undefined}
+          onTirar={(id) => setSel((s) => { const n = new Set(s); n.delete(id); return n })}
+          onLimpar={() => setSel(new Set())}
+          ocupado={ocupadoLista}
+          opcoes={[{ id: 'ligar', icone: '✈️', principal: true, onClick: () => setLigarSel(true),
+            titulo: marcadas.length === 1 ? t('Ligar a uma viagem') : t('Ligar as {n} a uma viagem', { n: marcadas.length }),
+            legenda: 'Escolhe a viagem e confere antes: quantas entram, quantas já estão nela e quantas estão em outra.',
+            ajuda: 'Esqueceu de ligar na hora? Marque as compras e ligue de uma vez. As que já estão em outra viagem só mudam se você escolher mover. Dá para desfazer.' }]}
+          mais={comViagemSel ? [{ rotulo: t('Tirar {n} da viagem', { n: comViagemSel }), icone: '✈️', perigo: true, descricao: t('As compras continuam existindo: só deixam de contar na viagem.'), onClick: () => setTirarSel(true) }] : undefined}
+        />
+      )}
+      {ligarSel && <LigarCompras compraIds={marcadas.map((c) => c.id)} onFechar={() => setLigarSel(false)} onFeito={() => setSel(new Set())} />}
+      {tirarSel && <Confirmar titulo={t('Tirar {n} compra(s) da viagem?', { n: comViagemSel })} texto="As compras continuam existindo: só deixam de contar no resultado da viagem. Se o gasto já estava no custo dos pacotes, ele é dividido de novo sozinho." rotulo="Tirar" onFechar={() => setTirarSel(false)}
+        onConfirmar={async () => {
+          let n = 0
+          for (const c of marcadas.filter((x) => x.viagem)) if (await executarLista('desvincularCompra', { viagemId: c.viagem!.id, compraId: c.id })) n++
+          if (n) setSel(new Set())
+        }} />}
     </div>
   )
 }
@@ -426,7 +468,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   }, [focarCampo])
 
   const abrir = (c: CampoFormId) => (setAbertos(new Set([...abertos, c])), setFocarCampo(c))
-  const estaAberto = (c: CampoFormId) => abertos.has(c) || (c === 'comprador' && porComprador) || (c === 'viagem' && !!viagemSugerida)
+  const estaAberto = (c: CampoFormId) => abertos.has(c) || (c === 'comprador' && porComprador) || (c === 'viagem' && viagensAbertas.length > 0)
   // TROCAR fornecedor ou módulo com algo preenchido: pergunta e começa limpo (só o módulo/fornecedor novo fica)
   const preenchido = linhas.some((l) => l.quantidade || l.total || l.itemId) || estado.length > 0 || !!obs.trim() || (anexos?.length ?? 0) > 0 || !!codigo.trim()
   const limparRascunho = (cabelo: boolean) => {
@@ -826,7 +868,9 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         return (
           <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={!numeroDe[c]} {...fechoEExemplo(c)} titulo="Viagem" acao={<Info texto="Compra feita numa viagem de compra: os gastos da viagem são divididos entre as compras dela e o resultado da viagem conta com esta." />}>
             <Selecao valor={viagemId ?? ''} onChange={(v) => setViagemEscolhida(v)} vazio={t('Sem viagem')} opcoes={viagensAbertas.map((v) => ({ id: v.id, nome: nomeViagem(v) }))} />
-            {viagemSugerida && viagemId === viagemSugerida.id && viagemEscolhida === undefined && <p className="mt-1 text-xs text-[var(--suave)]">{t('Escolhida porque quem comprou está nesta viagem.')}</p>}
+            {viagemSugerida && viagemId === viagemSugerida.id && viagemEscolhida === undefined
+              ? <p className="mt-1 text-xs text-[var(--suave)]">{t('Escolhida porque quem comprou está nesta viagem.')}</p>
+              : !viagemId && <p className="mt-1 text-xs text-[var(--suave)]">{t('Comprou numa viagem? Escolha aqui. Esqueceu? Dá para ligar depois, em Compras.')}</p>}
             <Falta se={tentou && obrig('viagem') && !viagemId} texto={t('viagem')} />
           </Bloco>
         )
@@ -916,7 +960,8 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     }] : []),
     ...(partes.length ? [{
       id: 'detalhes' as const, titulo: 'Detalhes', opcional: !detalhesObrigatorios, feito: preenchidosDetalhe.length > 0 && !faltaDetalhe, falta: tentou && faltaDetalhe,
-      resumo: preenchidosDetalhe.length ? preenchidosDetalhe.join(' · ') : t('nada — toque para abrir'),
+      // com viagem em andamento e nenhuma escolhida, o resumo do passo já diz "sem viagem" (dá para ver sem abrir)
+      resumo: [viagensAbertas.length > 0 && !viagemId ? `✈️ ${t('sem viagem')}` : '', preenchidosDetalhe.join(' · ')].filter(Boolean).join(' · ') || t('nada — toque para abrir'),
       ajuda: 'Só se precisar: quem comprou, código, viagem, estado na chegada, fotos e observação. Toque no + do que quiser.',
       exemplo: 'Ex.: + Fotos para anexar a foto do pedido · + Estado na chegada: Úmido',
       conteudo: <div className="space-y-3">{partes}</div>,
@@ -955,7 +1000,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   return (
     <div>
       <Trilha atual={t(base ? 'Repetir compra' : 'Nova compra')} />
-      <Titulo subtitulo={t('De quem, o que veio e os detalhes. Ao registrar, o cabelo já vai para a triagem.')} acao={admin && <AcaoIcone icone="⚙️" rotulo="Personalizar" dica="Escolher os campos e o jeito do formulário de compra (vale para todos)." lado="direita" onClick={() => ir('config', { aba: 'formCompra' })} />}>
+      <Titulo subtitulo={t('De quem, o que veio e os detalhes. Ao registrar, o cabelo entra na fila para separar por tamanho e cor (Triagem).')} acao={admin && <AcaoIcone icone="⚙️" rotulo="Personalizar" dica="Escolher os campos e o jeito do formulário de compra (vale para todos)." lado="direita" onClick={() => ir('config', { aba: 'formCompra' })} />}>
         {t(base ? 'Repetir compra' : 'Nova compra')}
       </Titulo>
 
@@ -1062,7 +1107,8 @@ function ResumoPedido({ dados, admin, onLigarViagem, onPagamento }: { dados: Dad
     <section aria-label={t('Resumo do pedido')} className="space-y-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:p-4">
       {/* A VIAGEM, em destaque (de onde veio esta compra) */}
       {v ? (
-        <button type="button" onClick={() => ir('viagem', { id: v.id })} className="flex w-full flex-wrap items-center gap-3 rounded-2xl bg-[linear-gradient(135deg,rgba(14,165,233,.14),rgba(14,165,233,.04))] p-3 text-left ring-1 ring-sky-500/30 transition hover:ring-sky-500/60">
+        <div className="flex flex-wrap items-stretch gap-2 rounded-2xl bg-[linear-gradient(135deg,rgba(14,165,233,.14),rgba(14,165,233,.04))] p-1 ring-1 ring-sky-500/30">
+        <button type="button" onClick={() => ir('viagem', { id: v.id })} className="flex min-w-0 flex-[1_1_16rem] flex-wrap items-center gap-3 rounded-xl p-2 text-left transition hover:bg-sky-500/10">
           <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-500 text-xl text-white shadow-sm">✈️</span>
           <span className="min-w-0 flex-1">
             <span className="block text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">{t('Comprada na viagem')}</span>
@@ -1071,6 +1117,8 @@ function ResumoPedido({ dados, admin, onLigarViagem, onPagamento }: { dados: Dad
           </span>
           <span className="shrink-0 text-sm font-semibold text-sky-700 dark:text-sky-300">{t('Ver a viagem')} →</span>
         </button>
+        {admin && <button type="button" onClick={onLigarViagem} className="ml-auto min-h-11 whitespace-nowrap rounded-xl px-3 text-sm font-semibold text-sky-700 hover:bg-sky-500/10 dark:text-sky-300">⇄ {t('Trocar de viagem')}</button>}
+        </div>
       ) : (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-[var(--borda)] p-3">
           <span aria-hidden className="text-xl opacity-60">✈️</span>
@@ -1101,34 +1149,6 @@ function ResumoPedido({ dados, admin, onLigarViagem, onPagamento }: { dados: Dad
 
 /** compra recusada/cancelada não entra em viagem */
 const encerradaSemViagem = (etapa: string) => etapa === 'recusado' || etapa === 'cancelado'
-
-/**
- * Ligar a compra a uma viagem (admin): a mesma EscolhaViagem do filtro (busca, 📍 cidade, 📅 data, cores por tempo).
- * Vale a qualquer momento, também viagem encerrada (não trava a operação): o cartão diz "encerrada há N dias" e, ao
- * escolher uma encerrada, um aviso lembra disso antes de ligar.
- */
-function LigarViagem({ compraId, onFechar }: { compraId: Id; onFechar(): void }) {
-  const t = useT()
-  const { executar, ocupado } = useComando()
-  const [viagemId, setViagemId] = useState('')
-  const { dados } = useConsulta('viagensParaFiltro', {})
-  const escolhida = dados?.find((v) => v.id === viagemId)
-  const ligar = async () => (await executar('vincularCompras', { viagemId, compraIds: [compraId] }, t('Compra ligada à viagem.'))) && onFechar()
-  return (
-    <Janela aberta titulo={`✈️ ${t('Ligar a uma viagem')}`} onFechar={onFechar} rodape={
-      <div className="space-y-2">
-        {escolhida && escolhida.tempo !== 'vigente' && (
-          <p className={cx('rounded-xl px-3 py-2 text-sm', escolhida.tempo === 'recente' ? 'bg-[var(--alerta)]/10 text-[var(--alerta)]' : 'bg-[var(--fundo)] text-[var(--suave)]')}>
-            ⚠ {t('{v} foi {s}. Dá para ligar mesmo assim.', { v: escolhida.codigo, s: situacaoViagem(escolhida, t) })}
-          </p>
-        )}
-        <Botao grande className="w-full" disabled={ocupado || !viagemId} onClick={ligar}>{escolhida ? `✈️ ${t('Ligar a {v}', { v: escolhida.codigo })}` : t('Escolha a viagem')}</Botao>
-      </div>
-    }>
-      <EscolhaViagem valor={viagemId} onEscolher={setViagemId} />
-    </Janela>
-  )
-}
 
 /** Um campo do formulário de compra (cartão com título; * quando obrigatório). */
 /**
@@ -1245,6 +1265,7 @@ export function Pedido() {
   const [conferir, setConferir] = useState<Linha>()
   const [corrigirValor, setCorrigirValor] = useState<Linha>()
   const [ligarViagem, setLigarViagem] = useState(false)
+  const [tirarViagem, setTirarViagem] = useState(false)
   // sub-abas (no endereço: #/pedidos/P1?aba=anexos): Resumo · Anexos (N) · Histórico
   const [aba, setAba] = useParamTela<'resumo' | 'pagamento' | 'anexos' | 'historico'>('aba', 'resumo')
   const { dados: anexos } = useConsulta('anexosDe', { donoId: id })
@@ -1287,8 +1308,8 @@ export function Pedido() {
             ...(dados.lotes.length ? [{ rotulo: 'Rastrear: para onde foi', icone: '🔎', onClick: () => ir('rastreio', { compraId: c.id }) }] : []),
             { rotulo: 'Repetir esta compra', icone: '⟳', onClick: () => ir('novaCompra', { repetir: c.id }) },
             ...(admin ? [{ rotulo: 'Trocar código', icone: '#', onClick: () => setTrocar(true), separar: true }] : []),
-            ...(admin && !dados.viagem && !encerradaSemViagem(c.etapa) ? [{ rotulo: 'Ligar a uma viagem', icone: '✈️', onClick: () => setLigarViagem(true) }] : []),
-            ...(admin && dados.viagem?.status === 'aberta' ? [{ rotulo: 'Tirar da viagem', icone: '✈️', perigo: true, onClick: () => void executar('desvincularCompra', { viagemId: dados.viagem!.id, compraId: c.id }, t('Compra tirada da viagem.')) }] : []),
+            ...(admin && !encerradaSemViagem(c.etapa) ? [{ rotulo: dados.viagem ? 'Trocar de viagem' : 'Ligar a uma viagem', icone: '✈️', onClick: () => setLigarViagem(true) }] : []),
+            ...(admin && dados.viagem ? [{ rotulo: 'Tirar da viagem', icone: '✈️', perigo: true, onClick: () => setTirarViagem(true) }] : []),
           ]} />
         }
       />
@@ -1296,7 +1317,8 @@ export function Pedido() {
       {trocarLote && <TrocarCodigo tipo="lote" id={trocarLote.id} atual={trocarLote.codigo} onFechar={() => setTrocarLote(undefined)} />}
       {conferir && <ConferirPeso compraId={c.id} linha={conferir} onFechar={() => setConferir(undefined)} />}
       {corrigirValor && <CorrigirValor compraId={c.id} linha={corrigirValor} onFechar={() => setCorrigirValor(undefined)} />}
-      {ligarViagem && <LigarViagem compraId={c.id} onFechar={() => setLigarViagem(false)} />}
+      {ligarViagem && <LigarCompras compraIds={[c.id]} onFechar={() => setLigarViagem(false)} />}
+      {tirarViagem && dados.viagem && <Confirmar titulo={t('Tirar a compra da viagem {v}?', { v: dados.viagem.codigo })} texto="A compra continua existindo: só deixa de contar no resultado desta viagem. Se o gasto da viagem já estava no custo dos pacotes, ele é dividido de novo sozinho." rotulo="Tirar" onFechar={() => setTirarViagem(false)} onConfirmar={() => executar('desvincularCompra', { viagemId: dados.viagem!.id, compraId: c.id }, t('Compra tirada da viagem {v}.', { v: dados.viagem!.codigo }))} />}
 
       {/* ABAS (nomes iguais em toda ficha): Resumo · Pagamento (com a conta do fornecedor) · Arquivos · Histórico */}
       <Abas variante="sublinhado" atual={aba} onChange={(x) => setAba(x as typeof aba)} abas={[

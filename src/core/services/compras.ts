@@ -4,6 +4,7 @@
 // Item de catálogo (produto) continua entrando no estoque só na última etapa, como antes.
 
 import { formatar, multiplicarFator, proporcao, type CodigoMoeda } from '../domain/dinheiro'
+import { redividirGasto } from './viagens'
 import { mapaViagens } from './viagemCurta'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { diasEntre } from '../domain/datas'
@@ -162,7 +163,6 @@ async function criarCompraSemPagar(ctx: Ctx, d: Parameters<typeof criarCompra>[1
   const viagem = d.viagemId ? await ctx.repos.viagens.obter(d.viagemId) : undefined
   if (d.viagemId) {
     exigir(viagem && !viagem.apagadoEm, 'Viagem não encontrada.', 'viagemId')
-    exigir(viagem.status === 'aberta', `A viagem ${viagem.codigo} já foi encerrada.`, 'viagemId')
     // a funcionária que viaja liga a compra à viagem DELA (a ligação de outras compras é do administrador)
     exigir(ctx.sessao.perfil === 'admin' || (!!ctx.sessao.pessoaId && viagem.viajantes.includes(ctx.sessao.pessoaId)), 'Você só liga a compra a uma viagem em que você está.', 'viagemId')
   }
@@ -214,6 +214,7 @@ async function criarCompraSemPagar(ctx: Ctx, d: Parameters<typeof criarCompra>[1
   }
   // mesma linha de log do "ligar compras" da viagem (uma viagem por compra: compra nova não está em outra)
   if (viagem) await auditar(ctx, 'vincularCompras', viagem.id, `${viagem.codigo} ← ${t.codigo ?? t.id}`, [t.id])
+  if (viagem?.incorporacao) await redividirGasto(ctx, viagem.id)
   await auditar(ctx, 'criarCompra', t.id, `${t.codigo} · ${linhas.length} item(ns): ${linhas.map((l) => `${l.descricao} ${l.quantidade}`).join(', ')}`, [t.pessoaId!])
   return { id: t.id }
 }
@@ -599,6 +600,8 @@ export async function cancelarCompra(ctx: Ctx, d: { compraId: Id; motivo: string
   await ctx.repos.transacoes.salvar(
     tocar(ctx, { ...t, etapa: ETAPA_CANCELADO, historico: [...t.historico, { de: t.etapa, para: ETAPA_CANCELADO, em: ctx.relogio.agora(), por: ctx.sessao.usuarioId, porNome: ctx.sessao.nome, motivo: d.motivo }] }),
   )
+  // compra cancelada sai dos números da viagem: se o gasto já entrou no custo dos pacotes, redivide entre as que ficaram
+  if (t.viagemId) await redividirGasto(ctx, t.viagemId)
   await auditar(ctx, 'cancelarCompra', t.id, d.motivo)
   return { id: t.id }
 }

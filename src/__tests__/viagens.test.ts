@@ -184,7 +184,7 @@ describe('viagens de compra', () => {
     await b.comando('salvarViagem', { id: 'v2', nome: 'B', viajantes: ['p-ana'], inicio: r.hoje })
     await compra(b, 'c1', 1000, bs(5000), 'f1', 'p-ana')
     await b.comando('vincularCompras', { viagemId: 'v1', compraIds: ['c1'] })
-    await expect(b.comando('vincularCompras', { viagemId: 'v2', compraIds: ['c1'] })).rejects.toThrow(/já está na viagem VG-0001/)
+    await expect(b.comando('vincularCompras', { viagemId: 'v2', compraIds: ['c1'] })).rejects.toThrow('P-0001 (em VG-0001) já está em outra viagem')
     await b.comando('desvincularCompra', { viagemId: 'v1', compraId: 'c1' })
     expect((await b.consulta('viagem', { id: 'v2' })).candidatas.find((c) => c.id === 'c1')?.sugerida).toBe(true)
     const tl = await b.consulta('linhaDoTempo', { id: 'c1' })
