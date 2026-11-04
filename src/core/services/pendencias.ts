@@ -48,7 +48,7 @@ export function pendenciasCompra(t: Transacao & { diasParada?: number }, anexos:
   const p: Pendencia[] = []
   const meus = anexos.filter((a) => a.donoId === t.id)
   // registrada "sem valor" (cabelo que já tínhamos / valor depois): lembra de pôr o valor, sem travar a operação
-  if (t.campos.semValor && !t.totalPrincipal) p.push({ id: 'semValor', texto: NOMES_PENDENCIA.semValor, nivel: 'atencao' })
+  if (t.campos.semValor && (t.linhas.some((l) => l.campos?.semValor) ? t.linhas.some((l) => l.campos?.semValor && !l.totalPrincipal) : !t.totalPrincipal)) p.push({ id: 'semValor', texto: NOMES_PENDENCIA.semValor, nivel: 'atencao' })
   if (opcoes.pedeFotos !== false && !meus.some((a) => a.categoria === 'pedido' || a.categoria === 'produto')) p.push({ id: 'semFotos', texto: NOMES_PENDENCIA.semFotos, nivel: 'atencao' })
   if (opcoes.pedeOrigem && !meus.some((a) => a.categoria === 'origem')) p.push({ id: 'semComprovanteOrigem', texto: NOMES_PENDENCIA.semComprovanteOrigem, nivel: 'atencao' })
   if (opcoes.jaPassouDoPago) {

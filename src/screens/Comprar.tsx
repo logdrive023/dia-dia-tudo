@@ -314,7 +314,6 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   const codigoMostrado = modoCodigo === 'manual' && codigo.trim() ? codigo.trim() : previsto?.sugestao
 
   const [obs, setObs] = useState('')
-  const [semValor, setSemValor] = useState(false)
   const [estado, setEstado] = useState<string[]>([])
   // VIAGEM: as abertas (funcionária vê só as dela); vem escolhida a viagem aberta de quem comprou (ou de quem registra)
   const { dados: vgs } = useConsulta('viagens', { status: 'aberta' })
@@ -385,6 +384,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     return (tabela && l.medida && col ? fatorDaTabela(tabela, l.medida, col).fator : undefined) ?? l.fatorAntigo
   }
   const totalLinha = (l: LinhaNova) => {
+    if (l.campos.semValor) return 0
     if (l.modo === 'tabela') {
       const f = fatorDaLinha(l)
       return l.quantidade && f ? multiplicarFator(l.quantidade, f, moeda) : undefined
@@ -406,8 +406,8 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     if (l.modo === 'tabela') {
       if (l.fator?.trim() && !fatorValido(l.fator)) r.push(t('fator da linha {n}', { n }))
       else if (!l.medida) r.push(t('medida da linha {n}', { n }))
-      else if (!semValor && !fatorDaLinha(l)) r.push(t('fator da linha {n}', { n }))
-    } else if (!semValor && !l.total) r.push(t('valor da linha {n}', { n }))
+      else if (!l.campos.semValor && !fatorDaLinha(l)) r.push(t('fator da linha {n}', { n }))
+    } else if (!l.campos.semValor && !l.total) r.push(t('valor da linha {n}', { n }))
     if (l.modo !== 'item') for (const c of extras.filter((x) => x.obrigatorio)) if (l.campos[c.id] === undefined || l.campos[c.id] === '') r.push(`${t(c.nome)} (${t('linha {n}', { n })})`)
     return r
   }
@@ -531,15 +531,14 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       codigo: modoCodigo === 'manual' ? codigo.trim() || undefined : undefined,
       viagemId,
       obs: [estado.length ? `${t('Estado na chegada')}: ${estado.map((x) => t(x)).join(', ')}` : '', obs.trim(), ...notasMoeda].filter(Boolean).join(' · ') || undefined,
-      semValor: semValor || undefined,
       linhas: linhas.map((l) => {
-        const fator = l.modo === 'tabela' && !semValor ? fatorDaLinha(l) : undefined
+        const fator = l.modo === 'tabela' && !l.campos.semValor ? fatorDaLinha(l) : undefined
         return {
           id: l.id,
           itemId: l.itemId,
           quantidade: l.quantidade ?? 0,
           moeda,
-          total: semValor ? 0 : l.total ?? 0,
+          total: l.campos.semValor ? 0 : l.total ?? 0,
           campos: { ...l.campos, estado: l.modo === 'bruto' ? 'Bruto' : ehCabelo ? 'Separado' : undefined },
           calculo: fator ? { medida: l.medida, fator, tabelaId: tabela?.id, colunaId: col, categoria: l.campos.categoria as string | undefined } : undefined,
         }
@@ -623,7 +622,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
         <button key={l.id} type="button" aria-expanded={false} onClick={() => setLinhaAberta(l.id)} className={cx('flex min-h-12 w-full items-center gap-2 rounded-xl border bg-[var(--cartao)] px-2.5 text-left text-sm', tentou && faltam.length ? 'border-[var(--ruim)]/60' : 'border-[var(--borda)]')}>
           <span aria-hidden className={cx('num flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold', faltam.length ? 'bg-[var(--marca-suave)] text-[var(--marca)]' : 'bg-[var(--bom)] text-white')}>{faltam.length ? i + 1 : '✓'}</span>
           <span className="min-w-0 flex-1 truncate font-semibold">{descLinha(l)}</span>
-          <span className="num shrink-0">{ehCabelo ? gramasTexto(l.quantidade ?? 0) : l.quantidade ?? 0} · <b>{semValor ? t('sem valor') : tl !== undefined ? formatar(tl, moeda) : '—'}</b></span>
+          <span className="num shrink-0">{ehCabelo ? gramasTexto(l.quantidade ?? 0) : l.quantidade ?? 0} · <b className={cx(!!l.campos.semValor && 'text-[var(--alerta)]')}>{l.campos.semValor ? t('sem valor') : tl !== undefined ? formatar(tl, moeda) : '—'}</b></span>
           <span aria-hidden className="shrink-0 text-[var(--suave)]">›</span>
         </button>
       )
@@ -715,6 +714,13 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
           </p>
         ) : null}
 
+        {/* SEM VALOR desta linha (as outras da mesma compra podem ter): registra só o peso; o valor vem depois no pedido */}
+        <label className={cx('flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2 py-1 text-sm', l.campos.semValor ? 'bg-[var(--alerta)]/10 font-semibold text-[var(--alerta)]' : 'text-[var(--suave)]')}>
+          <input type="checkbox" className="h-5 w-5" checked={!!l.campos.semValor} onChange={(e) => att(i, { campos: { ...l.campos, semValor: e.target.checked || undefined } })} />
+          <span className="min-w-0 flex-1">{t('Esta linha ainda não tem valor (pôr depois)')}</span>
+          <Info texto="Marque só a linha que ainda não tem preço; as outras da mesma compra seguem com o valor. Ex.: 20 kg a Bs 30.000 + 10 kg sem preço → a compra fica com Bs 30.000 e a pendência Sem valor. Depois, no pedido: ✎ Pôr o valor na linha — o custo vai para os pacotes, mesmo já separados." />
+        </label>
+
         {mostrarAttr && (
           <div className="rounded-xl bg-[var(--fundo)]">
             <button type="button" aria-expanded={attrAberto} onClick={alternarAttr} className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm">
@@ -770,12 +776,6 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
             <div className="space-y-2">
               {linhas.map(linhaTela)}
               <Botao variante="secundario" className="min-h-11 w-full sm:w-auto" onClick={() => { const n = novaLinha(ehCabelo, linhas[linhas.length - 1]); setLinhas([...linhas, n]); setLinhaAberta(n.id) }}>+ {t('Outra linha')}</Botao>
-              {/* SEM VALOR (embaixo, discreto): cabelo que já tínhamos ou preço ainda não combinado — registra só o peso */}
-              <label className={cx('flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2 py-1 text-sm', semValor ? 'bg-[var(--alerta)]/10 font-semibold text-[var(--alerta)]' : 'text-[var(--suave)]')}>
-                <input type="checkbox" className="h-5 w-5" checked={semValor} onChange={(e) => setSemValor(e.target.checked)} />
-                <span className="min-w-0 flex-1">{t('Ainda não sei o valor (pôr depois)')}</span>
-                <Info texto="Use para cabelo que já estava com você ou quando ainda não sabe o preço. Registra só o peso e fica 'Sem valor' no que falta. Depois, no pedido: ✎ Pôr o valor — o custo vai para os pacotes, mesmo já separados. Ex.: 3 kg do estoque antigo → registra 3 kg, valor fica para depois." />
-              </label>
             </div>
           </Bloco>
         )
@@ -855,32 +855,32 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     return `+ ${t(CAMPOS_FORM[c].nome)}`
   }
 
+  // DETALHES em duas partes fixas (nada "pula para o meio"): em cima, os campos ABERTOS, cada um no seu cartão e na
+  // ordem do formulário; embaixo, num bloco só, os "+" do que ainda não foi usado. Abrir um campo leva ele para cima.
   const principais: ReactNode[] = []
   const partes: ReactNode[] = []
-  let fechados: CampoFormId[] = []
-  const soltar = () => {
-    if (!fechados.length) return
-    const ids = fechados
-    partes.push(
-      <div key={`mais-${ids.join('-')}`} className="flex flex-wrap gap-2">
-        {ids.map((c) => (
-          <button key={c} type="button" data-campo-fechado={c} onClick={() => abrir(c)} className={cx('min-h-11 max-w-full truncate rounded-full border border-dashed bg-[var(--cartao)] px-4 text-sm font-semibold', c === 'codigo' ? 'font-mono' : '', 'border-[var(--borda)] text-[var(--marca)] hover:border-[var(--marca)] hover:bg-[var(--marca-suave)]')}>
-            {c === 'comprador' && compradorId ? <NomeComprador id={compradorId} /> : rotuloFechado(c)}
-          </button>
-        ))}
-      </div>,
-    )
-    fechados = []
-  }
+  const abertosDet: ReactNode[] = []
+  const fechados: CampoFormId[] = []
   const principalDe: Partial<Record<CampoFormId, ReactNode>> = {}
   for (const c of campos) {
     if (numeroDe[c.id]) (principais.push(<Fragment key={c.id}>{campoTela(c.id)}</Fragment>), (principalDe[c.id] = campoTela(c.id)))
-    else if (estaAberto(c.id)) {
-      soltar()
-      partes.push(<Fragment key={c.id}>{campoTela(c.id)}</Fragment>)
-    } else fechados.push(c.id)
+    else if (estaAberto(c.id)) abertosDet.push(<Fragment key={c.id}>{campoTela(c.id)}</Fragment>)
+    else fechados.push(c.id)
   }
-  soltar()
+  if (abertosDet.length) partes.push(<div key="abertos" className="space-y-2">{abertosDet}</div>)
+  if (fechados.length)
+    partes.push(
+      <div key="mais" className="rounded-xl border border-dashed border-[var(--borda)] p-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t(abertosDet.length ? 'Adicionar mais' : 'Adicionar ao pedido')}</p>
+        <div className="flex flex-wrap gap-2">
+          {fechados.map((c) => (
+            <button key={c} type="button" data-campo-fechado={c} onClick={() => abrir(c)} className={cx('min-h-11 max-w-full truncate rounded-full border bg-[var(--cartao)] px-4 text-sm font-semibold', c === 'codigo' ? 'font-mono' : '', 'border-[var(--borda)] text-[var(--marca)] hover:border-[var(--marca)] hover:bg-[var(--marca-suave)]')}>
+              {c === 'comprador' && compradorId ? <NomeComprador id={compradorId} /> : rotuloFechado(c)}
+            </button>
+          ))}
+        </div>
+      </div>,
+    )
   const detalhesObrigatorios = campos.some((c) => !numeroDe[c.id] && c.obrigatorio)
   // PASSO A PASSO (aprendido no Separar): cada passo fecha numa linha com o resumo; o aberto explica para que serve
   const nomeForn = pessoaId ? (ultima?.pessoa ?? conta?.pessoa?.nome) : undefined
@@ -905,7 +905,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     }] : []),
     ...(principalDe.itens ? [{
       id: 'itens' as const, titulo: 'Itens da compra', feito: linhasOk, falta: tentou && !linhasOk,
-      resumo: `${t('{n} linha(s)', { n: linhas.length })} · ${ehCabelo ? gramasTexto(pesoTotal) : `${linhas.length} ${t('item(ns)')}`} · ${semValor ? t('sem valor') : formatar(total, moeda)}`,
+      resumo: `${t('{n} linha(s)', { n: linhas.length })} · ${ehCabelo ? gramasTexto(pesoTotal) : `${linhas.length} ${t('item(ns)')}`} · ${formatar(total, moeda)}${linhas.some((l) => l.campos.semValor) ? ` · ${t('{n} sem valor', { n: linhas.filter((l) => l.campos.semValor).length })}` : ''}`,
       ajuda: ehCabelo ? 'O cabelo que chegou: cada linha vira um pacote que vai para a triagem. Bruto = veio misturado (separa depois). Pela tabela = já veio por medida.' : 'O que chegou: cada linha é um produto, com a quantidade e o custo.',
       exemplo: ehCabelo ? 'Ex.: 10 kg bruto por Bs 30.000 · ou · 60 cm | 2 kg × 17,5 = Bs 35.000' : 'Ex.: 12 × shampoo a Bs 45 = Bs 540',
       conteudo: principalDe.itens,
@@ -1060,14 +1060,14 @@ function Bloco({ campo, titulo, obrigatorio, children, acao, numero, plano, onFe
   const t = useT()
   if (plano && (onFechar || exemplo))
     return (
-      <section data-campo={campo} className="relative rounded-xl bg-[var(--cartao)] p-3">
+      <section data-campo={campo} className="relative rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm">
         <div className={cx('mb-2 flex items-center gap-2', !titulo && !acao && onFechar && 'absolute right-2 top-2 mb-0')}>
-          {titulo && <h2 className="min-w-0 flex-1 text-sm font-bold">{t(titulo)}{obrigatorio && <span className="text-[var(--ruim)]"> *</span>}</h2>}
+          {titulo && <h2 className="flex min-w-0 flex-1 items-center text-sm font-bold">{t(titulo)}{obrigatorio && <span className="text-[var(--ruim)]"> *</span>}{exemplo && !acao && <Info texto={exemplo} />}</h2>}
           {acao}
           {onFechar && <button type="button" onClick={onFechar} aria-label={`${t('Tirar')} ${t(titulo ?? CAMPOS_FORM[campo].nome)}`} title={t('Tirar este campo (limpa o que foi preenchido)')} className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg text-[var(--suave)] hover:bg-[var(--fundo)] hover:text-[var(--ruim)]">✕</button>}
         </div>
         <div className={cx(!titulo && !acao && onFechar && 'pr-10')}>{children}</div>
-        {exemplo && <p className="mt-2 text-xs text-[var(--suave)]">💡 {t(exemplo)}</p>}
+        {exemplo && (!titulo || acao) && <p className="mt-2 text-xs text-[var(--suave)]">{t(exemplo)}</p>}
       </section>
     )
   // campo principal (numerado): já está dentro do passo, que tem o número e o título — só o conteúdo
@@ -1140,7 +1140,9 @@ function ItensCompra({ dados, admin, cancelada, onConferir, onAjustarValor }: { 
                 </div>
                 <div className="shrink-0 text-right">
                   <b className="num block whitespace-nowrap text-lg">{gramasTexto(l.quantidade)}</b>
-                  <span className="num block whitespace-nowrap text-sm text-[var(--suave)]">{formatar(l.total, l.moeda)}</span>
+                  {l.campos.semValor && !l.totalPrincipal
+                    ? <Pilula tom="alerta">{t('sem valor')}</Pilula>
+                    : <span className="num block whitespace-nowrap text-sm text-[var(--suave)]">{formatar(l.total, l.moeda)}</span>}
                 </div>
               </div>
               {confs.map((x) => (

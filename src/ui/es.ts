@@ -3248,4 +3248,9 @@ export const ES: Record<string, string> = {
   'Itens da compra': 'Ítems de la compra',
   'Preencha o que falta': 'Completa lo que falta',
   'Preencha o que falta ({n})': 'Completa lo que falta ({n})',
+  'Esta linha ainda não tem valor (pôr depois)': 'Esta línea aún no tiene valor (poner después)',
+  'Marque só a linha que ainda não tem preço; as outras da mesma compra seguem com o valor. Ex.: 20 kg a Bs 30.000 + 10 kg sem preço → a compra fica com Bs 30.000 e a pendência Sem valor. Depois, no pedido: ✎ Pôr o valor na linha — o custo vai para os pacotes, mesmo já separados.': 'Marca solo la línea que aún no tiene precio; las otras de la misma compra siguen con su valor. Ej.: 20 kg a Bs 30.000 + 10 kg sin precio → la compra queda con Bs 30.000 y el pendiente Sin valor. Después, en el pedido: ✎ Poner el valor en la línea — el costo va a los paquetes, aunque ya estén separados.',
+  '{n} sem valor': '{n} sin valor',
+  'Adicionar mais': 'Agregar más',
+  'Adicionar ao pedido': 'Agregar al pedido',
 }

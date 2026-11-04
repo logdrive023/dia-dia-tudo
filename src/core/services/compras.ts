@@ -35,6 +35,20 @@ export interface LinhaCompraEntrada {
   calculo?: { medida?: number; fator: string; categoria?: string; tabelaId?: Id; colunaId?: string }
 }
 
+/** os campos sem a marca "sem valor" da linha (o lote e o resto do sistema não precisam dela) */
+function semMarcaDeValor(c: Campos): Campos {
+  const r = { ...c }
+  delete r.semValor
+  return r
+}
+
+/** a compra ainda tem valor a pôr? Por linha (as marcadas sem valor e ainda zeradas); compra antiga: o total zerado */
+export function faltaValor(t: Pick<Transacao, 'linhas' | 'totalPrincipal' | 'campos'>) {
+  if (!t.campos.semValor) return false
+  const marcadas = t.linhas.filter((l) => l.campos?.semValor)
+  return marcadas.length ? marcadas.some((l) => !l.totalPrincipal) : !t.totalPrincipal
+}
+
 async function montarLinha(ctx: Ctx, l: LinhaCompraEntrada, nomePadrao: string): Promise<Linha> {
   exigirInteiroPositivo(l.quantidade, 'Quantidade')
   const total = l.calculo?.fator ? multiplicarFator(l.quantidade, l.calculo.fator, l.moeda) : l.total
@@ -87,7 +101,8 @@ export async function criarCompra(
     viagemId?: Id
     /** lote que nasce no registro: código digitado de cada lote (linhaId → código; vazio = o da regra) */
     codigosLotes?: Record<Id, string>
-    /** cabelo que já tínhamos / valor depois: registra só o peso (total 0) e fica a pendência "Sem valor" */
+    /** cabelo que já tínhamos / valor depois: registra só o peso (total 0) e fica a pendência "Sem valor".
+     *  Por LINHA: a linha vem com `campos.semValor: true` e total 0 (as outras linhas da mesma compra têm valor). */
     semValor?: boolean
   },
 ) {
@@ -143,7 +158,7 @@ export async function criarCompra(
     totalPrincipal: linhas.reduce((s, l) => s + l.totalPrincipal, 0),
     historico: [{ de: '', para: c.etapas[0].id, em: ctx.relogio.agora(), por: ctx.sessao.usuarioId, porNome: ctx.sessao.nome }],
     obs: d.obs,
-    campos: d.semValor ? { semValor: true } : {},
+    campos: d.semValor || linhas.some((l) => l.campos.semValor) ? { semValor: true } : {},
     ...(viagem ? { viagemId: viagem.id } : {}),
   })
   await ctx.repos.transacoes.salvar(t)
@@ -300,7 +315,7 @@ async function criarLotes(ctx: Ctx, compra: Transacao, codigosLotes: Record<Id, 
       custoPrincipal: l.totalPrincipal,
       quantidadeInicial: l.quantidade,
       origem: { tipo: 'compra', id: compra.id, pessoaId: compra.pessoaId },
-      campos: { ...l.campos },
+      campos: semMarcaDeValor(l.campos),
     })
     await ctx.repos.itens.salvar(lote)
     l.itemId = lote.id
@@ -437,7 +452,8 @@ export async function definirValorCompra(ctx: Ctx, d: { compraId: Id; linhaId: I
   l.totalPrincipal = conv.valorPrincipal
   l.cotacao = conv.cotacao
   compra.totalPrincipal = compra.linhas.reduce((s, x) => s + x.totalPrincipal, 0)
-  if (compra.totalPrincipal > 0 && compra.campos.semValor) compra.campos = { ...compra.campos, semValor: false }
+  if (l.totalPrincipal > 0 && l.campos.semValor) l.campos = semMarcaDeValor(l.campos)
+  if (compra.campos.semValor && !faltaValor(compra)) compra.campos = { ...compra.campos, semValor: false }
   // conta do fornecedor: só se a compra já lançou nela (depois da etapa de pagamento)
   if (compra.pessoaId && (await ctx.repos.movConta.listar()).some((m) => m.origemId === compra.id))
     await moverConta(ctx, { pessoaId: compra.pessoaId, delta: -delta, tipo: 'compra', origemId: compra.id, descricao: `Valor corrigido · ${l.descricao} · ${motivo}` })
