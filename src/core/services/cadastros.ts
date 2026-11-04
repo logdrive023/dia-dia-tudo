@@ -185,6 +185,7 @@ export async function salvarConfig(ctx: Ctx, d: Partial<Configuracoes>) {
   exigir(valor.moedasAtivas.includes(valor.moedaPrincipal), 'A moeda principal precisa estar ativa.')
   if (valor.moedaPrincipal !== atual.moedaPrincipal && (await ctx.repos.transacoes.listar()).length)
     exigir(false, 'Já existem vendas/compras na moeda principal atual: trocar agora misturaria moedas nos totais. Faça um backup e comece de novo para trocar.')
+  exigir(Number.isInteger(valor.saldoPequenoG) && valor.saldoPequenoG >= 0, 'Sobra pequena: use um número de gramas (0 desliga o aviso).')
   if (valor.socios.length) {
     exigir(valor.socios.every((x) => x.nome.trim() && Number.isInteger(x.parteBp) && x.parteBp > 0), 'Cada sócio precisa de nome e parte.')
     exigir(valor.socios.reduce((s, x) => s + x.parteBp, 0) === 10000, 'As partes dos sócios precisam somar 100%.')

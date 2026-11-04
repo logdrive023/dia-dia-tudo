@@ -2,6 +2,7 @@
 // CSV), SEPARAR lote bruto em N lotes, ajustar, PRONTUÁRIO do lote (compra → triagem → venda) e RASTREIO.
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { PainelSelecao } from '../ui/painelSelecao'
 import { Paginacao, usePaginacao } from '../ui/paginacao'
 import { TabelaDados } from '../ui/tabelaDados'
@@ -869,9 +870,12 @@ export function FichaLote() {
         { id: 'fotos', nome: 'Arquivos', extra: dados.fotos.length ? <span className="num text-xs opacity-70">{dados.fotos.length}</span> : undefined },
       ]} />
       {aba === 'historico' ? (
-        <Cartao titulo={t('Histórico do pacote')} ajuda="Tudo o que entrou e saiu deste pacote, dia a dia. Ex.: 6.000 → 4.500 g na venda V-9.">
-          <HistoricoPacote id={i.id} />
-        </Cartao>
+        <div className="space-y-3">
+          <CaminhoDoCabelo de={{ itemId: i.id }} atual={bruto ? 'triagem' : 'estoque'} />
+          <Cartao titulo={t('Histórico do pacote')} ajuda="Tudo o que entrou e saiu deste pacote, dia a dia. Ex.: 6.000 → 4.500 g na venda V-9.">
+            <HistoricoPacote id={i.id} />
+          </Cartao>
+        </div>
       ) : aba === 'fotos' ? (
         <div className="space-y-4">
           <Cartao titulo={`${t('Fotos do lote')}${dados.fotos.length ? ` · ${dados.fotos.length}` : ''}`}><FotosDoLote itemId={i.id} codigo={i.codigo} /></Cartao>

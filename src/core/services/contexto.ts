@@ -99,6 +99,10 @@ export interface Configuracoes {
   comissaoPadraoBp: number
   /** salão: a funcionária pode mudar o % da comissão na linha do atendimento (senão só o administrador) */
   comissaoFuncionarioMuda: boolean
+  /** TRIAGEM: juntar/separar vários pacotes só se estiverem na MESMA etapa do quadro (desligado = pode misturar) */
+  juntarMesmaEtapa: boolean
+  /** TRIAGEM: abaixo disso (gramas) o pacote é "sobra pequena" — só avisa, não bloqueia */
+  saldoPequenoG: number
 }
 
 export const CONFIG_PADRAO: Configuracoes = {
@@ -116,6 +120,9 @@ export const CONFIG_PADRAO: Configuracoes = {
   modulosAtivos: ['cabelo', 'salao', 'emprestimos', 'produtos'],
   comissaoPadraoBp: 5000,
   comissaoFuncionarioMuda: false,
+  // desligada por padrão: o sistema sempre deixou juntar um separado com um bruto (re-triagem); quem quiser, liga
+  juntarMesmaEtapa: false,
+  saldoPequenoG: 50,
 }
 
 export async function lerConfig(ctx: Ctx): Promise<Configuracoes> {

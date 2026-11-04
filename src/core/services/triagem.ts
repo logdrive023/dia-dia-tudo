@@ -7,7 +7,7 @@ import { multiplicarFator } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
 import type { Campos, Id, Item, Transacao } from '../domain/tipos'
 import type { CampoDef } from '../modulos'
-import { auditar, type Ctx, novo, paraPrincipal, tocar } from './contexto'
+import { auditar, type Ctx, novo, paraPrincipal, tocar, lerConfig } from './contexto'
 import { type Cadeia, NAO_IDENTIFICADO, type ParaDepois, type SaidaSeparacao, type Triagem, aplicarCampos, comprasDe, custoDe, leitorCadeia, lotesDeOrigem, moverEstoque, novaTriagem, separarNaTriagem, unidadeTexto } from './estoque'
 import { codigoNovoLote, exigirCodigosLivres, siglasPorPessoa } from './codigos'
 import { fatorDaTabela, tabelaVigente } from './precos'
@@ -105,10 +105,21 @@ export function camposUnificados(defs: CampoDef[], lista: Campos[]): Campos {
  * UNIFICAR: 2+ lotes brutos (de compras diferentes, se quiser) viram UM lote para trabalhar junto.
  * Saldo = soma; custo = soma do custo do que sobrava em cada um; a origem guarda TODOS os lotes e TODAS as compras.
  */
+/** REGRA (o ⚙ Mudar regras da Triagem): juntar só pacotes da MESMA etapa do quadro — quando ligada */
+async function exigirMesmaEtapa(ctx: Ctx, ids: Id[]) {
+  if (!(await lerConfig(ctx)).juntarMesmaEtapa) return
+  const lotes = (await Promise.all(ids.map((x) => ctx.repos.itens.obter(x)))).filter((x): x is Item => !!x)
+  if (lotes.length < 2) return
+  const colunas = await colunasTriagem(ctx, lotes[0].moduloId)
+  const fases = new Set(lotes.map((i) => faseLote(i, colunas)))
+  exigir(fases.size <= 1, `Esses pacotes estão em etapas diferentes (${[...fases].map((f) => colunas.find((c) => c.id === f)?.nome ?? f).join(' e ')}). Junte só os da mesma etapa — ou desligue a regra no ⚙ Mudar regras da Triagem.`)
+}
+
 export async function unificarLotes(ctx: Ctx, d: { id: Id; ids: Id[]; motivo?: string; codigo?: string }) {
   exigir(ctx.sessao.perfil === 'admin', 'Só o administrador unifica lotes.')
   if (await ctx.repos.itens.obter(d.id)) return { id: d.id }
   exigir(new Set(d.ids ?? []).size >= 2, 'Escolha pelo menos 2 lotes brutos para unificar.')
+  await exigirMesmaEtapa(ctx, [...new Set(d.ids)])
   return unificarNaTriagem(ctx, d, await novaTriagem(ctx, d.id), 'saida')
 }
 
@@ -326,6 +337,7 @@ export interface CartaoTriagem {
  */
 export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: string; vendidosDias?: number } = {}) {
   const moduloId = p.moduloId ?? 'cabelo'
+  const cfgRegras = await lerConfig(ctx)
   const hoje = ctx.relogio.hoje()
   const admin = ctx.sessao.perfil === 'admin'
   const colunas = await colunasTriagem(ctx, moduloId)
@@ -445,6 +457,8 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
     vendidosOcultos,
     /** depois de quantos dias esperando o pacote fica "parado" (Configurações › Etapas da compra) */
     diasParado: diasAviso,
+    /** as regras de juntar, como estão em Configurações (a tela mostra e deixa mudar pelo ⚙) */
+    regras: { mesmaEtapa: cfgRegras.juntarMesmaEtapa, saldoPequeno: cfgRegras.saldoPequenoG },
     diasAviso,
     colunasPreco: (padrao?.colunas ?? []).map((c) => ({ id: c.id, nome: c.nome })),
     colunaPrecoId: padrao?.colunas.find((c) => c.id === p.colunaId)?.id ?? padrao?.colunas[0]?.id,
@@ -480,6 +494,7 @@ export async function triarLotes(ctx: Ctx, d: { id: Id; ids: Id[]; quantidadeUsa
   // separa quando há partes ou um pacote "para depois" (não identificado)
   const separa = !!d.saidas?.length || !!d.paraDepois?.quantidade
   exigir(ids.length >= 2 || separa, 'Diga em que lotes ele foi separado.')
+  if (ids.length >= 2) await exigirMesmaEtapa(ctx, ids)
   // coluna com "exigir foto ao sair": cada lote que entra na triagem precisa de foto própria
   await exigirFotoParaSair(ctx, (await Promise.all(ids.map((x) => ctx.repos.itens.obter(x)))).filter((x): x is Item => !!x))
   // códigos digitados (lote juntado e partes): conferidos antes de mexer em qualquer lote

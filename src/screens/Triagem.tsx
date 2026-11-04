@@ -5,6 +5,7 @@
 // Seleção (juntar e separar, mover, etiquetas) só aparece ao tocar "Selecionar". O resto fica no "⋯" de cada linha.
 
 import { type DragEvent, type KeyboardEvent, type ReactNode, useCallback, useState } from 'react'
+import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { PainelSelecao } from '../ui/painelSelecao'
 import { Paginada } from '../ui/paginacao'
 import { AcaoIcone } from '../ui/acoesPagina'
@@ -45,8 +46,6 @@ type Lote = Dados['lotes'][number]
 type T = ReturnType<typeof useT>
 
 const MAX_COLUNA = 20
-/** abaixo disso (g) o pacote é "sobra pequena": aparece ⚠ na lista e no painel da seleção (não bloqueia) */
-const SALDO_PEQUENO = 50
 const MAX_PRONTOS = 12
 /** colunas da tabela "Prontos para vender": grupo | lotes | peso | valor | ⋯ (iguais no cabeçalho, nas linhas e no total) */
 const GRADE_PRONTOS = 'grid grid-cols-[minmax(0,1fr)_3.75rem_6rem_2.5rem] items-center gap-x-1.5 sm:grid-cols-[minmax(0,1fr)_3.5rem_6rem_8rem_2.75rem] sm:gap-x-3'
@@ -71,7 +70,8 @@ function rotuloCurto(l: Lote, t: T) {
 
 export function Triagem() {
   const t = useT()
-  const { ir, ajustarParams, nav } = useApp()
+  const { ir, ajustarParams, nav, sessao } = useApp()
+  const admin = sessao.perfil === 'admin'
   const [visaoP, setVisao] = useParamTela<'' | 'quadro' | 'lista'>('visao', '')
   const [quadroLembrado, setQuadroLembrado] = useLembrado('triagem.quadro', false)
   const visao = visaoP || (quadroLembrado ? 'quadro' : 'lista')
@@ -87,7 +87,7 @@ export function Triagem() {
   const { executar, ocupado } = useComando()
   const [sel, setSel] = useState<Set<Id>>(new Set())
   const [selecionando, setSelecionando] = useState(false)
-  const [janela, setJanela] = useState<'unificar' | 'triado'>()
+  const [janela, setJanela] = useState<'unificar' | 'triado' | 'regras'>()
   // sair de uma coluna de lavagem ("pedir peso depois"): pergunta o peso depois, opcional
   const [pesar, setPesar] = useState<{ ids: Id[]; fase: string }>()
   const [editar, setEditar] = useState<Lote>()
@@ -126,7 +126,11 @@ export function Triagem() {
   const marcar = (id: Id, v: boolean) => setSel((s) => { const n = new Set(s); if (v) n.add(id); else n.delete(id); return n })
   // REGRA (na tela): juntar/separar só pacotes da MESMA ETAPA do quadro — a seleção fica presa à etapa do 1º marcado
   const etapaSel = selecionados[0]?.fase
-  const foraDaEtapa = (l: Lote) => sel.size > 0 && !!etapaSel && l.fase !== etapaSel && !sel.has(l.id)
+  // as regras vêm de Configurações (o ⚙ do quadro de regras muda): etapa única ligada/desligada e o limite da sobra
+  const mesmaEtapa = dados.regras.mesmaEtapa
+  const SALDO_PEQUENO = dados.regras.saldoPequeno
+  const foraDaEtapa = (l: Lote) => mesmaEtapa && sel.size > 0 && !!etapaSel && l.fase !== etapaSel && !sel.has(l.id)
+  const sobraPequena = (l: Lote) => SALDO_PEQUENO > 0 && l.saldo < SALDO_PEQUENO
   const limparSel = () => setSel(new Set())
   const comSelecao = selecionando || sel.size > 0
 
@@ -353,13 +357,24 @@ export function Triagem() {
         {visao !== 'quadro' && daAba.length >= 2 && (!comSelecao || sel.size < 2) && (
           <section aria-label={t('Como juntar pacotes')} className="mb-3 rounded-2xl border border-[var(--marca)]/40 bg-[var(--marca-suave)] p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <b className="min-w-0 flex-1 text-sm">🔗 {t(comSelecao ? 'Marque os pacotes que vão juntos (2 ou mais)' : 'Juntar pacotes numa separação só')}</b>
+              {/* o título nunca espreme: os botões descem de linha quando não cabem */}
+              <b className="min-w-[min(100%,14rem)] flex-1 text-sm">🔗 {t(comSelecao ? 'Marque os pacotes que vão juntos (2 ou mais)' : 'Juntar pacotes numa separação só')}</b>
+              {/* as regras são de quem usa: o ⚙ muda aqui mesmo (vale para todos, na tela e no servidor) */}
+              {admin && <Botao variante="leve" className="shrink-0" onClick={() => setJanela('regras')}>⚙ {t('Mudar regras')}</Botao>}
               {!comSelecao && <Botao variante="secundario" className="shrink-0" onClick={() => setSelecionando(true)}>☑ {t('Começar a marcar')}</Botao>}
             </div>
             <ul className="grid gap-1.5 text-xs sm:grid-cols-3">
-              <li className="flex items-start gap-2 rounded-xl bg-[var(--cartao)] p-2"><span aria-hidden className="text-base">📍</span><span><b className="block text-[var(--texto)]">{t('Uma etapa por vez')}</b><span className="text-[var(--suave)]">{t('Só junta quem está na mesma etapa do quadro. Ex.: todos em “Aguardando triagem”.')}</span></span></li>
-              <li className="flex items-start gap-2 rounded-xl bg-[var(--cartao)] p-2"><span aria-hidden className="text-base">🧬</span><span><b className="block text-[var(--texto)]">{t('Compras diferentes, pode')}</b><span className="text-[var(--suave)]">{t('Cada grama guarda de qual compra veio. Ex.: 2 kg da P-0005 + 4 kg da P-0007.')}</span></span></li>
-              <li className="flex items-start gap-2 rounded-xl bg-[var(--cartao)] p-2"><span aria-hidden className="text-base">⚠️</span><span><b className="block text-[var(--texto)]">{t('Menos de {n} g: aviso', { n: SALDO_PEQUENO })}</b><span className="text-[var(--suave)]">{t('Sobra pequena: junte com outro ou ajuste como perda.')}</span></span></li>
+              {[
+                { icone: '📍', titulo: mesmaEtapa ? 'Uma etapa por vez' : 'Etapas misturadas: liberado', texto: mesmaEtapa ? 'Só junta quem está na mesma etapa do quadro. Ex.: todos em “Aguardando triagem”.' : 'Pode juntar pacotes de etapas diferentes (a regra está desligada).', ligado: mesmaEtapa },
+                { icone: '🧬', titulo: 'Compras diferentes, pode', texto: 'Cada grama guarda de qual compra veio. Ex.: 2 kg da P-0005 + 4 kg da P-0007.', ligado: true },
+                { icone: '⚠️', titulo: SALDO_PEQUENO > 0 ? t('Menos de {n} g: aviso', { n: SALDO_PEQUENO }) : 'Aviso de sobra: desligado', texto: SALDO_PEQUENO > 0 ? 'Sobra pequena: junte com outro ou ajuste como perda.' : 'Nenhum pacote é marcado como sobra pequena.', ligado: SALDO_PEQUENO > 0 },
+              ].map((r) => (
+                <li key={r.icone} className={cx('flex min-w-0 items-start gap-2.5 rounded-xl bg-[var(--cartao)] p-2.5', !r.ligado && 'opacity-70')}>
+                  {/* o ícone num quadrado fixo: nunca encavala no texto, em qualquer largura */}
+                  <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--fundo)] text-base leading-none">{r.icone}</span>
+                  <span className="min-w-0 flex-1"><b className="block text-[var(--texto)] [overflow-wrap:anywhere]">{t(r.titulo)}</b><span className="block text-[var(--suave)]">{t(r.texto)}</span></span>
+                </li>
+              ))}
             </ul>
           </section>
         )}
@@ -425,7 +440,7 @@ export function Triagem() {
                         <span className="font-mono text-base font-bold">{l.codigo ?? '—'}</span>
                         <span className="min-w-0 truncate text-base">{rotuloCurto(l, t)}</span>
                         {comSelecao && foraDaEtapa(l) && <button type="button" onClick={(e) => (e.stopPropagation(), setSel(new Set([l.id])))} title={t('Está em “{a}”; a seleção é de “{b}”. Só junta quem está na mesma etapa.', { a: colDe(l.fase)?.nome ?? l.fase, b: colDe(etapaSel ?? '')?.nome ?? '' })} className="inline-flex min-h-7 items-center gap-1 rounded-full border border-dashed border-[var(--borda)] bg-[var(--cartao)] px-2 text-xs font-semibold text-[var(--suave)] hover:border-[var(--marca)] hover:text-[var(--marca)]">🔒 {t('outra etapa')} · {t('começar com este')}</button>}
-                        {l.saldo < SALDO_PEQUENO && <span title={t('Sobra pequena: junte com outro ou ajuste como perda.')}><Pilula tom="alerta">⚠️ {t('só {g}', { g: gramasTexto(l.saldo) })}</Pilula></span>}
+                        {sobraPequena(l) && <span title={t('Sobra pequena: junte com outro ou ajuste como perda.')}><Pilula tom="alerta">⚠️ {t('só {g}', { g: gramasTexto(l.saldo) })}</Pilula></span>}
                         {l.atrasado && <span title={t('Esperando para separar há mais de {n} dias', { n: dados.diasParado })}><Pilula tom="ruim">⏰ {t('parado')}</Pilula></span>}
                         {l.campos.estado === NAO_ID && <Pilula tom="alerta">❓ {t('para depois')}</Pilula>}
                         {col && !col.entrada && <Pilula>{t(col.nome)}</Pilula>}
@@ -459,10 +474,10 @@ export function Triagem() {
         const custoKg = gSel && selecionados.every((l) => l.custo !== undefined) ? Math.round((selecionados.reduce((s, l) => s + (l.custo ?? 0), 0) * 1000) / gSel) : undefined
         return (
           <PainelSelecao
-            itens={selecionados.map((l) => ({ id: l.id, codigo: l.codigo, peso: l.saldo, alerta: l.saldo < SALDO_PEQUENO, detalhe: [l.compras[0]?.codigo, l.compras[0]?.fornecedor].filter(Boolean).join(' · ') }))}
+            itens={selecionados.map((l) => ({ id: l.id, codigo: l.codigo, peso: l.saldo, alerta: sobraPequena(l), detalhe: [l.compras[0]?.codigo, l.compras[0]?.fornecedor].filter(Boolean).join(' · ') }))}
             fatos={[{ icone: '📍', texto: `${t('Etapa')}: ${colDe(etapaSel ?? '')?.nome ?? '—'}` }, ...(compras.length ? [{ icone: '🛒', texto: t(compras.length === 1 ? 'de 1 compra' : 'de {n} compras', { n: compras.length }) }] : []), ...(custoKg !== undefined ? [{ icone: '💵', texto: `${t('custo médio')} ${formatar(custoKg, moedaPadrao())}/kg` }] : [])]}
             aviso={[
-              ...(selecionados.some((l) => l.saldo < SALDO_PEQUENO) ? [`⚠️ ${t('Sobra pequena em {c}: junte com outro ou ajuste como perda.', { c: selecionados.filter((l) => l.saldo < SALDO_PEQUENO).map((l) => `${l.codigo ?? ''} (${gramasTexto(l.saldo)})`).join(', ') })}`] : []),
+              ...(selecionados.some(sobraPequena) ? [`⚠️ ${t('Sobra pequena em {c}: junte com outro ou ajuste como perda.', { c: selecionados.filter(sobraPequena).map((l) => `${l.codigo ?? ''} (${gramasTexto(l.saldo)})`).join(', ') })}`] : []),
               ...(varios && compras.length > 1 ? [`🧬 ${t('Misturando compras: cada grama guarda de qual compra veio (aparece no pacote novo e na venda).')}`] : []),
             ].join('  ') || undefined}
             ocupado={ocupado}
@@ -490,6 +505,7 @@ export function Triagem() {
         )
       })()}
 
+      {janela === 'regras' && <RegrasJuntar mesmaEtapa={mesmaEtapa} saldoPequeno={SALDO_PEQUENO} onFechar={() => setJanela(undefined)} />}
       {janela === 'unificar' && <Unificar lotes={selecionados} campos={campos} onFechar={() => setJanela(undefined)} onFeito={limparSel} />}
       {janela === 'triado' && primeiraPronta && (
         <Confirmar
@@ -1047,6 +1063,7 @@ function LinhaTriagem({ x, aberta, t, ir, onAlternar, onImprimir }: { x: Triagem
       )}
       {aberta && (
         <div className="space-y-4 border-t border-[var(--borda)] bg-[var(--fundo)] px-4 py-3">
+          <CaminhoDoCabelo de={{ triagemId: x.id }} atual="triagem" />
           <section>
             {titulo('Veio de')}
             <CadeiaChips cadeia={{ compras: x.compras, triagens: [], vendas: [] }} max={6} />
@@ -1133,4 +1150,51 @@ function DesfazerTriagem({ x, t }: { x: TriagemFeita; t: T }) {
 function RastreioDaTriagem({ id }: { id: string }) {
   const { dados } = useConsulta('genealogia', { triagemId: id })
   return dados ? <div className="mt-2"><RastreioTotal g={dados} /></div> : <Carregando />
+}
+
+/**
+ * REGRAS DE JUNTAR (o ⚙ do quadro de regras): o dono decide sem mexer em código. Liga/desliga "uma etapa por vez" e o
+ * limite da "sobra pequena". Vale para todos, na tela e no servidor (guardado na configuração geral).
+ */
+function RegrasJuntar({ mesmaEtapa, saldoPequeno, onFechar }: { mesmaEtapa: boolean; saldoPequeno: number; onFechar(): void }) {
+  const t = useT()
+  const { executar, ocupado } = useComando()
+  const [etapa, setEtapa] = useState(mesmaEtapa)
+  const [limite, setLimite] = useState(String(saldoPequeno))
+  const n = Number(limite)
+  const valido = limite.trim() !== '' && Number.isInteger(n) && n >= 0
+  const salvar = async () => {
+    const r = await executar('salvarConfig', { juntarMesmaEtapa: etapa, saldoPequenoG: n }, t('Regras salvas ✓'))
+    if (r) onFechar()
+  }
+  return (
+    <Janela aberta titulo={t('Regras para juntar pacotes')} onFechar={onFechar} rodape={<div className="flex justify-end gap-2"><Botao variante="leve" onClick={onFechar}>{t('Cancelar')}</Botao><Botao disabled={ocupado || !valido} onClick={salvar}>{t('Salvar regras')}</Botao></div>}>
+      <p className="mb-3 text-sm text-[var(--suave)]">{t('Valem para todos, nesta tela e ao registrar. Dá para mudar quando quiser.')}</p>
+      <div className="space-y-3">
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--borda)] p-3 hover:border-[var(--marca)]">
+          <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--fundo)] text-lg">📍</span>
+          <span className="min-w-0 flex-1">
+            <b className="block">{t('Juntar só pacotes da mesma etapa')}</b>
+            <span className="block text-xs text-[var(--suave)]">{t('Ligado: quem está em “Lavando” não entra junto com quem está em “Aguardando triagem”. Desligado: pode misturar etapas.')}</span>
+          </span>
+          {/* liga/desliga */}
+          <input type="checkbox" role="switch" className="peer sr-only" checked={etapa} onChange={(e) => setEtapa(e.target.checked)} aria-label={t('Juntar só pacotes da mesma etapa')} />
+          <span aria-hidden className={cx('relative mt-1 h-6 w-11 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--marca)]', etapa ? 'bg-[var(--marca)]' : 'bg-[var(--borda)]')}>
+            <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', etapa ? 'left-[22px]' : 'left-0.5')} />
+          </span>
+        </label>
+        <div className="flex items-start gap-3 rounded-2xl border border-[var(--borda)] p-3">
+          <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--fundo)] text-lg">⚠️</span>
+          <span className="min-w-0 flex-1">
+            <b className="block">{t('Avisar sobra pequena')}</b>
+            <span className="block text-xs text-[var(--suave)]">{t('Pacote com menos que isso ganha ⚠ na lista e no painel (não bloqueia). 0 desliga o aviso.')}</span>
+            <span className="mt-2 flex items-center gap-2">
+              <Entrada inputMode="numeric" className="w-28" aria-label={t('Limite em gramas')} value={limite} onChange={(e) => setLimite(e.target.value.replace(/\D/g, ''))} />
+              <span className="text-sm text-[var(--suave)]">g</span>
+            </span>
+          </span>
+        </div>
+      </div>
+    </Janela>
+  )
 }

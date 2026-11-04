@@ -434,3 +434,13 @@ Toda tela que deixa marcar itens usa o mesmo painel (Triagem, Estoque, Etiquetas
 - Aberto: linha 1 = número + "N selecionados" + ▾ minimizar + ✕; linha 2 = selos (`fatos`: ⚖ peso, 🛒 compras, 💵 custo…); linha 3 = barra das partes + "Ver os N"; chips numa faixa que rola de lado.
 - **Opções** em cartões (ícone, nome, uma linha do que faz, ⓘ com exemplo; a principal em destaque; as que não valem ficam apagadas dizendo por quê). **Outras ações** à vista, cada uma com a explicação embaixo, e um ⓘ do grupo.
 - Fica preso ao rodapé, na largura da coluna de conteúdo, e reserva o mesmo espaço no fim da página (nunca cobre a lista).
+
+### 11.5 Linha do tempo do cabelo (`CaminhoDoCabelo` em `src/ui/caminhoCabelo.tsx`)
+
+Uma só, igual em Compra (pedido), Triagem (triagem feita), Estoque (pacote) e Venda: 🛒 Compra → ✂️ Triagem → 📦 Estoque → 💰 Venda.
+✓ verde = já aconteceu (resumo: quanto, quando, quem) · destaque = a etapa desta tela ("você está aqui") · cinza tracejado = ainda vai acontecer.
+Cada código abre o registro num clique (da venda direto para a triagem ou a compra). O log detalhado de cada tela continua embaixo. Dados: consulta `genealogia`.
+
+### 11.6 Regras que o dono muda sem código
+
+Regra de operação que pode ser diferente de um negócio para outro vira configuração com um ⚙ ao lado de onde ela aparece (ex.: "⚙ Mudar regras" na Triagem: juntar só da mesma etapa — ligado/desligado — e o limite da sobra pequena). A tela mostra a regra como está e o servidor respeita a mesma configuração.

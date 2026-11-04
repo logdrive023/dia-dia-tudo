@@ -6,6 +6,7 @@
 // pagamento e a entrega (quem fez fica registrado). A conferência de peso é um lançamento no lote, sem mudar o comprado.
 
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { Paginacao, usePaginacao } from '../ui/paginacao'
 import { TabelaDados } from '../ui/tabelaDados'
 import { AcaoIcone } from '../ui/acoesPagina'
@@ -1399,7 +1400,12 @@ export function Pedido() {
       ]} />
 
       {aba === 'anexos' && <AbaAnexos donoId={c.id} categorias={CATEGORIAS_COMPRA} padrao="pedido" />}
-      {aba === 'historico' && <Cartao titulo={t('Linha do tempo')}><LinhaDoTempo id={c.id} /></Cartao>}
+      {aba === 'historico' && (
+        <div className="space-y-3">
+          <CaminhoDoCabelo de={{ compraId: c.id }} atual="compra" />
+          <Cartao titulo={t('O que aconteceu neste pedido')}><LinhaDoTempo id={c.id} /></Cartao>
+        </div>
+      )}
 
       {aba === 'resumo' && (
         <div className="grid items-start gap-4 lg:grid-cols-2">

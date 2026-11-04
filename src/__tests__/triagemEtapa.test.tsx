@@ -18,6 +18,8 @@ describe('triagem: uma etapa por vez', () => {
   it('marcar um pacote apaga os de outra etapa, com o motivo; "começar com este" troca a seleção', async () => {
     const { b, sessao } = await novoBackend()
     await b.comando('salvarFluxoTriagem', { moduloId: 'cabelo', colunas: [COLUNAS_PADRAO[0], COLUNA_LAVAGEM, ...COLUNAS_PADRAO.slice(1)] })
+    // a regra vem desligada; o dono liga (pelo ⚙ das regras ou em Configurações)
+    await b.comando('salvarConfig', { juntarMesmaEtapa: true })
     for (const id of ['c1', 'c2']) await b.comando('criarCompra', { id, moduloId: 'cabelo', linhas: [{ id: `${id}-l`, quantidade: 2000, moeda: 'BOB', total: bs(10000), campos: { estado: 'Bruto' } }] })
     const brutos = (await b.consulta('estoque', { moduloId: 'cabelo' })).filter((i) => i.saldo > 0)
     expect(brutos).toHaveLength(2)
@@ -41,5 +43,10 @@ describe('triagem: uma etapa por vez', () => {
     fireEvent.click(screen.getByRole('button', { name: /outra etapa/ }))
     await waitFor(() => expect(caixa(brutos[1].codigo).checked).toBe(true))
     expect(caixa(brutos[0].codigo).disabled).toBe(true)
+    // e o servidor também recusa misturar etapas com a regra ligada…
+    await expect(b.comando('unificarLotes', { id: 'u', ids: brutos.map((x) => x.id) })).rejects.toThrow(/etapas diferentes/)
+    // …e deixa quando ela é desligada
+    await b.comando('salvarConfig', { juntarMesmaEtapa: false })
+    await b.comando('unificarLotes', { id: 'u', ids: brutos.map((x) => x.id) })
   }, 30000)
 })
