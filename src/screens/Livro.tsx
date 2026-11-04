@@ -142,7 +142,6 @@ export function Livro() {
     <div className="space-y-4">
       <Titulo
         subtitulo={t('Como o livro caixa, mas em gramas: tudo o que entrou e saiu, e de quais compras.')}
-        acao={<Botao variante="secundario" disabled title={t('Em breve')} onClick={exportar}>⬇ {t('Exportar CSV')}</Botao>}
       >
         {t('Livro do cabelo')}
       </Titulo>
@@ -162,7 +161,7 @@ export function Livro() {
         <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar lançamento, pacote, compra ou pessoa" extra={<BotaoPeriodo de={de} ate={ate} onChange={(d, a) => ajustarParams({ de: d, ate: a })} />} ativos={nFiltros} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
         <ChipsFiltros itens={ativos} onTirar={tirarFiltro} onLimpar={limpar} />
         {verFiltros && (
-          <PainelFiltros resultados={linhas.length} temAtivos={nFiltros > 0} onLimpar={limpar} onFechar={() => setVerFiltros(false)}>
+          <PainelFiltros resultados={linhas.length} temAtivos={nFiltros > 0} onLimpar={limpar} onFechar={() => setVerFiltros(false)} exportar={{ onExportar: exportar, quantos: linhas.length, unidade: 'lançamento(s)' }}>
             <GrupoFiltro titulo="De onde veio" icone="🛒">
               <Campo rotulo="Compra"><Selecao valor={compra} onChange={setCompra} vazio="Todas" opcoes={dados.porCompra.map((c) => ({ id: c.compraId, nome: [c.codigo, c.fornecedor].filter(Boolean).join(' · ') }))} /></Campo>
               <Campo rotulo="Pacote"><Entrada type="search" value={pacote} placeholder={t('Código ou nome')} onChange={(e) => setPacote(e.target.value)} /></Campo>

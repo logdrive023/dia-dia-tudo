@@ -3659,4 +3659,6 @@ export const ES: Record<string, string> = {
   'sem comprovante': 'sin comprobante',
   'ontem': 'ayer',
   'Escolher as colunas da tabela': 'Elegir las columnas de la tabla',
+  'lançamento(s)': 'movimiento(s)',
+  'registro(s)': 'registro(s)',
 }

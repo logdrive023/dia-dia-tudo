@@ -55,7 +55,7 @@ function ServicosInsumos({ de, ate }: { de: string; ate: string }) {
   if (!dados) return <Carregando />
   const m = dados.moeda
   const tabela = (titulo: string, linhas: typeof dados.porServico, csv: string) => (
-    <Cartao titulo={t(titulo)} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV(csv, linhas.map((l) => ({ nome: l.nome, tipo: l.categoria, feitos: l.n, receita: l.receita / 100, insumos: l.insumos / 100, comissao: l.comissao / 100, margem_salao: l.margem / 100 })))}>CSV</Botao>}>
+    <Cartao titulo={t(titulo)} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV(csv, linhas.map((l) => ({ nome: l.nome, tipo: l.categoria, feitos: l.n, receita: l.receita / 100, insumos: l.insumos / 100, comissao: l.comissao / 100, margem_salao: l.margem / 100 })))}>📥 {t('Baixar planilha')}</Botao>}>
       {!linhas.length ? (
         <Vazio texto="Nada no período." />
       ) : (
@@ -104,7 +104,7 @@ function Dre({ de, ate }: { de: string; ate: string }) {
   const m = dados.moeda
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Cartao titulo={t('Resultado do período')} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('resultado', dados.linhas.map((l) => ({ conta: l.conta, valor: l.valor / 100 })))}>CSV</Botao>} ajuda="Receita − descontos − custo do que foi vendido − insumos dos serviços − comissões = lucro bruto; − despesas = resultado.">
+      <Cartao titulo={t('Resultado do período')} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('resultado', dados.linhas.map((l) => ({ conta: l.conta, valor: l.valor / 100 })))}>📥 {t('Baixar planilha')}</Botao>} ajuda="Receita − descontos − custo do que foi vendido − insumos dos serviços − comissões = lucro bruto; − despesas = resultado.">
         <table className="w-full text-sm">
           <tbody>
             {dados.linhas.map((l, i) => (
@@ -146,7 +146,7 @@ function Livro({ de, ate }: { de: string; ate: string }) {
   return (
     <div className="space-y-4">
       {dados.map((l) => (
-        <Cartao key={l.moeda} titulo={`${t('Livro caixa')} · ${l.moeda}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV(`livro-caixa-${l.moeda}`, l.linhas.map((x) => ({ data: x.data, descricao: x.descricao, forma: x.forma, entrada: x.entrada / 100, saida: x.saida / 100, saldo: x.saldo / 100 })))}>CSV</Botao>}>
+        <Cartao key={l.moeda} titulo={`${t('Livro caixa')} · ${l.moeda}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV(`livro-caixa-${l.moeda}`, l.linhas.map((x) => ({ data: x.data, descricao: x.descricao, forma: x.forma, entrada: x.entrada / 100, saida: x.saida / 100, saldo: x.saldo / 100 })))}>📥 {t('Baixar planilha')}</Botao>}>
           <p className="mb-2 text-sm">{t('Saldo inicial')} <b className="num">{formatar(l.inicial, l.moeda)}</b> · {t('entradas')} <b className="num text-[var(--bom)]">{formatar(l.entradas, l.moeda)}</b> · {t('saídas')} <b className="num text-[var(--ruim)]">{formatar(l.saidas, l.moeda)}</b> · {t('final')} <b className="num">{formatar(l.final, l.moeda)}</b></p>
           <div className="max-h-[60vh] overflow-auto print:max-h-none">
             <table className="w-full text-sm">
@@ -168,7 +168,7 @@ function VendasDet({ de, ate }: { de: string; ate: string }) {
   const total = dados.reduce((s, l) => s + l.totalPrincipal, 0)
   const lucro = dados.reduce((s, l) => s + l.lucro, 0)
   return (
-    <Cartao titulo={`${t('Vendas linha a linha')} · ${formatar(total, moedaPadrao())} · ${t('lucro')} ${formatar(lucro, moedaPadrao())}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('vendas-detalhadas', dados.map((l) => ({ data: l.data, cliente: l.cliente, lote: l.lote, descricao: l.descricao, medida: l.medida, categoria: l.categoria, quantidade: l.quantidade, fator: l.fator, bruto: l.bruto / 100, desconto: l.desconto / 100, total: l.total / 100, moeda: l.moeda, total_principal: l.totalPrincipal / 100, custo: l.custo / 100, lucro: l.lucro / 100 })))}>CSV</Botao>}>
+    <Cartao titulo={`${t('Vendas linha a linha')} · ${formatar(total, moedaPadrao())} · ${t('lucro')} ${formatar(lucro, moedaPadrao())}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('vendas-detalhadas', dados.map((l) => ({ data: l.data, cliente: l.cliente, lote: l.lote, descricao: l.descricao, medida: l.medida, categoria: l.categoria, quantidade: l.quantidade, fator: l.fator, bruto: l.bruto / 100, desconto: l.desconto / 100, total: l.total / 100, moeda: l.moeda, total_principal: l.totalPrincipal / 100, custo: l.custo / 100, lucro: l.lucro / 100 })))}>📥 {t('Baixar planilha')}</Botao>}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-xs text-[var(--suave)]"><th>{t('Data')}</th><th>{t('Cliente')}</th><th>{t('Lote')}</th><th>{t('Conta')}</th><th className="text-right">{t('Desconto')}</th><th className="text-right">{t('Total')}</th><th className="text-right">{t('Lucro')}</th></tr></thead>
@@ -192,7 +192,7 @@ function ComprasDet({ de, ate }: { de: string; ate: string }) {
   const { dados } = useConsulta('comprasDetalhadas', { de, ate })
   if (!dados) return <Carregando />
   return (
-    <Cartao titulo={t('Compras linha a linha')} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('compras', dados.map((l) => ({ data: l.data, fornecedor: l.fornecedor, etapa: l.etapa, descricao: l.descricao, quantidade: l.quantidade, total: l.total / 100, moeda: l.moeda })))}>CSV</Botao>}>
+    <Cartao titulo={t('Compras linha a linha')} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('compras', dados.map((l) => ({ data: l.data, fornecedor: l.fornecedor, etapa: l.etapa, descricao: l.descricao, quantidade: l.quantidade, total: l.total / 100, moeda: l.moeda })))}>📥 {t('Baixar planilha')}</Botao>}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-xs text-[var(--suave)]"><th>{t('Data')}</th><th>{t('Fornecedor')}</th><th>{t('Item')}</th><th className="text-right">{t('Quantidade')}</th><th className="text-right">{t('Total')}</th><th>{t('Etapa')}</th></tr></thead>
@@ -209,7 +209,7 @@ function Inventario() {
   const { dados } = useConsulta('inventario', {})
   if (!dados) return <Carregando />
   return (
-    <Cartao titulo={`${t('Inventário a custo')} · ${formatar(dados.valor, moedaPadrao())}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('inventario', dados.linhas.map((l) => ({ codigo: l.codigo, nome: l.nome, quantidade: l.quantidade, unidade: l.unidade, valor_custo: l.valorCusto / 100, desde: l.desde })))}>CSV</Botao>}>
+    <Cartao titulo={`${t('Inventário a custo')} · ${formatar(dados.valor, moedaPadrao())}`} acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('inventario', dados.linhas.map((l) => ({ codigo: l.codigo, nome: l.nome, quantidade: l.quantidade, unidade: l.unidade, valor_custo: l.valorCusto / 100, desde: l.desde })))}>📥 {t('Baixar planilha')}</Botao>}>
       <table className="w-full text-sm">
         <thead><tr className="text-left text-xs text-[var(--suave)]"><th>{t('Código')}</th><th>{t('Item')}</th><th className="text-right">{t('Quantidade')}</th><th className="text-right">{t('Custo')}</th></tr></thead>
         <tbody>{dados.linhas.map((l) => <tr key={l.id} {...clicavel(() => ir('lote', { id: l.id }))} className={LINHA}><td className="font-mono text-xs">{l.codigo}</td><td className="py-1">{l.nome}</td><td className="num text-right">{l.unidade === 'grama' ? gramasTexto(l.quantidade) : l.quantidade}</td><td className="num text-right">{formatar(l.valorCusto, moedaPadrao())}</td></tr>)}</tbody>
@@ -251,7 +251,7 @@ function Log({ de, ate }: { de: string; ate: string }) {
   const { dados } = useConsulta('logDetalhado', { de, ate, usuarioId: usuarioId || undefined, acao: acao || undefined, busca: busca || undefined })
   const { dados: todos } = useConsulta('logDetalhado', { limite: 0 })
   return (
-    <Cartao titulo={`${t('Log')} · ${dados?.total ?? 0} ${t('ações')}`} ajuda="Toda ação fica registrada com quem fez e quando. Filtre por pessoa e período: “o que a funcionária fez do dia X ao Y”." acao={dados && <Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('log', dados.linhas.map((l) => ({ quando: l.criadoEm, quem: l.usuarioNome ?? l.criadoPor, acao: l.nomeAcao, detalhe: l.resumo })))}>CSV</Botao>}>
+    <Cartao titulo={`${t('Log')} · ${dados?.total ?? 0} ${t('ações')}`} ajuda="Toda ação fica registrada com quem fez e quando. Filtre por pessoa e período: “o que a funcionária fez do dia X ao Y”." acao={dados && <Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('log', dados.linhas.map((l) => ({ quando: l.criadoEm, quem: l.usuarioNome ?? l.criadoPor, acao: l.nomeAcao, detalhe: l.resumo })))}>📥 {t('Baixar planilha')}</Botao>}>
       <div className="nao-imprimir mb-3 flex flex-wrap gap-2">
         <Selecao className="w-auto" valor={usuarioId} onChange={setUsuarioId} vazio="Todos os usuários" opcoes={todos?.usuarios ?? []} />
         <Selecao className="w-auto" valor={acao} onChange={setAcao} vazio="Todas as ações" opcoes={(todos?.acoes ?? []).map((a) => ({ id: a.id, nome: t(a.nome) }))} />

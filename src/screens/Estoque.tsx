@@ -8,7 +8,7 @@ import { PainelSelecao } from '../ui/painelSelecao'
 import { Paginacao, usePaginacao } from '../ui/paginacao'
 import { TabelaDados } from '../ui/tabelaDados'
 import { CabecalhoFicha } from '../ui/cabecalhoFicha'
-import { GrupoFiltro, CampoFaixa, FiltroLista, VazioFiltro, BotaoExportar } from '../ui/filtroPadrao'
+import { GrupoFiltro, CampoFaixa, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Campos, Id } from '../core/domain/tipos'
@@ -319,10 +319,10 @@ export function Estoque() {
         extra={<><FiltroViagem nasLinhas={(dados ?? []).map((i) => i.compras.map((c) => c.viagem))} valor={p('vg')} onChange={(v) => setP('vg', v)} /><Botao variante="secundario" className="shrink-0 whitespace-nowrap px-3" aria-label={t('Ler código')} onClick={() => setJanela('camera')}>📷<span className="hidden sm:inline"> {t('Ler código')}</span></Botao></>}
         ativos={ativosEstoque} onTirar={tirarFiltro} onLimpar={limpar} temAtivos={chavesFiltro.length > 0}
         resultados={dados ? lista.length : undefined} total={dados?.length} unidade="lote(s)"
+        exportar={{ onExportar: () => exportar(selecionados.length ? selecionados : lista), quantos: selecionados.length || lista.length, unidade: selecionados.length ? 'selecionado(s)' : 'lote(s)' }}
         ferramentas={<>
           <Botao variante="leve" className="whitespace-nowrap px-3" title={t('Escolher as colunas da tabela')} onClick={() => setJanela('colunas')}>▦ {t('Colunas')}</Botao>
           {larga && <div className="shrink-0 [&_button]:whitespace-nowrap"><Escolha rotulo="Ver como" valor={visao} onChange={setVisao} opcoes={[{ id: 'tabela', nome: 'Tabela' }, { id: 'cartoes', nome: 'Cartões' }]} /></div>}
-          <BotaoExportar onExportar={() => exportar(selecionados.length ? selecionados : lista)} quantos={selecionados.length || lista.length} unidade={selecionados.length ? 'selecionado(s)' : 'lote(s)'} />
         </>}
         painel={<>
             <GrupoFiltro titulo="Situação" icone="📦">

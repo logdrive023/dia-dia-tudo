@@ -11,7 +11,7 @@ import { TabelaDados, SeloCodigo, corDoNome, iniciais } from '../ui/tabelaDados'
 import { formatar } from '../core/domain/dinheiro'
 import { Campo, Confirmar, Entrada, Pilula, Selecao, Titulo, Vazio, cx, dataBR, diaCurto, hora, moedaPadrao } from '../ui/base'
 import { useApp, useComando, useConsulta, useFiltrosTela } from '../ui/contexto'
-import { CampoFaixa, FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo, BotaoExportar } from '../ui/filtroPadrao'
+import { CampoFaixa, FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo } from '../ui/filtroPadrao'
 import { useT } from '../ui/i18n'
 import { type Acao } from '../ui/menuAcoes'
 import { GrupoNumeros, NumeroGrande } from '../ui/numeroGrande'
@@ -132,7 +132,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
         ativos={ativos} onTirar={(k) => (tirar(k), setP('pagina', ''))} onLimpar={limpar}
         resultados={carregando ? undefined : lista.length} total={carregando ? undefined : (aba === 'canceladas' ? canceladas!.length : aba === 'todas' ? concluidas!.length + canceladas!.length : concluidas!.length)} unidade="venda(s)"
         detalhe={!carregando && lista.length > 0 && formatar(lista.reduce((s, v) => s + v.valor, 0), moeda)}
-        ferramentas={<BotaoExportar onExportar={exportar} quantos={lista.length} unidade="venda(s)" />}
+        exportar={{ onExportar: exportar, quantos: lista.length, unidade: 'venda(s)' }}
         painel={<>
           <GrupoFiltro titulo="Quando e o quê" icone="📅">
             <CampoFaixa rotulo="Data da venda">

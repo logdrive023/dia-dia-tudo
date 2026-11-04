@@ -166,7 +166,7 @@ export function LinhaDoTempo({ id, prefixo = 'lt', simples }: { id: string; pref
           onLimpar={limpar}
         />
         {verFiltros && (
-          <PainelFiltros resultados={filtrados.length} temAtivos={!!(quem || de || ate)} onLimpar={limpar} onFechar={() => setVerFiltros(false)}>
+          <PainelFiltros resultados={filtrados.length} temAtivos={!!(quem || de || ate)} onLimpar={limpar} onFechar={() => setVerFiltros(false)} exportar={{ onExportar: exportar, quantos: lista.length, unidade: 'registro(s)' }}>
             <GrupoFiltro titulo="Quem" icone="👤">
               <Campo rotulo="Quem fez"><Selecao valor={quem} onChange={(v) => definir('Quem', v)} vazio="Todos" opcoes={pessoas.map((p) => ({ id: p, nome: p }))} /></Campo>
             </GrupoFiltro>
@@ -190,7 +190,6 @@ export function LinhaDoTempo({ id, prefixo = 'lt', simples }: { id: string; pref
           {visiveis.length > 0 && (
             <BotaoExpandir aberto={tudoAberto} onClick={() => setAbertos(tudoAberto ? new Set() : new Set(visiveis.map(chaveDe)))} rotuloAberto={t('Recolher tudo')} className="whitespace-nowrap">{t('Expandir tudo')}</BotaoExpandir>
           )}
-          {lista.length > 0 && <button type="button" onClick={exportar} className="min-h-10 whitespace-nowrap rounded-lg px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⬇ {t('Exportar CSV')}</button>}
         </div>
       </div>
 

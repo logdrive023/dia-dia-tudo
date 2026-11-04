@@ -63,12 +63,16 @@ export function ChipsFiltros({ itens, onTirar, onLimpar }: { itens: FiltroAtivo[
 }
 
 /** O painel: grupos (GrupoFiltro) + rodapé "Limpar · Ver N resultados" (fecha o painel). */
-export function PainelFiltros({ children, resultados, onFechar, onLimpar, temAtivos }: { children: ReactNode; resultados?: number; onFechar(): void; onLimpar(): void; temAtivos: boolean }) {
+/** o que baixar em planilha (o botão fica dentro da ⚙, no rodapé do painel) */
+export interface Exportar { onExportar(): void; quantos: number; unidade: string }
+
+export function PainelFiltros({ children, resultados, onFechar, onLimpar, temAtivos, exportar }: { children?: ReactNode; resultados?: number; onFechar(): void; onLimpar(): void; temAtivos: boolean; exportar?: Exportar }) {
   const t = useT()
   return (
     <section aria-label={t('Filtros')} className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-      <div className="space-y-2 p-2 sm:p-3">{children}</div>
-      <div className="flex items-center justify-end gap-2 border-t border-[var(--borda)] bg-[var(--fundo)] px-3 py-2">
+      {children && <div className="space-y-2 p-2 sm:p-3">{children}</div>}
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--borda)] bg-[var(--fundo)] px-3 py-2">
+        {exportar && <span className="mr-auto"><BotaoExportar {...exportar} /></span>}
         <Botao variante="leve" disabled={!temAtivos} onClick={onLimpar}>{t('Limpar filtros')}</Botao>
         <Botao onClick={onFechar}>{resultados === undefined ? t('Pronto') : t(resultados === 1 ? 'Ver 1 resultado' : 'Ver {n} resultados', { n: resultados })}</Botao>
       </div>
@@ -213,7 +217,7 @@ export function BotaoPeriodo({ de, ate, onChange, presets = ['hoje', '7d', '30d'
  *   4. o resultado: "4 de 8 pedido(s)" + os filtros ligados em chips ✕ + "Limpar filtros"; `ferramentas` à direita
  * A tela só diz QUAIS filtros tem (e como filtra): o lugar, o botão e o jeito de limpar são sempre estes.
  */
-export function FiltroLista({ busca, onBusca, placeholder, onKeyDown, autoFocus, situacao, periodo, topo, acaoTopo, extra, painel, ativos = [], onTirar, onLimpar, temAtivos, resultados, total, unidade, detalhe, ferramentas, aberto: abertoFora, onAberto, className }: {
+export function FiltroLista({ busca, onBusca, placeholder, onKeyDown, autoFocus, situacao, periodo, topo, acaoTopo, extra, painel, ativos = [], onTirar, onLimpar, temAtivos, resultados, total, unidade, detalhe, ferramentas, exportar, aberto: abertoFora, onAberto, className }: {
   busca: string; onBusca(v: string): void; placeholder: string; onKeyDown?(e: KeyboardEvent<HTMLInputElement>): void; autoFocus?: boolean
   /** as abas da situação (o seletor padrão) */
   situacao?: { opcoes: OpcaoSituacao[]; valor: string; onChange(id: string): void }
@@ -229,6 +233,8 @@ export function FiltroLista({ busca, onBusca, placeholder, onKeyDown, autoFocus,
   /** quantos ficaram, de quantos (undefined = carregando) e o nome do que é contado ("pedido(s)") */
   resultados?: number; total?: number; unidade: string; detalhe?: ReactNode
   ferramentas?: ReactNode
+  /** "📥 Baixar planilha" — fica DENTRO da ⚙ (o padrão de toda lista) */
+  exportar?: Exportar
   /** aberto/fechado controlado por fora (quando a tela abre o painel sozinha) */
   aberto?: boolean; onAberto?(v: boolean): void
   className?: string
@@ -250,9 +256,9 @@ export function FiltroLista({ busca, onBusca, placeholder, onKeyDown, autoFocus,
           {acaoTopo && <div className="ml-auto shrink-0">{acaoTopo}</div>}
         </div>
       )}
-      <BarraFiltros busca={busca} onBusca={onBusca} placeholder={placeholder} onKeyDown={onKeyDown} autoFocus={autoFocus} extra={<>{extra}{periodo && <BotaoPeriodo {...periodo} />}</>} ativos={ativos.length} aberto={aberto} onAlternar={painel ? () => abrir(!aberto) : undefined} />
-      {painel && aberto && (
-        <PainelFiltros resultados={resultados} temAtivos={temAtivos ?? ativos.length > 0} onLimpar={onLimpar} onFechar={() => abrir(false)}>{painel}</PainelFiltros>
+      <BarraFiltros busca={busca} onBusca={onBusca} placeholder={placeholder} onKeyDown={onKeyDown} autoFocus={autoFocus} extra={<>{extra}{periodo && <BotaoPeriodo {...periodo} />}</>} ativos={ativos.length} aberto={aberto} onAlternar={painel || exportar ? () => abrir(!aberto) : undefined} />
+      {(painel || exportar) && aberto && (
+        <PainelFiltros resultados={resultados} temAtivos={temAtivos ?? ativos.length > 0} onLimpar={onLimpar} onFechar={() => abrir(false)} exportar={exportar}>{painel}</PainelFiltros>
       )}
       {/* O RESULTADO só aparece quando há busca ou filtro (sem filtro ele só repetiria o número do cartão/aba): em destaque,
           "🔎 4 de 20 pacote(s)" + o valor do que ficou, e os filtros ligados em chips ✕ ao lado */}
