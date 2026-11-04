@@ -222,11 +222,14 @@ export async function anularDespesaViagem(ctx: Ctx, d: { viagemId: Id; despesaId
   return { id: x.id }
 }
 
-/** Liga compras (de lugares e fornecedores diferentes) à viagem. Uma compra só pertence a uma viagem. */
+/**
+ * Liga compras (de lugares e fornecedores diferentes) à viagem. Uma compra só pertence a uma viagem.
+ * Vale A QUALQUER MOMENTO, também com a viagem encerrada (esqueceu de ligar na hora: não trava a operação). O registro
+ * diz que ela já estava encerrada (e, se o gasto já entrou no custo dos lotes, que esse rateio não muda).
+ */
 export async function vincularCompras(ctx: Ctx, d: { viagemId: Id; compraIds: Id[] }) {
   exigirAdmin(ctx)
   const v = await obterViagem(ctx, d.viagemId)
-  exigirAberta(v)
   const ids = [...new Set(d.compraIds ?? [])]
   exigir(ids.length, 'Escolha pelo menos uma compra.')
   const ligadas: Transacao[] = []
@@ -242,7 +245,10 @@ export async function vincularCompras(ctx: Ctx, d: { viagemId: Id; compraIds: Id
     ligadas.push(t)
   }
   for (const t of ligadas) await ctx.repos.transacoes.salvar(tocar(ctx, { ...t, viagemId: v.id }))
-  if (ligadas.length) await auditar(ctx, 'vincularCompras', v.id, `${v.codigo} ← ${ligadas.map((t) => t.codigo ?? t.id).join(', ')}`, ligadas.map((t) => t.id))
+  const nota = v.status === 'encerrada'
+    ? ` · viagem já encerrada${v.encerramento?.data ? ` há ${diasEntre(v.encerramento.data, ctx.relogio.hoje())} dia(s)` : ''}${v.incorporacao ? ' (o gasto já incorporado aos lotes não muda)' : ''}`
+    : ''
+  if (ligadas.length) await auditar(ctx, 'vincularCompras', v.id, `${v.codigo} ← ${ligadas.map((t) => t.codigo ?? t.id).join(', ')}${nota}`, ligadas.map((t) => t.id))
   return { id: v.id, ligadas: ligadas.map((t) => t.id) }
 }
 

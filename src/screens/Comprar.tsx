@@ -6,7 +6,7 @@
 // pagamento e a entrega (quem fez fica registrado). A conferência de peso é um lançamento no lote, sem mudar o comprado.
 
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { FiltroViagem, SeloViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
+import { EscolhaViagem, FiltroViagem, SeloViagem, passaViagem, situacaoViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { PagamentoCompra, Progresso } from './PagamentoCompra'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { Paginacao, usePaginacao } from '../ui/paginacao'
@@ -20,7 +20,7 @@ import type { ModoCompra } from '../core/services/codigos'
 import { CAMPOS_FORM, type CampoFormId, FORM_COMPRA_PADRAO, type FormCompraConfig } from '../core/services/formCompra'
 import { fatorDaTabela } from '../core/services/precos'
 import { CATEGORIAS_CABELO } from '../modules/cabelo'
-import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, ehToque, ErroTela, Titulo } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, GramasInput, Info, Janela, Pilula, Selecao, ValorInput, cx, dataBR, gramasTexto, loc, moedaPadrao, ehToque, ErroTela, Titulo } from '../ui/base'
 import { useApp, useAvisoSaida, useParamTela, useComando, useConsulta, useFiltrosTela } from '../ui/contexto'
 import { SeletorPessoa, ValoresConvertidos, useCotacoes } from '../ui/compartilhados'
 import { LinhaCotacao, PesoInput, ValorMoedaInput, converterDigitado, cotacaoSistema, moedasDoCampo } from '../ui/valorMoeda'
@@ -1102,20 +1102,30 @@ function ResumoPedido({ dados, admin, onLigarViagem, onPagamento }: { dados: Dad
 /** compra recusada/cancelada não entra em viagem */
 const encerradaSemViagem = (etapa: string) => etapa === 'recusado' || etapa === 'cancelado'
 
-/** Ligar a compra a uma viagem aberta (admin): usa o "ligar compras" da viagem (uma viagem por compra). */
+/**
+ * Ligar a compra a uma viagem (admin): a mesma EscolhaViagem do filtro (busca, 📍 cidade, 📅 data, cores por tempo).
+ * Vale a qualquer momento, também viagem encerrada (não trava a operação): o cartão diz "encerrada há N dias" e, ao
+ * escolher uma encerrada, um aviso lembra disso antes de ligar.
+ */
 function LigarViagem({ compraId, onFechar }: { compraId: Id; onFechar(): void }) {
   const t = useT()
-  const { dados } = useConsulta('viagens', { status: 'aberta' })
   const { executar, ocupado } = useComando()
   const [viagemId, setViagemId] = useState('')
-  const abertas = dados?.linhas ?? []
+  const { dados } = useConsulta('viagensParaFiltro', {})
+  const escolhida = dados?.find((v) => v.id === viagemId)
+  const ligar = async () => (await executar('vincularCompras', { viagemId, compraIds: [compraId] }, t('Compra ligada à viagem.'))) && onFechar()
   return (
-    <Janela aberta titulo={t('Ligar a uma viagem')} onFechar={onFechar} rodape={
-      <Botao grande className="w-full" disabled={ocupado || !viagemId} onClick={async () => (await executar('vincularCompras', { viagemId, compraIds: [compraId] }, t('Compra ligada à viagem.'))) && onFechar()}>✈️ {t('Ligar')}</Botao>
+    <Janela aberta titulo={`✈️ ${t('Ligar a uma viagem')}`} onFechar={onFechar} rodape={
+      <div className="space-y-2">
+        {escolhida && escolhida.tempo !== 'vigente' && (
+          <p className={cx('rounded-xl px-3 py-2 text-sm', escolhida.tempo === 'recente' ? 'bg-[var(--alerta)]/10 text-[var(--alerta)]' : 'bg-[var(--fundo)] text-[var(--suave)]')}>
+            ⚠ {t('{v} foi {s}. Dá para ligar mesmo assim.', { v: escolhida.codigo, s: situacaoViagem(escolhida, t) })}
+          </p>
+        )}
+        <Botao grande className="w-full" disabled={ocupado || !viagemId} onClick={ligar}>{escolhida ? `✈️ ${t('Ligar a {v}', { v: escolhida.codigo })}` : t('Escolha a viagem')}</Botao>
+      </div>
     }>
-      {!dados ? <Carregando /> : !abertas.length ? <Vazio compacto texto="Nenhuma viagem aberta." /> : (
-        <Campo rotulo="Viagem"><Selecao valor={viagemId} onChange={setViagemId} vazio={t('Escolha…')} opcoes={abertas.map((v) => ({ id: v.id, nome: [v.codigo, v.nome, v.destino].filter(Boolean).join(' · ') }))} /></Campo>
-      )}
+      <EscolhaViagem valor={viagemId} onEscolher={setViagemId} />
     </Janela>
   )
 }

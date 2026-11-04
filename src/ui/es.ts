@@ -3576,4 +3576,13 @@ export const ES: Record<string, string> = {
   'Ver as triagens': 'Ver las selecciones',
   'Errou? Corrija na linha: ⚖ peso (pesou diferente na chegada) e ✎ valor (vale mesmo depois de pagar ou separar: o custo dos pacotes acompanha).': '¿Se equivocó? Corrija en la línea: ⚖ peso (pesó distinto al llegar) y ✎ valor (vale incluso después de pagar o separar: el costo de los paquetes acompaña).',
   'Ex.: comprou 10.000 g e pesou 9.850 g → ⚖ Corrigir peso lança 150 g de diferença.': 'Ej.: compró 10.000 g y pesó 9.850 g → ⚖ Corregir peso registra 150 g de diferencia.',
+  'Escolha a viagem': 'Elija el viaje',
+  'Encerrada: reabra a viagem para ligar compras.': 'Cerrado: reabra el viaje para vincular compras.',
+  'Vigente': 'Vigente',
+  'Encerrada há pouco (até 30 dias)': 'Cerrado hace poco (hasta 30 días)',
+  'Encerrada faz tempo': 'Cerrado hace tiempo',
+  'encerrada hoje': 'cerrado hoy',
+  'encerrada há {n} dia(s)': 'cerrado hace {n} día(s)',
+  '{v} foi {s}. Dá para ligar mesmo assim.': '{v} fue {s}. Se puede vincular igual.',
+  'Ligar a {v}': 'Vincular a {v}',
 }
