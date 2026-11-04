@@ -164,11 +164,19 @@ export function FiltroLista({ busca, onBusca, placeholder, onKeyDown, autoFocus,
       {painel && aberto && (
         <PainelFiltros resultados={resultados} temAtivos={temAtivos ?? ativos.length > 0} onLimpar={onLimpar} onFechar={() => abrir(false)}>{painel}</PainelFiltros>
       )}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm">
-        <span className={cx('num text-xs', filtrando ? 'font-semibold text-[var(--marca)]' : 'text-[var(--suave)]')} aria-live="polite">{contagem}{detalhe && <span className="font-normal text-[var(--suave)]"> · {detalhe}</span>}</span>
-        {ativos.length > 0 && <ChipsFiltros itens={ativos} onTirar={(k) => onTirar?.(k)} onLimpar={onLimpar} />}
-        {ferramentas && <div className="ml-auto flex shrink-0 flex-wrap items-center gap-1.5">{ferramentas}</div>}
-      </div>
+      {/* O RESULTADO só aparece quando há busca ou filtro (sem filtro ele só repetiria o número do cartão/aba): em destaque,
+          "🔎 4 de 20 pacote(s)" + o valor do que ficou, e os filtros ligados em chips ✕ ao lado */}
+      {(filtrando || ferramentas) && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm">
+          {filtrando && (
+            <span aria-live="polite" className="num inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[var(--texto)] px-3 text-sm font-semibold text-[var(--cartao)]">
+              <span aria-hidden>🔎</span>{contagem}{detalhe && <span className="font-normal opacity-75"> · {detalhe}</span>}
+            </span>
+          )}
+          {ativos.length > 0 && <ChipsFiltros itens={ativos} onTirar={(k) => onTirar?.(k)} onLimpar={onLimpar} />}
+          {ferramentas && <div className="ml-auto flex shrink-0 flex-wrap items-center gap-1.5">{ferramentas}</div>}
+        </div>
+      )}
     </div>
   )
 }

@@ -129,8 +129,9 @@ export function BuscaPessoa({ valor, onChange, papel = 'fornecedor', rotulo, rec
       {!b && (
         <div className="mt-2 flex flex-wrap gap-2">
           {rapidas.map((p) => (
-            <button key={p.id} type="button" onClick={() => escolher(p.id)} className="min-h-11 max-w-full truncate rounded-full border border-[var(--borda)] px-3 text-sm hover:border-[var(--marca)]">
-              {p.nome}
+            <button key={p.id} type="button" onClick={() => escolher(p.id)} className="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full border border-[var(--borda)] bg-[var(--cartao)] px-3 text-sm hover:border-[var(--marca)]">
+              <span className="truncate">{p.nome}</span>
+              {siglas?.[p.id] && <span className="shrink-0 rounded-md bg-[var(--marca-suave)] px-1.5 font-mono text-[11px] font-bold text-[var(--marca)]">{siglas[p.id]}</span>}
             </button>
           ))}
           <button type="button" onClick={() => (setDica(true), entrada.current?.focus())} className="min-h-11 rounded-full px-3 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">

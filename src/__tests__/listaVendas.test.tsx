@@ -1,5 +1,5 @@
 // VENDER = o módulo de vendas: a lista abre direto pelo menu (sem passar pelo Painel), busca, abas e filtro vindo do Painel.
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import Dexie from 'dexie'
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -23,28 +23,36 @@ async function abrirVender() {
   await screen.findByRole('heading', { level: 1, name: 'Vender' }, { timeout: 15000 })
 }
 
-/** a contagem do filtro padrão ("18 venda(s)", "4 de 18 venda(s)"): a linha aria-live do resultado */
-const contagem = async () => (await screen.findAllByText(/^\d+( de \d+)? venda\(s\)/, {}, { timeout: 15000 })).find((e) => e.closest('[aria-live]'))!
+const CONTAGEM = /\d+ de \d+ venda\(s\)/
+/** a contagem do resultado ("4 de 18 venda(s)") — só aparece com busca ou filtro ligado */
+const contagem = async () => (await screen.findAllByText(CONTAGEM, {}, { timeout: 15000 })).find((e) => e.closest('[aria-live]'))!
+/** o número de uma aba ("Concluídas 21") */
+const naAba = (nome: RegExp) => Number(screen.getByRole('tab', { name: nome }).textContent!.match(/\d+/)![0])
 
 describe('lista de vendas no Vender', () => {
   it('abre pelo menu com a lista, a busca filtra e as abas trocam a situação', async () => {
     await abrirVender()
     // a lista está aqui (sem o Painel) e o botão principal é "+ Nova venda"
     expect((await screen.findAllByRole('button', { name: '+ Nova venda' }, { timeout: 15000 })).length).toBeGreaterThan(0)
-    const antes = (await contagem()).textContent!
-    const n = Number(antes.match(/\d+/)![0])
+    await screen.findByRole('tab', { name: /Concluídas \d+/ }, { timeout: 15000 })
+    const n = naAba(/Concluídas/)
     expect(n).toBeGreaterThan(0)
+    // sem filtro não há contagem repetida (o número já está na aba e no cartão)
+    expect(screen.queryByText(CONTAGEM)).toBeNull()
 
+    // busca que acha parte → "X de N" em destaque
+    const busca = screen.getByLabelText('Buscar cliente, código (V-0001), item ou quem vendeu')
+    fireEvent.change(busca, { target: { value: 'Escova' } })
+    expect((await contagem()).textContent).toMatch(new RegExp(`\\d+ de ${n} venda`))
     // busca que não acha nada → vazio de filtro com "Limpar filtros"
-    fireEvent.change(screen.getByLabelText('Buscar cliente, código (V-0001), item ou quem vendeu'), { target: { value: 'ninguem-com-esse-nome' } })
+    fireEvent.change(busca, { target: { value: 'ninguem-com-esse-nome' } })
     await screen.findByText('Nenhuma venda com esse filtro.')
     fireEvent.click(screen.getAllByRole('button', { name: 'Limpar filtros' })[0])
-    expect((await contagem()).textContent).toBe(antes)
+    await waitFor(() => expect(screen.queryByText('Nenhuma venda com esse filtro.')).toBeNull())
 
-    // aba "Com pendência": só as que têm pendência (≤ todas)
+    // aba "Com pendência": só as que têm pendência (≤ concluídas)
     fireEvent.click(screen.getByRole('tab', { name: /Com pendência/ }))
-    const pend = Number((await contagem()).textContent!.match(/\d+/)![0])
-    expect(pend).toBeLessThanOrEqual(n)
+    expect(naAba(/Com pendência/)).toBeLessThanOrEqual(n)
   }, 60000)
 
   it('o "+ Nova venda" abre os caminhos de venda de antes', async () => {

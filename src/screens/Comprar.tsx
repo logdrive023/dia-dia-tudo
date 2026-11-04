@@ -565,7 +565,8 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     else void salvar()
   }
 
-  const rotuloFalta = faltas.length ? `${t('Falta preencher: {x}', { x: faltas[0] })}${faltas.length > 1 ? ` ${t('(e mais {n})', { n: faltas.length - 1 })}` : ''}` : ''
+  // o botão não descreve o erro: aponta para ele (os campos que faltam ficam em vermelho ao tocar; a lista fica no title)
+  const rotuloFalta = faltas.length ? t(faltas.length === 1 ? 'Preencha o que falta' : 'Preencha o que falta ({n})', { n: faltas.length }) : ''
   const botaoRegistrar = (extra?: string) => (
     <Botao grande aria-disabled={!pode} disabled={ocupado} onClick={salvar} className={cx('leading-tight', !pode && 'opacity-60', extra)} title={faltas.join(', ')}>
       {pode ? t('Registrar pedido') : rotuloFalta}
@@ -903,7 +904,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       conteudo: principalDe.fornecedor,
     }] : []),
     ...(principalDe.itens ? [{
-      id: 'itens' as const, titulo: 'O que veio', feito: linhasOk, falta: tentou && !linhasOk,
+      id: 'itens' as const, titulo: 'Itens da compra', feito: linhasOk, falta: tentou && !linhasOk,
       resumo: `${t('{n} linha(s)', { n: linhas.length })} · ${ehCabelo ? gramasTexto(pesoTotal) : `${linhas.length} ${t('item(ns)')}`} · ${semValor ? t('sem valor') : formatar(total, moeda)}`,
       ajuda: ehCabelo ? 'O cabelo que chegou: cada linha vira um pacote que vai para a triagem. Bruto = veio misturado (separa depois). Pela tabela = já veio por medida.' : 'O que chegou: cada linha é um produto, com a quantidade e o custo.',
       exemplo: ehCabelo ? 'Ex.: 10 kg bruto por Bs 30.000 · ou · 60 cm | 2 kg × 17,5 = Bs 35.000' : 'Ex.: 12 × shampoo a Bs 45 = Bs 540',
@@ -987,7 +988,8 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
           <div className="sticky bottom-[calc(4.75rem_+_env(safe-area-inset-bottom))] z-10 flex items-center gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-2 pl-3 shadow-lg md:bottom-4 lg:hidden">
             <div className="min-w-0 flex-1">
               <div className="num truncate text-lg font-black leading-tight">{formatar(total, moeda)}</div>
-              <div className="num truncate text-xs text-[var(--suave)]">{ehCabelo ? gramasTexto(pesoTotal) : `${linhas.length} ${t('item(ns)')}`}{codigoMostrado && mostrarCodigo ? ` · ${codigoMostrado}` : ''}</div>
+              {/* peso total · custo médio por kg (cabelo) — o que diz se a compra vale a pena */}
+              <div className="num truncate text-xs text-[var(--suave)]">{ehCabelo ? gramasTexto(pesoTotal) : `${linhas.length} ${t('item(ns)')}`}{custoKg !== undefined ? ` · ${formatar(custoKg, moeda)}/kg` : ''}{codigoMostrado && mostrarCodigo ? ` · ${codigoMostrado}` : ''}</div>
             </div>
             {botaoRegistrar('max-w-[60%] shrink-0 px-4 text-sm')}
           </div>

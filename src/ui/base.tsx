@@ -337,8 +337,9 @@ export function ErroTela({ texto, onVoltar }: { texto: string; onVoltar?(): void
  *   [ uma linha do para que serve (opcional)]
  * - título: 24 px, negrito; descrição: 14 px cinza, logo abaixo (sem descrição o bloco mantém a mesma altura mínima);
  * - ações: à direita, alinhadas ao centro do bloco, TODAS com 44 px de altura (principal = Botao cheio / MenuAcoes
- *   `principal`; secundárias = AcaoIcone com dica ou Botao secundário). No celular ficam SEMPRE na linha de baixo do
- *   título (à esquerda); do tablet para cima, SEMPRE à direita — nunca depende do tamanho do texto;
+ *   `principal`; secundárias = AcaoIcone com dica ou Botao secundário). Ficam à direita do título enquanto couberem;
+ *   quando não cabem (celular, muitas ações, título longo) descem inteiras para a linha de baixo — o título nunca é
+ *   espremido. Funciona sozinho com qualquer quantidade de ações;
  * - 16 px abaixo do cabeçalho, sempre. A trilha (← Origem › Tela) fica ACIMA, fora do cabeçalho.
  * VISUAL: tudo num CARTÃO (borda, sombra leve, cantos 16 px) com um brilho suave da cor da marca à esquerda, o ÍCONE
  * do módulo (o mesmo do menu; vem da tela atual, ninguém precisa passar) num quadrado com degradê. `icone` troca o
@@ -357,8 +358,10 @@ export function Titulo({ children, acao, subtitulo, icone }: { children: ReactNo
       <span aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_140%_at_0%_0%,color-mix(in_srgb,var(--marca)_9%,transparent)_0%,transparent_55%)]" />
       <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,var(--marca),color-mix(in_srgb,var(--marca)_55%,#ec4899),transparent)]" />
       <span aria-hidden className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[color-mix(in_srgb,var(--marca)_6%,transparent)] blur-2xl" />
-      <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+      {/* SE AJUSTA SOZINHO a qualquer conteúdo: o título nunca fica mais estreito que ~18rem (não espreme); as ações
+          ficam ao lado enquanto couberem e, se não, descem inteiras para a linha de baixo (e quebram entre si) */}
+      <div className="relative flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="flex min-w-0 flex-[1_1_18rem] items-center gap-3 sm:gap-4">
           {nomeIcone && (
             <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,var(--marca),color-mix(in_srgb,var(--marca)_70%,#ec4899))] text-white shadow-[0_6px_14px_-6px_color-mix(in_srgb,var(--marca)_70%,transparent)] sm:h-12 sm:w-12">
               <Icone nome={nomeIcone} className="h-6 w-6" />
@@ -369,7 +372,7 @@ export function Titulo({ children, acao, subtitulo, icone }: { children: ReactNo
             {subtitulo && <p className="mt-1 text-sm leading-snug text-[var(--suave)]">{subtitulo}</p>}
           </div>
         </div>
-        {acao && <div className="flex shrink-0 flex-wrap items-center gap-2 [&_button]:min-h-11">{acao}</div>}
+        {acao && <div className="flex min-w-0 max-w-full flex-[0_1_auto] flex-wrap items-center gap-2 sm:ml-auto sm:justify-end [&_button]:min-h-11">{acao}</div>}
       </div>
     </header>
   )

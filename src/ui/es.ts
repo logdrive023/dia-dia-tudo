@@ -3245,4 +3245,7 @@ export const ES: Record<string, string> = {
   'Próxima página': 'Página siguiente',
   'Sem comprovante de origem': 'Sin comprobante de origen',
   'Recusar este pedido?': '¿Rechazar este pedido?',
+  'Itens da compra': 'Ítems de la compra',
+  'Preencha o que falta': 'Completa lo que falta',
+  'Preencha o que falta ({n})': 'Completa lo que falta ({n})',
 }
