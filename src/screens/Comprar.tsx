@@ -1382,8 +1382,9 @@ export function Pedido() {
       {/* ABAS (nomes iguais em toda ficha): Resumo · Pagamento (com a conta do fornecedor) · Arquivos · Histórico */}
       <Abas variante="sublinhado" atual={aba} onChange={(x) => setAba(x as typeof aba)} abas={[
         { id: 'resumo', nome: 'Resumo' },
-        { id: 'pagamento', nome: 'Pagamento', extra: c.pendencias.length ? <span aria-hidden className="text-[var(--alerta)]">●</span> : undefined },
-        { id: 'anexos', nome: 'Arquivos', extra: anexos?.length ? <span className="num text-xs opacity-70">{anexos.length}</span> : undefined },
+        // o ● de cada aba é só pelo que é DELA (pago e sem foto: o ● fica em Arquivos, não em Pagamento)
+        { id: 'pagamento', nome: 'Pagamento', extra: c.pendencias.some((x) => x.id === 'faltaPagar' || x.id === 'semValor') ? <span aria-hidden className="text-[var(--alerta)]">●</span> : undefined },
+        { id: 'anexos', nome: 'Arquivos', extra: <>{anexos?.length ? <span className="num text-xs opacity-70">{anexos.length}</span> : null}{c.pendencias.some((x) => x.id === 'semFotos' || x.id === 'semComprovanteOrigem') && <span aria-hidden className="ml-0.5 text-[var(--alerta)]">●</span>}</> },
         { id: 'historico', nome: 'Histórico' },
       ]} />
 

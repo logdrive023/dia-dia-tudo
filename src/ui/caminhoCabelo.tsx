@@ -100,8 +100,8 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
         : veioSeparado ? compras.map((c) => ({ id: `sep-${c.id}`, codigo: c.codigo, info: t('separado por medida na compra (pela tabela)'), valor: t('ver a compra'), abrir: () => ir('pedido', { id: c.id }) })) : [],
     },
     {
-      id: 'etiqueta', feito: comSaldo.length > 0 ? semEtiqueta.length === 0 : lotes.some((l) => l.etiquetaEm), n: lotes.filter((l) => l.etiquetaEm).length,
-      resumo: !lotes.length ? t('ainda não') : comSaldo.length ? (semEtiqueta.length ? t('{c} de {n} com etiqueta', { c: comSaldo.length - semEtiqueta.length, n: comSaldo.length }) : t('todos com etiqueta')) : t('{n} etiqueta(s) impressa(s)', { n: lotes.filter((l) => l.etiquetaEm).length }),
+      id: 'etiqueta', feito: comSaldo.length > 0 ? semEtiqueta.length === 0 : lotes.length > 0, n: lotes.filter((l) => l.etiquetaEm).length,
+      resumo: !lotes.length ? t('ainda não') : comSaldo.length ? (semEtiqueta.length ? t('{c} de {n} com etiqueta', { c: comSaldo.length - semEtiqueta.length, n: comSaldo.length }) : t('todos com etiqueta')) : lotes.some((l) => l.etiquetaEm) ? t('{n} etiqueta(s) impressa(s)', { n: lotes.filter((l) => l.etiquetaEm).length }) : t('saiu sem etiqueta (já vendido)'),
       detalhe: semEtiqueta.length ? t('falta imprimir {n}', { n: semEtiqueta.length }) : undefined,
       itens: lotes.map((l) => ({ id: l.id, codigo: l.codigo, desta: l.id === itemDaTela, info: l.etiquetaEm ? `${l.nome} · ${t('impressa')} ${dataBR(l.etiquetaEm)}${l.etiquetaPor ? ` · ${l.etiquetaPor}` : ''}` : l.nome, valor: l.etiquetaEm ? `✓ ${t('etiqueta')}` : l.saldo > 0 ? `🖨 ${t('imprimir')}` : t('sem saldo'), abrir: () => (l.etiquetaEm || l.saldo <= 0 ? ir('lote', { id: l.id }) : ir('etiquetas', { f: 'todas', sel: l.id })) })),
     },
@@ -125,7 +125,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
         {/* 0. A SITUAÇÃO AGORA, em uma frase */}
         <p className="num mb-4 rounded-xl bg-[var(--cartao)] px-3 py-2 text-sm shadow-sm ring-1 ring-[var(--borda)]">
           <b>{t('Agora')}:</b> {(vendaAqui
-            ? [t('vendido para {c}', { c: vendaAqui.cliente ?? t('cliente sem nome') }), `${gramasTexto(vendaAqui.g)} ${t('de')} ${vendaAqui.lotes.map((l) => l.codigo ?? '—').join(', ')}`]
+            ? [vendaAqui.cliente ? t('vendido para {c}', { c: vendaAqui.cliente }) : t('vendido (sem cliente)'), `${gramasTexto(vendaAqui.g)} ${t('de')} ${vendaAqui.lotes.map((l) => l.codigo ?? '—').join(', ')}`]
             : loteAqui
               ? [loteAqui.saldo > 0 ? t('{g} neste pacote', { g: gramasTexto(loteAqui.saldo) }) : t('pacote vazio'), loteAqui.bruto ? t('esperando triagem') : loteAqui.etiquetaEm ? t('com etiqueta') : t('sem etiqueta'), vendas.length ? t('{n} venda(s)', { n: vendas.length }) : t('nada vendido ainda')]
               : [

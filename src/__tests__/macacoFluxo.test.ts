@@ -50,17 +50,33 @@ async function rodar(semente: number, passos: number) {
       // compra: com valor ou "sem valor", com ou sem fornecedor, 1 a 3 linhas brutas
       const semValor = g.r() < 0.3
       const cid = id('c')
-      const linhas = Array.from({ length: g.int(1, 3) }, () => ({ id: id('l'), quantidade: g.int(50, 12000), moeda: 'BOB', total: semValor ? 0 : bs(g.int(100, 90000)), campos: { estado: 'Bruto', cor: g.um(CORES) } }))
-      await b.comando('criarCompra', { id: cid, moduloId: 'cabelo', pessoaId: g.r() < 0.7 ? 'forn' : undefined, semValor: semValor || undefined, linhas })
+      // rodada 2: algumas linhas "já pagas" (pagamento por linha) — todas → entra concluída; só algumas → entrada parcial
+      const linhas = Array.from({ length: g.int(1, 3) }, () => ({ id: id('l'), quantidade: g.int(50, 12000), moeda: 'BOB', total: semValor ? 0 : bs(g.int(100, 90000)), campos: { estado: 'Bruto', cor: g.um(CORES), ...(!semValor && g.r() < 0.4 ? { jaPaga: true } : {}) } as Record<string, string | boolean> }))
+      const pagas = linhas.filter((l) => l.campos.jaPaga)
+      const pago = pagas.reduce((s, l) => s + l.total, 0)
+      const todas = pagas.length === linhas.length
+      await b.comando('criarCompra', {
+        id: cid, moduloId: 'cabelo', pessoaId: g.r() < 0.7 ? 'forn' : undefined, semValor: semValor || undefined, linhas,
+        pagarNoAto: todas && pago ? [{ id: id('pa'), forma: g.um(['dinheiro', 'qr']), moeda: 'BOB', valor: pago }] : undefined,
+        pagoParcial: !todas && pago ? [{ id: id('pp'), forma: 'dinheiro', moeda: 'BOB', valor: pago }] : undefined,
+      })
       // às vezes confere o peso (pesou diferente)
       if (g.r() < 0.3) await b.comando('conferirPesoCompra', { compraId: cid, linhaId: linhas[0].id, pesado: Math.max(1, linhas[0].quantidade - g.int(1, 40)), motivo: 'balança' })
     } else if (acao === 'pagar') {
       const fila = (await b.consulta('filaTriagem', {})).filter((c) => c.etapa !== 'concluido')
       if (!fila.length) continue
       const c = g.um(fila)
+      // rodada 2: metade das vezes "Pagar e concluir" num toque (o que falta), com clique repetido
+      if (g.r() < 0.5) {
+        const falta = c.totalPrincipal - c.pagamentos.reduce((s, p) => s + p.valorPrincipal, 0)
+        const d = { compraId: c.id, pagamentos: falta > 0 ? [{ id: id('pc'), forma: 'dinheiro', moeda: 'BOB', valor: falta }] : [] }
+        await Promise.allSettled([b.comando('pagarCompra', d), b.comando('pagarCompra', d)])
+        continue
+      }
       for (const e of ['conferido', 'pago', 'concluido']) {
         if (c.etapa === e) continue
-        await b.comando('avancarTriagem', { compraId: c.id, para: e, pagamentos: e === 'pago' && c.totalPrincipal ? [{ id: id('pg'), forma: 'dinheiro', moeda: 'BOB', valor: c.totalPrincipal }] : undefined }).catch(() => undefined)
+        const falta = c.totalPrincipal - c.pagamentos.reduce((s, p) => s + p.valorPrincipal, 0)
+        await b.comando('avancarTriagem', { compraId: c.id, para: e, pagamentos: e === 'pago' && falta > 0 ? [{ id: id('pg'), forma: 'dinheiro', moeda: 'BOB', valor: falta }] : undefined }).catch(() => undefined)
       }
     } else if (acao === 'separar' && brutos.length) {
       // separa um bruto em 1 a 3 partes; o que sobra é perda (às vezes nada sobra)
@@ -119,7 +135,7 @@ async function rodar(semente: number, passos: number) {
 }
 
 describe('macaco: fluxo compra → triagem → etiqueta → venda', () => {
-  for (const semente of [1, 7, 42])
+  for (const semente of [1, 7, 42, 2026, 99])
     it(`semente ${semente}: 120 passos aleatórios e as contas sempre batem`, async () => {
       const { recusas, historia, b } = await rodar(semente, 120)
       // passou pelo fluxo todo e as tentativas erradas foram recusadas

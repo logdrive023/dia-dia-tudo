@@ -114,6 +114,8 @@ export async function criarCompra(
 ) {
   if (await ctx.repos.transacoes.obter(d.id)) return { id: d.id }
   const r = await criarCompraSemPagar(ctx, d)
+  // valor de pagamento inválido (negativo, fração) é RECUSADO com o motivo, nunca ignorado em silêncio
+  for (const p of [...(d.pagarNoAto ?? []), ...(d.pagoParcial ?? [])]) if (p.valor !== 0) exigirInteiroPositivo(p.valor, 'Pagamento')
   if (!d.pagarNoAto && d.pagoParcial?.some((p) => p.valor > 0)) {
     const t = (await ctx.repos.transacoes.obter(r.id))!
     const pags = await montarPagamentos(ctx, d.pagoParcial.filter((p) => p.valor > 0), t.totalPrincipal, t.linhas, true, 'compra')

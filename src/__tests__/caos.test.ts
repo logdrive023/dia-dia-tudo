@@ -380,3 +380,126 @@ describe('5. viagem: lançamentos e números', () => {
     expect(await recusa(b.comando('registrarDespesaViagem', { id: 'd', viagemId: 'vg', categoria: 'comida', moeda: 'BOB', valor: bs(10) }))).toBeTruthy()
   })
 })
+
+describe('6. rodada 2: pagamento por linha, pagar e concluir, avisos e registro', () => {
+  const pag = (id: string, valor: number, forma = 'dinheiro') => ({ id, forma, moeda: 'BOB', valor })
+  const linha = (id: string, g: number, total: number, jaPaga?: boolean) => ({ id, quantidade: g, moeda: 'BOB', total, campos: { estado: 'Bruto', ...(jaPaga ? { jaPaga: true } : {}) } })
+  const caixaBOB = async (b: B, dia: string) => (await b.consulta('caixaDoDia', { data: dia })).contas.find((c) => c.moeda === 'BOB')?.total ?? 0
+  async function base() {
+    const ctx = await novoBackend()
+    await ctx.b.comando('lancarCaixa', { id: 'ini', tipo: 'saldoInicial', moeda: 'BOB', forma: 'dinheiro', valor: bs(100000), descricao: 'ini' })
+    await ctx.b.comando('salvarPessoa', { id: 'f', nome: 'F', papeis: ['fornecedor'] })
+    return ctx
+  }
+
+  it('"já pago" MAIOR que o total: recusa e NADA fica gravado (nem compra, nem lote, nem caixa)', async () => {
+    const { b, r } = await base()
+    const msg = await recusa(b.comando('criarCompra', { id: 'c1', moduloId: 'cabelo', pessoaId: 'f', linhas: [linha('a', 1000, bs(5000), true), linha('b', 1000, bs(4000))], pagoParcial: [pag('p', bs(99999))] }))
+    expect(msg).toBeTruthy()
+    expect(await recusa(b.consulta('pedido', { id: 'c1' }))).toBeTruthy()
+    expect((await b.consulta('estoque', { moduloId: 'cabelo' })).length).toBe(0)
+    expect(await caixaBOB(b, r.hoje)).toBe(bs(100000))
+    await semProblema(b)
+  })
+
+  it('"já pago" com valor 0, negativo ou fração: recusa', async () => {
+    const { b } = await base()
+    for (const v of [-100, 0.5]) expect(await recusa(b.comando('criarCompra', { id: `c${v}`, moduloId: 'cabelo', pessoaId: 'f', linhas: [linha('a', 1000, bs(5000), true), linha('b', 1000, bs(4000))], pagoParcial: [pag('p', v)] })), `valor ${v}`).toBeTruthy()
+    await semProblema(b)
+  })
+
+  it('linha paga e depois CANCELAR a compra: o dinheiro já pago volta ao caixa e o lote sai', async () => {
+    const { b, r } = await base()
+    await b.comando('criarCompra', { id: 'c1', moduloId: 'cabelo', pessoaId: 'f', linhas: [linha('a', 1000, bs(5000), true), linha('b', 1000, bs(4000))], pagoParcial: [pag('p', bs(5000))] })
+    expect(await caixaBOB(b, r.hoje)).toBe(bs(95000))
+    await b.comando('cancelarCompra', { compraId: 'c1', motivo: 'desistiu' })
+    expect(await caixaBOB(b, r.hoje)).toBe(bs(100000))
+    expect((await b.consulta('estoque', { moduloId: 'cabelo', somenteComSaldo: true })).length).toBe(0)
+    await semProblema(b)
+  })
+
+  it('PAGAR E CONCLUIR 3× ao mesmo tempo (duplo clique): paga uma vez', async () => {
+    const { b, r } = await base()
+    await b.comando('criarCompra', { id: 'c1', moduloId: 'cabelo', pessoaId: 'f', linhas: [linha('a', 1000, bs(5000))] })
+    const d = { compraId: 'c1', pagamentos: [pag('p', bs(5000))] }
+    await Promise.allSettled([b.comando('pagarCompra', d), b.comando('pagarCompra', d), b.comando('pagarCompra', d)])
+    expect((await b.consulta('pedido', { id: 'c1' })).pago).toBe(bs(5000))
+    expect(await caixaBOB(b, r.hoje)).toBe(bs(95000))
+    await semProblema(b)
+  })
+
+  it('pagar e concluir com MENOS do que falta: sem fornecedor recusa; com fornecedor o resto fica na conta dele', async () => {
+    const { b } = await base()
+    await b.comando('criarCompra', { id: 'sem', moduloId: 'cabelo', linhas: [linha('a', 1000, bs(5000))] })
+    expect(await recusa(b.comando('pagarCompra', { compraId: 'sem', pagamentos: [pag('p', bs(1000))] }))).toBeTruthy()
+    await b.comando('criarCompra', { id: 'com', moduloId: 'cabelo', pessoaId: 'f', linhas: [linha('a', 1000, bs(5000))] })
+    await b.comando('pagarCompra', { compraId: 'com', pagamentos: [pag('p2', bs(1000))] })
+    const p = await b.consulta('pedido', { id: 'com' })
+    expect(p.compra.etapa).toBe('concluido')
+    expect(p.saldoConta).toBe(-bs(4000)) // devo 4.000 ao fornecedor
+    await semProblema(b)
+  })
+
+  it('pagar compra RECUSADA ou já CANCELADA: recusa', async () => {
+    const { b } = await base()
+    await b.comando('criarCompra', { id: 'c1', moduloId: 'cabelo', pessoaId: 'f', linhas: [linha('a', 1000, bs(5000))] })
+    await b.comando('cancelarCompra', { compraId: 'c1', motivo: 'x' })
+    expect(await recusa(b.comando('pagarCompra', { compraId: 'c1', pagamentos: [pag('p', bs(5000))] }))).toBeTruthy()
+  })
+
+  it('linha paga + etapa por etapa (o caminho longo): a etapa Pago cobra só o resto e recusa se passar', async () => {
+    const { b, r } = await base()
+    await b.comando('criarCompra', { id: 'c1', moduloId: 'cabelo', linhas: [linha('a', 1000, bs(5000), true), linha('b', 1000, bs(3000))], pagoParcial: [pag('p', bs(5000))] })
+    await b.comando('avancarTriagem', { compraId: 'c1', para: 'conferido' })
+    expect(await recusa(b.comando('avancarTriagem', { compraId: 'c1', para: 'pago', pagamentos: [pag('p2', bs(8000))] }))).toMatch(/passou/)
+    await b.comando('avancarTriagem', { compraId: 'c1', para: 'pago', pagamentos: [pag('p3', bs(3000))] })
+    expect((await b.consulta('pedido', { id: 'c1' })).pago).toBe(bs(8000))
+    expect(await caixaBOB(b, r.hoje)).toBe(bs(92000))
+    await semProblema(b)
+  })
+
+  it('5 tentativas recusadas AO MESMO TEMPO: 5 registros, estoque intacto', async () => {
+    const { b } = await base()
+    const a = await comprar(b, 'c9', 'ana', 1000)
+    const p = (await b.comando('triarLotes', { id: 't', ids: [a], quantidadeUsada: 1000, saidas: [saida('s', 1000)] })).lotes[0]
+    await Promise.allSettled([1, 2, 3, 4, 5].map((k) => vender(b, `vx${k}`, p, 5000)))
+    expect((await b.consulta('logDetalhado', { acao: 'recusado' })).linhas).toHaveLength(5)
+    expect(await saldo(b, p)).toBe(1000)
+    await semProblema(b)
+  })
+
+  it('vende parte do BRUTO e depois separa o resto: o rastreio fecha (nada some)', async () => {
+    const { b } = await base()
+    const a = await comprar(b, 'c1', 'ana', 2000)
+    await vender(b, 'v1', a, 500)
+    await b.comando('triarLotes', { id: 't', ids: [a], quantidadeUsada: 1500, saidas: [saida('s', 1400)] })
+    const g = await b.consulta('genealogia', { compraId: 'c1' })
+    expect(g.totais).toMatchObject({ entrou: 2000, vendido: 500, emEstoque: 1400, perda: 100, confere: true })
+    await semProblema(b)
+  })
+
+  it('venda de pacote RESERVADO cancelada: o pacote volta, a reserva continua encerrada e nada quebra', async () => {
+    const { b } = await base()
+    const a = await comprar(b, 'c1', 'ana', 1000)
+    const p = (await b.comando('triarLotes', { id: 't', ids: [a], quantidadeUsada: 1000, saidas: [saida('s', 1000)] })).lotes[0]
+    await b.comando('reservarLote', { id: p, para: 'Matheus' })
+    await vender(b, 'v1', p, 1000)
+    await b.comando('cancelarVenda', { id: 'v1', motivo: 'voltou' })
+    const f = await b.consulta('fichaItem', { id: p })
+    expect(f.item.saldo).toBe(1000)
+    expect(f.item.reserva).toBeUndefined()
+    await semProblema(b)
+  })
+
+  it('viagem: encerrar com "incorporar" sem compra nenhuma encerra do mesmo jeito', async () => {
+    const { b, r } = await base()
+    await b.comando('salvarPessoa', { id: 'p', nome: 'P', papeis: ['funcionario'] })
+    await b.comando('salvarViagem', { id: 'vg', nome: 'X', viajantes: ['p'], inicio: r.hoje })
+    await b.comando('adiantarViagem', { id: 'a', viagemId: 'vg', moeda: 'BOB', forma: 'dinheiro', valor: bs(500) })
+    await b.comando('registrarDespesaViagem', { id: 'd', viagemId: 'vg', categoria: 'comida', moeda: 'BOB', valor: bs(200) })
+    await b.comando('encerrarViagem', { viagemId: 'vg', contado: { BOB: bs(300) }, incorporar: true })
+    expect((await b.consulta('viagem', { id: 'vg' })).viagem.status).toBe('encerrada')
+    expect(await caixaBOB(b, r.hoje)).toBe(bs(100000 - 500 + 300))
+    await semProblema(b)
+  })
+})

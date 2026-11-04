@@ -101,6 +101,8 @@ export default function App() {
 
   const ir = useCallback((tela: string, params: Params = {}) => {
     const n = normalizarNav({ tela, params })
+    // a tela de agora guarda onde a pessoa estava (o "voltar" devolve a rolagem)
+    history.replaceState({ ...(history.state ?? {}), rolagem: window.scrollY }, '', window.location.hash)
     setPilha((p) => [...p.slice(-30), n])
     history.pushState(null, '', navParaHash(n))
     window.scrollTo(0, 0)
@@ -168,8 +170,9 @@ export default function App() {
     const id = setTimeout(() => setAviso(undefined), aviso.tipo === 'erro' ? 6000 : 2500)
     return () => clearTimeout(id)
   }, [aviso])
-  // "voltar"/"avançar" do navegador e do celular seguem o endereço
+  // "voltar"/"avançar" do navegador e do celular seguem o endereço (a rolagem quem devolve é o app, depois de carregar)
   useEffect(() => {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
     const f = () => {
       if (sujoRef.current) {
         const ali = pilhaRef.current[pilhaRef.current.length - 1]
@@ -182,6 +185,17 @@ export default function App() {
       }
       const n = hashParaNav(window.location.hash)
       if (n) setPilha((p) => (p.length > 1 ? p.slice(0, -1) : [n]).map((x, i, a) => (i === a.length - 1 ? n : x)))
+      // devolve a rolagem de quando saiu desta tela: a página carrega aos poucos, então tenta até caber (até ~2 s)
+      const y = (history.state as { rolagem?: number } | null)?.rolagem
+      if (y) {
+        let k = 0
+        const tentar = () => {
+          if (document.documentElement.scrollHeight - window.innerHeight >= y || k > 40) return window.scrollTo(0, y)
+          k++
+          setTimeout(tentar, 50)
+        }
+        setTimeout(tentar, 0)
+      }
     }
     window.addEventListener('popstate', f)
     return () => window.removeEventListener('popstate', f)

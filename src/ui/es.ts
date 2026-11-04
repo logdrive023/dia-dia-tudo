@@ -3454,4 +3454,7 @@ export const ES: Record<string, string> = {
   'Pago em': 'Pagado en',
   '{n} já paga(s)': '{n} ya pagada(s)',
   'Compra já paga': 'Compra ya pagada',
+  'saiu sem etiqueta (já vendido)': 'salió sin etiqueta (ya vendido)',
+  'vendido (sem cliente)': 'vendido (sin cliente)',
+  'Linhas já pagas no registro': 'Líneas ya pagadas en el registro',
 }
