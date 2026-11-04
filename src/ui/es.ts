@@ -3508,4 +3508,9 @@ export const ES: Record<string, string> = {
   'Venda guardada em aberto': 'Venta guardada como pendiente',
   'Venda em aberto descartada': 'Venta pendiente descartada',
   'Pacote saiu de uma venda em aberto': 'Paquete salió de una venta pendiente',
+  'Todas as viagens': 'Todos los viajes',
+  'Comprada na viagem': 'Comprada en el viaje',
+  'nesta viagem: {n} compra(s) · {g}': 'en este viaje: {n} compra(s) · {g}',
+  'Ver a viagem': 'Ver el viaje',
+  'Sem viagem: compra feita fora de uma viagem de compra.': 'Sin viaje: compra hecha fuera de un viaje de compra.',
 }

@@ -2,6 +2,7 @@
 // CSV), SEPARAR lote bruto em N lotes, ajustar, PRONTUÁRIO do lote (compra → triagem → venda) e RASTREIO.
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { PainelSelecao } from '../ui/painelSelecao'
 import { Paginacao, usePaginacao } from '../ui/paginacao'
@@ -96,6 +97,7 @@ function VeioDe({ i }: { i: Linha }) {
           )}
         </div>
       ))}
+      <SelosViagem vs={viagensDasLinhas(i.compras.map((c) => c.viagem))} curto />
       {i.pai && (
         <div className="flex min-w-0 items-center gap-1 text-[var(--suave)]">
           <span aria-hidden className="shrink-0">✂</span>{t('de')}
@@ -179,12 +181,14 @@ export function Estoque() {
   // ---------- filtros ----------
   // a página e o tamanho da página não são filtro (não contam, não entram no favorito)
   const chavesFiltro = Object.keys(nav.params).filter((k) => !['modulo', 'pagina', 'porPagina'].includes(k))
+  const viagensEstoque = viagensDasLinhas((dados ?? []).flatMap((i) => i.compras.map((c) => c.viagem)))
   const limpar = () => ajustarParams(Object.fromEntries(chavesFiltro.map((k) => [k, undefined])))
   const ativosEstoque = [
     ...(status ? [{ k: 'status,bruto', rotulo: `📦 ${t(STATUS_FILTRO.find((s) => s.id === status)?.nome ?? status)}` }] : []),
     ...campos.filter((c) => c.tipo === 'numero' && (p(`min.${c.id}`) || p(`max.${c.id}`))).map((c) => ({ k: `min.${c.id},max.${c.id}`, rotulo: `${t(c.nome)}: ${p(`min.${c.id}`) || '0'} – ${p(`max.${c.id}`) || '∞'}` })),
     ...campos.filter((c) => (c.tipo === 'lista' || c.tipo === 'simNao') && p(`f.${c.id}`)).map((c) => ({ k: `f.${c.id}`, rotulo: `${t(c.nome)}: ${c.tipo === 'simNao' ? t(p(`f.${c.id}`) === 'true' ? 'Sim' : 'Não') : t(p(`f.${c.id}`))}` })),
     ...(p('compra') ? [{ k: 'compra', rotulo: `🛒 ${p('compra')}` }] : []),
+    ...(p('vg') ? [{ k: 'vg', rotulo: `✈️ ${((id: string, vs: { id: string; codigo: string; nome: string }[]) => (id === 'sem' ? 'Sem viagem' : vs.find((v) => v.id === id)?.codigo ?? id))(p('vg'), viagensEstoque)}` }] : []),
     ...(p('de') || p('ate') ? [{ k: 'de,ate', rotulo: `📅 ${p('de') ? diaMes(p('de')) : '…'} – ${p('ate') ? diaMes(p('ate')) : '…'}` }] : []),
   ]
   const termo = busca.trim().toLowerCase()
@@ -208,6 +212,7 @@ export function Estoque() {
       (!p('de') || i.entrada >= p('de')) &&
       (!p('ate') || i.entrada <= p('ate')) &&
       (!p('compra') || i.busca.includes(p('compra').trim().toLowerCase())) &&
+      passaViagem(p('vg'), i.compras.map((c) => c.viagem)) &&
       passaCampos(i),
   )
   const passaStatus = (i: Linha) =>
@@ -311,7 +316,7 @@ export function Estoque() {
       <FiltroLista
         className="mb-2"
         busca={busca} onBusca={(v) => setP('busca', v)} placeholder="Buscar por código, nome ou atributo" onKeyDown={pistola.onKeyDown}
-        extra={<Botao variante="secundario" className="shrink-0 whitespace-nowrap px-3" aria-label={t('Ler código')} onClick={() => setJanela('camera')}>📷<span className="hidden sm:inline"> {t('Ler código')}</span></Botao>}
+        extra={<><FiltroViagem viagens={viagensEstoque} valor={p('vg')} onChange={(v) => setP('vg', v)} /><Botao variante="secundario" className="shrink-0 whitespace-nowrap px-3" aria-label={t('Ler código')} onClick={() => setJanela('camera')}>📷<span className="hidden sm:inline"> {t('Ler código')}</span></Botao></>}
         ativos={ativosEstoque} onTirar={tirarFiltro} onLimpar={limpar} temAtivos={chavesFiltro.length > 0}
         resultados={dados ? lista.length : undefined} total={dados?.length} unidade="lote(s)"
         ferramentas={<>

@@ -3,6 +3,7 @@
 // Etapas da triagem): nome, ordem, cor, explicação e o que cada uma faz. "Vendido" é sempre a última e é calculada.
 
 import { diasEntre, inicioDoMes, somarDias } from '../domain/datas'
+import { mapaViagens, type ViagemCurta } from './viagemCurta'
 import { multiplicarFator } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
 import type { Campos, Id, Item, Transacao } from '../domain/tipos'
@@ -306,7 +307,7 @@ export interface CartaoTriagem {
   /** numa coluna de trabalho (não vendável) há mais dias que o aviso de "parado" */
   atrasado: boolean
   obs?: string
-  compras: { id: Id; codigo?: string; fornecedor?: string; fornecedorId?: Id }[]
+  compras: { id: Id; codigo?: string; fornecedor?: string; fornecedorId?: Id; viagem?: ViagemCurta }[]
   /** de quantos lotes foi unificado (0 = não é unificado) e os códigos deles */
   unificado: number
   unificadoDe?: { id: Id; codigo?: string }[]
@@ -366,6 +367,7 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
     return tabelas.get(cat)
   }
   const L = await leitorCadeia(ctx)
+  const viagensMapa = await mapaViagens(ctx)
   const F = await leitorFotos(ctx, { porId: L.porId, compras })
   const siglas = await siglasPorPessoa(ctx)
   let vendidosOcultos = 0
@@ -417,7 +419,7 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
       dias: diasEntre(desde, hoje),
       atrasado: naFila && diasEntre(desde, hoje) > diasAviso,
       obs: i.faseTriagem?.fase === fase ? i.faseTriagem.obs : undefined,
-      compras: cs.map((t) => ({ id: t.id, codigo: t.codigo, fornecedor: t.pessoaId ? pessoas.get(t.pessoaId) : undefined, fornecedorId: t.pessoaId })),
+      compras: cs.map((t) => ({ id: t.id, codigo: t.codigo, fornecedor: t.pessoaId ? pessoas.get(t.pessoaId) : undefined, fornecedorId: t.pessoaId, viagem: t.viagemId ? viagensMapa.get(t.viagemId) : undefined })),
       unificado: i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).length : 0,
       unificadoDe: i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).map((id) => ({ id, codigo: porId.get(id)?.codigo })) : undefined,
       pai: i.origem?.tipo === 'transformacao' && i.origem.id ? { id: i.origem.id, codigo: porId.get(i.origem.id)?.codigo } : undefined,

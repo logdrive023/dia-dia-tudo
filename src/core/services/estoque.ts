@@ -1,6 +1,7 @@
 // ESTOQUE: todo movimento é registrado com saldo antes/depois. Regra: saldo = soma dos movimentos.
 
 import { fatorValido, multiplicarFator, proporcao } from '../domain/dinheiro'
+import { mapaViagens } from './viagemCurta'
 import { exigir } from '../domain/erros'
 import type { Campos, Id, InsumoServico, Item, MotivoEstoque, MovEstoque, Transacao, Unidade } from '../domain/tipos'
 import { auditar, type Ctx, exigirInteiroPositivo, novo, tocar } from './contexto'
@@ -368,6 +369,7 @@ export function etiquetaVelha(i: Pick<Item, 'etiquetaImpressaEm' | 'etiquetaPeso
 }
 
 export async function estoque(ctx: Ctx, p: { moduloId?: string; somenteComSaldo?: boolean; etiqueta?: FiltroEtiqueta } = {}) {
+  const viagensMapa = await mapaViagens(ctx)
   const itens = await ctx.repos.itens.listar(p.moduloId ? { moduloId: p.moduloId } : undefined)
   const porId = new Map(itens.map((i) => [i.id, i]))
   const compras = new Map((await ctx.repos.transacoes.listar({ tipo: 'compra' })).map((t) => [t.id, t]))
@@ -395,7 +397,7 @@ export async function estoque(ctx: Ctx, p: { moduloId?: string; somenteComSaldo?
         entrada: i.criadoEm.slice(0, 10),
         compraId: cs[0]?.id,
         compraCodigo: cs.map((t) => t.codigo).filter(Boolean).join(', ') || undefined,
-        compras: cs.map((t) => ({ id: t.id, codigo: t.codigo, fornecedor: t.pessoaId ? pessoas.get(t.pessoaId) : undefined, fornecedorId: t.pessoaId })),
+        compras: cs.map((t) => ({ id: t.id, codigo: t.codigo, fornecedor: t.pessoaId ? pessoas.get(t.pessoaId) : undefined, fornecedorId: t.pessoaId, viagem: t.viagemId ? viagensMapa.get(t.viagemId) : undefined })),
         fornecedor: (i.origem?.pessoaId ? pessoas.get(i.origem.pessoaId) : undefined) ?? (nomes.join(', ') || undefined),
         /** quem gerou o pacote (usuário que registrou a compra / fez a separação) */
         criadoPorNome: usuarios.get(i.criadoPor),
@@ -886,6 +888,7 @@ export async function leitorCadeia(ctx: Ctx) {
   for (const i of itens) for (const o of lotesDeOrigem(i)) filhos.set(o, [...(filhos.get(o) ?? []), i.id])
   const compras = new Map((await ctx.repos.transacoes.listar({ tipo: 'compra' })).map((t) => [t.id, t]))
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((p) => [p.id, p.nome]))
+  const viagens = await mapaViagens(ctx)
   const vendasDe = new Map<Id, Transacao[]>()
   for (const t of await ctx.repos.transacoes.listar({ tipo: 'venda' }))
     if (t.etapa === 'concluido')
@@ -904,7 +907,7 @@ export async function leitorCadeia(ctx: Ctx) {
   const ancestrais = (id: Id) => andar(id, (x) => lotesDeOrigem(porId.get(x)))
   const compraCurta = (id: Id) => {
     const t = compras.get(id)
-    return { id, codigo: t?.codigo, fornecedor: t?.pessoaId ? pessoas.get(t.pessoaId) : undefined }
+    return { id, codigo: t?.codigo, fornecedor: t?.pessoaId ? pessoas.get(t.pessoaId) : undefined, viagem: t?.viagemId ? viagens.get(t.viagemId) : undefined }
   }
   /** vendas que levaram cabelo destes lotes (mais antiga primeiro), com o que saiu DELES: gramas, valor, cliente */
   const vendasComDetalhe = (ids: Iterable<Id>) => {

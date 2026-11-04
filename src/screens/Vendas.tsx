@@ -1,6 +1,7 @@
 // DETALHE da venda com linha do tempo (a LISTA de vendas é a tela Vender: ListaVendas.tsx).
 
 import { type LinhaRastreio, ListaRastreio, RastreioTotal } from '../ui/rastreioTotal'
+import { SelosViagem } from '../ui/seloViagem'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../core/domain/dinheiro'
@@ -65,7 +66,7 @@ export function DetalheVenda() {
     v.campos.cobranca ? String(v.campos.cobranca) : '',
   ].filter(Boolean).join('\n')
   return (
-    <Pagina onVoltar={voltar} trilha={[t('Venda'), v.codigo].filter(Boolean).join(' ')} titulo={<>{t('Venda')} · {dados.cliente ? <button type="button" className="underline-offset-4 hover:underline" onClick={() => ir('pessoa', { id: dados.cliente!.id })}>{dados.cliente.nome}</button> : t('Sem nome')}</>} subtitulo={<>{dataBR(v.data)} · <Pilula tom={v.etapa === 'concluido' ? 'bom' : v.etapa === 'cancelado' ? 'ruim' : 'marca'}>{t(NOME_ETAPA[v.etapa] ?? v.etapa)}</Pilula>{dados.local ? ` · ${dados.local.nome}` : ''}{dados.profissional ? ` · ${dados.profissional.nome}` : ''}</>}>
+    <Pagina onVoltar={voltar} trilha={[t('Venda'), v.codigo].filter(Boolean).join(' ')} titulo={<>{t('Venda')} · {dados.cliente ? <button type="button" className="underline-offset-4 hover:underline" onClick={() => ir('pessoa', { id: dados.cliente!.id })}>{dados.cliente.nome}</button> : t('Sem nome')}</>} subtitulo={<>{dataBR(v.data)} · <Pilula tom={v.etapa === 'concluido' ? 'bom' : v.etapa === 'cancelado' ? 'ruim' : 'marca'}>{t(NOME_ETAPA[v.etapa] ?? v.etapa)}</Pilula>{dados.local ? ` · ${dados.local.nome}` : ''}{dados.profissional ? ` · ${dados.profissional.nome}` : ''}{dados.viagens.length > 0 && <span className="ml-2 inline-flex align-middle"><SelosViagem vs={dados.viagens} /></span>}</>}>
       <div className="space-y-4">
         {v.etapa === 'concluido' && (
           <SeloPendencias moeda={v.moedaPrincipal} pendencias={[...(faltaReceber ? [{ id: 'faltaReceber' as const, texto: 'Falta receber', valor: faltaReceber, nivel: 'urgente' as const }] : []), ...(semComprovante ? [{ id: 'semComprovante' as const, texto: 'Sem comprovante do pagamento', nivel: 'atencao' as const }] : [])]} />

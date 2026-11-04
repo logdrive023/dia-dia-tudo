@@ -6,6 +6,7 @@
 // pagamento e a entrega (quem fez fica registrado). A conferência de peso é um lançamento no lote, sem mudar o comprado.
 
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { FiltroViagem, SeloViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { PagamentoCompra, Progresso } from './PagamentoCompra'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { Paginacao, usePaginacao } from '../ui/paginacao'
@@ -68,9 +69,12 @@ export function Comprar() {
   const de = nav.params.de === undefined ? '' : String(nav.params.de)
   const ate = nav.params.ate === undefined ? '' : String(nav.params.ate)
   const fornecedores = [...new Set(todas.map((c) => c.pessoa).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  // VIAGEM: o filtro que mais ajuda depois de uma viagem de compra (vg = id · 'sem' = sem viagem)
+  const vg = nav.params.vg === undefined ? '' : String(nav.params.vg)
+  const viagensLista = viagensDasLinhas(todas.map((c) => c.viagem))
   const lista = daAba
     .filter((c) => !pendencia || tem(c, pendencia))
-    .filter((c) => (!forn || c.pessoa === forn) && (!de || c.data >= de) && (!ate || c.data <= ate))
+    .filter((c) => (!forn || c.pessoa === forn) && (!de || c.data >= de) && (!ate || c.data <= ate) && passaViagem(vg, [c.viagem]))
     .filter((c) => !b || `${codigoDe(c)} ${c.busca} ${c.linhas.map((l) => l.descricao).join(' ')} ${c.obs ?? ''}`.toLowerCase().includes(b))
     .sort((x, y) => {
       const v = ordem.por === 'total' ? x.totalPrincipal - y.totalPrincipal : ordem.por === 'parada' ? x.diasParada - y.diasParada : x.data + x.criadoEm < y.data + y.criadoEm ? -1 : 1
@@ -96,10 +100,11 @@ export function Comprar() {
   const ativosCompra = [
     ...(pendencia ? [{ k: 'pendencia', rotulo: `⚠️ ${t(nomePend(pendencia))}` }] : []),
     ...(forn ? [{ k: 'forn', rotulo: `👤 ${forn}` }] : []),
+    ...(vg ? [{ k: 'vg', rotulo: `✈️ ${vg === 'sem' ? t('Sem viagem') : viagensLista.find((v) => v.id === vg)?.codigo ?? vg}` }] : []),
     ...(de || ate ? [{ k: 'de,ate', rotulo: `📅 ${de ? dataBR(de) : '…'} – ${ate ? dataBR(ate) : '…'}` }] : []),
   ]
-  const limparCompra = () => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined, busca: undefined })
-  const pag = usePaginacao(lista, { reiniciar: JSON.stringify([aba, busca, pendencia, forn, de, ate, ordem]) })
+  const limparCompra = () => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined, vg: undefined, busca: undefined })
+  const pag = usePaginacao(lista, { reiniciar: JSON.stringify([aba, busca, pendencia, forn, de, ate, vg, ordem]) })
   const tomEtapa = (e: string): TomLista => (e === 'concluido' ? 'bom' : ENCERRADAS.includes(e) ? 'ruim' : 'marca')
   const contaAba = { abertas: abertas.length, encerradas: todas.length - abertas.length, todas: todas.length }
   return (
@@ -123,6 +128,7 @@ export function Comprar() {
           { id: 'todas', nome: 'Todas', n: fila ? contaAba.todas : undefined },
         ] }}
         periodo={{ de, ate, onChange: (d, a) => ajustarParams({ de: d, ate: a }) }}
+        extra={<FiltroViagem viagens={viagensLista} valor={vg} onChange={(v) => ajustarParams({ vg: v || undefined })} />}
         acaoTopo={sessao.perfil === 'admin' && <button type="button" onClick={() => ir('config', { aba: 'etapas' })} className="min-h-10 whitespace-nowrap rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Etapas e regras')}</button>}
         busca={busca} onBusca={setBusca} placeholder="Buscar código (atual ou antigo), sigla, fornecedor, item…"
         ativos={ativosCompra} onTirar={tirarFiltro} onLimpar={limparCompra}
@@ -154,7 +160,7 @@ export function Comprar() {
         onOrdenar={(por) => setOrdem({ por: por as Ordem, desc: ordem.por === por ? !ordem.desc : true })}
         detalhe={(c) => abertos.has(c.id) && c.pendencias.length > 0 && <><span className="mr-2 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('O que falta')}</span><SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} /></>}
         colunas={[
-          { id: 'pedido', titulo: 'Pedido', ordenar: 'data', classe: 'whitespace-nowrap', celula: (c) => <><span title={c.codigosAnteriores?.length ? `${t('antes')}: ${c.codigosAnteriores.join(', ')}` : undefined}><SeloCodigo codigo={codigoDe(c)} /></span><span className="num mt-1 block text-xs text-[var(--suave)]">{dataBR(c.data)}</span></> },
+          { id: 'pedido', titulo: 'Pedido', ordenar: 'data', classe: 'whitespace-nowrap', celula: (c) => <><span title={c.codigosAnteriores?.length ? `${t('antes')}: ${c.codigosAnteriores.join(', ')}` : undefined}><SeloCodigo codigo={codigoDe(c)} /></span><span className="num mt-1 block text-xs text-[var(--suave)]">{dataBR(c.data)}</span>{c.viagem && <span className="mt-1 block"><SeloViagem v={c.viagem} curto /></span>}</> },
           { id: 'fornecedor', titulo: 'Fornecedor', classe: 'font-semibold', celula: (c) => c.pessoa ?? t('Sem fornecedor') },
           { id: 'itens', titulo: 'Itens', celula: (c) => <><span className="block max-w-[16rem] truncate">{c.linhas.map((l) => l.descricao).join(' · ')}</span><span className="num text-xs text-[var(--suave)]">{c.linhas.length} {t('item(ns)')} · {gramasTexto(c.linhas.reduce((s, l) => s + l.quantidade, 0))}</span></> },
           { id: 'etapa', titulo: 'Etapa', celula: (c) => <><SeloSituacao texto={c.nomeEtapa} tom={tomEtapa(c.etapa)} /><Progresso etapas={etapasDo(c.moduloId)} atual={c.etapa} mini /></> },
@@ -180,6 +186,7 @@ export function Comprar() {
           alerta: (c) => c.pendencias.length
             ? { texto: t(c.pendencias.length === 1 ? '1 pendência' : '{n} pendências', { n: c.pendencias.length }), tom: c.pendencias.some((p) => p.nivel === 'urgente') ? 'ruim' : 'alerta' }
             : { texto: `✓ ${t('Completa')}`, tom: 'bom' },
+          marca: (c) => <SeloViagem v={c.viagem} curto />,
           progresso: (c) => <Progresso etapas={etapasDo(c.moduloId)} atual={c.etapa} mini />,
           fatos: (c) => [`📅 ${dataBR(c.data)}`, `📦 ${t('{n} item(ns)', { n: c.linhas.length })}`, !ENCERRADAS.includes(c.etapa) && `⏱ ${t('parada há {n} d', { n: c.diasParada })}`],
           aberto: (c) => c.pendencias.length > 0 && <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} />,
@@ -1024,6 +1031,69 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   )
 }
 
+/**
+ * RESUMO DO PEDIDO — o que se quer saber de relance, cada coisa no seu bloco:
+ *   ✈️ a VIAGEM (em destaque: código, nome, destino e o que veio nela · ou "sem viagem" + Ligar)
+ *   🛒 fornecedor · 📅 quando · 👤 quem comprou · ⚖️ peso e custo/kg · 💵 pagamento (pago / falta) · 📍 etapa
+ *   ⚠️ o que falta (pendências) e a observação
+ */
+function ResumoPedido({ dados, admin, onLigarViagem, onPagamento }: { dados: DadosPedido; admin: boolean; onLigarViagem(): void; onPagamento(): void }) {
+  const t = useT()
+  const { ir } = useApp()
+  const c = dados.compra
+  const m = c.moedaPrincipal
+  const v = dados.viagem
+  const falta = Math.max(0, c.totalPrincipal - dados.pago)
+  const encerrado = ENCERRADAS.includes(c.etapa)
+  const bloco = (icone: string, rotulo: string, valor: ReactNode, sub?: ReactNode, onClick?: () => void) => {
+    const dentro = <>
+      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--suave)]"><span aria-hidden>{icone}</span>{t(rotulo)}</span>
+      <span className="mt-1 block truncate font-bold">{valor}</span>
+      {sub && <span className="num block truncate text-xs text-[var(--suave)]">{sub}</span>}
+    </>
+    return onClick
+      ? <button type="button" onClick={onClick} className="min-w-0 rounded-xl bg-[var(--fundo)] p-3 text-left ring-1 ring-[var(--borda)] transition hover:ring-[var(--marca)]">{dentro}</button>
+      : <div className="min-w-0 rounded-xl bg-[var(--fundo)] p-3 ring-1 ring-[var(--borda)]">{dentro}</div>
+  }
+  return (
+    <section aria-label={t('Resumo do pedido')} className="space-y-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:p-4">
+      {/* A VIAGEM, em destaque (de onde veio esta compra) */}
+      {v ? (
+        <button type="button" onClick={() => ir('viagem', { id: v.id })} className="flex w-full flex-wrap items-center gap-3 rounded-2xl bg-[linear-gradient(135deg,rgba(14,165,233,.14),rgba(14,165,233,.04))] p-3 text-left ring-1 ring-sky-500/30 transition hover:ring-sky-500/60">
+          <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-500 text-xl text-white shadow-sm">✈️</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">{t('Comprada na viagem')}</span>
+            <b className="block truncate text-base"><span className="font-mono">{v.codigo}</span> · {v.nome}</b>
+            <span className="num block truncate text-xs text-[var(--suave)]">{[v.destino && `📍 ${v.destino}`, v.inicio && `📅 ${dataBR(v.inicio)}${v.fim ? ` – ${dataBR(v.fim)}` : ''}`, t('nesta viagem: {n} compra(s) · {g}', { n: v.compras, g: gramasTexto(v.gramas) })].filter(Boolean).join(' · ')}</span>
+          </span>
+          <span className="shrink-0 text-sm font-semibold text-sky-700 dark:text-sky-300">{t('Ver a viagem')} →</span>
+        </button>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-[var(--borda)] p-3">
+          <span aria-hidden className="text-xl opacity-60">✈️</span>
+          <span className="min-w-0 flex-1 text-sm text-[var(--suave)]">{t('Sem viagem: compra feita fora de uma viagem de compra.')}</span>
+          {admin && !encerradaSemViagem(c.etapa) && <Botao variante="secundario" onClick={onLigarViagem}>✈️ {t('Ligar a uma viagem')}</Botao>}
+        </div>
+      )}
+      {/* OS FATOS, cada um no seu bloco */}
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+        {bloco('🛒', 'Fornecedor', dados.pessoa?.nome ?? t('Sem fornecedor'), dados.saldoConta ? (dados.saldoConta < 0 ? `${t('Devo')} ${formatar(-dados.saldoConta, m)}` : `${t('Me deve')} ${formatar(dados.saldoConta, m)}`) : undefined, dados.pessoa ? () => ir('pessoa', { id: dados.pessoa!.id }) : undefined)}
+        {bloco('📅', 'Quando', dataBR(c.data), encerrado ? t(c.nomeEtapa) : t('parada há {n} dias', { n: c.diasParada }))}
+        {bloco('👤', 'Quem comprou', dados.comprador?.nome ?? '—')}
+        {bloco('⚖️', 'Peso', gramasTexto(dados.gramas), dados.custoKg ? `${formatar(dados.custoKg, m)}/kg` : undefined)}
+        {bloco('💵', 'Pagamento', falta > 0 ? `${t('Falta')} ${formatar(falta, m)}` : `✓ ${t('Pago')}`, `${t('Total')} ${formatar(c.totalPrincipal, m)}`, onPagamento)}
+        {bloco('📍', 'Etapa', t(c.nomeEtapa), <Progresso etapas={dados.etapas} atual={c.etapa} mini />)}
+      </div>
+      {(c.pendencias.length > 0 || c.obs) && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--borda)] pt-3 text-sm">
+          {c.pendencias.length > 0 && <><span className="text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('O que falta')}</span><SeloPendencias pendencias={c.pendencias} moeda={m} /></>}
+          {c.obs && <span className="min-w-0 basis-full text-[var(--suave)] [overflow-wrap:anywhere]">📝 {c.obs}</span>}
+        </div>
+      )}
+    </section>
+  )
+}
+
 /** compra recusada/cancelada não entra em viagem */
 const encerradaSemViagem = (etapa: string) => etapa === 'recusado' || etapa === 'cancelado'
 
@@ -1392,8 +1462,9 @@ export function Pedido() {
       {/* UM bloco só: o caminho do cabelo (com o registro deste pedido dentro, na etapa Compra) */}
       {aba === 'historico' && <CaminhoDoCabelo de={{ compraId: c.id }} atual="compra" semCadeia={<LinhaDoTempo id={c.id} />} />}
 
+      {aba === 'resumo' && <ResumoPedido dados={dados} admin={admin} onLigarViagem={() => setLigarViagem(true)} onPagamento={() => setAba('pagamento')} />}
       {aba === 'resumo' && (
-        <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
           <ItensCompra dados={dados} admin={admin} cancelada={cancelada} onConferir={setConferir} onAjustarValor={setCorrigirValor} />
           {!cancelada && <DestinoCompra dados={dados} admin={admin} onTrocarLote={setTrocarLote} />}
         </div>

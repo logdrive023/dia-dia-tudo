@@ -4,6 +4,7 @@
 // Item de catálogo (produto) continua entrando no estoque só na última etapa, como antes.
 
 import { formatar, multiplicarFator, proporcao, type CodigoMoeda } from '../domain/dinheiro'
+import { mapaViagens } from './viagemCurta'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { diasEntre } from '../domain/datas'
 import type { Campos, Id, Item, Linha, MovEstoque, Transacao } from '../domain/tipos'
@@ -606,6 +607,7 @@ export async function cancelarCompra(ctx: Ctx, d: { compraId: Id; motivo: string
 
 /** Fila da triagem: compras por etapa, com quantos dias estão paradas e o que falta. */
 export async function filaTriagem(ctx: Ctx, p: { moduloId?: string; incluirEncerradas?: boolean; pendencia?: string } = {}) {
+  const viagens = await mapaViagens(ctx)
   const hoje = ctx.relogio.hoje()
   const cfg = await lerConfig(ctx)
   const compras = (await ctx.repos.transacoes.listar({ tipo: 'compra' })).filter((t) => !p.moduloId || t.moduloId === p.moduloId)
@@ -634,6 +636,7 @@ export async function filaTriagem(ctx: Ctx, p: { moduloId?: string; incluirEncer
         ...t,
         pessoa: t.pessoaId ? pessoas.get(t.pessoaId)?.nome : undefined,
         comprador: t.compradorId ? pessoas.get(t.compradorId)?.nome : undefined,
+        viagem: t.viagemId ? viagens.get(t.viagemId) : undefined,
         sigla: t.pessoaId ? siglas.get(t.pessoaId) : undefined,
         /** texto da busca: código atual e anteriores, fornecedor e quem comprou (com as siglas) */
         busca: [t.codigo, ...(t.codigosAnteriores ?? []), ...[t.pessoaId, t.compradorId].flatMap((x) => (x ? [pessoas.get(x)?.nome, siglas.get(x)] : []))].filter(Boolean).join(' ').toLowerCase(),
@@ -647,6 +650,12 @@ export async function filaTriagem(ctx: Ctx, p: { moduloId?: string; incluirEncer
     })
     .filter((t) => !p.pendencia || (p.pendencia === 'qualquer' ? t.pendencias.length > 0 : t.pendencias.some((x) => x.id === p.pendencia)))
     .sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1))
+}
+
+/** o que veio numa viagem: quantas compras (sem as canceladas/recusadas) e quantos gramas */
+async function resumoDaViagem(ctx: Ctx, viagemId: Id) {
+  const cs = (await ctx.repos.transacoes.listar({ tipo: 'compra' })).filter((t) => t.viagemId === viagemId && t.etapa !== ETAPA_CANCELADO && t.etapa !== ETAPA_RECUSADO)
+  return { compras: cs.length, gramas: cs.reduce((s, t) => s + t.linhas.reduce((a, l) => a + l.quantidade, 0), 0) }
 }
 
 export async function compra(ctx: Ctx, p: { id: Id }) {
@@ -765,7 +774,7 @@ export async function pedido(ctx: Ctx, p: { id: Id }) {
       aguardando: l.campos.estado === 'Bruto' && l.saldo > 0 ? { dias: diasEntre((l.faseTriagem?.desde ?? l.criadoEm).slice(0, 10), hoje) } : undefined,
     })),
     /** viagem de compra a que pertence (chip na tela do pedido) */
-    viagem: vg && !vg.apagadoEm ? { id: vg.id, codigo: vg.codigo, nome: vg.nome, destino: vg.destino, status: vg.status } : undefined,
+    viagem: vg && !vg.apagadoEm ? { id: vg.id, codigo: vg.codigo, nome: vg.nome, destino: vg.destino, status: vg.status, inicio: vg.inicio, fim: vg.fim, ...(await resumoDaViagem(ctx, vg.id)) } : undefined,
     /** fotos da compra (as que os lotes herdam) */
     fotos: F.daCompra(t.id),
     outras: outras.map((x) => ({ id: x.id, codigo: x.codigo, data: x.data, total: x.totalPrincipal, etapa: x.nomeEtapa })),

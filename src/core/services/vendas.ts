@@ -2,6 +2,7 @@
 // Agendado não mexe em estoque nem caixa; só ao concluir.
 
 import { converter, formatar, moeda as moedaDe, multiplicarFator, proporcao, type CodigoMoeda, type Cotacao } from '../domain/dinheiro'
+import { mapaViagens } from './viagemCurta'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { aoConcluirVenda } from './vendasAbertas'
 import { dataDeInstante } from '../domain/datas'
@@ -9,7 +10,7 @@ import type { Id, Item, Linha, RegraComissao, Transacao } from '../domain/tipos'
 import { dividir, pct, resolverComissao } from '../domain/comissao'
 import { auditar, cotacoesAtuais, type Ctx, exigirInteiroPositivo, formaPagamento, lerConfig, novo, paraPrincipal, tocar, marcarDiaFechado } from './contexto'
 import { moverCaixa } from './caixa'
-import { custoDe, moverEstoque, proximoCodigo } from './estoque'
+import { comprasDe, custoDe, moverEstoque, proximoCodigo } from './estoque'
 import { montarPagamentos, type PagamentoEntrada } from './pagamentos'
 import { moverConta } from './contas'
 import { pendenciasVenda } from './pendencias'
@@ -564,6 +565,9 @@ export async function vendas(ctx: Ctx, f: FiltroVendas = {}) {
   const todas = await ctx.repos.transacoes.listar({ tipo: 'venda' })
   const itens = new Map((await ctx.repos.itens.listar()).map((i) => [i.id, i]))
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((p) => [p.id, p]))
+  const viagens = await mapaViagens(ctx)
+  const viagemDaCompra = new Map((await ctx.repos.transacoes.listar({ tipo: 'compra' })).filter((t) => t.viagemId).map((t) => [t.id, viagens.get(t.viagemId!)]))
+  const viagensDaVenda = (t: Transacao) => [...new Map(t.linhas.flatMap((l) => comprasDe(l.itemId ? itens.get(l.itemId) : undefined)).map((c) => viagemDaCompra.get(c)).filter((v): v is NonNullable<typeof v> => !!v).map((v) => [v.id, v])).values()]
   const etapa = f.etapa ?? 'concluido'
   const cfg = await lerConfig(ctx)
   const vivas = new Set(cfg.formas.filter((x) => x.vivo).map((x) => x.id))
@@ -584,6 +588,7 @@ export async function vendas(ctx: Ctx, f: FiltroVendas = {}) {
     .map(({ original, recorte }) => ({
       ...original,
       cliente: original.pessoaId ? pessoas.get(original.pessoaId)?.nome : undefined,
+      viagens: viagensDaVenda(original),
       feitoPor: original.historico.find((h) => h.para === 'concluido')?.porNome ?? original.historico[0]?.porNome,
       pendencias: pendenciasVenda(original, anexos, vivas, original.pessoaId ? saldoConta.get(original.pessoaId) : undefined),
       valor: valorEm(recorte, f.moeda),
@@ -623,5 +628,10 @@ export async function venda(ctx: Ctx, p: { id: Id }) {
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x]))
   const anexos = await ctx.repos.anexos.listar({ donoId: t.id })
   const local = t.localId ? await ctx.repos.locais.obter(t.localId) : undefined
-  return { venda: t, cliente: t.pessoaId ? pessoas.get(t.pessoaId) : undefined, profissional: t.profissionalId ? pessoas.get(t.profissionalId) : undefined, local, anexos }
+  // de que viagem(ns) veio o cabelo vendido (pela compra de cada pacote)
+  const vmapa = await mapaViagens(ctx)
+  const itensV = new Map((await ctx.repos.itens.listar()).map((i) => [i.id, i]))
+  const compras = new Map((await ctx.repos.transacoes.listar({ tipo: 'compra' })).map((c) => [c.id, c]))
+  const viagens = [...new Map(t.linhas.flatMap((l) => comprasDe(l.itemId ? itensV.get(l.itemId) : undefined)).map((c) => compras.get(c)?.viagemId).map((id) => (id ? vmapa.get(id) : undefined)).filter((v): v is NonNullable<typeof v> => !!v).map((v) => [v.id, v])).values()]
+  return { venda: t, cliente: t.pessoaId ? pessoas.get(t.pessoaId) : undefined, profissional: t.profissionalId ? pessoas.get(t.profissionalId) : undefined, local, anexos, viagens }
 }

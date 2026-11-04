@@ -5,6 +5,7 @@
 // que abre no lugar (celular) · Paginacao. A lista é a MESMA consulta `vendas` que forma os números do Painel.
 
 import { type ReactNode, useState } from 'react'
+import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { TabelaDados, SeloCodigo } from '../ui/tabelaDados'
 import { formatar } from '../core/domain/dinheiro'
 import { Botao, Campo, Confirmar, Entrada, Pilula, Selecao, Titulo, Vazio, cx, dataBR, hora, moedaPadrao } from '../ui/base'
@@ -21,7 +22,7 @@ import { baixarCSV } from './Relatorios'
 const ABAS = [{ id: '', nome: 'Concluídas' }, { id: 'pendencia', nome: 'Com pendência' }, { id: 'abertas', nome: 'Em aberto' }, { id: 'canceladas', nome: 'Canceladas' }, { id: 'todas', nome: 'Todas' }] as const
 const PENDENCIAS = [{ id: 'faltaReceber', nome: 'Falta receber' }, { id: 'semComprovante', nome: 'Sem comprovante' }]
 /** os filtros do endereço (para "Limpar"); a aba e a página ficam de fora */
-const CHAVES = ['busca', 'de', 'ate', 'pendencia', 'forma', 'moeda', 'usuarioId', 'profissionalId', 'pessoaId', 'moduloId', 'localId'] as const
+const CHAVES = ['busca', 'de', 'ate', 'pendencia', 'forma', 'moeda', 'usuarioId', 'profissionalId', 'pessoaId', 'moduloId', 'localId', 'viagem'] as const
 
 export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?: ReactNode }) {
   const t = useT()
@@ -52,7 +53,8 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
   const nomeForma = (id: string) => t(cfg?.formas.find((x) => x.id === id)?.nome ?? id)
   const formas = (v: V) => [...new Set(v.pagamentos.map((x) => x.forma))].map(nomeForma).join(' + ')
   const textoBusca = (v: V) => [v.codigo, v.cliente, v.feitoPor, ...v.linhas.map((l) => l.descricao)].filter(Boolean).join(' ').toLowerCase()
-  const passa = (v: V) => (!termo || textoBusca(v).includes(termo)) && (!pendencia || v.pendencias.some((x) => x.id === pendencia))
+  const passa = (v: V) => (!termo || textoBusca(v).includes(termo)) && (!pendencia || v.pendencias.some((x) => x.id === pendencia)) && passaViagem(p('viagem'), v.viagens)
+  const viagensVendas = viagensDasLinhas([...(concluidas ?? []), ...(canceladas ?? [])].flatMap((v) => v.viagens))
   const conc = (concluidas ?? []).filter(passa)
   const canc = (canceladas ?? []).filter(passa)
   const daAba = aba === 'canceladas' ? canc : aba === 'todas' ? [...conc, ...canc] : aba === 'pendencia' ? conc.filter((v) => v.pendencias.length) : conc
@@ -72,6 +74,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
   const ativos: FiltroAtivo[] = [
     ...(periodo ? [{ k: 'de,ate', rotulo: periodo }] : []),
     ...(pendencia ? [{ k: 'pendencia', rotulo: `⚠️ ${t(PENDENCIAS.find((x) => x.id === pendencia)?.nome ?? pendencia)}` }] : []),
+    ...(p('viagem') ? [{ k: 'viagem', rotulo: `✈️ ${p('viagem') === 'sem' ? t('Sem viagem') : viagensVendas.find((v) => v.id === p('viagem'))?.codigo ?? p('viagem')}` }] : []),
     ...(p('forma') ? [{ k: 'forma', rotulo: `💳 ${nomeForma(p('forma'))}` }] : []),
     ...(p('moeda') ? [{ k: 'moeda', rotulo: `💱 ${t('Só')} ${p('moeda')}` }] : []),
     ...(p('usuarioId') ? [{ k: 'usuarioId', rotulo: `👤 ${t('por')} ${nomePessoa(p('usuarioId'))}` }] : []),
@@ -116,6 +119,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
           n: a.id === 'abertas' ? abertas?.length : carregando ? undefined : a.id === 'canceladas' ? canc.length : a.id === 'todas' ? conc.length + canc.length : a.id === 'pendencia' ? comPend.length : conc.length,
         })) }}
         periodo={{ de: p('de'), ate: p('ate'), onChange: (de, ate) => ajustarParams({ de, ate, pagina: undefined }) }}
+        extra={<FiltroViagem viagens={viagensVendas} valor={p('viagem')} onChange={(v) => mudar('viagem', v)} />}
         busca={p('busca')} onBusca={(v) => mudar('busca', v)} placeholder="Buscar cliente, código (V-0001), item ou quem vendeu"
         ativos={ativos} onTirar={(k) => (tirar(k), setP('pagina', ''))} onLimpar={limpar}
         resultados={carregando ? undefined : lista.length} total={carregando ? undefined : (aba === 'canceladas' ? canceladas!.length : aba === 'todas' ? concluidas!.length + canceladas!.length : concluidas!.length)} unidade="venda(s)"
@@ -190,7 +194,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
         ordem={{ por: ordem.startsWith('valor') ? 'valor' : 'data', desc: ordem !== 'valorMenor' }}
         onOrdenar={(por) => mudar('ordem', por === 'data' ? '' : ordem === 'valor' ? 'valorMenor' : 'valor')}
         colunas={[
-          { id: 'venda', titulo: 'Venda', celula: (v) => <><SeloCodigo codigo={v.codigo} /><b className="mt-1 block">{v.cliente ?? t('Sem nome')}</b></> },
+          { id: 'venda', titulo: 'Venda', celula: (v) => <><SeloCodigo codigo={v.codigo} /><b className="mt-1 block">{v.cliente ?? t('Sem nome')}</b>{v.viagens.length > 0 && <span className="mt-1 block"><SelosViagem vs={v.viagens} curto /></span>}</> },
           { id: 'data', titulo: 'Data', ordenar: 'data', classe: 'num whitespace-nowrap', celula: (v) => <>{dataBR(v.data)}<span className="block text-xs text-[var(--suave)]">{hora(v.criadoEm)}{v.feitoPor ? ` · ${v.feitoPor}` : ''}</span></> },
           { id: 'itens', titulo: 'Itens', classe: 'max-w-72', celula: (v) => <><span className="line-clamp-2">{v.linhas.map((l) => l.descricao).join(' + ')}</span><span className="text-xs text-[var(--suave)]">{t('{n} item(ns)', { n: v.linhas.length })}</span></> },
           { id: 'pagamento', titulo: 'Pagamento', classe: 'text-[var(--suave)]', celula: (v) => formas(v) || '—' },
@@ -209,6 +213,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
           alerta: (v) => (v.etapa !== 'cancelado' && v.pendencias.length
             ? { texto: v.pendencias.length === 1 ? t(v.pendencias[0].texto) : t('{n} pendências', { n: v.pendencias.length }), tom: v.pendencias.some((x) => x.nivel === 'urgente') ? 'ruim' : 'alerta' }
             : undefined),
+          marca: (v) => <SelosViagem vs={v.viagens} curto />,
           fatos: (v) => [formas(v) && `💳 ${formas(v)}`, v.feitoPor && `👤 ${v.feitoPor}`, `📅 ${dataBR(v.data)}`],
           aberto: (v) => <>
             {v.linhas.length > 1 && <ul className="space-y-0.5">{v.linhas.map((l, k) => <li key={k} className="flex justify-between gap-3"><span className="min-w-0 truncate">{l.descricao}</span></li>)}</ul>}

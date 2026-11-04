@@ -5,6 +5,7 @@
 // Seleção (juntar e separar, mover, etiquetas) só aparece ao tocar "Selecionar". O resto fica no "⋯" de cada linha.
 
 import { type DragEvent, type KeyboardEvent, type ReactNode, useCallback, useState } from 'react'
+import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { TabelaDados, SeloCodigo } from '../ui/tabelaDados'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { PainelSelecao } from '../ui/painelSelecao'
@@ -240,14 +241,17 @@ export function Triagem() {
     (!fp('sf') || l.compras.some((c) => c.fornecedor === fp('sf'))) &&
     (!fp('sc') || l.compras.some((c) => (c.codigo ?? '').toLowerCase().includes(fp('sc').toLowerCase()))) &&
     (!fp('sd') || l.dias >= Number(fp('sd'))) &&
-    (!fp('set') || (fp('set') === 'sem' ? !l.etiqueta.impressaEm : !!l.etiqueta.impressaEm))
+    (!fp('set') || (fp('set') === 'sem' ? !l.etiqueta.impressaEm : !!l.etiqueta.impressaEm)) &&
+    passaViagem(fp('sv'), l.compras.map((c) => c.viagem))
   const ativosFila = [
     ...(fp('sf') ? [{ k: 'sf', rotulo: `👤 ${fp('sf')}` }] : []),
     ...(fp('sc') ? [{ k: 'sc', rotulo: `🛒 ${fp('sc')}` }] : []),
     ...(fp('sd') ? [{ k: 'sd', rotulo: t('parado há {n}+ dias', { n: fp('sd') }) }] : []),
     ...(fp('set') ? [{ k: 'set', rotulo: t(fp('set') === 'sem' ? 'Sem etiqueta' : 'Com etiqueta') }] : []),
   ]
-  const limparFila = () => ajustarParams({ sf: undefined, sc: undefined, sd: undefined, set: undefined, busca: undefined })
+  const viagensFila = viagensDasLinhas(daAba.flatMap((l) => l.compras.map((c) => c.viagem)))
+  if (fp('sv')) ativosFila.push({ k: 'sv', rotulo: `✈️ ${((id: string, vs: { id: string; codigo: string; nome: string }[]) => (id === 'sem' ? 'Sem viagem' : vs.find((v) => v.id === id)?.codigo ?? id))(fp('sv'), viagensFila)}` })
+  const limparFila = () => ajustarParams({ sf: undefined, sc: undefined, sd: undefined, set: undefined, sv: undefined, busca: undefined })
   const paraSeparar = daAba.filter((l) => passaBusca(l) && passaFiltroPadrao(l) && (filtro === 'depois' || filtroDePronto || passaFiltro(l))).sort((a, b) => b.dias - a.dias)
   const prontos = dados.lotes.filter((l) => ehPronto(l) && passaBusca(l) && (!filtroDePronto || passaFiltro(l)))
   const nomeFiltro = (f: string) => colDe(f)?.nome ?? { atrasados: 'Esperando há mais tempo', depois: 'Para depois', semana: 'Triado nesta semana', mes: 'Triado neste mês', pronto: 'Pronto para vender' }[f] ?? f
@@ -384,6 +388,7 @@ export function Triagem() {
           <FiltroLista
             className="mb-3"
             busca={busca} onBusca={setBusca} placeholder="Código, compra ou fornecedor" onKeyDown={pistola.onKeyDown}
+            extra={<FiltroViagem viagens={viagensFila} valor={fp('sv')} onChange={(v) => ajustarParams({ sv: v || undefined })} />}
             ativos={ativosFila} onTirar={(k) => ajustarParams({ [k]: undefined })} onLimpar={limparFila}
             resultados={paraSeparar.length} total={daAba.length} unidade="pacote(s)"
             painel={<>
@@ -458,7 +463,7 @@ export function Triagem() {
                   </>
                 } },
                 { id: 'peso', titulo: 'Peso', direita: true, celula: (l) => <b>{gramasTexto(l.saldo)}</b> },
-                { id: 'origem', titulo: 'Veio de', classe: 'max-w-[14rem]', celula: (l) => <span className="block truncate">{[...new Set(l.compras.map((c) => c.fornecedor).filter(Boolean))].join(', ') || '—'}<span className="block truncate text-xs text-[var(--suave)]">{l.compras.map((c) => c.codigo).filter(Boolean).join(' + ')}</span></span> },
+                { id: 'origem', titulo: 'Veio de', classe: 'max-w-[14rem]', celula: (l) => <span className="block truncate">{[...new Set(l.compras.map((c) => c.fornecedor).filter(Boolean))].join(', ') || '—'}<span className="block truncate text-xs text-[var(--suave)]">{l.compras.map((c) => c.codigo).filter(Boolean).join(' + ')}</span><span className="mt-1 block"><SelosViagem vs={viagensDasLinhas(l.compras.map((c) => c.viagem))} curto /></span></span> },
                 { id: 'espera', titulo: 'Esperando', direita: true, celula: (l) => <span className={cx('whitespace-nowrap', l.atrasado ? 'font-semibold text-[var(--ruim)]' : 'text-[var(--suave)]')} title={l.atrasado ? t('Esperando para separar há mais de {n} dias', { n: dados.diasParado }) : undefined}>{l.atrasado && '⏰ '}{!l.dias ? t('hoje') : l.dias === 1 ? t('há 1 dia') : t('há {n} dias', { n: l.dias })}</span> },
                 { id: 'etiqueta', titulo: 'Etiqueta', classe: 'whitespace-nowrap', celula: (l) => <SeloEtiqueta id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} /> },
               ]}
@@ -471,7 +476,7 @@ export function Triagem() {
                 codigo: (l) => l.codigo,
                 situacao: (l) => { const col = colDe(l.fase); return col && !col.entrada ? { texto: col.nome, tom: 'marca' } : undefined },
                 alerta: (l) => (l.atrasado ? { texto: t('parado'), tom: 'ruim' } : sobraPequena(l) ? { texto: t('só {g}', { g: gramasTexto(l.saldo) }), tom: 'alerta' } : l.campos.estado === NAO_ID ? { texto: t('para depois'), tom: 'alerta' } : undefined),
-                marca: (l) => <SeloEtiqueta id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} />,
+                marca: (l) => <><SelosViagem vs={viagensDasLinhas(l.compras.map((c) => c.viagem))} curto /><SeloEtiqueta id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} /></>,
                 fatos: (l) => [...l.compras.map((c) => `🛒 ${c.codigo ?? ''}`), l.pai && `🧬 ${t('separado de')} ${l.pai.codigo ?? '?'}`],
                 aberto: (l) => comSelecao && foraDaEtapa(l) && <button type="button" onClick={() => setSel(new Set([l.id]))} className="min-h-10 rounded-full border border-dashed border-[var(--borda)] px-3 text-xs font-semibold text-[var(--suave)]">🔒 {t('outra etapa')} · {t('começar com este')}</button>,
               }}
