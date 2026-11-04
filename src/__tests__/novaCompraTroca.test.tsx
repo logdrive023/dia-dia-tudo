@@ -1,6 +1,6 @@
 // Nova compra: trocar o fornecedor com algo preenchido pergunta e começa limpo; "Voltar" mantém o de antes.
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { NovaCompraTela } from '../screens/Comprar'
@@ -63,7 +63,8 @@ describe('nova compra: trocar o fornecedor', () => {
     fireEvent.change(obs(), { target: { value: 'outra obs' } })
     fireEvent.click(screen.getByText('Trocar'))
     await escolher('Marta')
-    fireEvent.click(await screen.findByText('Voltar'))
+    // o "Voltar" da pergunta (a trilha da tela também tem um "Voltar")
+    fireEvent.click(within(await screen.findByRole('dialog')).getByText('Voltar'))
     await waitFor(() => expect(screen.queryByText('Trocar o fornecedor?')).toBeNull())
     expect(obs().value).toBe('outra obs')
     expect(screen.getByText('Rosa', { selector: 'b' })).toBeTruthy()

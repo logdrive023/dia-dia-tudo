@@ -22,6 +22,7 @@ import { CamposDinamicos, resumoCampos } from '../ui/camposDinamicos'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { FiltroPendencia, SeloPendencias } from '../ui/pendencias'
 import { useT } from '../ui/i18n'
+import { Trilha } from '../ui/trilha'
 import { CampoCodigoCompra, CodigoSelo, TrocarCodigo } from '../ui/codigos'
 import { BuscaPessoa } from '../ui/buscaPessoa'
 import { MenuAcoes } from '../ui/menuAcoes'
@@ -350,7 +351,7 @@ export function NovaCompraTela() {
 
 function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: string; icone: string }[]; base?: Transacao; form: FormCompraConfig }) {
   const t = useT()
-  const { ir, voltar, marcarSujo, sessao } = useApp()
+  const { ir, marcarSujo, sessao } = useApp()
   const admin = sessao.perfil === 'admin'
   const { executar, ocupado } = useComando()
   // id do rascunho (as fotos já anexadas ficam nele); começar de novo = id novo
@@ -1007,7 +1008,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <Botao variante="leve" onClick={voltar}>← {t('Voltar')}</Botao>
+        <Trilha className="mb-0" atual={t(base ? 'Repetir compra' : 'Nova compra')} />
         {admin && <button type="button" onClick={() => ir('config', { aba: 'formCompra' })} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Personalizar')}</button>}
       </div>
       <h1 className="mb-3 text-2xl font-bold">{t(base ? 'Repetir compra' : 'Nova compra')}</h1>
@@ -1416,7 +1417,7 @@ function CorrigirValor({ compraId, linha, onFechar }: { compraId: Id; linha: Lin
 
 export function Pedido() {
   const t = useT()
-  const { nav, ir, voltar, sessao, ajustarParams } = useApp()
+  const { nav, ir, sessao, ajustarParams } = useApp()
   const id = nav.params.id as Id
   const { dados, erro } = useConsulta('pedido', { id })
   const { executar, ocupado } = useComando()
@@ -1443,12 +1444,7 @@ export function Pedido() {
   return (
     <div>
       {/* ONDE ESTOU: "← 🛒 Compras › Pedido P-0007" — forte, no alto (Compras leva à lista) */}
-      <nav aria-label={t('Caminho')} className="mb-3 flex min-w-0 items-center gap-1 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-2 py-1.5 text-sm shadow-sm">
-        <button type="button" onClick={voltar} aria-label={t('Voltar')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg font-bold text-[var(--marca)] hover:bg-[var(--marca-suave)]">←</button>
-        <button type="button" onClick={() => ir('comprar')} className="min-h-10 shrink-0 rounded-xl px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">🛒 {t('Compras')}</button>
-        <span aria-hidden className="text-[var(--suave)]">›</span>
-        <span className="min-w-0 truncate px-1"><span className="text-[var(--suave)]">{t('Pedido')}</span> <b className="font-mono">{codigoDe(c)}</b>{dados.pessoa ? <span className="text-[var(--suave)]"> · {dados.pessoa.nome}</span> : null}</span>
-      </nav>
+      <Trilha atual={<>{t('Pedido')} <span className="font-mono">{codigoDe(c)}</span>{dados.pessoa ? <span className="font-normal text-[var(--suave)]"> · {dados.pessoa.nome}</span> : null}</>} />
 
       {nav.params.registrada && !cancelada && <AvisoRegistrada dados={dados} onFechar={() => ajustarParams({ registrada: undefined })} />}
 

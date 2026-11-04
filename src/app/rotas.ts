@@ -29,6 +29,31 @@ export const PAI: Record<string, string> = {
   novoFinanciamento: 'adiantamentos',
 }
 
+/** Nome curto de cada tela para a TRILHA de navegação ("Compras › Pedido P-0007"); telas fora daqui mostram "Voltar". */
+export const NOME_TELA: Record<string, string> = {
+  painel: 'Painel', comprar: 'Compras', triagem: 'Triagem', estoque: 'Estoque', etiquetas: 'Etiquetas', vender: 'Vender',
+  vendas: 'Vendas', caixa: 'Caixa', agenda: 'Agenda', viagens: 'Viagens', livro: 'Livro do cabelo', precos: 'Tabelas de preço',
+  pessoas: 'Pessoas', equipe: 'Equipe', emprestimos: 'Empréstimos', adiantamentos: 'Adiantamentos', relatorios: 'Relatórios',
+  config: 'Configurações', novidades: 'Novidades', rastreio: 'Rastreio total', lote: 'Pacote', pedido: 'Pedido', venda: 'Venda',
+  pessoa: 'Pessoa', viagem: 'Viagem', tabelaPreco: 'Tabela de preço', configSecao: 'Configurações',
+}
+
+/**
+ * PARA ONDE O "VOLTAR" LEVA (regra única, usada pelo voltar do App e pela trilha de navegação, que mostra o destino):
+ *  · veio de uma LISTA (tela sem "pai") ou a tela atual não tem pai → a tela anterior (history.back, com os filtros)
+ *  · veio de um formulário/outro detalhe → a lista "pai" da área: se ela está mais atrás no histórico, volta até ela;
+ *    se não (abriu por link), troca a tela atual pela lista
+ */
+export type DestinoVoltar = { alvo: Navegacao } & ({ modo: 'anterior' } | { modo: 'pular'; passos: number } | { modo: 'trocar' })
+export function destinoVoltar(pl: Navegacao[]): DestinoVoltar {
+  const atual = pl[pl.length - 1]
+  const anterior = pl[pl.length - 2]
+  const pai = PAI[atual.tela]
+  if (anterior && (!PAI[anterior.tela] || !pai)) return { modo: 'anterior', alvo: anterior }
+  if (pai) for (let k = pl.length - 2; k >= 0; k--) if (pl[k].tela === pai && !pl[k].params.id) return { modo: 'pular', passos: k - (pl.length - 1), alvo: pl[k] }
+  return { modo: 'trocar', alvo: { tela: pai ?? 'painel', params: {} } }
+}
+
 const COLECOES: Record<string, { lista: string; item: string; novo?: string }> = {
   pedidos: { lista: 'comprar', item: 'pedido', novo: 'novaCompra' },
   vendas: { lista: 'vendas', item: 'venda' },

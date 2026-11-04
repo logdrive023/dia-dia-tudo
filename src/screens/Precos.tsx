@@ -14,6 +14,7 @@ import { chaveCelula } from '../core/services/precos'
 import { Abas, Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pilula, Selecao, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
+import { Trilha } from '../ui/trilha'
 import { MenuAcoes, type Acao } from '../ui/menuAcoes'
 import { Historico } from './PrecosHistorico'
 import { NumeroGrande } from '../ui/numeroGrande'
@@ -328,7 +329,7 @@ function TabelaTela() {
 
   return (
     <div className={cx(sujo && 'pb-4')}>
-      <Botao variante="leve" className="mb-2" onClick={voltar}>← {t('Voltar')}</Botao>
+      <Trilha atual={novo ? t('Nova tabela') : g.nome} />
       <div className="mb-3">
         {nome}
         <p className="mt-1 flex flex-wrap items-center text-sm text-[var(--suave)]">

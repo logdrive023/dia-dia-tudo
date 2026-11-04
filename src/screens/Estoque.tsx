@@ -24,6 +24,7 @@ import { NumeroGrande } from '../ui/numeroGrande'
 import { MenuAcoes, acoesLote } from '../ui/menuAcoes'
 import { CampoCodigo, CodigoSelo, TrocarCodigo } from '../ui/codigos'
 import { useT } from '../ui/i18n'
+import { Trilha } from '../ui/trilha'
 import { FotosDoLote, MiniaturaLote, marcadorLote, useTirarFoto } from '../ui/fotos'
 import { AvisoPacotesNovos, RefazerEtiqueta } from '../ui/etiquetas'
 import { ReservarLote, SeloReserva, reservado } from '../ui/reserva'
@@ -585,6 +586,7 @@ function Separar({ ids, onFechar, onSeparou, voltarRotulo }: { ids: Id[]; onFech
       subtitulo={juntar ? undefined : lotes[0].nome}
       onVoltar={onFechar}
       voltarRotulo={voltarRotulo}
+      trilha={`${t(juntar ? 'Juntar e separar' : 'Separar')} ${lotes.map((l) => l.codigo ?? '').join(' + ')}`}
       rodape={
         // barra curta: a conta numa linha (rótulos longos só na tela larga) e o botão à direita
         <div className="flex items-center gap-2">
@@ -791,7 +793,7 @@ export function FichaLote() {
   const proximo = !admin ? undefined : i.saldo > 0 && bruto ? { rotulo: '✂️ Separar', f: separar } : i.saldo > 0 ? { rotulo: '💰 Vender', f: vender } : viraram.length ? undefined : { rotulo: '📊 Ver para onde foi', f: verRastreio }
   return (
     <div className="space-y-4">
-      <Botao variante="leve" onClick={voltar}>← {t('Voltar')}</Botao>
+      <Trilha atual={i.codigo ?? i.nome} />
       <AvisoPacotesNovos />
       {/* cabeçalho compacto: foto pequena + nome; código e situação numa linha; UMA linha de ações (principal + Etiqueta + ⋯) */}
       <header className="space-y-3">
@@ -969,13 +971,17 @@ export function EditarAtributos({ id, campos, valores, onFechar }: { id: Id; cam
 /** RASTREIO TOTAL (tela cheia): o grafo compra → triagem → lote → venda em gramas, a partir da compra ou do lote. */
 export function Rastreio() {
   const t = useT()
-  const { nav, voltar } = useApp()
+  const { nav, voltar, ir } = useApp()
   const { dados, erro } = useConsulta('genealogia', { compraId: nav.params.compraId as Id | undefined, itemId: nav.params.itemId as Id | undefined })
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
+  // trilha: origem › o registro em foco (pacote ou compra, tocar abre) › Rastreio total
+  const foco = dados.caminho.lote
+    ? [{ rotulo: dados.caminho.lote.codigo ?? dados.caminho.lote.nome, onClick: () => ir('lote', { id: dados.caminho.lote!.id }) }]
+    : nav.params.compraId && dados.caminho.compras[0] ? [{ rotulo: dados.caminho.compras[0].codigo ?? t('Compra'), onClick: () => ir('pedido', { id: String(nav.params.compraId) }) }] : []
   return (
     <div className="space-y-4">
-      <Botao variante="leve" onClick={voltar}>← {t('Voltar')}</Botao>
+      <Trilha niveis={foco} atual={t('Rastreio total')} />
       <Titulo subtitulo={t('Cada grama: como entrou e para onde foi.')}>{t('Rastreio: origem → destino')}</Titulo>
       <Caminho g={dados} />
       <Cartao><RastreioTotal g={dados} /></Cartao>

@@ -295,6 +295,7 @@ export function FichaFinanciamento() {
     <Pagina
       onVoltar={voltar}
       voltarRotulo="Adiantamentos"
+      trilha={f.codigo}
       titulo={<span className="flex flex-wrap items-center gap-2"><span className="num">{f.codigo}</span> · {dados.pessoa ? <button type="button" className="text-left underline-offset-4 hover:underline" onClick={() => ir('pessoa', { id: dados.pessoa!.id })}>{dados.pessoa.nome}</button> : '—'}</span>}
       subtitulo={<span className="flex flex-wrap items-center gap-2">{t('Adiantado')} {formatar(f.valor, f.moeda)} · {dataBR(f.data)} <StatusFinanciamentoPilula status={dados.status} /></span>}
     >

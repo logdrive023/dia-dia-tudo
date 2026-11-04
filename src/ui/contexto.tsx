@@ -18,6 +18,8 @@ export interface AppCtx {
   sessao: Sessao
   trocarSessao(s: Sessao): void
   nav: Navegacao
+  /** para onde o "voltar" vai levar agora (a trilha de navegação mostra o nome dela) */
+  origem?: Navegacao
   ir(tela: string, params?: Params): void
   voltar(): void
   /** muda os parâmetros da tela atual sem criar passo no histórico (filtros, abas, busca) */

@@ -15,7 +15,7 @@ import { MENU, Shell } from './ui/Shell'
 import { Agenda } from './screens/Agenda'
 import { Caixa } from './screens/Caixa'
 import { Comprar, NovaCompraTela, Pedido } from './screens/Comprar'
-import { PAI, hashParaNav, navParaHash, normalizarNav } from './app/rotas'
+import { destinoVoltar, hashParaNav, navParaHash, normalizarNav } from './app/rotas'
 import { Config } from './screens/Configuracoes'
 import { Entrar } from './screens/Entrar'
 import { Emprestimos, FichaEmprestimo, NovoEmprestimo } from './screens/Emprestimos'
@@ -110,20 +110,16 @@ export default function App() {
   pilhaRef.current = pilha
   // regra: veio de uma LISTA (tela sem "pai") → volta para ela (com os filtros); veio de um formulário ou de outro
   // detalhe (ex.: Nova compra → Pedido) → vai para a lista da área (Pedido → Compras), nunca para o formulário enviado
+  // (a regra fica em destinoVoltar: a trilha de navegação usa a mesma para mostrar para onde volta)
   const voltar = useCallback(() => {
-    const pl = pilhaRef.current
-    const atual = pl[pl.length - 1]
-    const anterior = pl[pl.length - 2]
-    const pai = PAI[atual.tela]
-    if (anterior && (!PAI[anterior.tela] || !pai)) return history.back()
-    if (pai) {
-      // a lista já está mais atrás no histórico: volta até ela (mantém filtros)
-      for (let k = pl.length - 2; k >= 0; k--) if (pl[k].tela === pai && !pl[k].params.id) return history.go(k - (pl.length - 1))
-    }
-    const n = { tela: pai ?? 'painel', params: {} }
-    setPilha((p) => [...p.slice(0, -1), n])
-    history.replaceState(null, '', navParaHash(n))
+    const d = destinoVoltar(pilhaRef.current)
+    if (d.modo === 'anterior') return history.back()
+    // a lista já está mais atrás no histórico: volta até ela (mantém filtros)
+    if (d.modo === 'pular') return history.go(d.passos)
+    setPilha((p) => [...p.slice(0, -1), d.alvo])
+    history.replaceState(null, '', navParaHash(d.alvo))
   }, [])
+  const origem = useMemo(() => (pilha.length ? destinoVoltar(pilha).alvo : undefined), [pilha])
   const avisar = useCallback((texto: string, tipo: 'ok' | 'erro' = 'ok') => setAviso({ texto, tipo }), [])
   const ajustarParams = useCallback((p: Params) => {
     setPilha((pl) => {
@@ -199,7 +195,7 @@ export default function App() {
 
   const irSeguro = useMemo(() => protegido(ir), [protegido, ir])
   const voltarSeguro = useMemo(() => protegido(voltar), [protegido, voltar])
-  const ctx: AppCtx = { backend, sessao, trocarSessao, nav, ir: irSeguro, voltar: voltarSeguro, avisar, ajustarParams, marcarSujo }
+  const ctx: AppCtx = { backend, sessao, trocarSessao, nav, origem, ir: irSeguro, voltar: voltarSeguro, avisar, ajustarParams, marcarSujo }
   return (
     <Ctx.Provider value={ctx}>
       <ComIdioma>

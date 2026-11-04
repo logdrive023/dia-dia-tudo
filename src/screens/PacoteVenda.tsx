@@ -11,6 +11,7 @@ import { useApp, useConsulta } from '../ui/contexto'
 import { StatusBadge } from '../ui/estoqueUi'
 import { VisorFotos, marcadorLote, useUrlFoto } from '../ui/fotos'
 import { useT } from '../ui/i18n'
+import { Trilha } from '../ui/trilha'
 
 export function PacoteVenda() {
   const t = useT()
@@ -25,7 +26,7 @@ export function PacoteVenda() {
   const q = (n: number) => (grama ? gramasTexto(n) : String(n))
   return (
     <div className="mx-auto max-w-md space-y-4">
-      <Botao variante="leve" onClick={voltar}>← {t('Voltar')}</Botao>
+      <Trilha atual={dados.codigo ?? t('Pacote')} />
       <button type="button" onClick={() => dados.foto && setVer(true)} aria-label={t('Ver fotos')} className={cx('block w-full', !dados.foto && 'cursor-default')}>
         <span className={cx('relative flex h-64 w-full flex-col items-center justify-center overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--fundo)]', !dados.foto && 'border-dashed')}>
           {dados.foto ? (

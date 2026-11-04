@@ -352,6 +352,7 @@ export function FichaViagem() {
       titulo={<span className="flex flex-wrap items-center gap-2">{v.codigo} · {v.nome} <Pilula tom={TOM_STATUS[v.status]}>{t(NOME_STATUS[v.status])}</Pilula>{dados.acimaOrcamento && <Pilula tom="ruim">{t('Acima do orçamento')}</Pilula>}</span>}
       subtitulo={`${dados.viajantes.map((x) => x.nome).join(', ')} · ${dataBR(v.inicio)}${v.fim ? ` – ${dataBR(v.fim)}` : ''} · ${dados.kpis.dias} d${v.destino ? ` · ${v.destino}` : ''}`}
       voltarRotulo="Viagens"
+      trilha={v.codigo}
       onVoltar={voltar}
     >
       {/* UMA linha de ações (padrão da página do pacote): as duas principais dividem a largura; editar no ⋯ */}

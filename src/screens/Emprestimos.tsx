@@ -128,7 +128,7 @@ export function FichaEmprestimo() {
     ['Maior atraso', `${dados.maiorAtraso} ${t('dias')}`, 'emp-parcelas'],
   ]
   return (
-    <Pagina onVoltar={voltar} titulo={pessoa ? <button type="button" className="text-left underline-offset-4 hover:underline" onClick={() => ir('pessoa', { id: pessoa.id })}>{pessoa.nome}</button> : '—'} subtitulo={`${t(e.direcao === 'dado' ? 'Emprestei' : 'Peguei')} ${formatar(e.principal, e.moeda)} · ${dataBR(e.inicio)}`}>
+    <Pagina onVoltar={voltar} trilha={pessoa?.nome ?? t('Empréstimo')} titulo={pessoa ? <button type="button" className="text-left underline-offset-4 hover:underline" onClick={() => ir('pessoa', { id: pessoa.id })}>{pessoa.nome}</button> : '—'} subtitulo={`${t(e.direcao === 'dado' ? 'Emprestei' : 'Peguei')} ${formatar(e.principal, e.moeda)} · ${dataBR(e.inicio)}`}>
       <div className="space-y-4">
         <div className="flex flex-wrap gap-2">
           {dados.saldo > 0 && <Botao onClick={() => setPagar(true)}>{t(e.direcao === 'dado' ? 'Recebi pagamento' : 'Paguei')}</Botao>}

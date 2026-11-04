@@ -6,6 +6,7 @@ import { formatar, lerValor, moeda as moedaDe } from '../core/domain/dinheiro'
 import type { Cartao as CartaoDados, Formato } from '../core/modulos'
 import { useApp } from './contexto'
 import { useT } from './i18n'
+import { Trilha } from './trilha'
 
 export function cx(...c: (string | false | undefined | null)[]) {
   return c.filter(Boolean).join(' ')
@@ -479,11 +480,17 @@ export function Janela({ aberta, titulo, onFechar, children, rodape, larga }: { 
 }
 
 /** Tela cheia com a mesma forma da Janela: voltar + título + conteúdo + barra de ação fixa embaixo. */
-export function Pagina({ titulo, subtitulo, onVoltar, voltarRotulo, children, rodape }: { titulo: ReactNode; subtitulo?: ReactNode; onVoltar(): void; voltarRotulo?: string; children: ReactNode; rodape?: ReactNode }) {
-  const t = useT()
+/**
+ * `trilha`: o nome curto da página atual na trilha ("VG-0002", "Nova viagem"); sem ele, usa o título se for texto.
+ * `onVoltar` igual ao voltar do App → a trilha mostra a origem certa; um voltar próprio (passo de formulário) mostra
+ * `voltarRotulo` ou "Voltar".
+ */
+export function Pagina({ titulo, subtitulo, onVoltar, voltarRotulo, trilha, children, rodape }: { titulo: ReactNode; subtitulo?: ReactNode; onVoltar(): void; voltarRotulo?: string; trilha?: ReactNode; children: ReactNode; rodape?: ReactNode }) {
+  const { voltar } = useApp()
+  const proprio = onVoltar !== voltar
   return (
     <div className="mx-auto max-w-4xl">
-      <button type="button" onClick={onVoltar} className="mb-3 min-h-10 rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">← {t(voltarRotulo ?? 'Voltar')}</button>
+      <Trilha atual={trilha ?? (typeof titulo === 'string' ? titulo : undefined)} onVoltar={proprio ? onVoltar : undefined} rotuloVoltar={proprio ? voltarRotulo : undefined} />
       <h1 className="text-2xl font-bold">{titulo}</h1>
       {subtitulo && <p className="mb-4 text-sm text-[var(--suave)]">{subtitulo}</p>}
       <div className={cx(!subtitulo && 'mt-4', 'pb-4')}>{children}</div>
