@@ -18,7 +18,7 @@ import { montarPagamentos, type PagamentoEntrada } from './pagamentos'
 import { pendenciasCompra } from './pendencias'
 import { moverConta } from './contas'
 import { estornarConta } from './vendas'
-import { genealogia } from './triagem'
+import { genealogia, triagemDaCompra } from './triagem'
 import { origemDoPacote } from './origem'
 
 export const ETAPA_RECUSADO = 'recusado'
@@ -754,6 +754,8 @@ export async function pedido(ctx: Ctx, p: { id: Id }) {
     compra: t,
     /** comprado = em pacotes + aguardando + vendido + perda + diferença (✓ quando fecha); sem lote ainda = undefined */
     fechamento: await fechamentoCompra(ctx, { id: t.id }),
+    /** a triagem desta compra: feita / parcial / falta (com o que espera e as triagens que já usaram o cabelo dela) */
+    triagem: await triagemDaCompra(ctx, t.id),
     /** conferências de peso lançadas nos lotes desta compra (comprou × pesou, com motivo) */
     conferencias: movsCompra.filter((m) => ehConferencia(m, t.id)).map((m) => ({ id: m.id, itemId: m.itemId, data: m.data, delta: m.delta, descricao: m.descricao ?? '' })),
     pessoa,

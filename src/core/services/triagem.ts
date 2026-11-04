@@ -753,3 +753,26 @@ async function genealogiaTriagem(ctx: Ctx, L: Awaited<ReturnType<typeof leitorCa
     podeDesfazer: descend.size === saidas.length && saidas.every((i) => i.saldo === (i.quantidadeInicial ?? 0)),
   }
 }
+
+/**
+ * A TRIAGEM DE UMA COMPRA (para o Resumo do pedido): as triagens que usaram o cabelo dela e quanto ainda espera.
+ * situacao: 'falta' (nada separado) · 'parcial' (separou uma parte, sobrou bruto) · 'feita' (todo o bruto separado)
+ * · 'sem' (a compra não tem bruto: já veio separada).
+ */
+export async function triagemDaCompra(ctx: Ctx, compraId: Id) {
+  const L = await leitorCadeia(ctx)
+  const daCompra = L.itens.filter((i) => i.origem?.tipo === 'compra' && i.origem.id === compraId)
+  const brutos = daCompra.filter((i) => i.campos.estado === 'Bruto')
+  const esperando = brutos.filter((i) => i.saldo > 0)
+  const chaves = new Set<Id>()
+  for (const i of L.itens) if (comprasDe(i).includes(compraId)) { const k = chaveTriagem(i); if (k) chaves.add(k) }
+  const feitas = []
+  for (const k of chaves) {
+    const g = await genealogiaTriagem(ctx, L, k)
+    if (g) feitas.push({ id: g.id, codigo: g.codigo, em: g.em, por: g.por, pacotes: g.saidas.length, entrou: g.pesoEntrada, saiu: g.pesoSaida, perda: g.perda })
+  }
+  feitas.sort((a, b) => (a.em < b.em ? -1 : 1))
+  const gramasEsperando = esperando.reduce((s, i) => s + i.saldo, 0)
+  const situacao: 'sem' | 'falta' | 'parcial' | 'feita' = !brutos.length && !feitas.length ? 'sem' : esperando.length ? (feitas.length ? 'parcial' : 'falta') : 'feita'
+  return { situacao, feitas, esperando: { ids: esperando.map((i) => i.id), gramas: gramasEsperando } }
+}
