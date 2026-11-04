@@ -7,6 +7,7 @@
 // barra de seleção da Triagem e do Estoque e pelo cartão "pacotes novos" depois de separar (?sel=a,b já marcados).
 
 import { useEffect, useMemo, useState } from 'react'
+import { Paginada } from '../ui/paginacao'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { passaEtiqueta } from '../core/services/estoque'
@@ -204,9 +205,11 @@ export function Etiquetas() {
             )}
             <span className="hidden w-full pb-1 text-xs text-[var(--suave)] lg:block">{t('Toque no pacote para marcar. Shift + clique marca todos entre dois.')}</span>
           </div>
-          <ul id="lista-etiquetas" className="grid gap-2 lg:grid-cols-2">
-            {lista.map((i, k) => <LinhaEtiqueta key={i.id} i={i} marcado={sel.has(i.id)} onAlternar={(intervalo) => marcarAte(k, intervalo)} onAbrir={() => ir('lote', { id: i.id })} onImprimir={() => setImprimir([i.id])} onRefazer={() => ajustarParams({ refazer: i.id })} />)}
-          </ul>
+          <Paginada itens={lista} padrao={50} unidade="pacote(s)" reiniciar={JSON.stringify([filtro, ...todosFiltros.map((k) => p(k))])}>{(pagina, inicio) => (
+            <ul id="lista-etiquetas" className="grid gap-2 lg:grid-cols-2">
+              {pagina.map((i, k) => <LinhaEtiqueta key={i.id} i={i} marcado={sel.has(i.id)} onAlternar={(intervalo) => marcarAte(inicio + k, intervalo)} onAbrir={() => ir('lote', { id: i.id })} onImprimir={() => setImprimir([i.id])} onRefazer={() => ajustarParams({ refazer: i.id })} />)}
+            </ul>
+          )}</Paginada>
         </>
       )}
 

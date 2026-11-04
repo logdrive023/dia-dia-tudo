@@ -5,6 +5,7 @@
 // Seleção (juntar e separar, mover, etiquetas) só aparece ao tocar "Selecionar". O resto fica no "⋯" de cada linha.
 
 import { type DragEvent, type KeyboardEvent, type ReactNode, useCallback, useState } from 'react'
+import { Paginada } from '../ui/paginacao'
 import { AcaoIcone } from '../ui/acoesPagina'
 import { NumeroGrande, NumeroPequeno, GrupoNumeros, type Selo } from '../ui/numeroGrande'
 import { formatar } from '../core/domain/dinheiro'
@@ -92,7 +93,6 @@ export function Triagem() {
   const [aba] = useParamTela('aba', 'separar')
   const [alvo, setAlvo] = useState<string>()
   const [lendo, setLendo] = useState(false)
-  const [maisSeparar, setMaisSeparar] = useState(false)
   const { tirar } = useTirarFoto()
   // leitor pistola: Enter com o código exato abre o pacote
   const pistola = usePistola(dados?.lotes, (l) => ir('lote', { id: l.id }))
@@ -236,7 +236,6 @@ export function Triagem() {
   ]
   const limparFila = () => ajustarParams({ sf: undefined, sc: undefined, sd: undefined, set: undefined, busca: undefined })
   const paraSeparar = daAba.filter((l) => passaBusca(l) && passaFiltroPadrao(l) && (filtro === 'depois' || filtroDePronto || passaFiltro(l))).sort((a, b) => b.dias - a.dias)
-  const visiveis = maisSeparar ? paraSeparar : paraSeparar.slice(0, MAX_COLUNA)
   const prontos = dados.lotes.filter((l) => ehPronto(l) && passaBusca(l) && (!filtroDePronto || passaFiltro(l)))
   const nomeFiltro = (f: string) => colDe(f)?.nome ?? { atrasados: 'Esperando há mais tempo', depois: 'Para depois', semana: 'Triado nesta semana', mes: 'Triado neste mês', pronto: 'Pronto para vender' }[f] ?? f
   const verPronto = () => irAba('prontos')
@@ -381,9 +380,9 @@ export function Triagem() {
         ) : !paraSeparar.length ? (
           <p className="rounded-2xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nada encontrado.')}</p>
         ) : (
-          <>
+          <Paginada itens={paraSeparar} unidade="pacote(s)" reiniciar={JSON.stringify([abaReal, busca, fp('sf'), fp('sc'), fp('sd'), fp('set'), filtro, medida])}>{(pagina) => (
             <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-              {visiveis.map((l) => {
+              {pagina.map((l) => {
                 const col = colDe(l.fase)
                 const acao = acaoDe(l)
                 const fornecedores = [...new Set(l.compras.map((c) => c.fornecedor).filter(Boolean))]
@@ -413,10 +412,7 @@ export function Triagem() {
                 )
               })}
             </ul>
-            {paraSeparar.length > MAX_COLUNA && (
-              <button type="button" onClick={() => setMaisSeparar(!maisSeparar)} className="mt-2 min-h-10 w-full rounded-xl text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{maisSeparar ? t('Mostrar menos') : t('Ver mais ({n})', { n: paraSeparar.length - MAX_COLUNA })}</button>
-            )}
-          </>
+          )}</Paginada>
         )}
       </section>
 

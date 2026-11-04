@@ -5,19 +5,18 @@
 // que abre no lugar (celular) · Paginacao. A lista é a MESMA consulta `vendas` que forma os números do Painel.
 
 import { type ReactNode, useState } from 'react'
+import { TabelaDados } from '../ui/tabelaDados'
 import { formatar } from '../core/domain/dinheiro'
-import { Botao, Campo, Carregando, Confirmar, Entrada, Pilula, Selecao, Titulo, Vazio, cx, dataBR, hora, moedaPadrao } from '../ui/base'
+import { Botao, Campo, Confirmar, Entrada, Pilula, Selecao, Titulo, Vazio, cx, dataBR, hora, moedaPadrao } from '../ui/base'
 import { useApp, useComando, useConsulta, useFiltrosTela } from '../ui/contexto'
 import { AtalhosPeriodo, CampoFaixa, FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo } from '../ui/filtroPadrao'
 import { useT } from '../ui/i18n'
-import { MenuAcoes, type Acao } from '../ui/menuAcoes'
+import { type Acao } from '../ui/menuAcoes'
 import { GrupoNumeros, NumeroGrande } from '../ui/numeroGrande'
-import { Paginacao, paginar } from '../ui/paginacao'
+import { Paginacao, usePaginacao } from '../ui/paginacao'
 import { SeloPendencias } from '../ui/pendencias'
-import { useTelaLarga } from '../ui/estoqueUi'
 import { baixarCSV } from './Relatorios'
 
-const POR_PAGINA = 25
 /** as abas (situação): concluídas · com pendência · canceladas · todas */
 const ABAS = [{ id: '', nome: 'Concluídas' }, { id: 'pendencia', nome: 'Com pendência' }, { id: 'canceladas', nome: 'Canceladas' }, { id: 'todas', nome: 'Todas' }] as const
 const PENDENCIAS = [{ id: 'faltaReceber', nome: 'Falta receber' }, { id: 'semComprovante', nome: 'Sem comprovante' }]
@@ -29,7 +28,6 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
   const { ir, ajustarParams, sessao } = useApp()
   const { p, setP, tirar } = useFiltrosTela()
   const { executar } = useComando()
-  const larga = useTelaLarga()
   const admin = sessao.perfil === 'admin'
   const { dados: conf } = useConsulta('configuracoes', {})
   const { dados: pessoas } = useConsulta('pessoas', {})
@@ -39,7 +37,6 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
   const base = { de: p('de') || undefined, ate: p('ate') || undefined, moduloId: p('moduloId') || undefined, forma: p('forma') || undefined, moeda: p('moeda') || undefined, localId: p('localId') || undefined, profissionalId: p('profissionalId') || undefined, pessoaId: p('pessoaId') || undefined, usuarioId: p('usuarioId') || undefined }
   const { dados: concluidas } = useConsulta('vendas', base)
   const { dados: canceladas } = useConsulta('vendas', { ...base, etapa: 'cancelado' })
-  const [abertas, setAbertas] = useState<Set<string>>(new Set())
   const [cancelar, setCancelar] = useState<string>()
 
   const aba = p('aba') as (typeof ABAS)[number]['id']
@@ -56,7 +53,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
   const canc = (canceladas ?? []).filter(passa)
   const daAba = aba === 'canceladas' ? canc : aba === 'todas' ? [...conc, ...canc] : aba === 'pendencia' ? conc.filter((v) => v.pendencias.length) : conc
   const lista = [...daAba].sort((a, b) => (ordem === 'valor' ? b.valor - a.valor : ordem === 'valorMenor' ? a.valor - b.valor : (a.data + a.criadoEm < b.data + b.criadoEm ? 1 : -1)))
-  const pag = paginar(lista, Number(p('pagina')) || 1, POR_PAGINA)
+  const pag = usePaginacao(lista, { reiniciar: JSON.stringify([aba, ordem, ...CHAVES.map((k) => p(k))]) })
   const moeda = p('moeda') || concluidas?.[0]?.moedaPrincipal || moedaPadrao()
 
   // NÚMEROS do que está filtrado (período, busca e filtros; a aba não muda os números)
@@ -93,17 +90,6 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
     ...(admin && v.etapa === 'concluido' ? [{ rotulo: 'Cancelar venda', icone: '✕', perigo: true, separar: true, onClick: () => setCancelar(v.id) }] : []),
   ]
   const exportar = () => baixarCSV('vendas', lista.map((v) => ({ codigo: v.codigo ?? '', data: v.data, hora: hora(v.criadoEm), cliente: v.cliente ?? '', itens: v.linhas.map((l) => l.descricao).join(' + '), pagamento: formas(v), situacao: v.etapa === 'cancelado' ? t('Cancelada') : v.pendencias.length ? v.pendencias.map((x) => t(x.texto)).join(' · ') : t('Completa'), valor: v.valor / 100, feito_por: v.feitoPor ?? '' })))
-  const alternar = (id: string) => setAbertas((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
-  const Th = ({ children, por, direita }: { children: ReactNode; por?: 'data' | 'valor'; direita?: boolean }) => (
-    <th className={cx('whitespace-nowrap px-3 py-2 text-xs font-medium text-[var(--suave)]', direita && 'text-right')}>
-      {por ? (
-        <button type="button" onClick={() => mudar('ordem', por === 'data' ? '' : ordem === 'valor' ? 'valorMenor' : 'valor')} className="inline-flex items-center gap-1 hover:text-[var(--texto)]">
-          {children}{(por === 'data' ? ordem === 'data' : ordem.startsWith('valor')) && <span aria-hidden>{ordem === 'valorMenor' ? '↑' : '↓'}</span>}
-        </button>
-      ) : children}
-    </th>
-  )
-
   return (
     <div>
       {/* CABEÇALHO PADRÃO: nome · para que serve · a ação principal (+ Nova venda ▾ com os caminhos de venda) */}
@@ -162,79 +148,41 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
         </>}
       />
 
-      {carregando ? (
-        <Carregando />
-      ) : !concluidas!.length && !canceladas!.length && !filtrando ? (
-        <Vazio texto="Ainda não há vendas registradas.">{novaVenda}</Vazio>
-      ) : !lista.length ? (
-        <VazioFiltro texto="Nenhuma venda com esse filtro." filtrando={filtrando || !!aba} onLimpar={() => (limpar(), irAba(''))} />
-      ) : larga ? (
-        // COMPUTADOR: tabela (venda · data · itens · pagamento · situação · valor · ⋯); tocar na linha abre a venda
-        <div className="overflow-x-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--fundo)] text-left">
-              <tr>
-                <Th>{t('Venda')}</Th>
-                <Th por="data">{t('Data')}</Th>
-                <Th>{t('Itens')}</Th>
-                <Th>{t('Pagamento')}</Th>
-                <Th>{t('Situação')}</Th>
-                <Th por="valor" direita>{t('Valor')}</Th>
-                <th className="w-12 px-2"><span className="sr-only">{t('Ações')}</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--borda)]">
-              {pag.itens.map((v) => (
-                <tr key={v.id} tabIndex={0} onClick={() => ir('venda', { id: v.id })} onKeyDown={(e) => e.key === 'Enter' && ir('venda', { id: v.id })} className={cx('cursor-pointer align-top hover:bg-[var(--marca-suave)]/50 focus-visible:bg-[var(--marca-suave)]', v.etapa === 'cancelado' && 'opacity-70')}>
-                  <td className="px-3 py-2.5">
-                    <span className="block font-mono text-xs font-bold text-[var(--marca)]">{v.codigo ?? '—'}</span>
-                    <b className="block">{v.cliente ?? t('Sem nome')}</b>
-                  </td>
-                  <td className="num whitespace-nowrap px-3 py-2.5">{dataBR(v.data)}<span className="block text-xs text-[var(--suave)]">{hora(v.criadoEm)}{v.feitoPor ? ` · ${v.feitoPor}` : ''}</span></td>
-                  <td className="max-w-72 px-3 py-2.5"><span className="line-clamp-2">{v.linhas.map((l) => l.descricao).join(' + ')}</span><span className="text-xs text-[var(--suave)]">{t('{n} item(ns)', { n: v.linhas.length })}</span></td>
-                  <td className="px-3 py-2.5 text-[var(--suave)]">{formas(v) || '—'}</td>
-                  <td className="px-3 py-2.5">{situacao(v)}</td>
-                  <td className={cx('num whitespace-nowrap px-3 py-2.5 text-right font-bold', v.etapa === 'cancelado' && 'line-through')}>{formatar(v.valor, moeda)}</td>
-                  <td className="px-2 py-2"><MenuAcoes acoes={acoes(v)} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        // CELULAR: uma linha curta por venda (cliente · valor · código · situação); tocar abre o resto no lugar
-        <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
-          {pag.itens.map((v) => {
-            const aberta = abertas.has(v.id)
-            return (
-              <li key={v.id} className={cx(aberta && 'bg-[var(--marca-suave)]/40', v.etapa === 'cancelado' && 'opacity-80')}>
-                <button type="button" aria-expanded={aberta} onClick={() => alternar(v.id)} className="flex w-full items-start gap-2 p-3 text-left">
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <b className="truncate">{v.cliente ?? t('Sem nome')}</b>
-                      <span className={cx('num shrink-0 font-bold', v.etapa === 'cancelado' && 'line-through')}>{formatar(v.valor, moeda)}</span>
-                    </span>
-                    <span className="num mt-0.5 block truncate text-xs text-[var(--suave)]"><span className="font-mono font-bold text-[var(--marca)]">{v.codigo ?? '—'}</span> · {dataBR(v.data)} {hora(v.criadoEm)}</span>
-                    <span className="mt-1 block">{situacao(v)}</span>
-                  </span>
-                  <span aria-hidden className={cx('mt-1 text-[var(--suave)] transition-transform', aberta && 'rotate-90')}>›</span>
-                </button>
-                {aberta && (
-                  <div className="space-y-2 px-3 pb-3 text-sm">
-                    <p>{v.linhas.map((l) => l.descricao).join(' + ')}</p>
-                    <p className="text-xs text-[var(--suave)]">{[formas(v) && `💳 ${formas(v)}`, v.feitoPor && `${t('por')} ${v.feitoPor}`].filter(Boolean).join(' · ')}</p>
-                    <div className="flex items-center gap-2">
-                      <Botao className="flex-1" onClick={() => ir('venda', { id: v.id })}>{t('Abrir venda')} →</Botao>
-                      <MenuAcoes comRotulo acoes={acoes(v).slice(1)} />
-                    </div>
-                  </div>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      )}
-      {!carregando && <Paginacao {...pag} total={lista.length} unidade="venda(s)" onPagina={(n) => setP('pagina', n > 1 ? String(n) : '')} />}
+      {/* LISTAGEM PADRÃO (TabelaDados): só as colunas, as ações e o que abre; carregando/vazio/celular são dela */}
+      <TabelaDados
+        linhas={pag.itens}
+        chave={(v) => v.id}
+        carregando={carregando}
+        vazio={!concluidas?.length && !canceladas?.length && !filtrando
+          ? <Vazio texto="Ainda não há vendas registradas.">{novaVenda}</Vazio>
+          : <VazioFiltro texto="Nenhuma venda com esse filtro." filtrando={filtrando || !!aba} onLimpar={() => (limpar(), irAba(''))} />}
+        onAbrir={(v) => ir('venda', { id: v.id })}
+        rotuloAbrir="Abrir venda"
+        rotuloLinha={(v) => `${v.codigo ?? ''} · ${v.cliente ?? t('Sem nome')}`}
+        acoes={acoes}
+        realce={(v) => (v.etapa === 'cancelado' ? 'apagada' : undefined)}
+        ordem={{ por: ordem.startsWith('valor') ? 'valor' : 'data', desc: ordem !== 'valorMenor' }}
+        onOrdenar={(por) => mudar('ordem', por === 'data' ? '' : ordem === 'valor' ? 'valorMenor' : 'valor')}
+        colunas={[
+          { id: 'venda', titulo: 'Venda', celula: (v) => <><span className="block font-mono text-xs font-bold text-[var(--marca)]">{v.codigo ?? '—'}</span><b className="block">{v.cliente ?? t('Sem nome')}</b></> },
+          { id: 'data', titulo: 'Data', ordenar: 'data', classe: 'num whitespace-nowrap', celula: (v) => <>{dataBR(v.data)}<span className="block text-xs text-[var(--suave)]">{hora(v.criadoEm)}{v.feitoPor ? ` · ${v.feitoPor}` : ''}</span></> },
+          { id: 'itens', titulo: 'Itens', classe: 'max-w-72', celula: (v) => <><span className="line-clamp-2">{v.linhas.map((l) => l.descricao).join(' + ')}</span><span className="text-xs text-[var(--suave)]">{t('{n} item(ns)', { n: v.linhas.length })}</span></> },
+          { id: 'pagamento', titulo: 'Pagamento', classe: 'text-[var(--suave)]', celula: (v) => formas(v) || '—' },
+          { id: 'situacao', titulo: 'Situação', celula: situacao },
+          { id: 'valor', titulo: 'Valor', ordenar: 'valor', direita: true, celula: (v) => <b className={cx(v.etapa === 'cancelado' && 'line-through')}>{formatar(v.valor, moeda)}</b> },
+        ]}
+        celular={{
+          titulo: (v) => v.cliente ?? t('Sem nome'),
+          valor: (v) => formatar(v.valor, moeda),
+          sub: (v) => <><span className="font-mono font-bold text-[var(--marca)]">{v.codigo ?? '—'}</span> · {dataBR(v.data)} {hora(v.criadoEm)}</>,
+          selo: situacao,
+          aberto: (v) => <>
+            <p>{v.linhas.map((l) => l.descricao).join(' + ')}</p>
+            <p className="text-xs text-[var(--suave)]">{[formas(v) && `💳 ${formas(v)}`, v.feitoPor && `${t('por')} ${v.feitoPor}`].filter(Boolean).join(' · ')}</p>
+          </>,
+        }}
+      />
+      {!carregando && <Paginacao {...pag} unidade="venda(s)" />}
 
       {cancelar && (
         <Confirmar perigo pedirMotivo titulo="Cancelar venda" texto="O estoque volta e cada pagamento é estornado. Nada é apagado." rotulo="Cancelar venda"

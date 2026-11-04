@@ -4,7 +4,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Id } from '../core/domain/tipos'
 import type { Params } from './contexto'
-import { cx } from './base'
+import { cx, Janela } from './base'
 import { useT } from './i18n'
 
 export interface Acao {
@@ -24,11 +24,14 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
   const menu = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number; maxH: number }>()
   const aberto = !!pos
+  // celular + ação principal ("+ Nova venda"): abre uma FOLHA de baixo com as opções grandes (o menu solto sairia da tela)
+  const [folha, setFolha] = useState(false)
   const fechar = (voltarFoco = true) => {
     setPos(undefined)
     if (voltarFoco) botao.current?.focus()
   }
   const abrir = () => {
+    if (principal && window.innerWidth < 640) return setFolha(true)
     const r = botao.current!.getBoundingClientRect()
     const abaixo = window.innerHeight - r.bottom
     const right = Math.max(8, window.innerWidth - r.right)
@@ -71,10 +74,10 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
         type="button"
         aria-label={t(principal ?? rotulo)}
         title={principal ? undefined : t(rotulo)}
-        aria-haspopup="menu"
-        aria-expanded={aberto}
+        aria-haspopup={principal ? 'dialog' : 'menu'}
         aria-controls={aberto ? id : undefined}
         onClick={() => (aberto ? fechar() : abrir())}
+        aria-expanded={aberto || folha}
         className={principal
           ? 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--marca)] px-4 text-sm font-semibold text-white shadow-sm hover:brightness-110'
           : cx('inline-flex h-10 min-w-10 items-center justify-center gap-1 rounded-xl text-lg font-black leading-none hover:bg-[var(--marca-suave)] hover:text-[var(--marca)]', comRotulo ? 'border border-[var(--borda)] px-3 text-[var(--marca)]' : 'text-[var(--suave)]', aberto && 'bg-[var(--marca-suave)] text-[var(--marca)]')}
@@ -106,6 +109,23 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
             </div>
           ))}
         </div>
+      )}
+      {folha && (
+        <Janela aberta titulo={t((principal ?? rotulo).replace(/^\+\s*/, ''))} onFechar={() => setFolha(false)}>
+          <p className="mb-3 text-sm text-[var(--suave)]">{t('O que vai vender agora?')}</p>
+          <ul className="space-y-2">
+            {acoes.map((a, k) => (
+              <li key={k}>
+                <button type="button" onClick={() => (setFolha(false), a.onClick())}
+                  className={cx('flex min-h-16 w-full items-center gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left shadow-sm transition active:scale-[.99] hover:border-[var(--marca)]', k === 0 && 'border-[var(--marca)] bg-[var(--marca-suave)]', a.perigo && 'text-[var(--ruim)]')}>
+                  <span aria-hidden className={cx('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-2xl', k === 0 ? 'bg-[var(--marca)] text-white' : 'bg-[var(--fundo)]')}>{a.icone}</span>
+                  <span className="min-w-0 flex-1 font-semibold [overflow-wrap:anywhere]">{t(a.rotulo)}</span>
+                  <span aria-hidden className="text-[var(--suave)]">›</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Janela>
       )}
     </span>
   )

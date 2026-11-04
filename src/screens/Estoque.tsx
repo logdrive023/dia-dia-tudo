@@ -2,6 +2,8 @@
 // CSV), SEPARAR lote bruto em N lotes, ajustar, PRONTUÁRIO do lote (compra → triagem → venda) e RASTREIO.
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { Paginacao, usePaginacao } from '../ui/paginacao'
+import { TabelaDados } from '../ui/tabelaDados'
 import { CabecalhoFicha } from '../ui/cabecalhoFicha'
 import { GrupoFiltro, CampoFaixa, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 import { formatar } from '../core/domain/dinheiro'
@@ -174,7 +176,8 @@ export function Estoque() {
   const { tirar } = useTirarFoto()
 
   // ---------- filtros ----------
-  const chavesFiltro = Object.keys(nav.params).filter((k) => k !== 'modulo')
+  // a página e o tamanho da página não são filtro (não contam, não entram no favorito)
+  const chavesFiltro = Object.keys(nav.params).filter((k) => !['modulo', 'pagina', 'porPagina'].includes(k))
   const limpar = () => ajustarParams(Object.fromEntries(chavesFiltro.map((k) => [k, undefined])))
   const ativosEstoque = [
     ...(status ? [{ k: 'status,bruto', rotulo: `📦 ${t(STATUS_FILTRO.find((s) => s.id === status)?.nome ?? status)}` }] : []),
@@ -239,6 +242,7 @@ export function Estoque() {
       .filter((x) => x.texto && !noNome.has(x.texto.toLowerCase()) && !noNome.has(x.bruto) && ![...noNome].some((n) => n.startsWith(`${x.bruto} `)))
   }
   const visiveis = colunas.filter((c) => escolhidas.includes(c.id))
+  const pag = usePaginacao(lista, { padrao: 50, reiniciar: JSON.stringify([modulo, ...chavesFiltro.map((k) => [k, nav.params[k]])]) })
   const modo = larga ? visao : 'cartoes'
 
   // ---------- seleção e ações em massa ----------
@@ -258,17 +262,20 @@ export function Estoque() {
   // leitor pistola: Enter com o código exato de um pacote abre o pacote
   const pistola = usePistola(dados, (l) => ir('lote', { id: l.id }))
 
+  // ações de um lote: o botão rápido (✂️ Separar, só bruto com saldo) e o menu "⋯"; a tabela e o cartão usam os dois
+  const rapida = (i: Linha) => admin && ehBruto(i.status) && i.saldo > 0 ? <BotaoIcone rotulo={t('Separar')} onClick={() => ir('separar', { id: i.id })}>✂️</BotaoIcone> : null
+  const menuDe = (i: Linha) => acoesLote(
+    { id: i.id, saldo: i.saldo, compras: i.compras, vendavel: !ehBruto(i.status), etiquetaImpressa: !!i.etiquetaImpressaEm, reservado: reservado(i), origens: i.pai ? [i.pai] : i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).map((id, k) => ({ id, codigo: i.unificadoDe?.[k] })) : [] },
+    { ir, t, admin, onAjustar: () => setAjustar(i.id), onTrocarCodigo: () => setTrocar(i), onReservar: () => setReservar(i), extras: [
+      { rotulo: 'Tirar foto', icone: '📷', onClick: () => tirar(i.id), separar: true },
+      { rotulo: 'Escolher foto da galeria', icone: '🖼', onClick: () => tirar(i.id, { galeria: true }) },
+      ...(ehBruto(i.status) && i.saldo > 0 ? [{ rotulo: 'Abrir na triagem', icone: '🧺', onClick: () => ir('triagem'), separar: true }] : []),
+    ] },
+  )
   const acoes = (i: Linha) => (
     <div className="flex flex-nowrap justify-end gap-0.5" onClick={parar} onKeyDown={parar}>
-      {admin && ehBruto(i.status) && i.saldo > 0 && <BotaoIcone rotulo={t('Separar')} onClick={() => ir('separar', { id: i.id })}>✂️</BotaoIcone>}
-      <MenuAcoes acoes={acoesLote(
-        { id: i.id, saldo: i.saldo, compras: i.compras, vendavel: !ehBruto(i.status), etiquetaImpressa: !!i.etiquetaImpressaEm, reservado: reservado(i), origens: i.pai ? [i.pai] : i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).map((id, k) => ({ id, codigo: i.unificadoDe?.[k] })) : [] },
-        { ir, t, admin, onAjustar: () => setAjustar(i.id), onTrocarCodigo: () => setTrocar(i), onReservar: () => setReservar(i), extras: [
-          { rotulo: 'Tirar foto', icone: '📷', onClick: () => tirar(i.id), separar: true },
-          { rotulo: 'Escolher foto da galeria', icone: '🖼', onClick: () => tirar(i.id, { galeria: true }) },
-          ...(ehBruto(i.status) && i.saldo > 0 ? [{ rotulo: 'Abrir na triagem', icone: '🧺', onClick: () => ir('triagem'), separar: true }] : []),
-        ] },
-      )} />
+      {rapida(i)}
+      <MenuAcoes acoes={menuDe(i)} />
     </div>
   )
   /** nome numa linha só (inteiro no "title"); chips só para medida/categoria/cor que o nome não mostra */
@@ -361,35 +368,29 @@ export function Estoque() {
       ) : !lista.length ? (
         <VazioFiltro texto="Nada no estoque com esse filtro." filtrando={chavesFiltro.length > 0} onLimpar={limpar} />
       ) : modo === 'tabela' ? (
-        <div id="lista-estoque" className="overflow-x-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--fundo)] text-left text-xs text-[var(--suave)]">
-              <tr>
-                <th className="w-10 px-2 py-1.5"><input type="checkbox" className="h-5 w-5 cursor-pointer" aria-label={t('Selecionar todos os filtrados')} checked={todos} onChange={() => setSel(todos ? new Set() : new Set(lista.map((i) => i.id)))} /></th>
-                <th className="w-12 px-1 py-1.5"><span className="sr-only">{t('Foto')}</span></th>
-                <th className="whitespace-nowrap px-2 py-1.5">{t('Código')}</th>
-                <th className="px-2 py-1.5">{t('Lote / item')}</th>
-                {visiveis.map((c) => <th key={c.id} className={cx('whitespace-nowrap px-2 py-1.5', c.num && 'text-right')}>{t(c.nome)}</th>)}
-                <th className="relative w-10 px-2 py-1.5"><span className="sr-only">{t('Ações')}</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {lista.map((i) => (
-                <tr key={i.id} {...clicavel(() => ir('lote', { id: i.id }))} className={cx('cursor-pointer border-t border-[var(--borda)] align-middle outline-none hover:bg-[var(--fundo)] focus-visible:bg-[var(--marca-suave)]', sel.has(i.id) && 'bg-[var(--marca-suave)]', i.saldo <= 0 && 'text-[var(--suave)]')}>
-                  <td className="px-2 py-1">{caixa(i)}</td>
-                  <td className="px-1 py-1"><MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} tamanho="sm" iconeSemFoto /></td>
-                  <td className="whitespace-nowrap px-2 py-1"><CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /></td>
-                  <td className="w-full min-w-[11rem] max-w-0 px-2 py-1">{nomeLote(i)}</td>
-                  {visiveis.map((c) => <td key={c.id} className={cx('px-2 py-1', c.id === 'origem' && 'min-w-[10rem] max-w-[16rem]', c.id === 'status' && 'whitespace-nowrap', c.num && 'num whitespace-nowrap text-right')}>{c.celula ? c.celula(i) : c.texto(i) || '—'}</td>)}
-                  <td className="px-1 py-1">{acoes(i)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        // LISTAGEM PADRÃO (TabelaDados): seleção em massa, linhas compactas (foto pequena) e as colunas que a pessoa escolheu
+        <div id="lista-estoque">
+          <TabelaDados
+            linhas={pag.itens}
+            chave={(i) => i.id}
+            compacta
+            onAbrir={(i) => ir('lote', { id: i.id })}
+            rotuloLinha={(i) => `${i.codigo ?? ''} · ${i.nome}`}
+            acoes={menuDe}
+            acaoRapida={rapida}
+            realce={(i) => (i.saldo <= 0 ? 'apagada' : undefined)}
+            selecao={{ marcados: sel, onAlternar: alternar, onTodos: () => setSel(todos ? new Set() : new Set(lista.map((i) => i.id))), rotulo: (id) => `${t('Selecionar')} ${lista.find((i) => i.id === id)?.codigo ?? ''}` }}
+            colunas={[
+              { id: 'foto', titulo: '', classe: 'w-12', celula: (i) => <MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} tamanho="sm" iconeSemFoto /> },
+              { id: 'codigo', titulo: 'Código', classe: 'whitespace-nowrap', celula: (i) => <CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /> },
+              { id: 'nome', titulo: 'Lote / item', classe: 'w-full min-w-[11rem] max-w-0', celula: (i) => nomeLote(i) },
+              ...visiveis.map((c) => ({ id: c.id, titulo: c.nome, direita: c.num, classe: cx(c.id === 'origem' && 'min-w-[10rem] max-w-[16rem]', c.id === 'status' && 'whitespace-nowrap'), celula: (i: Linha) => (c.celula ? c.celula(i) : c.texto(i) || '—') })),
+            ]}
+          />
         </div>
       ) : (
         <ul id="lista-estoque" className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {lista.map((i) => {
+          {pag.itens.map((i) => {
             const extras = visiveis.filter((c) => !['origem', 'peso', 'status'].includes(c.id)).map((c) => [c, c.texto(i)] as const).filter(([, v]) => v)
             return (
               // cartão: [☐ foto | nome (linha toda) | ⋯] · embaixo código + status à esquerda e o peso à direita · de onde veio, pequeno
@@ -412,6 +413,7 @@ export function Estoque() {
           })}
         </ul>
       )}
+      {dados && lista.length > 0 && <Paginacao {...pag} unidade="lote(s)" />}
 
       {selecionados.length > 0 && (
         <div className="sticky bottom-20 z-20 mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-2 shadow-lg md:bottom-4" role="region" aria-label={t('Ações em massa')}>

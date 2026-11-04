@@ -414,3 +414,14 @@ Um só componente; a estrutura nunca muda entre telas, só o conteúdo (título,
 
 - **Números grandes**: `GrupoNumeros` + `NumeroGrande` (com `carregando`; tocar filtra a lista quando há filtro correspondente).
 - **Pesquisa e filtros**: `FiltroLista` (busca · ⚙ Filtros → painel em grupos · resultado "N de M" + chips ✕ · "Limpar filtros"); listas longas com `Paginacao`; vazio de filtro com `VazioFiltro`.
+
+### 11.3 Listagens (`TabelaDados` em `src/ui/tabelaDados.tsx` + `usePaginacao`/`Paginacao`/`Paginada` em `src/ui/paginacao.tsx`)
+
+Uma listagem nova é CONFIGURAÇÃO, não uma tabela nova:
+
+- **Colunas** (`{ id, titulo, celula, direita?, ordenar?, classe? }`), **linhas** e `chave`; **onAbrir** (tocar na linha / Enter abre o registro); **acoes** (o ⋯, sempre na última coluna) e `acaoRapida` (um botão antes do ⋯); **ordem/onOrdenar**; **selecao** (caixas + "todos os filtrados"); `realce` (linha apagada: cancelada, esgotado); `detalhe` (linha extra embaixo); `compacta` (linhas baixas, com foto).
+- **Celular**: `celular={{ titulo, valor, sub, selo, aberto }}` → uma linha curta por registro que abre no lugar com "Abrir →" e o ⋯. Sem `celular`, a tabela rola de lado.
+- **Estados**: `carregando` (linhas piscando), `erro`, `vazio` (`Vazio` = ainda não há nada; `VazioFiltro` = o filtro não achou, com "Limpar filtros").
+- **Paginação**: `const pag = usePaginacao(listaFiltradaEOrdenada, { padrao: 20, reiniciar: JSON.stringify(filtros) })` → `linhas={pag.itens}` e `<Paginacao {...pag} unidade="venda(s)" />`. Página e tamanho (10/20/50/100) ficam no endereço; busca/filtros/ordem novos voltam para a página 1; página fora do fim cai na última. Lista de cartões própria (fila da Triagem, Etiquetas): `<Paginada itens=… unidade=…>{(pagina, inicio) => …}</Paginada>`.
+- **Fica no módulo**: a consulta, as regras, os filtros (`FiltroLista`) e o que cada coluna mostra. Os dados são locais (paginação na tela); com a API, a mesma `usePaginacao` passa `pagina/porPagina` para a consulta.
+- **Não são listagens de registros** (ficam como estão): tabelas de relatório, grade de preços, comparativos e tabelas de detalhe dentro de uma ficha.

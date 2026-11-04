@@ -6,6 +6,8 @@
 // pagamento e a entrega (quem fez fica registrado). A conferência de peso é um lançamento no lote, sem mudar o comprado.
 
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { Paginacao, usePaginacao } from '../ui/paginacao'
+import { TabelaDados } from '../ui/tabelaDados'
 import { AcaoIcone } from '../ui/acoesPagina'
 import { CabecalhoFicha } from '../ui/cabecalhoFicha'
 import { formatar, multiplicarFator, fatorValido, moeda as moedaDe } from '../core/domain/dinheiro'
@@ -29,7 +31,6 @@ import { CampoCodigoCompra, TrocarCodigo, CodigoTexto } from '../ui/codigos'
 import { BuscaPessoa } from '../ui/buscaPessoa'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
-import { useLargo } from '../ui/calendario'
 import { NumeroGrande, type Selo, GrupoNumeros } from '../ui/numeroGrande'
 import { Passo } from '../ui/passoAPasso'
 import { CampoFaixa, GrupoFiltro, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
@@ -85,7 +86,6 @@ export function Comprar() {
   const { dados: fila } = useConsulta('filaTriagem', { incluirEncerradas: true })
   const { dados: cfg } = useConsulta('configuracoes', {})
   // celular: lista de linhas curtas que abrem no lugar; computador/tablet: a tabela
-  const largo = useLargo()
   const [abertos, setAbertos] = useState<Set<Id>>(new Set())
   const alternarAberto = (id: Id) => setAbertos((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   if (nav.params.id) return <Pedido />
@@ -129,19 +129,9 @@ export function Comprar() {
     ...(de || ate ? [{ k: 'de,ate', rotulo: `📅 ${de ? dataBR(de) : '…'} – ${ate ? dataBR(ate) : '…'}` }] : []),
   ]
   const limparCompra = () => ajustarParams({ pendencia: undefined, forn: undefined, de: undefined, ate: undefined, busca: undefined })
+  const pag = usePaginacao(lista, { reiniciar: JSON.stringify([aba, busca, pendencia, forn, de, ate, ordem]) })
+  const corEtapa = (e: string) => (e === 'concluido' ? 'text-[var(--bom)]' : ENCERRADAS.includes(e) ? 'text-[var(--ruim)]' : 'text-[var(--marca)]')
   const contaAba = { abertas: abertas.length, encerradas: todas.length - abertas.length, todas: todas.length }
-  const Th = ({ por, children, direita }: { por?: Ordem; children: ReactNode; direita?: boolean }) => (
-    <th className={cx('whitespace-nowrap px-3 py-2 text-xs font-medium text-[var(--suave)]', direita && 'text-right')}>
-      {por ? (
-        <button type="button" onClick={() => setOrdem({ por, desc: ordem.por === por ? !ordem.desc : true })} className="inline-flex items-center gap-1 hover:text-[var(--texto)]">
-          {children} {ordem.por === por && <span aria-hidden>{ordem.desc ? '↓' : '↑'}</span>}
-        </button>
-      ) : (
-        children
-      )}
-    </th>
-  )
-
   return (
     <div>
       {/* CABEÇALHO PADRÃO: nome da tela · para que serve · a ação principal à direita */}
@@ -184,108 +174,55 @@ export function Comprar() {
         </>}
       />
 
-      {!fila ? (
-        <Carregando />
-      ) : !lista.length ? (
-        <VazioFiltro texto="Nenhum pedido com esse filtro." filtrando={ativosCompra.length > 0 || !!busca.trim()} onLimpar={limparCompra} />
-      ) : !largo ? (
-        // celular: uma linha curta por pedido (quem · total · código · etapa · "2 pendências"); tocar abre o resto no lugar
-        <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
-          {lista.map((c) => {
-            const aberto = abertos.has(c.id)
-            const gramas = c.linhas.reduce((s, l) => s + l.quantidade, 0)
+      {/* LISTAGEM PADRÃO (TabelaDados): colunas · ordem · o que falta abre numa linha embaixo; celular = linha curta */}
+      <TabelaDados
+        linhas={pag.itens}
+        chave={(c) => c.id}
+        carregando={!fila}
+        vazio={<VazioFiltro texto="Nenhum pedido com esse filtro." filtrando={ativosCompra.length > 0 || !!busca.trim()} onLimpar={limparCompra} />}
+        onAbrir={(c) => ir('pedido', { id: c.id })}
+        rotuloAbrir="Abrir pedido"
+        rotuloLinha={(c) => `${codigoDe(c)} · ${c.pessoa ?? ''}`}
+        ordem={ordem}
+        onOrdenar={(por) => setOrdem({ por: por as Ordem, desc: ordem.por === por ? !ordem.desc : true })}
+        detalhe={(c) => abertos.has(c.id) && c.pendencias.length > 0 && <><span className="mr-2 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('O que falta')}</span><SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} /></>}
+        colunas={[
+          { id: 'pedido', titulo: 'Pedido', ordenar: 'data', classe: 'whitespace-nowrap', celula: (c) => <><span className="font-mono text-sm font-bold text-[var(--marca)]" title={c.codigosAnteriores?.length ? `${t('antes')}: ${c.codigosAnteriores.join(', ')}` : undefined}>{codigoDe(c)}</span><span className="num block text-xs text-[var(--suave)]">{dataBR(c.data)}</span></> },
+          { id: 'fornecedor', titulo: 'Fornecedor', classe: 'font-semibold', celula: (c) => c.pessoa ?? t('Sem fornecedor') },
+          { id: 'itens', titulo: 'Itens', celula: (c) => <><span className="block max-w-[16rem] truncate">{c.linhas.map((l) => l.descricao).join(' · ')}</span><span className="num text-xs text-[var(--suave)]">{c.linhas.length} {t('item(ns)')} · {gramasTexto(c.linhas.reduce((s, l) => s + l.quantidade, 0))}</span></> },
+          { id: 'etapa', titulo: 'Etapa', celula: (c) => <><span className={cx('block text-xs font-semibold', corEtapa(c.etapa))}>{t(c.nomeEtapa)}</span><Progresso etapas={etapasDo(c.moduloId)} atual={c.etapa} mini /></> },
+          // o que falta: um resumo ("○ 2 pendências ▸"); tocar abre a lista numa linha embaixo
+          { id: 'falta', titulo: 'O que falta', celula: (c) => c.pendencias.length ? (
+            <button type="button" aria-expanded={abertos.has(c.id)} onClick={(e) => (e.stopPropagation(), alternarAberto(c.id))}
+              className={cx('inline-flex min-h-9 items-center gap-1 whitespace-nowrap rounded-full px-2 text-xs font-semibold hover:bg-[var(--fundo)]', c.pendencias.some((p) => p.nivel === 'urgente') ? 'text-[var(--ruim)]' : 'text-[var(--alerta)]')}>
+              {c.pendencias.some((p) => p.nivel === 'urgente') ? '●' : '○'} {t(c.pendencias.length === 1 ? '1 pendência' : '{n} pendências', { n: c.pendencias.length })}
+              <span aria-hidden className={cx('transition-transform', abertos.has(c.id) && 'rotate-90')}>›</span>
+            </button>
+          ) : <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} /> },
+          { id: 'parada', titulo: 'Parada', ordenar: 'parada', direita: true, classe: 'text-[var(--suave)]', celula: (c) => (ENCERRADAS.includes(c.etapa) ? '—' : `${c.diasParada} d`) },
+          { id: 'total', titulo: 'Total', ordenar: 'total', direita: true, celula: (c) => <b>{formatar(c.totalPrincipal, c.moedaPrincipal)}</b> },
+        ]}
+        celular={{
+          titulo: (c) => c.pessoa ?? t('Sem fornecedor'),
+          valor: (c) => formatar(c.totalPrincipal, c.moedaPrincipal),
+          sub: (c) => {
             const urgente = c.pendencias.some((p) => p.nivel === 'urgente')
-            return (
-              <li key={c.id} className={cx(aberto && 'bg-[var(--marca-suave)]/40')}>
-                <button type="button" aria-expanded={aberto} onClick={() => alternarAberto(c.id)} className="flex w-full min-w-0 items-center gap-2 px-3 py-2.5 text-left">
-                  <span className="min-w-0 flex-1">
-                    <span className="flex min-w-0 items-baseline gap-2">
-                      <b className="min-w-0 flex-1 truncate">{c.pessoa ?? t('Sem fornecedor')}</b>
-                      <b className="num shrink-0 whitespace-nowrap">{formatar(c.totalPrincipal, c.moedaPrincipal)}</b>
-                    </span>
-                    <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 text-xs">
-                      <CodigoTexto codigo={codigoDe(c)} />
-                      <span className={cx('font-semibold', c.etapa === 'concluido' ? 'text-[var(--bom)]' : ENCERRADAS.includes(c.etapa) ? 'text-[var(--ruim)]' : 'text-[var(--marca)]')}>{t(c.nomeEtapa)}</span>
-                      {c.pendencias.length > 0
-                        ? <span className={cx('font-semibold', urgente ? 'text-[var(--ruim)]' : 'text-[var(--alerta)]')}>{urgente ? '●' : '○'} {t(c.pendencias.length === 1 ? '1 pendência' : '{n} pendências', { n: c.pendencias.length })}</span>
-                        : <span className="font-semibold text-[var(--bom)]">✓ {t('Completa')}</span>}
-                    </span>
-                  </span>
-                  <span aria-hidden className={cx('shrink-0 text-lg text-[var(--suave)] transition-transform', aberto && 'rotate-90')}>›</span>
-                </button>
-                {aberto && (
-                  <div className="space-y-2 px-3 pb-3 text-sm">
-                    <Progresso etapas={etapasDo(c.moduloId)} atual={c.etapa} mini />
-                    <p className="num text-xs text-[var(--suave)]">{dataBR(c.data)} · {c.linhas.length} {t('item(ns)')} · {gramasTexto(gramas)}{ENCERRADAS.includes(c.etapa) ? '' : ` · ${t('parada há {n} d', { n: c.diasParada })}`}</p>
-                    {c.pendencias.length > 0 && <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} />}
-                    <Botao className="w-full" onClick={() => ir('pedido', { id: c.id })}>{t('Abrir pedido')} →</Botao>
-                  </div>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
-          <table className="w-full text-sm">
-            <thead className="hidden border-b border-[var(--borda)] bg-[var(--fundo)] text-left md:table-header-group">
-              <tr>
-                <Th por="data">{t('Pedido')}</Th>
-                <Th>{t('Fornecedor')}</Th>
-                <Th>{t('Itens')}</Th>
-                <Th>{t('Etapa')}</Th>
-                <Th>{t('O que falta')}</Th>
-                <Th por="parada" direita>{t('Parada')}</Th>
-                <Th por="total" direita>{t('Total')}</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {lista.map((c) => {
-                const gramas = c.linhas.reduce((s, l) => s + l.quantidade, 0)
-                return (
-                  <Fragment key={c.id}>
-                  <tr tabIndex={0} role="link" aria-label={`${codigoDe(c)} · ${c.pessoa ?? ''}`} onKeyDown={(e) => e.key === 'Enter' && ir('pedido', { id: c.id })} onClick={() => ir('pedido', { id: c.id })} className="cursor-pointer border-t border-[var(--borda)] first:border-t-0 hover:bg-[var(--marca-suave)] max-md:grid max-md:grid-cols-[1fr_auto] max-md:gap-x-3 max-md:p-3">
-                    <td className="px-3 py-3 max-md:p-0">
-                      <span className="whitespace-nowrap font-mono text-sm font-bold text-[var(--marca)]" title={c.codigosAnteriores?.length ? `${t('antes')}: ${c.codigosAnteriores.join(', ')}` : undefined}>{codigoDe(c)}</span>
-                      <span className="block text-xs text-[var(--suave)]">{dataBR(c.data)}</span>
-                    </td>
-                    <td className="px-3 py-3 font-semibold max-md:order-first max-md:col-span-2 max-md:p-0">{c.pessoa ?? t('Sem fornecedor')}</td>
-                    <td className="px-3 py-3 max-md:hidden">
-                      <span className="block max-w-[16rem] truncate">{c.linhas.map((l) => l.descricao).join(' · ')}</span>
-                      <span className="num text-xs text-[var(--suave)]">{c.linhas.length} {t('item(ns)')} · {gramasTexto(gramas)}</span>
-                    </td>
-                    <td className="px-3 py-3 max-md:p-0">
-                      <span className={cx('block text-xs font-semibold', c.etapa === 'concluido' ? 'text-[var(--bom)]' : ENCERRADAS.includes(c.etapa) ? 'text-[var(--ruim)]' : 'text-[var(--marca)]')}>{t(c.nomeEtapa)}</span>
-                      <Progresso etapas={etapasDo(c.moduloId)} atual={c.etapa} mini />
-                    </td>
-                    {/* o que falta: um resumo ("○ 2 pendências ▸"); tocar abre a lista numa linha embaixo */}
-                    <td className="px-3 py-3 max-md:col-span-2 max-md:p-0 max-md:pt-1">
-                      {c.pendencias.length ? (
-                        <button type="button" aria-expanded={abertos.has(c.id)} onClick={(e) => (e.stopPropagation(), alternarAberto(c.id))}
-                          className={cx('inline-flex min-h-9 items-center gap-1 whitespace-nowrap rounded-full px-2 text-xs font-semibold hover:bg-[var(--fundo)]', c.pendencias.some((p) => p.nivel === 'urgente') ? 'text-[var(--ruim)]' : 'text-[var(--alerta)]')}>
-                          {c.pendencias.some((p) => p.nivel === 'urgente') ? '●' : '○'} {t(c.pendencias.length === 1 ? '1 pendência' : '{n} pendências', { n: c.pendencias.length })}
-                          <span aria-hidden className={cx('transition-transform', abertos.has(c.id) && 'rotate-90')}>›</span>
-                        </button>
-                      ) : <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} />}
-                    </td>
-                    <td className="num px-3 py-3 text-right text-[var(--suave)] max-md:hidden">{ENCERRADAS.includes(c.etapa) ? '—' : `${c.diasParada} d`}</td>
-                    <td className="num px-3 py-3 text-right font-bold max-md:col-start-2 max-md:row-start-2 max-md:p-0">{formatar(c.totalPrincipal, c.moedaPrincipal)}</td>
-                  </tr>
-                  {abertos.has(c.id) && c.pendencias.length > 0 && (
-                    <tr className="bg-[var(--fundo)]">
-                      <td colSpan={7} className="px-3 py-2">
-                        <span className="mr-2 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('O que falta')}</span>
-                        <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} />
-                      </td>
-                    </tr>
-                  )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+            return <span className="flex min-w-0 flex-wrap items-center gap-x-2">
+              <CodigoTexto codigo={codigoDe(c)} />
+              <span className={cx('font-semibold', corEtapa(c.etapa))}>{t(c.nomeEtapa)}</span>
+              {c.pendencias.length > 0
+                ? <span className={cx('font-semibold', urgente ? 'text-[var(--ruim)]' : 'text-[var(--alerta)]')}>{urgente ? '●' : '○'} {t(c.pendencias.length === 1 ? '1 pendência' : '{n} pendências', { n: c.pendencias.length })}</span>
+                : <span className="font-semibold text-[var(--bom)]">✓ {t('Completa')}</span>}
+            </span>
+          },
+          aberto: (c) => <>
+            <Progresso etapas={etapasDo(c.moduloId)} atual={c.etapa} mini />
+            <p className="num text-xs text-[var(--suave)]">{dataBR(c.data)} · {c.linhas.length} {t('item(ns)')} · {gramasTexto(c.linhas.reduce((s, l) => s + l.quantidade, 0))}{ENCERRADAS.includes(c.etapa) ? '' : ` · ${t('parada há {n} d', { n: c.diasParada })}`}</p>
+            {c.pendencias.length > 0 && <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} />}
+          </>,
+        }}
+      />
+      {fila && <Paginacao {...pag} unidade="pedido(s)" />}
     </div>
   )
 }
