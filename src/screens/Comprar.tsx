@@ -1390,12 +1390,12 @@ export function Pedido() {
       {corrigirValor && <CorrigirValor compraId={c.id} linha={corrigirValor} onFechar={() => setCorrigirValor(undefined)} />}
       {ligarViagem && <LigarViagem compraId={c.id} onFechar={() => setLigarViagem(false)} />}
 
-      {/* ABAS: Resumo (itens + para onde foi) · Pagamento · Conta · Anexos · Histórico */}
+      {/* ABAS (nomes iguais em toda ficha): Resumo · Pagamento · Conta · Arquivos · Histórico */}
       <Abas variante="sublinhado" atual={aba} onChange={(x) => setAba(x as typeof aba)} abas={[
         { id: 'resumo', nome: 'Resumo' },
         { id: 'pagamento', nome: 'Pagamento', extra: c.pendencias.length ? <span aria-hidden className="text-[var(--alerta)]">●</span> : undefined },
         ...(dados.pessoa ? [{ id: 'conta', nome: 'Conta' }] : []),
-        { id: 'anexos', nome: 'Anexos', extra: anexos?.length ? <span className="num text-xs opacity-70">{anexos.length}</span> : undefined },
+        { id: 'anexos', nome: 'Arquivos', extra: anexos?.length ? <span className="num text-xs opacity-70">{anexos.length}</span> : undefined },
         { id: 'historico', nome: 'Histórico' },
       ]} />
 

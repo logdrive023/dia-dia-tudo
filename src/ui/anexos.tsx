@@ -222,17 +222,19 @@ export function AbaAnexos({ donoId, categorias, padrao }: { donoId: Id; categori
   const t = useT()
   const { dados } = useConsulta('anexosDe', { donoId })
   if (!dados) return null
-  if (!dados.length)
-    return (
-      <div className="rounded-2xl border border-dashed border-[var(--borda)] p-6 text-center">
-        <p className="mb-3 text-sm text-[var(--suave)]">{t('Nenhum anexo ainda. Fotos do pedido e do cabelo, comprovantes de pagamento e de origem ficam aqui.')}</p>
+  // ARQUIVOS (padrão de toda ficha: pedido, pacote, venda): um cartão com o título, quantos e o "Anexar"; dentro, a
+  // lista com filtro por tipo (comprovante, foto, origem…). Sem nada: diz o que costuma ir aqui.
+  return (
+    <section aria-label={t('Arquivos')} className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--borda)] px-4 py-3">
+        <h2 className="flex min-w-0 flex-1 items-center gap-2 text-base font-bold"><span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--fundo)]">📎</span>{t('Arquivos')} <span className="num text-sm font-normal text-[var(--suave)]">{dados.length}</span></h2>
         <BotaoAnexar donoId={donoId} categorias={categorias} padrao={padrao} />
       </div>
-    )
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-end"><BotaoAnexar donoId={donoId} categorias={categorias} padrao={padrao} /></div>
-      <ListaAnexos anexos={dados} comFiltro />
-    </div>
+      <div className="p-4">
+        {dados.length
+          ? <ListaAnexos anexos={dados} comFiltro />
+          : <p className="rounded-xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nenhum arquivo ainda. Comprovantes, fotos e notas ficam aqui — {tipos}.', { tipos: categorias.map((c) => t(NOMES_ANEXO[c])).join(', ') })}</p>}
+      </div>
+    </section>
   )
 }

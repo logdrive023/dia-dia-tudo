@@ -1,7 +1,7 @@
 // CAMINHO DO CABELO — o histórico ÚNICO do sistema (Compra, Triagem, Estoque/pacote e Venda usam este, e só este).
 // Um componente só, grande, que responde "por onde este cabelo passou e para onde vai":
 //   0. A SITUAÇÃO AGORA numa frase ("Agora: no estoque · 3 de 5 com etiqueta · 2 vendas") — o que se quer saber primeiro;
-//   1. AS 5 ETAPAS, sempre na mesma ordem — 🛒 Compra → ✂️ Triagem → 📦 Estoque → 🏷 Etiqueta → 💰 Venda:
+//   1. AS 5 ETAPAS, na ordem do negócio — 🛒 Compra → 📦 Estoque (entra bruto) → ✂️ Triagem → 🏷 Etiqueta → 💰 Venda:
 //      ✓ verde = já passou (com o resumo) · destaque "você está aqui" = a etapa desta tela · tracejado = ainda vai passar.
 //      Todos os códigos à vista (nada de "+2"); o desta tela vem marcado. Um clique no código abre aquele registro.
 //   2. OS FILTROS por etapa (Tudo · Compra · Triagem · Estoque · Venda, com quantos registros cada): tocar numa etapa
@@ -38,21 +38,20 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
   className?: string
 }) {
   const t = useT()
-  const { ir, sessao } = useApp()
-  const admin = sessao.perfil === 'admin'
-  const { dados: g } = useConsulta('genealogia', de, admin)
+  const { ir } = useApp()
+  const { dados: g } = useConsulta('genealogia', de)
   const [filtroUrl, setFiltro] = useParamTela('etapa', '')
   const filtro = filtroUrl as EtapaCabelo | ''
-  if (!admin) return semCadeia ? <section className={cx('rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:p-4', className)}>{semCadeia}</section> : null
-  if (!g) return null
+  if (!g) return semCadeia ? <section className={cx('rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:p-4', className)}>{semCadeia}</section> : null
   const itemDaTela = 'itemId' in de ? de.itemId : undefined
   const vendaDaTela = 'vendaId' in de ? de.vendaId : undefined
   const compras = g.compras
   const triagens = g.triagens
   const lotes = g.lotes.filter((l) => !l.bruto)
   // o bruto JÁ está no estoque (esperando a triagem): conta na etapa Estoque
-  const brutos = g.lotes.filter((l) => l.bruto && l.saldo > 0)
-  const noEstoque = [...lotes, ...brutos]
+  // a compra entra no estoque como BRUTO (o primeiro registro do estoque); os que já foram triados ficam com "já triado"
+  const brutos = g.lotes.filter((l) => l.bruto)
+  const noEstoque = [...brutos, ...lotes]
   // vendas: a desta tela primeiro
   const vendas = [...g.vendas].sort((a, b) => Number(b.id === vendaDaTela) - Number(a.id === vendaDaTela))
   const comprado = compras.reduce((s, c) => s + c.g, 0) || g.totais.entrou
@@ -67,6 +66,12 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
       itens: compras.map((c) => ({ id: c.id, codigo: c.codigo, desta: 'compraId' in de && de.compraId === c.id, info: [c.fornecedor, c.data && dataBR(c.data)].filter(Boolean).join(' · '), valor: gramasTexto(c.g), abrir: () => ir('pedido', { id: c.id }) })),
     },
     {
+      id: 'estoque', feito: noEstoque.length > 0, n: noEstoque.length,
+      resumo: lotes.length ? `${t('{n} pacote(s)', { n: lotes.length })} · ${t('{g} agora', { g: gramasTexto(g.totais.emEstoque) })}` : brutos.some((l) => l.saldo > 0) ? `${gramasTexto(brutos.reduce((s, l) => s + l.saldo, 0))} ${t('bruto · aguardando triagem')}` : t('ainda não'),
+      detalhe: lotes.length ? t('entraram {g}', { g: gramasTexto(lotes.reduce((s, l) => s + l.entrou, 0)) }) : undefined,
+      itens: [...noEstoque].sort((a, b) => Number(b.id === itemDaTela) - Number(a.id === itemDaTela)).map((l) => ({ id: l.id, codigo: l.codigo, desta: l.id === itemDaTela, info: l.bruto ? `${t('entrou bruto')} · ${t(l.saldo > 0 ? 'aguardando triagem' : 'já triado')}` : l.nome, valor: l.saldo > 0 ? gramasTexto(l.saldo) : l.bruto ? gramasTexto(l.entrou) : t('sem saldo'), abrir: () => ir('lote', { id: l.id }) })),
+    },
+    {
       id: 'triagem', feito: triagens.length > 0 || veioSeparado, n: triagens.length,
       resumo: triagens.length
         ? `${gramasTexto(triagens.reduce((s, x) => s + x.entradas.reduce((a, e) => a + e.g, 0), 0))} → ${gramasTexto(triagens.reduce((s, x) => s + x.saidas.reduce((a, e) => a + e.g, 0), 0))}`
@@ -77,16 +82,10 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
         : veioSeparado ? compras.map((c) => ({ id: `sep-${c.id}`, codigo: c.codigo, info: t('separado por medida na compra (pela tabela)'), valor: t('ver a compra'), abrir: () => ir('pedido', { id: c.id }) })) : [],
     },
     {
-      id: 'estoque', feito: noEstoque.length > 0, n: noEstoque.length,
-      resumo: lotes.length ? `${t('{n} pacote(s)', { n: lotes.length })} · ${t('{g} agora', { g: gramasTexto(g.totais.emEstoque) })}` : brutos.length ? `${gramasTexto(brutos.reduce((s, l) => s + l.saldo, 0))} ${t('bruto · aguardando triagem')}` : t('ainda não'),
-      detalhe: lotes.length ? t('entraram {g}', { g: gramasTexto(lotes.reduce((s, l) => s + l.entrou, 0)) }) : undefined,
-      itens: [...noEstoque].sort((a, b) => Number(b.id === itemDaTela) - Number(a.id === itemDaTela)).map((l) => ({ id: l.id, codigo: l.codigo, desta: l.id === itemDaTela, info: l.bruto ? `${l.nome} · ${t('aguardando triagem')}` : l.nome, valor: l.saldo > 0 ? gramasTexto(l.saldo) : t('sem saldo'), abrir: () => ir('lote', { id: l.id }) })),
-    },
-    {
       id: 'etiqueta', feito: comSaldo.length > 0 ? semEtiqueta.length === 0 : lotes.some((l) => l.etiquetaEm), n: lotes.filter((l) => l.etiquetaEm).length,
       resumo: !lotes.length ? t('ainda não') : comSaldo.length ? (semEtiqueta.length ? t('{c} de {n} com etiqueta', { c: comSaldo.length - semEtiqueta.length, n: comSaldo.length }) : t('todos com etiqueta')) : t('{n} etiqueta(s) impressa(s)', { n: lotes.filter((l) => l.etiquetaEm).length }),
       detalhe: semEtiqueta.length ? t('falta imprimir {n}', { n: semEtiqueta.length }) : undefined,
-      itens: semEtiqueta.map((l) => ({ id: l.id, codigo: l.codigo, desta: l.id === itemDaTela, info: l.nome, valor: `🖨 ${t('imprimir')}`, abrir: () => ir('etiquetas', { f: 'todas', sel: l.id }) })),
+      itens: lotes.map((l) => ({ id: l.id, codigo: l.codigo, desta: l.id === itemDaTela, info: l.etiquetaEm ? `${l.nome} · ${t('impressa')} ${dataBR(l.etiquetaEm)}${l.etiquetaPor ? ` · ${l.etiquetaPor}` : ''}` : l.nome, valor: l.etiquetaEm ? `✓ ${t('etiqueta')}` : l.saldo > 0 ? `🖨 ${t('imprimir')}` : t('sem saldo'), abrir: () => (l.etiquetaEm || l.saldo <= 0 ? ir('lote', { id: l.id }) : ir('etiquetas', { f: 'todas', sel: l.id })) })),
     },
     {
       id: 'venda', feito: vendas.length > 0, n: vendas.length,
@@ -100,7 +99,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
   return (
     <section aria-label={t('Caminho do cabelo')} className={cx('overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm', className)}>
       {/* 1. AS ETAPAS */}
-      <div className="bg-[linear-gradient(180deg,var(--marca-suave),transparent)] p-3 sm:p-5">
+      <div className="bg-[linear-gradient(180deg,var(--marca-suave),transparent)] px-3 pb-6 pt-4 sm:px-5 sm:pb-8 sm:pt-5">
         <div className="mb-4 flex flex-wrap items-baseline gap-x-2">
           <h2 className="text-base font-bold sm:text-lg">🧬 {t('Caminho do cabelo')}</h2>
           <span className="text-xs text-[var(--suave)]">{t('por onde ele passou e para onde vai · toque numa etapa para filtrar, num código para abrir')}</span>
@@ -160,7 +159,9 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
 
       {!compacto && <>
         {/* 2. OS FILTROS POR ETAPA */}
-        <div role="group" aria-label={t('Filtrar por etapa')} className="flex gap-1.5 overflow-x-auto border-y border-[var(--borda)] bg-[var(--fundo)] px-3 py-2 [scrollbar-width:none] sm:px-5">
+        <div className="border-y border-[var(--borda)] bg-[var(--fundo)] px-3 pb-3 pt-4 sm:px-5">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('Filtrar por etapa')}</p>
+        <div role="group" aria-label={t('Filtrar por etapa')} className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
           {[{ id: '' as const, nome: 'Tudo', n: etapas.reduce((s, e) => s + e.n, 0) }, ...etapas.map((e) => ({ id: e.id, nome: `${ICONE[e.id]} ${t(NOME[e.id])}`, n: e.n }))].map((f) => (
             <button key={f.id || 'tudo'} type="button" aria-pressed={filtro === f.id} onClick={() => setFiltro(f.id)}
               className={cx('min-h-10 shrink-0 rounded-full px-3 text-sm font-semibold', filtro === f.id ? 'bg-[var(--marca)] text-white' : 'bg-[var(--cartao)] text-[var(--texto)] ring-1 ring-[var(--borda)] hover:ring-[var(--marca)]')}>
@@ -168,35 +169,16 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
             </button>
           ))}
         </div>
+        </div>
 
         {/* 3. O DETALHE DE CADA ETAPA (só as do filtro) */}
         <div className="space-y-4 bg-[var(--fundo)] p-3 sm:p-5">
           {mostrar('compra') && (
             <Bloco icone="🛒" titulo="Compra" vazio={!compras.length && t('Ainda não há compra ligada a este cabelo.')}>
               {compras.map((c, k) => (
-                <div key={c.id} className="space-y-2">
-                  <Cabeca codigo={c.codigo} texto={[c.fornecedor, c.data && dataBR(c.data), gramasTexto(c.g)].filter(Boolean).join(' · ')} onAbrir={() => ir('pedido', { id: c.id })} rotulo="Abrir pedido" />
+                <div key={c.id} className="space-y-3">
+                  <Cabeca codigo={c.codigo} nome={c.fornecedor} data={c.data && dataBR(c.data)} valor={gramasTexto(c.g)} onAbrir={() => ir('pedido', { id: c.id })} rotulo="Abrir pedido" destaque={'compraId' in de && de.compraId === c.id} />
                   <LinhaDoTempo id={c.id} prefixo={`cc${k}`} simples />
-                </div>
-              ))}
-            </Bloco>
-          )}
-          {mostrar('triagem') && (
-            <Bloco icone="✂️" titulo="Triagem" vazio={!triagens.length && (veioSeparado ? t('Não passou por triagem: já veio separado por medida na compra (pela tabela).') : t('Ainda não foi separado. Quando separar, a conta aparece aqui.'))}>
-              {triagens.map((x) => (
-                <div key={x.id} className="rounded-xl border border-[var(--borda)] p-3">
-                  <Cabeca codigo={x.codigo} texto={[x.em && dataBR(x.em), x.por].filter(Boolean).join(' · ')} onAbrir={() => ir('triagem', { aba: 'triagens', t: x.id })} rotulo="Abrir triagem" />
-                  <div className="num mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                    <span>{t('Entrou')} <b>{gramasTexto(x.entradas.reduce((a, e) => a + e.g, 0))}</b></span>
-                    <span aria-hidden className="text-[var(--suave)]">→</span>
-                    <span>{t('Saiu')} <b className="text-[var(--bom)]">{gramasTexto(x.saidas.reduce((a, e) => a + e.g, 0))}</b></span>
-                    <span className="rounded-full bg-[var(--alerta)]/12 px-2 py-0.5 text-xs font-bold text-[var(--alerta)]">{t('perda')} {pctBp(x.perdaPct)} · {gramasTexto(x.perda)}</span>
-                  </div>
-                  <p className="mt-2 flex flex-wrap items-center gap-1 text-xs text-[var(--suave)]">
-                    {t('Entrou')}: {x.entradas.map((e) => <Codigo key={e.id} codigo={e.codigo} onClick={() => ir('lote', { id: e.id })} />)}
-                    <span className="mx-1">→</span>
-                    {t('Virou')}: {x.saidas.map((e) => <Codigo key={e.id} codigo={e.codigo} onClick={() => ir('lote', { id: e.id })} />)}
-                  </p>
                 </div>
               ))}
             </Bloco>
@@ -226,6 +208,26 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
               )}
             </Bloco>
           )}
+          {mostrar('triagem') && (
+            <Bloco icone="✂️" titulo="Triagem" vazio={!triagens.length && (veioSeparado ? t('Não passou por triagem: já veio separado por medida na compra (pela tabela).') : t('Ainda não foi separado. Quando separar, a conta aparece aqui.'))}>
+              {triagens.map((x) => (
+                <div key={x.id} className="rounded-xl border border-[var(--borda)] p-3">
+                  <Cabeca codigo={x.codigo} nome={x.por} data={x.em && dataBR(x.em)} destaque={'triagemId' in de && de.triagemId === x.id} onAbrir={() => ir('triagem', { aba: 'triagens', t: x.id })} rotulo="Abrir triagem" />
+                  <div className="num mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                    <span>{t('Entrou')} <b>{gramasTexto(x.entradas.reduce((a, e) => a + e.g, 0))}</b></span>
+                    <span aria-hidden className="text-[var(--suave)]">→</span>
+                    <span>{t('Saiu')} <b className="text-[var(--bom)]">{gramasTexto(x.saidas.reduce((a, e) => a + e.g, 0))}</b></span>
+                    <span className="rounded-full bg-[var(--alerta)]/12 px-2 py-0.5 text-xs font-bold text-[var(--alerta)]">{t('perda')} {pctBp(x.perdaPct)} · {gramasTexto(x.perda)}</span>
+                  </div>
+                  <p className="mt-2 flex flex-wrap items-center gap-1 text-xs text-[var(--suave)]">
+                    {t('Entrou')}: {x.entradas.map((e) => <Codigo key={e.id} codigo={e.codigo} onClick={() => ir('lote', { id: e.id })} />)}
+                    <span className="mx-1">→</span>
+                    {t('Virou')}: {x.saidas.map((e) => <Codigo key={e.id} codigo={e.codigo} onClick={() => ir('lote', { id: e.id })} />)}
+                  </p>
+                </div>
+              ))}
+            </Bloco>
+          )}
           {mostrar('etiqueta') && (
             <Bloco icone="🏷" titulo="Etiqueta" vazio={!lotes.length && t('Ainda não há pacote para etiquetar.')}>
               <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-xl border border-[var(--borda)]">
@@ -245,8 +247,8 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
           {mostrar('venda') && (
             <Bloco icone="💰" titulo="Venda" vazio={!vendas.length && t('Ainda não foi vendido.')}>
               {vendas.map((v, k) => (
-                <div key={v.id} className="space-y-2">
-                  <Cabeca codigo={v.codigo} texto={[v.cliente, v.data && dataBR(v.data), gramasTexto(v.g)].filter(Boolean).join(' · ')} onAbrir={v.id === vendaDaTela ? undefined : () => ir('venda', { id: v.id })} rotulo="Abrir venda" destaque={v.id === vendaDaTela} />
+                <div key={v.id} className="space-y-3">
+                  <Cabeca codigo={v.codigo} nome={v.cliente} data={v.data && dataBR(v.data)} valor={gramasTexto(v.g)} onAbrir={v.id === vendaDaTela ? undefined : () => ir('venda', { id: v.id })} rotulo="Abrir venda" destaque={v.id === vendaDaTela} />
                   {/* o registro completo só da venda desta tela; as outras numa linha (um toque abre) */}
                   {v.id === vendaDaTela && <LinhaDoTempo id={v.id} prefixo={`cv${k}`} simples />}
                 </div>
@@ -271,14 +273,18 @@ function Bloco({ icone, titulo, vazio, children }: { icone: string; titulo: stri
   )
 }
 
-function Cabeca({ codigo, texto, onAbrir, rotulo, destaque }: { codigo?: string; texto: string; onAbrir?(): void; rotulo: string; destaque?: boolean }) {
+/** Cabeça de um registro (compra, venda) dentro da etapa: código · quem (em destaque) · data · quanto — cada um no seu lugar. */
+function Cabeca({ codigo, nome, data, valor, onAbrir, rotulo, destaque }: { codigo?: string; nome?: string; data?: string | false; valor?: string; onAbrir?(): void; rotulo: string; destaque?: boolean }) {
   const t = useT()
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <b className={cx('rounded-lg px-2 py-0.5 font-mono text-sm', destaque ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>{codigo ?? '—'}</b>
-      <span className="num min-w-0 flex-1 truncate text-sm text-[var(--suave)]">{texto}</span>
-      {destaque && <span className="text-xs font-semibold text-[var(--marca)]">{t('este')}</span>}
-      {onAbrir && <button type="button" onClick={onAbrir} className="min-h-9 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t(rotulo)} →</button>}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-[var(--fundo)] px-3 py-2 ring-1 ring-[var(--borda)]">
+      <b className={cx('shrink-0 rounded-lg px-2 py-0.5 font-mono text-sm', destaque ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>{codigo ?? '—'}</b>
+      <span className="min-w-0 flex-[1_1_8rem]">
+        <b className="block truncate">{nome || '—'}</b>
+        {(data || destaque) && <span className="num block text-xs text-[var(--suave)]">{data}{destaque && <b className="text-[var(--marca)]">{data ? ' · ' : ''}{t('este')}</b>}</span>}
+      </span>
+      {valor && <b className="num shrink-0 text-lg">{valor}</b>}
+      {onAbrir && <button type="button" onClick={onAbrir} className="-mr-1 min-h-10 shrink-0 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--cartao)]">{t(rotulo)} →</button>}
     </div>
   )
 }

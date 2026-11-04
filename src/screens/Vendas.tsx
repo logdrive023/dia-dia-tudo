@@ -8,7 +8,7 @@ import type { Id, Transacao } from '../core/domain/tipos'
 import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, ValorInput, cx, dataBR, ErroTela, gramasTexto, loc, Confirmar } from '../ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { cotacaoDoPagamento, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
-import { AnexosCurtos } from '../ui/anexos'
+import { AbaAnexos } from '../ui/anexos'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { useT } from '../ui/i18n'
@@ -39,7 +39,7 @@ export function DetalheVenda() {
   const { executar } = useComando()
   const [cancelar, setCancelar] = useState(false)
   const [corrigir, setCorrigir] = useState(false)
-  const [aba, setAba] = useParamTela<'resumo' | 'tempo' | 'arquivos' | 'correcoes'>('aba', 'resumo')
+  const [aba, setAba] = useParamTela<'resumo' | 'historico' | 'arquivos' | 'correcoes'>('aba', 'resumo')
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
   const v = dados.venda
@@ -85,17 +85,18 @@ export function DetalheVenda() {
         </div>
         <Abas variante="sublinhado" atual={aba} onChange={(a) => setAba(a as typeof aba)} abas={[
           { id: 'resumo', nome: 'Resumo' },
-          { id: 'tempo', nome: 'Linha do tempo' },
           { id: 'arquivos', nome: 'Arquivos', extra: dados.anexos.length ? <span className="num text-xs opacity-70">{dados.anexos.length}</span> : undefined },
+          { id: 'historico', nome: 'Histórico' },
           ...(correcoes.length ? [{ id: 'correcoes', nome: 'Correções', extra: <span className="num text-xs opacity-70">{correcoes.length}</span> }] : []),
         ]} />
-        {aba === 'tempo' ? (
+        {aba === 'historico' || (aba as string) === 'tempo' ? (
           // UM bloco só: o caminho do cabelo (com o registro desta venda dentro); venda sem cabelo: só o registro
           v.linhas.some((l) => l.itemId)
             ? <CaminhoDoCabelo de={{ vendaId: v.id }} atual="venda" semCadeia={<LinhaDoTempo id={v.id} />} />
-            : <Cartao titulo={t('Linha do tempo')}><LinhaDoTempo id={v.id} /></Cartao>
+            : <Cartao titulo={t('Histórico')}><LinhaDoTempo id={v.id} /></Cartao>
         ) : aba === 'arquivos' ? (
-          <Cartao titulo={t('Fotos e comprovantes')}><AnexosCurtos donoId={v.id} categorias={['comprovante', 'pedido', 'resultado']} padrao="comprovante" /></Cartao>
+          // ARQUIVOS padrão de toda ficha (o mesmo do pedido e do pacote)
+          <AbaAnexos donoId={v.id} categorias={['comprovante', 'pedido', 'resultado']} padrao="comprovante" />
         ) : aba === 'correcoes' && correcoes.length ? (
           <Cartao titulo={`${t('Correções')} (${correcoes.length})`} ajuda="Cada correção guarda antes → depois, quem corrigiu e o motivo. Nada é apagado. Ex.: 1.200 g → 1.180 g · Bs 7.800 → Bs 7.670 · Paula · na balança deu menos.">
             <ul className="space-y-2 text-sm">
@@ -109,6 +110,8 @@ export function DetalheVenda() {
             </ul>
           </Cartao>
         ) : <>
+        {/* bater o olho: de qual compra veio, qual pacote saiu e QUAL ETIQUETA ele tem (o completo fica em Linha do tempo) */}
+        {v.linhas.some((l) => l.itemId) && <CaminhoDoCabelo de={{ vendaId: v.id }} atual="venda" compacto className="mb-4" />}
         <div className="grid gap-4 md:grid-cols-2">
           <Cartao titulo={t('Itens')}>
             <ul className="divide-y divide-[var(--borda)] text-sm">

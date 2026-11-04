@@ -440,9 +440,10 @@ Toda tela que deixa marcar itens usa o mesmo painel (Triagem, Estoque, Etiquetas
 Pedido, Pacote, Venda e Triagem feita usam só este (nada de "histórico" + "linha do tempo" repetidos):
 
 - **Agora:** uma frase com a situação ("3 kg no estoque · 2 sem etiqueta · 1 venda").
-- **5 etapas em lista**: 🛒 Compra → ✂️ Triagem → 📦 Estoque → 🏷 Etiqueta → 💰 Venda; ✓ já passou · "você está aqui" · tracejado = ainda vai passar. Cada etapa lista seus registros (código · o que é · quanto ›), todos à vista, o desta tela marcado; um clique abre. Triagem sem registro mostra a referência ("separado pela tabela na compra P-0002").
+- **5 etapas em lista, na ordem do negócio**: 🛒 Compra → 📦 Estoque (entra bruto) → ✂️ Triagem → 🏷 Etiqueta (cada pacote: impressa quando/por quem, ou imprimir) → 💰 Venda; ✓ já passou · "você está aqui" · tracejado = ainda vai passar. Cada etapa lista seus registros (código · o que é · quanto ›), todos à vista, o desta tela marcado; um clique abre. Triagem sem registro mostra a referência ("separado pela tabela na compra P-0002").
 - **Filtro por etapa** (Tudo · Compra · Triagem · Estoque · Etiqueta · Venda) e, embaixo, o **detalhe** de cada etapa num cartão: o registro do pedido, a conta da triagem, o pacote grama a grama, as etiquetas (imprimir as que faltam) e o registro da venda.
-- Quem não é administrador vê só o registro da própria tela (`semCadeia`). `compacto` = só as etapas (dentro de cartões de lista).
+- Vale para todos os perfis (a consulta só traz gramas, códigos e nomes). `compacto` = só as etapas (no Resumo da venda e nos cartões de lista).
+- **Arquivos**: toda ficha (pedido, pacote, venda) usa a mesma aba `AbaAnexos` (cartão com contagem, "Anexar" e filtro por tipo).
 
 ### 11.6 Regras que o dono muda sem código
 

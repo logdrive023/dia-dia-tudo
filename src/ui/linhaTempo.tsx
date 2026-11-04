@@ -4,10 +4,11 @@
 // pagamentos, itens, anexo e as referências clicáveis (lote, venda, compra, triagem, viagem, adiantamento).
 
 import { useState } from 'react'
+import { CartaoEvento, SeloEvento, DetalhesEvento, BlocoDetalhe, AntesDepois, BotaoReferencia, CabecalhoDia, ListaEventos, type TomEvento } from './cartaoEvento'
 import { BarraFiltros, ChipsFiltros, PainelFiltros, GrupoFiltro, CampoFaixa } from './filtroPadrao'
 import { formatar } from '../core/domain/dinheiro'
 import type { EventoTempo } from '../core/services/historico'
-import { Botao, Info, cx, gramasTexto, loc, Pilula, Vazio, TituloSecao, BotaoExpandir, Campo, Selecao, Entrada, diaMes } from './base'
+import { Botao, Info, cx, gramasTexto, loc, Vazio, BotaoExpandir, Campo, Selecao, Entrada, diaMes } from './base'
 import { baixarCSV } from './csv'
 import { useApp, useConsulta } from './contexto'
 import { useT } from './i18n'
@@ -199,15 +200,13 @@ export function LinhaDoTempo({ id, prefixo = 'lt', simples }: { id: string; pref
           {ativo && <Botao variante="leve" className="mt-1" onClick={limpar}>{t('Limpar')}</Botao>}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {[...dias].map(([dia, evs]) => (
-            <section key={dia}>
-              <TituloSecao className="mb-1">
-                {new Date(dia + 'T12:00:00').toLocaleDateString(loc(), { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
-              </TituloSecao>
-              <ul className="divide-y divide-[var(--borda)] rounded-2xl border border-[var(--borda)]">
+            <section key={dia} aria-label={dia}>
+              <CabecalhoDia data={dia} quantos={evs.length} />
+              <ListaEventos>
                 {evs.map(({ e, c }) => <Evento key={c} e={e} aberto={abertos.has(c)} onAlternar={() => alternar(c)} />)}
-              </ul>
+              </ListaEventos>
             </section>
           ))}
         </div>
@@ -217,6 +216,15 @@ export function LinhaDoTempo({ id, prefixo = 'lt', simples }: { id: string; pref
   )
 }
 
+/** cor do evento: entrou/recebeu = verde, saiu/pagou = vermelho, correção = alerta, o resto na cor da marca */
+function tomDe(e: Ev, n?: number): TomEvento {
+  if (e.correcao) return 'alerta'
+  if (n !== undefined && (e.tipo === 'estoque' || e.tipo === 'caixa' || e.tipo === 'conta')) return n > 0 ? 'bom' : n < 0 ? 'ruim' : 'suave'
+  if (e.tipo === 'anexo' || e.tipo === 'acao') return 'suave'
+  return 'marca'
+}
+
+/** Um evento da linha do tempo, no cartão padrão (CartaoEvento): o que foi, o número, os selos, a referência. */
 function Evento({ e, aberto, onAlternar }: { e: Ev; aberto: boolean; onAlternar(): void }) {
   const t = useT()
   const { ir } = useApp()
@@ -225,54 +233,37 @@ function Evento({ e, aberto, onAlternar }: { e: Ev; aberto: boolean; onAlternar(
   const unidade = e.itens?.[0]?.unidade
   const mesmaUnidade = !!e.itens?.length && e.itens.every((it) => it.quantidade !== undefined && it.unidade === unidade)
   const totalQtd = mesmaUnidade ? e.itens!.reduce((s, it) => s + (it.quantidade ?? 0), 0) : undefined
-  // resumo curto na segunda linha: o item (ou quantos), senão o texto do registro
+  const comSinal = e.tipo === 'caixa' || e.tipo === 'conta'
+  // o número que importa: o dinheiro do evento ou, no estoque, quanto entrou/saiu
+  const numero = e.valor ? e.valor.valor : e.tipo === 'estoque' ? totalQtd : undefined
+  const valor = e.valor
+    ? `${comSinal && e.valor.valor > 0 ? '+' : ''}${formatar(e.valor.valor, e.valor.moeda)}`
+    : totalQtd !== undefined && e.tipo === 'estoque' ? `${totalQtd > 0 ? '+' : ''}${quantidade(totalQtd, unidade)}` : undefined
   const resumo = e.itens?.length === 1 ? e.itens[0].texto : e.itens && e.itens.length > 1 ? t('{n} item(ns)', { n: e.itens.length }) : textoLivre(e)
+  const links = linksDe(e)
   return (
-    <li className="p-3">
-      <div className="flex gap-3">
-        <span aria-hidden className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--marca-suave)] text-base">{e.correcao && e.tipo !== 'etapa' ? ICONES.correcao : ICONES[e.tipo]}</span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-            <p className="min-w-0 font-semibold [overflow-wrap:anywhere]">
-              {t(e.titulo)}
-              {e.de && e.para && (
-                <span className="ml-2 inline-flex items-center gap-1 text-sm font-semibold">
-                  <Pilula>{t(e.de)}</Pilula>→<Pilula tom="marca">{t(e.para)}</Pilula>
-                </span>
-              )}
-              {!e.de && e.para && <Pilula tom="marca" className="ml-2">{t(e.para)}</Pilula>}
-            </p>
-            {e.valor ? (
-              <span className={cx('num whitespace-nowrap font-bold', (e.tipo === 'caixa' || e.tipo === 'conta') && (e.valor.valor > 0 ? 'text-[var(--bom)]' : 'text-[var(--ruim)]'))}>
-                {totalAntes !== undefined && <s className="mr-1 font-normal text-[var(--suave)]">{formatar(totalAntes, e.valor.moeda)}</s>}
-                {(e.tipo === 'caixa' || e.tipo === 'conta') && e.valor.valor > 0 ? '+' : ''}
-                {formatar(e.valor.valor, e.valor.moeda)}
-              </span>
-            ) : (
-              totalQtd !== undefined && e.tipo === 'estoque' && (
-                <span className={cx('num whitespace-nowrap font-bold', totalQtd > 0 ? 'text-[var(--bom)]' : 'text-[var(--ruim)]')}>{totalQtd > 0 ? '+' : ''}{quantidade(totalQtd, unidade)}</span>
-              )
-            )}
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-x-2">
-            <p className="min-w-0 flex-1 truncate text-sm text-[var(--suave)]">
-              <span className="num">{hora}</span>
-              {e.por && <> · {e.por}</>}
-              {e.valor?.forma && <> · {t(e.valor.forma)}</>}
-              {resumo && <> · {resumo}</>}
-            </p>
-            {/* referência à vista: leva direto ao que foi catalogado (sem abrir os detalhes) */}
-            {linksDe(e).length > 0 && (
-              <button type="button" onClick={() => { const l = linksDe(e)[0]; ir(l.tela, l.params ?? {}) }} className="-my-1 min-h-10 max-w-[45%] truncate rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">↗ {t(linksDe(e)[0].rotulo)}{linksDe(e).length > 1 ? ` +${linksDe(e).length - 1}` : ''}</button>
-            )}
-            <button type="button" aria-expanded={aberto} onClick={onAlternar} className="-my-1 min-h-10 whitespace-nowrap rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">
-              {aberto ? `${t('fechar')} ▴` : `${t('detalhes')} ▾`}
-            </button>
-          </div>
-        </div>
-      </div>
-      {aberto && <Detalhes e={e} />}
-    </li>
+    <CartaoEvento
+      icone={e.correcao && e.tipo !== 'etapa' ? ICONES.correcao : ICONES[e.tipo]}
+      tom={tomDe(e, numero)}
+      titulo={t(e.titulo)}
+      etapa={e.para ? { de: e.de, para: e.para } : undefined}
+      resumo={resumo}
+      selos={[
+        <SeloEvento key="h" icone="🕒">{hora}</SeloEvento>,
+        e.por && <SeloEvento key="p" icone="👤">{e.por}</SeloEvento>,
+        e.valor?.forma && <SeloEvento key="f" icone="💳">{t(e.valor.forma)}</SeloEvento>,
+        e.correcao && <SeloEvento key="c" icone={ICONES.correcao}>{t('Correção')}</SeloEvento>,
+      ]}
+      valor={valor}
+      valorTom={comSinal || e.tipo === 'estoque' ? tomDe({ ...e, correcao: undefined }, numero) : undefined}
+      valorAntes={totalAntes !== undefined && e.valor ? formatar(totalAntes, e.valor.moeda) : undefined}
+      // referência à vista: leva direto ao que foi catalogado (sem abrir os detalhes)
+      referencia={links.length ? { rotulo: t(links[0].rotulo), abrir: () => ir(links[0].tela, links[0].params ?? {}), mais: links.length - 1 } : undefined}
+      aberto={aberto}
+      onAlternar={onAlternar}
+    >
+      <Detalhes e={e} />
+    </CartaoEvento>
   )
 }
 
@@ -281,7 +272,9 @@ function linksDe(e: Ev) {
   return e.links?.length ? e.links : e.ref ? [{ tipo: e.ref.tela, tela: e.ref.tela, params: { id: e.ref.id }, rotulo: e.ref.tela === 'venda' ? 'Abrir venda' : e.ref.tela === 'lote' ? 'Abrir lote' : 'Abrir' }] : []
 }
 
-/** Ficha do evento: tudo o que ele sabe, no mesmo formato do histórico do pacote. */
+const ICONE_LINK: Record<string, string> = { lote: '📦', venda: '🧾', compra: '🛒', triagem: '🧺', viagem: '🧳', adiantamento: '🤝', pessoa: '👤', emprestimo: '💸', caixa: '💵' }
+
+/** Ficha do evento: cada informação num bloco (rótulo em cima, valor embaixo); o "antes → depois" primeiro e largo. */
 function Detalhes({ e }: { e: Ev }) {
   const t = useT()
   const { ir } = useApp()
@@ -289,120 +282,99 @@ function Detalhes({ e }: { e: Ev }) {
   const texto = textoLivre(e)
   const saldos = e.grupo ? e.grupo.filter((g) => g.saldo) : e.saldo ? [e] : []
   const links = linksDe(e)
-  const ICONE_LINK: Record<string, string> = { lote: '📦', venda: '🧾', compra: '🛒', triagem: '🧺', viagem: '🧳', adiantamento: '🤝', pessoa: '👤', emprestimo: '💸', caixa: '💵' }
-  // no celular o rótulo fica em cima do valor; da tela média para cima, lado a lado
-  const dt = 'mt-1.5 text-xs font-semibold text-[var(--suave)] first:mt-0 sm:mt-0 sm:text-sm sm:font-normal'
+  const somaItens = !!e.itens && e.itens.length > 1 && e.itens.every((it) => it.quantidade !== undefined && it.unidade === unidade)
   return (
-    <dl className="mt-2 grid grid-cols-1 gap-x-3 sm:grid-cols-[auto,minmax(0,1fr)] sm:gap-y-1 rounded-xl bg-[var(--fundo)] p-3 text-sm sm:ml-11">
-      <dt className={dt}>{t('Tipo')}</dt>
-      <dd className="font-semibold">
-        {ICONES[e.tipo]} {t(NOMES[e.tipo])}
-        {e.categoria && <span className="font-normal"> · {t(e.categoria)}</span>}
-        {e.correcao && <span className="ml-1 rounded-full bg-[var(--marca-suave)] px-2 text-xs text-[var(--marca)]">{ICONES.correcao} {t('Correção')}</span>}
-      </dd>
-      <dt className={dt}>{t('Data e hora')}</dt><dd className="num">{dataCompleta(e.em)}</dd>
-      <dt className={dt}>{t('Quem')}</dt><dd>{e.por ?? '—'}</dd>
+    <DetalhesEvento>
       {saldos.length > 0 && (
-        <>
-          <dt className={dt}>{t('Antes · Movimentou · Depois')}</dt>
-          <dd>
-            <ul className="space-y-0.5">
-              {saldos.map((g, i) => (
-                <li key={i} className="num [overflow-wrap:anywhere]">
-                  {saldos.length > 1 || g.saldo!.rotulo !== 'Total' ? <span className="text-[var(--suave)]">{t(g.saldo!.rotulo)}: </span> : null}
-                  {medida(g.saldo!.antes, g.saldo!)} · <span className={g.saldo!.delta < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{medida(g.saldo!.delta, g.saldo!, true)}</span> · <b>{medida(g.saldo!.depois, g.saldo!)}</b>
-                </li>
-              ))}
-            </ul>
-          </dd>
-        </>
-      )}
-      {(e.de || e.para) && (
-        <>
-          <dt className={dt}>{t('Etapa')}</dt>
-          <dd>{e.de ? <>{t(e.de)} → </> : null}<b>{e.para ? t(e.para) : '—'}</b></dd>
-        </>
-      )}
-      {e.valor && (
-        <>
-          <dt className={dt}>{t('Valor')}</dt>
-          <dd className="num">{formatar(e.valor.valor, e.valor.moeda)}{e.valor.forma && <span className="text-[var(--suave)]"> · {t(e.valor.forma)}</span>}</dd>
-        </>
-      )}
-      {e.motivo && <><dt className={dt}>{t('Motivo')}</dt><dd className="[overflow-wrap:anywhere]">{e.motivo}</dd></>}
-      {!!e.ajustes?.length && (
-        <>
-          <dt className={dt}>{t('Ajustes')}</dt>
-          <dd><ul className="list-disc pl-4">{e.ajustes.map((a, k) => <li key={k} className="[overflow-wrap:anywhere]">{a}</li>)}</ul></dd>
-        </>
-      )}
-      {!!e.pagamentos?.length && (
-        <>
-          <dt className={dt}>{t('Pagamentos')}</dt>
-          <dd>
-            <ul className="space-y-0.5">
-              {e.pagamentos.map((p, k) => (
-                <li key={k} className="num">
-                  {t(p.forma)} · <b>{formatar(p.valor, p.moeda)}</b>
-                  {p.cotacao && <span className="text-[var(--suave)]"> · {t('Cotação')} {p.cotacao}</span>}
-                  {p.valorPrincipal !== undefined && p.moedaPrincipal && <span className="text-[var(--suave)]"> ≈ {formatar(p.valorPrincipal, p.moedaPrincipal)}</span>}
-                </li>
-              ))}
-            </ul>
-          </dd>
-        </>
+        <BlocoDetalhe rotulo="O que mudou" largo>
+          <div className="space-y-2">
+            {saldos.map((g, i) => (
+              <AntesDepois
+                key={i}
+                rotulo={saldos.length > 1 || g.saldo!.rotulo !== 'Total' ? t(g.saldo!.rotulo) : undefined}
+                antes={medida(g.saldo!.antes, g.saldo!)}
+                mudou={medida(g.saldo!.delta, g.saldo!, true)}
+                depois={medida(g.saldo!.depois, g.saldo!)}
+                negativo={g.saldo!.delta < 0}
+              />
+            ))}
+          </div>
+        </BlocoDetalhe>
       )}
       {!!e.itens?.length && (
-        <>
-          <dt className={dt}>{t('Itens')}</dt>
-          <dd>
-            <ul className="space-y-0.5">
-              {e.itens.map((it, k) => (
-                <li key={k} className="flex justify-between gap-3">
-                  {e.refs?.[k] ? (
-                    <button type="button" onClick={() => ir(e.refs![k]!.tela, { id: e.refs![k]!.id })} className="min-w-0 text-left font-semibold text-[var(--marca)] hover:underline">{it.texto}</button>
-                  ) : (
-                    <span className="min-w-0 [overflow-wrap:anywhere]">{it.texto}</span>
-                  )}
-                  <span className="num shrink-0 text-right">
-                    {it.quantidade !== undefined && <b>{quantidade(it.quantidade, it.unidade)}</b>}
-                    {it.valor !== undefined && it.moeda && <span className="ml-2 text-[var(--suave)]">{formatar(it.valor, it.moeda)}</span>}
-                  </span>
-                </li>
-              ))}
-              {e.itens.length > 1 && e.itens.every((it) => it.quantidade !== undefined && it.unidade === unidade) && (
-                <li className="flex justify-between gap-3 border-t border-[var(--borda)] pt-1 font-semibold">
-                  <span>{t('Total')} · {t('{n} item(ns)', { n: e.itens.length })}</span>
-                  <span className="num">{quantidade(e.itens.reduce((s, it) => s + (it.quantidade ?? 0), 0), unidade)}</span>
-                </li>
-              )}
-            </ul>
-          </dd>
-        </>
+        <BlocoDetalhe rotulo="Itens" largo>
+          <ul className="divide-y divide-[var(--borda)]">
+            {e.itens.map((it, k) => (
+              <li key={k} className="flex items-baseline justify-between gap-3 py-1.5 first:pt-0 last:pb-0">
+                {e.refs?.[k] ? (
+                  <button type="button" onClick={() => ir(e.refs![k]!.tela, { id: e.refs![k]!.id })} className="min-w-0 text-left font-semibold text-[var(--marca)] hover:underline">{it.texto} →</button>
+                ) : (
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{it.texto}</span>
+                )}
+                <span className="num shrink-0 text-right">
+                  {it.quantidade !== undefined && <b>{quantidade(it.quantidade, it.unidade)}</b>}
+                  {it.valor !== undefined && it.moeda && <span className="ml-2 text-[var(--suave)]">{formatar(it.valor, it.moeda)}</span>}
+                </span>
+              </li>
+            ))}
+            {somaItens && (
+              <li className="flex justify-between gap-3 pt-1.5 font-bold">
+                <span>{t('Total')} · {t('{n} item(ns)', { n: e.itens.length })}</span>
+                <span className="num">{quantidade(e.itens.reduce((s, it) => s + (it.quantidade ?? 0), 0), unidade)}</span>
+              </li>
+            )}
+          </ul>
+        </BlocoDetalhe>
+      )}
+      {!!e.pagamentos?.length && (
+        <BlocoDetalhe rotulo="Pagamentos" largo>
+          <ul className="space-y-1">
+            {e.pagamentos.map((p, k) => (
+              <li key={k} className="num flex flex-wrap items-baseline justify-between gap-x-3">
+                <span>{t(p.forma)}{p.cotacao && <span className="text-[var(--suave)]"> · {t('Cotação')} {p.cotacao}</span>}</span>
+                <span><b>{formatar(p.valor, p.moeda)}</b>{p.valorPrincipal !== undefined && p.moedaPrincipal && <span className="text-[var(--suave)]"> ≈ {formatar(p.valorPrincipal, p.moedaPrincipal)}</span>}</span>
+              </li>
+            ))}
+          </ul>
+        </BlocoDetalhe>
+      )}
+      <BlocoDetalhe rotulo="Quando"><span className="num">{dataCompleta(e.em)}</span></BlocoDetalhe>
+      <BlocoDetalhe rotulo="Tipo">
+        <b>{ICONES[e.tipo]} {t(NOMES[e.tipo])}</b>
+        {e.categoria && <span className="text-[var(--suave)]"> · {t(e.categoria)}</span>}
+      </BlocoDetalhe>
+      {e.valor && (
+        <BlocoDetalhe rotulo="Valor">
+          <b className="num">{formatar(e.valor.valor, e.valor.moeda)}</b>
+          {e.valor.forma && <span className="text-[var(--suave)]"> · {t(e.valor.forma)}</span>}
+        </BlocoDetalhe>
+      )}
+      {(e.de || e.para) && (
+        <BlocoDetalhe rotulo="Etapa">{e.de ? <span className="text-[var(--suave)]">{t(e.de)} → </span> : null}<b>{e.para ? t(e.para) : '—'}</b></BlocoDetalhe>
+      )}
+      {e.motivo && <BlocoDetalhe rotulo="Motivo">{e.motivo}</BlocoDetalhe>}
+      {!!e.ajustes?.length && (
+        <BlocoDetalhe rotulo="Ajustes" largo>
+          <ul className="list-disc space-y-0.5 pl-4">{e.ajustes.map((a, k) => <li key={k}>{a}</li>)}</ul>
+        </BlocoDetalhe>
       )}
       {e.anexo && (
-        <>
-          <dt className={dt}>{t('Anexo')}</dt>
-          <dd className="[overflow-wrap:anywhere]">
-            📎 {e.anexo.nome}
-            <span className="text-[var(--suave)]">
-              {e.anexo.mime && <> · {e.anexo.mime}</>}
-              {e.anexo.tamanho !== undefined && <> · <span className="num">{Math.max(1, Math.round(e.anexo.tamanho / 1024)).toLocaleString(loc())} KB</span></>}
-            </span>
-          </dd>
-        </>
+        <BlocoDetalhe rotulo="Anexo">
+          📎 {e.anexo.nome}
+          <span className="text-[var(--suave)]">
+            {e.anexo.mime && <> · {e.anexo.mime}</>}
+            {e.anexo.tamanho !== undefined && <> · <span className="num">{Math.max(1, Math.round(e.anexo.tamanho / 1024)).toLocaleString(loc())} KB</span></>}
+          </span>
+        </BlocoDetalhe>
       )}
-      {texto && <><dt className={dt}>{t('Descrição')}</dt><dd className="[overflow-wrap:anywhere]">{texto}</dd></>}
-      <dt className={dt}>{t('Referência')}</dt>
-      <dd className="flex flex-wrap gap-1">
-        {!links.length
-          ? '—'
-          : links.map((l, k) => (
-              <button key={k} type="button" onClick={() => ir(l.tela, l.params ?? {})} className="min-h-8 rounded-full bg-[var(--cartao)] px-2 font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">
-                {ICONE_LINK[l.tipo] ?? '→'} {t(l.rotulo)} →
-              </button>
-            ))}
-      </dd>
-    </dl>
+      {texto && <BlocoDetalhe rotulo="Descrição" largo>{texto}</BlocoDetalhe>}
+      {links.length > 0 && (
+        <BlocoDetalhe rotulo="Referências" largo>
+          <div className="flex flex-wrap gap-1.5">
+            {links.map((l, k) => <BotaoReferencia key={k} icone={ICONE_LINK[l.tipo]} onClick={() => ir(l.tela, l.params ?? {})}>{t(l.rotulo)}</BotaoReferencia>)}
+          </div>
+        </BlocoDetalhe>
+      )}
+    </DetalhesEvento>
   )
 }

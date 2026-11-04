@@ -50,12 +50,13 @@ describe('tabela de preço (tela)', () => {
     const botao = publicar()!
     const proxima = botao.textContent!.replace('Publicar ', '')
     fireEvent.click(botao)
-    await waitFor(() => expect(publicar()).toBeNull(), { timeout: 10000 })
-    await screen.findByRole('button', { name: '60 cm · Helena: 17' }, { timeout: 10000 })
+    // com a suíte inteira em paralelo a tela pode levar mais que 10 s para recarregar a tabela publicada (instável antes)
+    await waitFor(() => expect(publicar()).toBeNull(), { timeout: 30000 })
+    await screen.findByRole('button', { name: '60 cm · Helena: 17' }, { timeout: 30000 })
 
     fireEvent.click(screen.getByRole('tab', { name: /Histórico/ }))
-    await screen.findByText('“Subiu 60 cm Helena”', {}, { timeout: 10000 })
-    await screen.findByText(new RegExp(`→ ${proxima}: \\d+ preço`), {}, { timeout: 10000 })
-    expect((await screen.findAllByText('+6,3%', {}, { timeout: 10000 })).length).toBeGreaterThan(0)
+    await screen.findByText('“Subiu 60 cm Helena”', {}, { timeout: 30000 })
+    await screen.findByText(new RegExp(`→ ${proxima}: \\d+ preço`), {}, { timeout: 30000 })
+    expect((await screen.findAllByText('+6,3%', {}, { timeout: 30000 })).length).toBeGreaterThan(0)
   }, 120000)
 })

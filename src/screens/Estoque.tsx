@@ -17,14 +17,13 @@ import { fatorDaTabela } from '../core/services/precos'
 import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Escolha, GramasInput, Info, Janela, Pagina, Selecao, Titulo, Vazio, cx, dataBR, fmt, gramasTexto, ErroTela, moedaPadrao, TituloSecao, BotaoExpandir, diaMes } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela, useFiltrosTela } from '../ui/contexto'
 import { clicavel } from '../ui/compartilhados'
-import { AnexosCurtos } from '../ui/anexos'
+import { AbaAnexos } from '../ui/anexos'
 import { CamposDinamicos, resumoCampos } from '../ui/camposDinamicos'
 import { BarraFluxo, LeitorCodigo, STATUS_LOTE, StatusBadge, useTelaLarga } from '../ui/estoqueUi'
 import { usePistola } from '../ui/leitorPistola'
 import { useLembrado } from '../ui/filtros'
-import { LinhaDoTempo } from '../ui/linhaTempo'
 import { HistoricoPacote } from '../ui/historicoPacote'
-import { CadeiaChips, Caminho, RastreioTotal } from '../ui/rastreioTotal'
+import { CadeiaChips, RastreioTotal } from '../ui/rastreioTotal'
 import { LinhaDaVida } from '../ui/linhaVida'
 import { NumeroGrande, GrupoNumeros } from '../ui/numeroGrande'
 import { MenuAcoes, acoesLote } from '../ui/menuAcoes'
@@ -875,7 +874,7 @@ export function FichaLote() {
       ) : aba === 'fotos' ? (
         <div className="space-y-4">
           <Cartao titulo={`${t('Fotos do lote')}${dados.fotos.length ? ` · ${dados.fotos.length}` : ''}`}><FotosDoLote itemId={i.id} codigo={i.codigo} /></Cartao>
-          <Cartao titulo={t('Arquivos')}><AnexosCurtos donoId={i.id} categorias={['outro']} esconderFotos /></Cartao>
+          <AbaAnexos donoId={i.id} categorias={['outro']} />
         </div>
       ) : aba === 'resumo' ? (
       <div className="space-y-4">
@@ -1005,9 +1004,8 @@ export function Rastreio() {
     <div className="space-y-4">
       <Trilha niveis={foco} atual={t('Rastreio total')} />
       <Titulo subtitulo={t('Cada grama: como entrou e para onde foi.')}>{t('Rastreio: origem → destino')}</Titulo>
-      <Caminho g={dados} />
-      <Cartao><RastreioTotal g={dados} /></Cartao>
-      {dados.compras.map((c) => <Cartao key={c.id} titulo={`${t('Linha do tempo da compra')} ${c.codigo ?? ''}`}><LinhaDoTempo id={c.id} /></Cartao>)}
+      {/* o mapa inteiro; o histórico de cada registro abre no próprio cartão ("Histórico ▾") */}
+      <RastreioTotal g={dados} />
     </div>
   )
 }

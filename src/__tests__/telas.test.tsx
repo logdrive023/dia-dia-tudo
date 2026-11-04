@@ -100,8 +100,8 @@ describe('telas (com os dados de exemplo)', () => {
     await screen.findByRole('region', { name: 'Para onde foi esta compra' }, { timeout: 10000 })
     expect(screen.getByText(/Pacotes desta compra/)).toBeTruthy()
     expect(screen.queryByText('onde está agora', { exact: false })).toBeNull()
-    fireEvent.click(screen.getByRole('tab', { name: /Anexos/ }))
-    await screen.findByText(/Nenhum anexo ainda/)
+    fireEvent.click(screen.getByRole('tab', { name: /Arquivos/ }))
+    await screen.findByText(/Nenhum arquivo ainda/)
     fireEvent.click(screen.getByRole('button', { name: '+ Anexar' }))
     const janela = await screen.findByRole('dialog')
     // o mais provável já vem marcado; troca para comprovante de pagamento
@@ -111,7 +111,7 @@ describe('telas (com os dados de exemplo)', () => {
     fireEvent.change(within(janela).getByText('Arquivo PDF').parentElement!.querySelector('input')!, { target: { files: [pdf] } })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 10000 })
     await screen.findByText('pix-maria.pdf', {}, { timeout: 10000 })
-    await waitFor(() => expect(screen.getByRole('tab', { name: /Anexos/ }).textContent).toMatch(/Anexos\s*1/), { timeout: 10000 })
+    await waitFor(() => expect(screen.getByRole('tab', { name: /Arquivos/ }).textContent).toMatch(/Arquivos\s*1/), { timeout: 10000 })
   }, 120000)
 
   it('troca para espanhol', async () => {

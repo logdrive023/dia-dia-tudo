@@ -24,7 +24,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
   const id = useId()
   const botao = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number; maxH: number }>()
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; right?: number; left?: number; maxH: number }>()
   const aberto = !!pos
   // celular + ação principal ("+ Nova venda"): abre uma FOLHA de baixo com as opções grandes (o menu solto sairia da tela)
   const [folha, setFolha] = useState(false)
@@ -36,8 +36,10 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
     if (principal && window.innerWidth < 640) return setFolha(true)
     const r = botao.current!.getBoundingClientRect()
     const abaixo = window.innerHeight - r.bottom
-    const right = Math.max(8, window.innerWidth - r.right)
-    setPos(abaixo > 260 || abaixo > r.top ? { top: r.bottom + 4, right, maxH: abaixo - 12 } : { bottom: window.innerHeight - r.top + 4, right, maxH: r.top - 12 })
+    // abre para o lado que CABE: alinhado à direita do botão; se o botão está perto da borda esquerda, alinhado à esquerda
+    const largura = Math.min(288, window.innerWidth - 16)
+    const lado = r.right - largura < 8 ? { left: Math.max(8, Math.min(r.left, window.innerWidth - largura - 8)) } : { right: Math.max(8, window.innerWidth - r.right) }
+    setPos(abaixo > 260 || abaixo > r.top ? { top: r.bottom + 4, ...lado, maxH: abaixo - 12 } : { bottom: window.innerHeight - r.top + 4, ...lado, maxH: r.top - 12 })
   }
   useEffect(() => {
     if (!aberto) return
@@ -95,7 +97,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
           role="menu"
           aria-label={t(rotulo)}
           onKeyDown={andar}
-          style={{ top: pos.top, bottom: pos.bottom, right: pos.right, maxHeight: Math.max(160, pos.maxH) }}
+          style={{ top: pos.top, bottom: pos.bottom, right: pos.right, left: pos.left, maxHeight: Math.max(160, pos.maxH) }}
           className="fixed z-50 w-max min-w-56 max-w-[calc(100vw-16px)] overflow-y-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-1 text-left shadow-xl"
         >
           {acoes.map((a, k) => (
