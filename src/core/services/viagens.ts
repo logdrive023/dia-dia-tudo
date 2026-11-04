@@ -105,7 +105,7 @@ export async function salvarCategoriasViagem(ctx: Ctx, d: { categorias: Categori
 /** Cria ou edita a viagem (só admin). Código "VG-0001" na criação. */
 export async function salvarViagem(
   ctx: Ctx,
-  d: { id: Id; nome: string; destino?: string; viajantes: Id[]; inicio: string; fim?: string; orcamento?: number; orcamentoCompra?: number; rateio?: 'grama' | 'valor'; obs?: string },
+  d: { id: Id; nome: string; destino?: string; naBolivia?: boolean; viajantes: Id[]; inicio: string; fim?: string; orcamento?: number; orcamentoCompra?: number; rateio?: 'grama' | 'valor'; obs?: string },
 ) {
   exigirAdmin(ctx, 'Só o administrador cria ou muda uma viagem.')
   const nome = d.nome?.trim()
@@ -119,7 +119,7 @@ export async function salvarViagem(
   if (d.orcamentoCompra !== undefined) exigirInteiroPositivo(d.orcamentoCompra, 'Orçamento de compra', true)
   exigir(!d.rateio || d.rateio === 'grama' || d.rateio === 'valor', 'Rateio inválido.')
   const antes = await ctx.repos.viagens.obter(d.id)
-  const campos = { nome, destino: d.destino?.trim() || undefined, viajantes, inicio: d.inicio, fim: d.fim || undefined, orcamento: d.orcamento, orcamentoCompra: d.orcamentoCompra, obs: d.obs?.trim() || undefined }
+  const campos = { nome, destino: d.destino?.trim() || undefined, naBolivia: d.naBolivia || undefined, viajantes, inicio: d.inicio, fim: d.fim || undefined, orcamento: d.orcamento, orcamentoCompra: d.orcamentoCompra, obs: d.obs?.trim() || undefined }
   if (!antes) {
     const v = novo<Viagem>(ctx, { id: d.id, codigo: await proximoCodigo(ctx, 'VG'), ...campos, status: 'aberta', rateio: d.rateio ?? 'grama', despesas: [], carteira: [] })
     await ctx.repos.viagens.salvar(v)

@@ -152,6 +152,7 @@ components:
         - salvarVendaAberta
         - descartarVendaAberta
         - tirarDaVendaAberta
+        - salvarCidade
         - pagarCompra
         - cancelarCompra
         - conferirPesoCompra
@@ -231,6 +232,7 @@ components:
         - lerCodigoPacote
         - vendasAbertas
         - viagensParaFiltro
+        - cidades
         - origemDaVenda
         - triagens
         - livroCabelo

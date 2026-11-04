@@ -439,6 +439,8 @@ export interface Viagem extends Base {
   codigo: string
   nome: string
   destino?: string
+  /** a viagem é na Bolívia (o destino veio da lista de cidades) — sem marcar: destino escrito à mão */
+  naBolivia?: boolean
   /** pessoas (funcionárias/sócias) que viajaram */
   viajantes: Id[]
   inicio: string

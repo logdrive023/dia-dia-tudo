@@ -21,6 +21,8 @@ import { LinhaDoTempo } from '../ui/linhaTempo'
 import { NumeroGrande, NumeroPequeno } from '../ui/numeroGrande'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { Passo } from '../ui/passoAPasso'
+import { CampoCidade } from '../ui/campoCidade'
+import { CIDADES_BOLIVIA, textoCidade } from '../core/dados/cidadesBolivia'
 import { AvisoNoAparelho, BarraOrcamento, CarteiraViagem, FolhaDespesa, LinhaGasto, PainelViajante } from '../ui/viagem'
 
 const TOM_STATUS = { aberta: 'marca', encerrada: 'neutro' } as const
@@ -233,6 +235,8 @@ function FormViagem({ viagem }: { viagem?: Viagem }) {
   const [id] = useState(() => viagem?.id ?? novoId())
   const [nome, setNome] = useState(viagem?.nome ?? '')
   const [destino, setDestino] = useState(viagem?.destino ?? '')
+  // "É viagem na Bolívia?" — Sim: escolhe na lista das cidades · Não: escreve o destino (nova viagem começa no Sim)
+  const [naBolivia, setNaBolivia] = useState<'sim' | 'nao'>(() => !viagem || (viagem.naBolivia ?? (!viagem.destino || CIDADES_BOLIVIA.some((c) => textoCidade(c) === viagem.destino))) ? 'sim' : 'nao')
   const [viajantes, setViajantes] = useState<Id[]>(viagem?.viajantes ?? [])
   const [inicio, setInicio] = useState(viagem?.inicio ?? dataLocal())
   const [fim, setFim] = useState(viagem?.fim ?? '')
@@ -242,7 +246,7 @@ function FormViagem({ viagem }: { viagem?: Viagem }) {
   const [obs, setObs] = useState(viagem?.obs ?? '')
   useAvisoSaida(!viagem && !ocupado && (!!nome || viajantes.length > 0))
   const salvar = async () => {
-    const r = await executar('salvarViagem', { id, nome, destino, viajantes, inicio, fim: fim || undefined, orcamento, orcamentoCompra, rateio, obs }, t(viagem ? 'Viagem salva.' : 'Viagem criada.'))
+    const r = await executar('salvarViagem', { id, nome, destino, naBolivia: naBolivia === 'sim', viajantes, inicio, fim: fim || undefined, orcamento, orcamentoCompra, rateio, obs }, t(viagem ? 'Viagem salva.' : 'Viagem criada.'))
     if (!r) return
     marcarSujo(false)
     if (viagem) voltar()
@@ -267,7 +271,12 @@ function FormViagem({ viagem }: { viagem?: Viagem }) {
           ajuda="Um nome curto para achar a viagem depois, para onde vai e as datas. A volta pode ficar em branco."
           exemplo="Ex.: Feira de Oruro · novembro · Oruro · 02/11 → 07/11 (6 dias)">
           <Campo rotulo="Nome da viagem *"><Entrada value={nome} onChange={(e) => setNome(e.target.value)} placeholder={t('Ex.: Feira de Oruro · novembro')} autoFocus={!viagem} /></Campo>
-          <Campo rotulo="Destino"><Entrada value={destino} onChange={(e) => setDestino(e.target.value)} placeholder={t('Ex.: Oruro')} /></Campo>
+          <Campo comoDiv rotulo="É viagem na Bolívia?" ajuda="Sim: escolha a cidade na lista (todas as cidades da Bolívia já estão cadastradas). Não: escreva o destino.">
+            <Escolha<'sim' | 'nao'> rotulo="É viagem na Bolívia?" valor={naBolivia} onChange={setNaBolivia} opcoes={[{ id: 'sim', nome: 'Sim' }, { id: 'nao', nome: 'Não' }]} />
+          </Campo>
+          {naBolivia === 'sim'
+            ? <Campo comoDiv rotulo="Destino"><CampoCidade rotulo="Destino" valor={destino} onChange={setDestino} placeholder="Buscar cidade (ex.: Oruro)" /></Campo>
+            : <Campo rotulo="Destino"><Entrada value={destino} onChange={(e) => setDestino(e.target.value)} placeholder={t('Ex.: Lima, Peru')} /></Campo>}
           <div className="grid grid-cols-2 gap-2">
             <Campo rotulo="Ida"><Entrada type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} /></Campo>
             <Campo rotulo="Volta (prevista)"><Entrada type="date" value={fim} onChange={(e) => setFim(e.target.value)} /></Campo>

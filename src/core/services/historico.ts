@@ -90,6 +90,7 @@ const NOMES_ACAO: Record<string, string> = {
   salvarVendaAberta: 'Venda guardada em aberto',
   descartarVendaAberta: 'Venda em aberto descartada',
   tirarDaVendaAberta: 'Pacote saiu de uma venda em aberto',
+  salvarCidade: 'Cidade cadastrada',
   pagamentoParcialCompra: 'Linhas já pagas no registro',
   criarCompra: 'Pedido de compra registrado',
   avancarTriagem: 'Etapa da triagem',

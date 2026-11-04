@@ -9,6 +9,7 @@ import type { ViagemCurta } from '../core/services/viagemCurta'
 import { Janela, cx, dataBR } from './base'
 import { useApp, useConsulta } from './contexto'
 import { useT } from './i18n'
+import { CampoCidade } from './campoCidade'
 
 export function SeloViagem({ v, curto, className }: { v?: ViagemCurta; curto?: boolean; className?: string }) {
   const t = useT()
@@ -79,7 +80,6 @@ export function FiltroViagem({ valor, onChange, nasLinhas }: { valor: string; on
     (!periodo || (periodo === 'abertas' ? v.status === 'aberta' : periodo === 'ano' ? v.inicio.slice(0, 4) === hoje.slice(0, 4) : v.inicio >= desde(Number(periodo)))),
   )
   const escolher = (id: Id | '') => (onChange(id), setAberta(false))
-  const chip = (on: boolean) => cx('min-h-9 shrink-0 rounded-full px-3 text-sm font-semibold transition', on ? 'bg-sky-600 text-white' : 'bg-[var(--fundo)] text-[var(--texto)] ring-1 ring-[var(--borda)] hover:ring-sky-500')
   const nome = valor === 'sem' ? t('Sem viagem') : atual ? atual.codigo : t('Todas as viagens')
   return (
     <>
@@ -100,20 +100,27 @@ export function FiltroViagem({ valor, onChange, nasLinhas }: { valor: string; on
               ))}
             </div>
             {/* os filtros (montados pelas viagens que existem) */}
+            {/* os filtros, enxutos: a busca e, embaixo, duas escolhas pequenas lado a lado (destino · quando) */}
             {viagens.length > 0 && (
-              <div className="space-y-2 rounded-2xl bg-[var(--fundo)] p-3">
-                <input type="search" aria-label={t('Buscar viagem')} placeholder={t('Buscar código, nome ou destino')} value={busca} onChange={(e) => setBusca(e.target.value)}
-                  className="min-h-11 w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 outline-none focus:border-sky-500" />
-                {destinos.length > 1 && (
-                  <div role="group" aria-label={t('Destino')} className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
-                    <span aria-hidden className="flex shrink-0 items-center text-sm">📍</span>
-                    <button type="button" aria-pressed={!destino} onClick={() => setDestino('')} className={chip(!destino)}>{t('Todos')}</button>
-                    {destinos.map((d) => <button key={d} type="button" aria-pressed={destino === d} onClick={() => setDestino(destino === d ? '' : d)} className={chip(destino === d)}>{d}</button>)}
-                  </div>
-                )}
-                <div role="group" aria-label={t('Quando')} className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
-                  <span aria-hidden className="flex shrink-0 items-center text-sm">📅</span>
-                  {PERIODOS.map((p) => <button key={p.id || 'qq'} type="button" aria-pressed={periodo === p.id} onClick={() => setPeriodo(p.id)} className={chip(periodo === p.id)}>{t(p.nome)}</button>)}
+              <div className="space-y-2">
+                <label className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 focus-within:border-sky-500">
+                  <span aria-hidden className="text-[var(--suave)]">🔎</span>
+                  <input type="search" aria-label={t('Buscar viagem')} placeholder={t('Buscar código, nome ou destino')} value={busca} onChange={(e) => setBusca(e.target.value)} className="min-w-0 flex-1 bg-transparent outline-none" />
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* o destino: o mesmo campo de cidade da viagem, só com os destinos que as viagens têm */}
+                  {destinos.length > 1 && (
+                    <div className="min-w-[12rem] flex-1">
+                      <CampoCidade compacto rotulo="Destino" valor={destino} onChange={setDestino} opcoes={destinos} permitirNovo={false} placeholder="Todos os destinos" />
+                    </div>
+                  )}
+                  <label className={cx('inline-flex min-h-9 items-center gap-1 rounded-full pl-3 pr-1 text-sm font-semibold ring-1', periodo ? 'bg-sky-500/10 text-sky-700 ring-sky-500/40 dark:text-sky-300' : 'bg-[var(--fundo)] ring-[var(--borda)]')}>
+                    <span aria-hidden>📅</span>
+                    <select aria-label={t('Quando')} value={periodo} onChange={(e) => setPeriodo(e.target.value)} className="cursor-pointer bg-transparent py-1 pr-1 outline-none">
+                      {PERIODOS.map((p) => <option key={p.id || 'qq'} value={p.id}>{t(p.nome)}</option>)}
+                    </select>
+                  </label>
+                  {(busca || destino || periodo) && <button type="button" onClick={() => (setBusca(''), setDestino(''), setPeriodo(''))} className="ml-auto min-h-9 rounded-full px-2 text-sm font-semibold text-[var(--suave)] hover:text-[var(--ruim)]">✕ {t('Limpar')}</button>}
                 </div>
               </div>
             )}

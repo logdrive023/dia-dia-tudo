@@ -29,6 +29,7 @@ import * as vendas from './vendas'
 import * as viagens from './viagens'
 import * as vendasAbertas from './vendasAbertas'
 import * as viagemCurta from './viagemCurta'
+import * as cidades from './cidades'
 
 export const comandos = {
   // caixa
@@ -68,6 +69,7 @@ export const comandos = {
   salvarVendaAberta: vendasAbertas.salvarVendaAberta,
   descartarVendaAberta: vendasAbertas.descartarVendaAberta,
   tirarDaVendaAberta: vendasAbertas.tirarDaVendaAberta,
+  salvarCidade: cidades.salvarCidade,
   pagarCompra: compras.pagarCompra,
   cancelarCompra: compras.cancelarCompra,
   conferirPesoCompra: compras.conferirPesoCompra,
@@ -157,6 +159,7 @@ export const consultas = {
   lerCodigoPacote: leitura.lerCodigoPacote,
   vendasAbertas: vendasAbertas.vendasAbertas,
   viagensParaFiltro: viagemCurta.viagensParaFiltro,
+  cidades: cidades.cidades,
   origemDaVenda: origem.origemDaVenda,
   triagens: triagem.triagens,
   // livro do cabelo (lançamentos de gramas) e histórico de cada pacote
