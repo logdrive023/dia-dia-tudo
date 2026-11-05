@@ -3810,4 +3810,7 @@ export const ES: Record<string, string> = {
   'Vê também o que as colegas da unidade marcaram': 'Ve también lo que marcaron las compañeras de la unidad',
   'agenda da equipe': 'agenda del equipo',
   'só a agenda dela': 'solo su agenda',
+  'Na viagem {v}: quem comprou mais barato.': 'En el viaje {v}: quién compró más barato.',
+  'Quem compra mais barato, somando todas as viagens.': 'Quién compra más barato, sumando todos los viajes.',
+  'por kg (real)': 'por kg (real)',
 }

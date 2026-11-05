@@ -3,6 +3,8 @@
 // Funcionária que viaja vê só o painel do viajante (lança os gastos dela; sem custos nem resultado).
 
 import { useState } from 'react'
+import { corDoNome, iniciais } from '../ui/tabelaDados'
+import { FiltroViagem } from '../ui/seloViagem'
 import { LigarCompras } from './compra/LigarCompras'
 import { Trilha } from '../ui/trilha'
 import { CabecalhoFicha } from '../ui/cabecalhoFicha'
@@ -28,8 +30,6 @@ import { AvisoNoAparelho, BarraOrcamento, CarteiraViagem, FolhaDespesa, LinhaGas
 
 const TOM_STATUS = { aberta: 'marca', encerrada: 'neutro' } as const
 const NOME_STATUS = { aberta: 'Aberta', encerrada: 'Encerrada' } as const
-/** "Por viajante" (quem compra mais barato): desligado por enquanto — a aba aparece "em breve" */
-const COMPARATIVO_LIGADO = false as boolean
 
 // ---------- lista ----------
 
@@ -70,7 +70,10 @@ function ViagensAdmin() {
   const [viajanteId, setViajante] = useParamTela('viajante', '')
   const [busca, setBusca] = useParamTela('busca', '')
   const [verFiltros, setVerFiltros] = useState(false)
-  const { dados } = useConsulta('viagens', { status: status || undefined, viajanteId: viajanteId || undefined, busca: busca || undefined })
+  // Por viajante: o filtro padrão de viagem (uma viagem → a comparação conta só ela)
+  const [vgComparar, setVgComparar] = useParamTela('vg', '')
+  const comparando = aba === 'comparar'
+  const { dados } = useConsulta('viagens', { status: status || undefined, viajanteId: viajanteId || undefined, busca: busca || undefined, viagemId: comparando && vgComparar && vgComparar !== 'sem' ? vgComparar : undefined })
   const { dados: painel } = useConsulta('painelViajante', {})
   // contagem de abertas/encerradas sem o filtro de situação (os números grandes não somem ao filtrar)
   const { dados: semStatus } = useConsulta('viagens', { viajanteId: viajanteId || undefined, busca: busca || undefined })
@@ -94,8 +97,7 @@ function ViagensAdmin() {
           ))}
         </ul>
       )}
-      {/* "Por viajante" (comparativo) fica desativado por enquanto: a ideia está guardada, volta depois */}
-      <Abas atual={aba === 'comparar' ? 'lista' : aba} onChange={(x) => setAba(x as typeof aba)} abas={[{ id: 'lista', nome: 'Viagens' }, { id: 'viajante', nome: 'Painel do viajante' }, { id: 'comparar', nome: 'Por viajante', desativada: true }]} />
+      <Abas atual={aba} onChange={(x) => setAba(x as typeof aba)} abas={[{ id: 'lista', nome: 'Viagens' }, { id: 'viajante', nome: 'Painel do viajante' }, { id: 'comparar', nome: 'Por viajante' }]} />
       {aba === 'viajante' ? (
         <div className="mx-auto max-w-2xl"><PainelViajante /></div>
       ) : (
@@ -110,7 +112,8 @@ function ViagensAdmin() {
             </div>
           )}
           <div className="mb-3 space-y-2">
-            <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar código, nome, destino ou viajante" ativos={viajanteId ? 1 : 0} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
+            <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar código, nome, destino ou viajante" ativos={viajanteId ? 1 : 0} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)}
+              extra={comparando ? <FiltroViagem valor={vgComparar === 'sem' ? '' : vgComparar} onChange={(v) => setVgComparar(v === 'sem' ? '' : v)} nasLinhas={(semStatus?.linhas ?? []).map((r) => [{ id: r.id, codigo: r.codigo, nome: r.nome }])} /> : undefined} />
             <ChipsFiltros itens={viajanteId ? [{ k: 'viajante', rotulo: `👤 ${(dados?.viajantesPossiveis ?? []).find((x) => x.id === viajanteId)?.nome ?? viajanteId}` }] : []} onTirar={() => setViajante('')} onLimpar={() => setViajante('')} />
             {verFiltros && (
               <PainelFiltros resultados={dados?.linhas.length} temAtivos={!!viajanteId} onLimpar={() => setViajante('')} onFechar={() => setVerFiltros(false)}>
@@ -120,7 +123,7 @@ function ViagensAdmin() {
               </PainelFiltros>
             )}
           </div>
-          {!dados ? <Carregando /> : COMPARATIVO_LIGADO && aba === 'comparar' ? <Comparativo linhas={dados.comparativo} moeda={dados.moeda} /> : !dados.linhas.length ? (
+          {!dados ? <Carregando /> : comparando ? <Comparativo linhas={dados.comparativo} moeda={dados.moeda} uma={vgComparar && vgComparar !== 'sem' ? dados.linhas[0] : undefined} /> : !dados.linhas.length ? (
             <Vazio texto="Nenhuma viagem por aqui."><Botao variante="secundario" onClick={() => ir('novaViagem')}>+ {t('Nova viagem')}</Botao></Vazio>
           ) : (
             <ListaViagens linhas={dados.linhas} />
@@ -183,32 +186,43 @@ function ListaViagens({ linhas }: { linhas: LinhaLista[] }) {
   )
 }
 
-function Comparativo({ linhas, moeda }: { linhas: NonNullable<ReturnType<typeof useConsulta<'viagens'>>['dados']>['comparativo']; moeda: string }) {
+/**
+ * POR VIAJANTE — quem compra mais barato: um cartão por pessoa (a melhor primeiro, com 🏆), o custo por kg real em
+ * destaque e o resto em selos. Com o filtro de viagem, compara só quem foi naquela viagem.
+ */
+function Comparativo({ linhas, moeda, uma }: { linhas: NonNullable<ReturnType<typeof useConsulta<'viagens'>>['dados']>['comparativo']; moeda: string; uma?: { codigo: string; nome: string } }) {
   const t = useT()
   if (!linhas.length) return <Vazio texto="Nenhuma viagem por aqui." />
   return (
     <div>
-      <p className="mb-2 flex items-center text-sm text-[var(--suave)]">
-        {t('Quem compra mais barato (custo por kg com a logística) e com melhor retorno.')}
-        <Info texto="Custo/kg real = (cabelo + gastos da viagem) ÷ kg comprados. ROI médio = média do retorno das viagens com compra. Viagem com várias pessoas conta para cada uma. Ex.: Bs 14.800 por 4 kg = Bs 3.700/kg." />
+      <p className="mb-2 flex flex-wrap items-center gap-1 text-sm text-[var(--suave)]">
+        {uma ? t('Na viagem {v}: quem comprou mais barato.', { v: `${uma.codigo} · ${uma.nome}` }) : t('Quem compra mais barato, somando todas as viagens.')}
+        <Info texto="Custo/kg real = (cabelo + gastos da viagem) ÷ kg comprados. Viagem com várias pessoas conta para cada uma." exemplo="Ex.: Bs 14.800 por 4 kg = Bs 3.700/kg" />
       </p>
       <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        {linhas.map((x, k) => (
-          <li key={x.id} className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3">
-            <div className="flex items-center justify-between gap-2">
-              <b>{k === 0 && x.custoKgReal !== undefined ? '🏆 ' : ''}{x.nome}</b>
-              <span className="text-xs text-[var(--suave)]">{t('{n} viagem(ns)', { n: x.viagens })}{x.prospeccao ? ` · ${t('{n} sem compra', { n: x.prospeccao })}` : ''}</span>
-            </div>
-            <div className="num mt-2 grid grid-cols-2 gap-2 text-sm">
-              <span>{t('Custo/kg real')}<br /><b className="text-lg">{x.custoKgReal !== undefined ? formatar(x.custoKgReal, moeda) : '—'}</b></span>
-              <span>{t('ROI médio')}<br /><b className={cx('text-lg', (x.roiMedioBp ?? 0) < 0 && 'text-[var(--ruim)]')}>{pctBp(x.roiMedioBp)}</b></span>
-              <span>{t('Logística por kg')}<br /><b>{x.gastoKg !== undefined ? formatar(x.gastoKg, moeda) : '—'}</b></span>
-              <span>{t('Comprou')}<br /><b>{gramasTexto(x.gramas)}</b></span>
-              <span>{t('Gastos')}<br /><b>{formatar(x.gasto, moeda)}</b></span>
-              <span>{t('Resultado')}<br /><b className={x.resultado < 0 ? 'text-[var(--ruim)]' : ''}>{formatar(x.resultado, moeda)}</b></span>
-            </div>
-          </li>
-        ))}
+        {linhas.map((x, k) => {
+          const melhor = k === 0 && x.custoKgReal !== undefined && linhas.length > 1
+          return (
+            <li key={x.id} className={cx('rounded-2xl border bg-[var(--cartao)] p-3 shadow-sm', melhor ? 'border-[var(--bom)] ring-2 ring-[var(--bom)]/20' : 'border-[var(--borda)]')}>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white" style={{ background: corDoNome(x.nome) }}>{iniciais(x.nome)}</span>
+                <span className="linha-texto">
+                  <b className="block leading-tight">{melhor && '🏆 '}{x.nome}</b>
+                  <span className="text-xs text-[var(--suave)]">{t('{n} viagem(ns)', { n: x.viagens })}{x.prospeccao ? ` · ${t('{n} sem compra', { n: x.prospeccao })}` : ''}</span>
+                </span>
+                <span className="ml-auto shrink-0 text-right">
+                  <b className={cx('num block text-xl leading-tight', melhor && 'text-[var(--bom)]')}>{x.custoKgReal !== undefined ? formatar(x.custoKgReal, moeda) : '—'}</b>
+                  <span className="text-[11px] text-[var(--suave)]">{t('por kg (real)')}</span>
+                </span>
+              </div>
+              <div className="num mt-2 flex flex-wrap gap-1.5 text-xs">
+                <span className="rounded-full bg-[var(--fundo)] px-2 py-1">⚖️ {gramasTexto(x.gramas)}</span>
+                <span className="rounded-full bg-[var(--fundo)] px-2 py-1">⛽ {formatar(x.gasto, moeda)}{x.gastoKg !== undefined ? ` · ${formatar(x.gastoKg, moeda)}/kg` : ''}</span>
+                <span className={cx('rounded-full px-2 py-1', x.resultado < 0 ? 'bg-[var(--ruim)]/10 text-[var(--ruim)]' : 'bg-[var(--bom)]/10 text-[var(--bom)]')}>📈 {formatar(x.resultado, moeda)}{x.roiMedioBp !== undefined ? ` · ROI ${pctBp(x.roiMedioBp)}` : ''}</span>
+              </div>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

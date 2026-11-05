@@ -888,7 +888,7 @@ async function todas(ctx: Ctx) {
 }
 
 /** Lista/histórico das viagens com o resultado de cada uma e a comparação por viajante. Funcionária: só as dela. */
-export async function viagens(ctx: Ctx, p: { status?: 'aberta' | 'encerrada'; viajanteId?: Id; busca?: string } = {}) {
+export async function viagens(ctx: Ctx, p: { status?: 'aberta' | 'encerrada'; viajanteId?: Id; busca?: string; viagemId?: Id } = {}) {
   const admin = ctx.sessao.perfil === 'admin'
   const base = await carregarBase(ctx)
   const fr = fracoesPorCompra(base)
@@ -897,6 +897,7 @@ export async function viagens(ctx: Ctx, p: { status?: 'aberta' | 'encerrada'; vi
     .filter((v) => admin || eViajante(ctx, v))
     .filter((v) => !p.status || v.status === p.status)
     .filter((v) => !p.viajanteId || v.viajantes.includes(p.viajanteId))
+    .filter((v) => !p.viagemId || v.id === p.viagemId)
     .sort((a, b) => (a.inicio + a.criadoEm < b.inicio + b.criadoEm ? 1 : -1))
   // funcionária não vê custo nem resultado (só o que ela gastou e as gramas)
   const semCustos = <R extends ReturnType<typeof resumoLinha>>(r: R): R => (admin ? r : { ...r, custoCabelo: 0, resultado: 0, resultadoPotencial: 0, roiBp: undefined, custoKgReal: undefined })
