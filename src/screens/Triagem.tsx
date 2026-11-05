@@ -610,7 +610,7 @@ function FotoOuIcone({ l }: { l: Lote }) {
  * PRONTO PARA VENDER: fechado numa linha ("✅ 19,4 kg prontos · Bs 183.972 ›"); aberto, por medida (abre e fecha) e cada
  * LOTE numa linha com origem, gramas, valor, margem, Vender e "⋯".
  */
-function ProntoParaVender({ lotes, totalLotes, busca, onBusca, onKeyDown, total, valor, onLote, onVender, onEstoque, onFiltrar }: { lotes: Lote[]; totalLotes: number; busca: string; onBusca(v: string): void; onKeyDown?(e: KeyboardEvent<HTMLInputElement>): void; total: number; valor: number; menuDe?(l: Lote): Acao[]; onLote(id: Id): void; onVender(p: Params): void; onEstoque(med: string): void; onFiltrar(med: string): void }) {
+function ProntoParaVender({ lotes, totalLotes, busca, onBusca, onKeyDown, onLote, onVender, onEstoque, onFiltrar }: { lotes: Lote[]; totalLotes: number; busca: string; onBusca(v: string): void; onKeyDown?(e: KeyboardEvent<HTMLInputElement>): void; total: number; valor: number; menuDe?(l: Lote): Acao[]; onLote(id: Id): void; onVender(p: Params): void; onEstoque(med: string): void; onFiltrar(med: string): void }) {
   const t = useT()
   const { ajustarParams } = useApp()
   const m = moedaPadrao()
@@ -624,12 +624,14 @@ function ProntoParaVender({ lotes, totalLotes, busca, onBusca, onKeyDown, total,
   const [soSem, setSoSem] = useParamTela('se', '')
   const [imprimir, setImprimir] = useState<Id[]>()
   const semEtiqueta = todosFiltrados.filter((l) => !l.etiqueta.impressaEm)
-  const filtrados = soSem && semEtiqueta.length ? semEtiqueta : todosFiltrados
+  const [soSemPreco] = useParamTela('sp', '')
+  const semPrecoL = todosFiltrados.filter((l) => l.semPreco)
+  const filtrados = soSem && semEtiqueta.length ? semEtiqueta : soSemPreco && semPrecoL.length ? semPrecoL : todosFiltrados
   const ordem = agruparProntos(filtrados, filtro.f, t)
   // o que está ligado (chips) e o "Limpar filtros" (medida, faixa, peso, só sem etiqueta e a busca)
-  const ativosP = [...ativosProntos(filtro.f), ...(soSem ? [{ k: 'se', rotulo: `🏷 ${t('Sem etiqueta')}` }] : [])]
+  const ativosP = ativosProntos(filtro.f)
   const filtrando = ativosP.length > 0 || !!busca.trim()
-  const limparP = () => ajustarParams({ ...Object.fromEntries(PARAMS_PRONTOS.map((k) => [k, undefined])), se: undefined, busca: undefined })
+  const limparP = () => ajustarParams({ ...Object.fromEntries(PARAMS_PRONTOS.map((k) => [k, undefined])), se: undefined, sp: undefined, busca: undefined })
   const gFiltrado = filtrados.reduce((s, l) => s + l.saldo, 0)
   const vFiltrado = filtrados.reduce((s, l) => s + (l.preco?.valorPrincipal ?? 0), 0)
   // grupos fechados (o resto abre sozinho quando há poucos lotes); muda de "Agrupar por" → recomeça
@@ -638,27 +640,25 @@ function ProntoParaVender({ lotes, totalLotes, busca, onBusca, onKeyDown, total,
   const poucos = filtrados.length <= MAX_PRONTOS || ordem.length === 1
   const abertos = new Set(ordem.map((g) => g.chave).filter((k) => (poucos ? !fechadosAgora.has(k) : fechadosAgora.has(k))))
   const [todos, setTodos] = useState<Set<string>>(new Set())
-  const semPreco = lotes.filter((l) => l.semPreco).length
   // em "fechados" fica o que o usuário inverteu (fechou quando abre sozinho; abriu quando começa fechado)
   const alternar = (k: string) => setFechados(() => { const n = new Set(fechadosAgora); if (n.has(k)) n.delete(k); else n.add(k); return { por: filtro.f.agrupar + filtro.f.passo, k: n } })
   return (
     // aba "Prontos": o total numa linha e os filtros (medida, peso, agrupar) atrás do botão padrão "⚙ Filtros"
     <section id="triagem-pronto" aria-label={t('Pronto para vender')} className="scroll-mt-4">
-      <div className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-      <div className="num flex min-h-14 items-center gap-2 px-3 sm:px-4">
-        <span className="min-w-0 flex-1 truncate text-base">
-          {/* a aba já diz "Prontos": aqui só o peso e o valor (cabe no celular) */}
-          <b>{gramasTexto(total)}</b>
-          {valor > 0 && <span className="text-[var(--suave)]"> · {formatar(valor, m)}</span>}
-        </span>
+      <div className="mb-3 flex min-h-11 items-center gap-1">
+        <h2 className="min-w-0 truncate text-lg font-bold">{t('Prontos para vender')}</h2>
         <Info texto={DICA_PRONTOS} />
-        {semPreco > 0 && <Pilula tom="alerta">⚠️ {semPreco}</Pilula>}
       </div>
-      {secaoAberta && <div className="px-2 pb-2 sm:px-4 sm:pb-4">
+      {secaoAberta && <div>
       {/* FILTRO PADRÃO: busca + ⚙ Filtros (medida · peso · como mostrar) → resultado (peso e valor do filtrado) + chips ✕ */}
       {totalLotes > 0 && (
         <FiltroLista
           className="mb-3"
+          situacao={{ valor: soSem ? 'sem' : soSemPreco ? 'preco' : '', onChange: (id) => ajustarParams({ se: id === 'sem' ? '1' : undefined, sp: id === 'preco' ? '1' : undefined }), opcoes: [
+            { id: '', nome: 'Todos', n: todosFiltrados.length },
+            { id: 'sem', nome: '🏷 Sem etiqueta', n: semEtiqueta.length, tom: semEtiqueta.length ? 'alerta' as const : undefined },
+            ...(semPrecoL.length || soSemPreco ? [{ id: 'preco', nome: '⚠️ Sem preço', n: semPrecoL.length, tom: 'alerta' as const }] : []),
+          ] }}
           busca={busca} onBusca={onBusca} placeholder="Código, compra ou fornecedor" onKeyDown={onKeyDown}
           ativos={ativosP} onTirar={(k) => ajustarParams(Object.fromEntries(k.split(',').map((x) => [x, undefined])))} onLimpar={limparP}
           resultados={filtrados.length} total={totalLotes} unidade="lote(s)"
@@ -672,13 +672,11 @@ function ProntoParaVender({ lotes, totalLotes, busca, onBusca, onKeyDown, total,
         semEtiqueta.length ? (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--alerta)]/40 bg-[var(--alerta)]/10 px-3 py-2 text-sm">
             <span className="min-w-0 flex-1 font-semibold text-[var(--alerta)]">🏷 {t(semEtiqueta.length === 1 ? '1 pacote pronto está sem etiqueta' : '{n} pacotes prontos estão sem etiqueta', { n: semEtiqueta.length })}</span>
-            <Botao variante="leve" aria-pressed={!!soSem} onClick={() => setSoSem(soSem ? '' : '1')}>{t(soSem ? 'Ver todos' : 'Ver só eles')}</Botao>
             <Botao onClick={() => setImprimir(semEtiqueta.map((l) => l.id))}>🖨 {t(semEtiqueta.length === 1 ? 'Imprimir a etiqueta' : 'Imprimir as {n}', { n: semEtiqueta.length })}</Botao>
           </div>
-        ) : <p className="mb-3 rounded-xl bg-[var(--bom)]/10 px-3 py-2 text-sm font-semibold text-[var(--bom)]">✓ {t('Todos com etiqueta')}</p>
+        ) : null
       )}
       {imprimir && <ImprimirEtiquetas ids={imprimir} onImpresso={() => setSoSem('')} onFechar={() => setImprimir(undefined)} />}
-      {semPreco > 0 && <p className="mb-2 rounded-xl bg-[var(--alerta)]/10 p-2 text-sm font-semibold text-[var(--alerta)]">⚠️ {t('{n} lote(s) triado(s) sem preço na tabela', { n: semPreco })}</p>}
       {!totalLotes ? <Vazio compacto texto="Nada triado ainda: separe um lote para começar a vender." /> : !filtrados.length ? <VazioFiltro texto="Nenhum lote com esses filtros." filtrando={filtrando} onLimpar={limparP} /> : (
         // tabela por grupo: Medida | Lotes | Peso | Valor | ⋯ (cabeçalho em cima, total embaixo); tocar na linha abre os lotes
         <div className="overflow-hidden rounded-xl border border-[var(--borda)]">
@@ -776,7 +774,6 @@ function ProntoParaVender({ lotes, totalLotes, busca, onBusca, onKeyDown, total,
         </div>
       )}
       </div>}
-      </div>
     </section>
   )
 }

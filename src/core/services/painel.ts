@@ -72,8 +72,10 @@ function lucroDe(t: Transacao) {
 function resumo(d: DadosPainel, moeda?: string) {
   const vendas = moeda && moeda !== 'convertido' ? d.vendas.filter((t) => t.pagamentos.some((p) => p.moeda === moeda)) : d.vendas
   const faturamento = vendas.reduce((s, t) => s + valorEm(t, moeda), 0)
-  const lucro = d.vendas.reduce((s, t) => s + lucroDe(t), 0)
-  const fatConv = d.vendas.reduce((s, t) => s + t.totalPrincipal, 0)
+  // lucro e margem olham as MESMAS vendas do faturamento (com o filtro de moeda, só as pagas nela) — antes o lucro era
+  // sempre o de todas as vendas, ao lado de um faturamento filtrado
+  const lucro = vendas.reduce((s, t) => s + lucroDe(t), 0)
+  const fatConv = vendas.reduce((s, t) => s + t.totalPrincipal, 0)
   return {
     /** descontos dados no período (moeda principal); o faturamento já é líquido */
     descontos: d.vendas.reduce((s, t) => s + t.linhas.reduce((x, l) => x + (l.descontoPrincipal ?? 0), 0), 0),
@@ -133,13 +135,18 @@ export async function painel(ctx: Ctx, f: FiltrosPainel) {
     { id: 'faturamento', nome: 'Faturamento', valor: r.faturamento, anterior: ant?.faturamento, formato: 'dinheiro', moeda: moedaVis, ajuda: 'Soma das vendas concluídas no período. Ex.: 2 vendas de Bs 300 = Bs 600.', detalhe: { tela: 'vendas', filtro: filtroLista } },
     { id: 'lucro', nome: 'Lucro bruto', valor: r.lucro, anterior: ant?.lucro, formato: 'dinheiro', moeda: cfg.moedaPrincipal, ajuda: 'Vendas − custo do cabelo que saiu − comissões. Ex.: vendeu 100 g por Bs 400 que custaram Bs 250 → Bs 150.', detalhe: { tela: 'vendas', filtro: filtroLista }, destaque: r.lucro < 0 ? 'ruim' : 'bom' },
     { id: 'margem', nome: 'Margem', valor: r.margem, anterior: ant?.margem, formato: 'percentual', ajuda: 'Lucro ÷ faturamento. Ex.: lucro Bs 150 em Bs 400 = 37,5%.', detalhe: { tela: 'vendas', filtro: filtroLista } },
-    { id: 'compras', nome: 'Compras', valor: r.compras, anterior: ant?.compras, formato: 'dinheiro', moeda: moedaVis, ajuda: 'Compras concluídas (que entraram no estoque) no período.', detalhe: { tela: 'comprar', filtro: { encerradas: true } } },
+    { id: 'compras', nome: 'Compras concluídas', valor: r.compras, anterior: ant?.compras, formato: 'dinheiro', moeda: moedaVis, ajuda: 'Compras CONCLUÍDAS no período (pagas e recebidas). As que ainda estão em aberto aparecem embaixo: o cabelo delas já está na triagem.', detalhe: { tela: 'comprar', filtro: { encerradas: true } } },
     { id: 'vendas', nome: 'Vendas', valor: r.nVendas, anterior: ant?.nVendas, formato: 'numero', ajuda: 'Quantas vendas e atendimentos concluídos.', detalhe: { tela: 'vendas', filtro: filtroLista } },
     { id: 'ticket', nome: 'Ticket médio', valor: r.ticket, anterior: ant?.ticket, formato: 'dinheiro', moeda: moedaVis, ajuda: 'Faturamento ÷ número de vendas. Ex.: Bs 900 em 3 vendas = Bs 300.', detalhe: { tela: 'vendas', filtro: filtroLista } },
     { id: 'caixa', nome: 'Caixa agora', valor: caixaTotal, formato: 'dinheiro', moeda: moedaVis, ajuda: 'Todo o dinheiro (na mão + no banco), de todas as moedas convertidas pela cotação de hoje.', detalhe: { tela: 'caixa' } },
     { id: 'receber', nome: 'A receber', valor: aReceber, formato: 'dinheiro', moeda: moedaVis, ajuda: 'O que falta receber dos empréstimos que você deu (parcelas em aberto).', detalhe: { tela: 'emprestimos', filtro: { direcao: 'dado' } }, destaque: atrasado ? 'alerta' : undefined },
     { id: 'pagar', nome: 'A pagar', valor: aPagar, formato: 'dinheiro', moeda: moedaVis, ajuda: 'O que falta pagar dos empréstimos que você pegou.', detalhe: { tela: 'emprestimos', filtro: { direcao: 'tomado' } } },
   ]
+
+  // COMPRAS EM ABERTO do período (registradas, ainda não concluídas): não entram em "Compras concluídas", mas o cabelo
+  // já está na triagem — o Painel mostra à parte para nada sumir
+  const abertasP = d.todasTransacoes.filter((t) => t.tipo === 'compra' && t.etapa !== 'concluido' && t.etapa !== 'cancelado' && t.data >= f.de && t.data <= f.ate && (!f.area || t.moduloId === f.area))
+  const comprasAbertas = { n: abertasP.length, valor: abertasP.reduce((s, t) => s + t.totalPrincipal, 0) }
 
   // série por dia
   const diasLista = listaDeDias(f.de, f.ate)
@@ -189,7 +196,7 @@ export async function painel(ctx: Ctx, f: FiltrosPainel) {
   const ordem = { urgente: 0, atencao: 1, info: 2 }
   alertas.sort((a, b) => ordem[a.nivel] - ordem[b.nivel] || b.quantidade - a.quantidade)
 
-  return { filtros: f, moedaVis, cartoes, serie, serieAnterior, porArea, porForma, porMoeda, caixa, areas, alertas: alertas.filter((a) => a.quantidade > 0) }
+  return { filtros: f, moedaVis, cartoes, comprasAbertas, serie, serieAnterior, porArea, porForma, porMoeda, caixa, areas, alertas: alertas.filter((a) => a.quantidade > 0) }
 }
 
 /** Um registro dentro de um alerta: o que é e para onde o toque leva (o registro em si, não só a lista). */

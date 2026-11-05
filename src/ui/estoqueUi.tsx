@@ -105,16 +105,32 @@ type Capacidades = { torch?: boolean; zoom?: { min: number; max: number; step?: 
  *   · e sempre dá para DIGITAR o código (o código está impresso na etiqueta, embaixo do QR)
  * QR da ETIQUETA do lote (…#/lotes/<id>): abre o lote direto (abrirLote=false: devolve o texto, ex.: a venda adiciona).
  */
-export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true }: { onLer(codigo: string): void; onFechar(): void; abrirLote?: boolean }) {
+/** o que a tela respondeu a uma leitura (modo contínuo): aparece na lista de dentro do leitor */
+export interface RespostaLeitura { ok: boolean; texto: string }
+
+/**
+ * `continuo`: a câmera NÃO fecha a cada código — lê um atrás do outro (o mesmo código lido de novo em poucos segundos é
+ * ignorado), mostra embaixo o que entrou ("✓ L-0002 · 1,2 kg" / "✗ já saiu") e "Concluir (N)" volta para a tela.
+ * Para isso `onLer` devolve a resposta da tela. Sem `continuo`: lê um e a tela decide (fecha ou abre o lote).
+ */
+export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, continuo }: { onLer(codigo: string): void | RespostaLeitura; onFechar(): void; abrirLote?: boolean; continuo?: boolean }) {
   const t = useT()
   const { ir } = useApp()
-  const ref = useRef({ onLerTexto, onFechar, ir, abrirLote })
-  ref.current = { onLerTexto, onFechar, ir, abrirLote }
+  const [lidos, setLidos] = useState<(RespostaLeitura & { id: number; codigo: string })[]>([])
+  const ref = useRef({ onLerTexto, onFechar, ir, abrirLote, continuo, ultimo: undefined as { c: string; em: number } | undefined, n: 0 })
+  Object.assign(ref.current, { onLerTexto, onFechar, ir, abrirLote, continuo })
+  /** devolve true quando a leitura conta (contínuo: o mesmo código seguido não conta de novo) */
   const onLer = useCallback((texto: string) => {
+    const r = ref.current
+    const agora = Date.now()
+    if (r.continuo && r.ultimo?.c === texto && agora - r.ultimo.em < 3000) return false
+    r.ultimo = { c: texto, em: agora }
     try { navigator.vibrate?.(40) } catch { /* sem vibração */ }
     const lote = loteDoCodigoLido(texto)
-    if (lote && ref.current.abrirLote) return (ref.current.onFechar(), ref.current.ir('lote', { id: lote }))
-    ref.current.onLerTexto(texto)
+    if (lote && r.abrirLote && !r.continuo) return (r.onFechar(), r.ir('lote', { id: lote }), true)
+    const resp = r.onLerTexto(texto)
+    if (r.continuo && resp) setLidos((ls) => [{ ...resp, id: ++r.n, codigo: texto }, ...ls].slice(0, 30))
+    return true
   }, [])
   const video = useRef<HTMLVideoElement>(null)
   const trilha = useRef<MediaStreamTrack>()
@@ -157,7 +173,7 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true }: 
             // 1) o leitor do navegador (rápido; lê código de barras também)
             if (detector) {
               const r = await detector.detect(v)
-              if (r[0]?.rawValue && vivo) return onLer(r[0].rawValue.trim())
+              if (r[0]?.rawValue && vivo && (onLer(r[0].rawValue.trim()), !ref.current.continuo)) return
             }
             // 2) o leitor próprio: o QUADRADO do meio (onde a pessoa mira) e, a cada 4 voltas, a imagem inteira
             if (ctx2d && v.videoWidth) {
@@ -173,7 +189,7 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true }: 
               ctx2d.drawImage(v, sx, sy, sw, sh, 0, 0, tela.width, tela.height)
               const img = ctx2d.getImageData(0, 0, tela.width, tela.height)
               const texto = decodificar(img.data, tela.width, tela.height)
-              if (texto && vivo) return onLer(texto)
+              if (texto && vivo && (onLer(texto), !ref.current.continuo)) return
               // dicas: pouca luz (brilho baixo) e demora
               if (volta % 6 === 0) setDica(brilho(img.data) < 60 ? 'escuro' : Date.now() - inicio > 5000 ? 'demora' : undefined)
             }
@@ -197,9 +213,12 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true }: 
   const trocarLanterna = () => { const v = !lanterna; setLanterna(v); aplicar({ torch: v } as MediaTrackConstraintSet) }
   const trocarZoom = (z: number) => { setZoom(z); aplicar({ zoom: z } as MediaTrackConstraintSet) }
   const zooms = caps.zoom ? [1, 2, 3].filter((z) => z >= caps.zoom!.min && z <= caps.zoom!.max) : []
-  const enviar = () => { const c = digitado.trim(); if (c) onLer(c) }
+  const enviar = () => { const c = digitado.trim(); if (c) (ref.current.ultimo = undefined, onLer(c), setDigitado('')) }
+  const certos = lidos.filter((x) => x.ok).length
   return (
-    <Janela aberta titulo={t('Ler código')} onFechar={onFechar} rodape={<Botao variante="leve" className="w-full" onClick={onFechar}>{t('Fechar')}</Botao>}>
+    <Janela aberta titulo={t(continuo ? 'Ler códigos (um atrás do outro)' : 'Ler código')} onFechar={onFechar} rodape={continuo
+      ? <Botao grande className="w-full" onClick={onFechar}>{certos ? t('Concluir · {n} adicionado(s)', { n: certos }) : t('Concluir')}</Botao>
+      : <Botao variante="leve" className="w-full" onClick={onFechar}>{t('Fechar')}</Botao>}>
       <div className="space-y-3">
         {erro ? <p className="rounded-xl bg-[var(--ruim)]/10 p-3 text-sm text-[var(--ruim)]">{t(erro)}</p> : (
           <div className="relative overflow-hidden rounded-2xl bg-black">
@@ -224,8 +243,19 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true }: 
             {dica === 'escuro'
               ? (caps.torch ? t('Pouca luz: ligue a 🔦 lanterna.') : t('Pouca luz: chegue perto de uma luz ou aproxime a etiqueta.'))
               : dica === 'demora' ? t('Não está lendo? Ponha o QR inteiro dentro do quadrado, segure firme e incline um pouco para tirar o reflexo do plástico.')
-                : t('Mire o QR da etiqueta no quadrado.')}
+                : t(continuo ? 'Mire um QR de cada vez: cada um entra na venda e a câmera continua para o próximo.' : 'Mire o QR da etiqueta no quadrado.')}
           </p>
+        )}
+        {/* CONTÍNUO: o que já foi lido (o mais novo em cima), para conferir sem sair da câmera */}
+        {continuo && lidos.length > 0 && (
+          <ul aria-live="polite" className="max-h-40 divide-y divide-[var(--borda)] overflow-y-auto rounded-xl border border-[var(--borda)] text-sm">
+            {lidos.map((x) => (
+              <li key={x.id} className={cx('flex items-center gap-2 px-3 py-2', !x.ok && 'bg-[var(--ruim)]/8')}>
+                <span aria-hidden className={cx('font-bold', x.ok ? 'text-[var(--bom)]' : 'text-[var(--ruim)]')}>{x.ok ? '✓' : '✗'}</span>
+                <span className="min-w-0 flex-1 truncate">{x.texto}</span>
+              </li>
+            ))}
+          </ul>
         )}
         {/* último recurso: o código impresso na etiqueta */}
         <div className="flex gap-2">

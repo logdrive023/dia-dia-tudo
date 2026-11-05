@@ -6,12 +6,13 @@ import { type ReactNode, useId } from 'react'
 import { cx } from './base'
 import { useT } from './i18n'
 
-/** Dica de passar o mouse / focar (embaixo do botão, centrada). Só texto curto: explicação longa vai no ⓘ. */
+/** Dica de passar o mouse / focar (embaixo do botão; nas ações do cabeçalho, presa à DIREITA do botão — elas ficam na beira
+ * direita da página, centrada a dica saía da tela). Nunca mais larga que a tela. Só texto curto: explicação longa vai no ⓘ. */
 export function Dica({ id, texto, lado = 'centro' }: { id: string; texto: string; lado?: 'centro' | 'direita' }) {
   const t = useT()
   return (
     <span id={id} role="tooltip"
-      className={cx('pointer-events-none absolute top-full z-40 mt-2 w-max max-w-[16rem] rounded-lg bg-[var(--texto)] px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-[var(--cartao)] opacity-0 shadow-lg transition-opacity delay-150 group-hover:opacity-100 group-focus-visible:opacity-100',
+      className={cx('pointer-events-none absolute top-full z-40 mt-2 w-max max-w-[min(16rem,calc(100vw-2rem))] rounded-lg bg-[var(--texto)] px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-[var(--cartao)] opacity-0 shadow-lg transition-opacity delay-150 group-hover:opacity-100 group-focus-visible:opacity-100',
         lado === 'direita' ? 'right-0' : 'left-1/2 -translate-x-1/2')}>
       {t(texto)}
     </span>
@@ -23,7 +24,7 @@ export function Dica({ id, texto, lado = 'centro' }: { id: string; texto: string
  * `principal` = a ação mais importante da tela (botão cheio). `comNome`: o nome aparece também no celular (a ação
  * que a pessoa precisa achar, ex.: 📷 Ler código).
  */
-export function AcaoIcone({ icone, rotulo, dica, onClick, ativo, principal, lado, comNome }: { icone: ReactNode; rotulo: string; dica: string; onClick(): void; ativo?: boolean; principal?: boolean; lado?: 'centro' | 'direita'; comNome?: boolean }) {
+export function AcaoIcone({ icone, rotulo, dica, onClick, ativo, principal, lado = 'direita', comNome }: { icone: ReactNode; rotulo: string; dica: string; onClick(): void; ativo?: boolean; principal?: boolean; lado?: 'centro' | 'direita'; comNome?: boolean }) {
   const t = useT()
   const id = useId()
   return (

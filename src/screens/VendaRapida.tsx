@@ -66,7 +66,6 @@ export function VendaRapida() {
   const [editando, setEditando] = useState<Id>()
   const [pagando, setPagando] = useState(false)
   const [lendo, setLendo] = useState(false)
-  const [leitura, setLeitura] = useState(0)
   const [teclado, setTeclado] = useState(false)
   const [feita, setFeita] = useState<Feita>()
   /** o pacote lido está noutra venda EM ABERTO: pergunta antes de tirar de lá */
@@ -78,10 +77,12 @@ export function VendaRapida() {
   const [vendedorId, setVendedorId] = useState<Id | undefined>(sessao.perfil === 'funcionario' ? sessao.pessoaId ?? sessao.usuarioId : undefined)
   const [localId, setLocalId] = useState<Id | undefined>(sessao.localId)
   const campo = useRef<HTMLInputElement>(null)
-  const ultimaLida = useRef<{ c: string; em: number }>()
 
+  // com o LEITOR aberto (contínuo) a venda não puxa o cursor para a busca: o foco fica no leitor
+  const lendoRef = useRef(false)
+  lendoRef.current = lendo
   const focar = useCallback(() => {
-    setTimeout(() => campo.current?.focus({ preventScroll: true }), 0)
+    setTimeout(() => !lendoRef.current && campo.current?.focus({ preventScroll: true }), 0)
   }, [])
   useEffect(() => {
     focar()
@@ -602,21 +603,19 @@ export function VendaRapida() {
 
       {lendo && (
         <LeitorCodigo
-          key={leitura}
           abrirLote={false}
+          continuo
           onFechar={() => (setLendo(false), focar())}
           onLer={(c) => {
-            const agora = Date.now()
-            const repetida = ultimaLida.current?.c === c && agora - ultimaLida.current.em < 2500
-            ultimaLida.current = { c, em: agora }
-            if (!repetida) {
-              const p = acharPorCodigo(estoque, c)
-              if (p) adicionar(p)
-              else (setJaSaiu(c), bipe(false))
-            }
-            // celular: a câmera continua aberta para o próximo pacote; no computador fecha
-            if (toque) setTimeout(() => setLeitura((n) => n + 1), repetida ? 1200 : 600)
-            else (setLendo(false), focar())
+            // CONTÍNUO: a câmera fica aberta; cada pacote lido entra na venda e aparece na lista do leitor
+            const p = acharPorCodigo(estoque, c)
+            if (p && linhas.some((l) => l.itemId === p.id)) return { ok: false, texto: `${p.codigo ?? c} · ${t('já está na venda')}` }
+            // numa OUTRA venda em aberto: a venda pergunta (tirar de lá?) — na lista fica "confirme", não "✓"
+            if (p && abertas?.some((x) => x.id !== vendaId && x.linhas.some((l) => l.itemId === p.id))) return (adicionar(p), { ok: false, texto: `${p.codigo ?? c} · ${t('está noutra venda em aberto — confirme')}` })
+            if (p) return (adicionar(p), { ok: true, texto: `${p.codigo ?? c} · ${p.nome} · ${gramasTexto(p.saldo)}` })
+            setJaSaiu(c)
+            bipe(false)
+            return { ok: false, texto: `${c} · ${t('não está disponível para vender')}` }
           }}
         />
       )}
