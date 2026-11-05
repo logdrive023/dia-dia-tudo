@@ -79,7 +79,9 @@ export default defineConfig(({ command, mode }) => {
       environment: 'jsdom',
       setupFiles: ['src/__tests__/setup.ts'],
       testTimeout: 60000,
-      fileParallelism: false,
+      // arquivos em paralelo (cada um no seu processo, com o próprio banco): ~4x mais rápido que um por vez
+      pool: 'forks',
+      poolOptions: { forks: { maxForks: 4, minForks: 1 } },
     },
   }
 })

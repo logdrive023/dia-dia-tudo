@@ -215,3 +215,38 @@ export function FiltroViagem({ valor, onChange, nasLinhas }: { valor: string; on
     </>
   )
 }
+
+/**
+ * CAMPO DE VIAGEM (formulários): mostra a viagem escolhida (na cor do tempo) ou "Sem viagem"; um toque abre a mesma
+ * EscolhaViagem do filtro (busca, 📍 cidade, 📅 data). "Tirar" volta para sem viagem.
+ */
+export function CampoViagem({ valor, onChange, rotulo = 'Viagem' }: { valor: string; onChange(id: Id | ''): void; rotulo?: string }) {
+  const t = useT()
+  const { dados } = useConsulta('viagensParaFiltro', {})
+  const [aberta, setAberta] = useState(false)
+  const v = dados?.find((x) => x.id === valor)
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" aria-haspopup="dialog" aria-label={`${t(rotulo)}: ${v ? v.codigo : t('Sem viagem')}`} onClick={() => setAberta(true)}
+          style={v ? { borderLeftColor: COR_TEMPO[v.tempo].cor } : undefined}
+          className={cx('flex min-h-12 min-w-0 flex-[1_1_14rem] items-center gap-2 rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 text-left hover:border-sky-500', v && 'border-l-[6px]')}>
+          <span aria-hidden>✈️</span>
+          {v ? (
+            <span className="min-w-0 flex-1">
+              <b className="block truncate text-sm"><span className="font-mono">{v.codigo}</span> · {v.nome}</b>
+              <span className="block truncate text-xs text-[var(--suave)]">{situacaoViagem(v, t)}{v.destino ? ` · 📍 ${v.destino}` : ''}</span>
+            </span>
+          ) : <span className="min-w-0 flex-1 text-sm text-[var(--suave)]">{t('Sem viagem — toque para escolher')}</span>}
+          <span aria-hidden className="text-xs text-[var(--suave)]">▾</span>
+        </button>
+        {v && <button type="button" onClick={() => onChange('')} className="min-h-11 rounded-lg px-2 text-sm font-semibold text-[var(--suave)] hover:text-[var(--ruim)]">✕ {t('Tirar')}</button>}
+      </div>
+      {aberta && (
+        <Janela aberta titulo={`✈️ ${t(rotulo)}`} onFechar={() => setAberta(false)}>
+          <EscolhaViagem valor={valor} onEscolher={(id) => (onChange(id), setAberta(false))} />
+        </Janela>
+      )}
+    </>
+  )
+}

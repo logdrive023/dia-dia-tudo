@@ -2,7 +2,7 @@
 // os campos e o "para que serve" (explicação + exemplo) fica no ⓘ ao lado do título; os fechados ficam numa linha com o resumo.
 // Número vira ✓ quando o passo está feito. Tocar no título abre/fecha; "Próximo →" fecha este e abre o seguinte.
 
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Info, cx } from './base'
 import { useT } from './i18n'
 
@@ -55,4 +55,28 @@ export function Passo({ n, de, titulo, resumo, ajuda, exemplo, aberto, feito, op
       )}
     </li>
   )
+}
+
+/**
+ * O ESTADO DO ASSISTENTE (wizard), igual em todo cadastro: qual passo está aberto, abrir/fechar um e "Próximo →".
+ * Ex.: const w = useAssistente() → <Passo aberto={w.aberto(1)} onAlternar={() => w.alternar(1)}> … {w.proximo(1, 'Quem vai')}
+ */
+export function useAssistente(primeiro = 1) {
+  const t = useT()
+  const [abertos, setAbertos] = useState<Set<number>>(() => new Set([primeiro]))
+  const alternar = (n: number) => setAbertos((s) => { const x = new Set(s); if (x.has(n)) x.delete(n); else x.add(n); return x })
+  const ir = (n: number) => setAbertos(new Set([n]))
+  /** "Próximo: Quem vai →" (fecha este, abre o seguinte); `pode` falso = ainda falta algo aqui */
+  const proximo = (n: number, rotulo: string, pode = true) => (
+    <div className="flex justify-end">
+      <button type="button" disabled={!pode} onClick={() => ir(n + 1)} className="min-h-11 rounded-xl bg-[var(--marca-suave)] px-4 text-sm font-semibold text-[var(--marca)] hover:brightness-95 disabled:opacity-50">{t('Próximo')}: {t(rotulo)} →</button>
+    </div>
+  )
+  return { aberto: (n: number) => abertos.has(n), alternar, ir, proximo }
+}
+
+/** a lista dos passos (o mesmo espaçamento e largura em todo cadastro) */
+export function Passos({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+  const t = useT()
+  return <ol className="mx-auto max-w-2xl space-y-3" aria-label={t(rotulo)}>{children}</ol>
 }

@@ -2,6 +2,7 @@
 // fiado, adiantamento, "falta"). Ficha 360° com tudo o que a pessoa fez e linha do tempo.
 
 import { useState } from 'react'
+import { CadastroPessoa } from './cadastros/CadastroPessoa'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id, Papel } from '../core/domain/tipos'
@@ -83,40 +84,8 @@ export function Pessoas() {
           )}
         </>
       )}
-      {nova && <EditarPessoa onFechar={() => setNova(false)} />}
+      {nova && <CadastroPessoa onFechar={() => setNova(false)} />}
     </div>
-  )
-}
-
-export function EditarPessoa({ id, onFechar }: { id?: Id; onFechar(): void }) {
-  const t = useT()
-  const { executar, ocupado } = useComando()
-  const { dados: pessoas } = useConsulta('pessoas', {})
-  const { dados: locais } = useConsulta('locais', {})
-  const p = pessoas?.find((x) => x.id === id)
-  const [inicial] = useState(() => JSON.stringify({ nome: p?.nome ?? '', telefone: p?.telefone ?? '', documento: p?.documento ?? '', obs: p?.obs ?? '', papeis: p?.papeis ?? ['cliente'], localId: p?.localId ?? '' }))
-  const [d, setD] = useState({ nome: p?.nome ?? '', telefone: p?.telefone ?? '', documento: p?.documento ?? '', obs: p?.obs ?? '', papeis: p?.papeis ?? (['cliente'] as Papel[]), localId: p?.localId ?? '' })
-  const sujo = JSON.stringify(d) !== inicial
-  const fechar = () => (!sujo || window.confirm(t('Sair sem salvar?'))) && onFechar()
-  if (id && !p) return null
-  return (
-    <Janela aberta titulo={t(id ? 'Editar pessoa' : 'Nova pessoa')} onFechar={fechar} rodape={<Botao grande className="w-full" disabled={ocupado} onClick={async () => (await executar('salvarPessoa', { ...p, id: id ?? novoId(), ...d, localId: d.localId || undefined }, t('Salvo.'))) && onFechar()}>{t('Salvar')}</Botao>}>
-      <div className="space-y-3">
-        <Campo rotulo="Nome"><Entrada value={d.nome} onChange={(e) => setD({ ...d, nome: e.target.value })} /></Campo>
-        <Campo rotulo="WhatsApp"><Entrada inputMode="tel" value={d.telefone} onChange={(e) => setD({ ...d, telefone: e.target.value })} /></Campo>
-        <Campo rotulo="Documento (opcional)"><Entrada value={d.documento} onChange={(e) => setD({ ...d, documento: e.target.value })} /></Campo>
-        <Campo rotulo="Unidade onde costuma ser atendida"><Selecao valor={d.localId} onChange={(v) => setD({ ...d, localId: v })} vazio="—" opcoes={(locais ?? []).map((l) => ({ id: l.id, nome: l.nome }))} /></Campo>
-        <div>
-          <span className="mb-1 block text-sm font-semibold text-[var(--suave)]">{t('Papéis')}</span>
-          <div className="flex flex-wrap gap-1">
-            {PAPEIS.map((x) => (
-              <button key={x} type="button" aria-pressed={d.papeis.includes(x)} onClick={() => setD({ ...d, papeis: d.papeis.includes(x) ? d.papeis.filter((y) => y !== x) : [...d.papeis, x] })} className={cx('min-h-10 rounded-full px-3 text-sm font-semibold', d.papeis.includes(x) ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>{t(x)}</button>
-            ))}
-          </div>
-        </div>
-        <Campo rotulo="Observação"><Entrada value={d.obs} onChange={(e) => setD({ ...d, obs: e.target.value })} /></Campo>
-      </div>
-    </Janela>
   )
 }
 
@@ -224,7 +193,7 @@ export function FichaPessoa() {
         <Cartao titulo={t('Linha do tempo (log)')}><LinhaDoTempo id={p.id} /></Cartao>
       </div>
       {acerto && <Acerto pessoaId={p.id} direcao={acerto} onFechar={() => setAcerto(undefined)} />}
-      {editar && <EditarPessoa id={p.id} onFechar={() => setEditar(false)} />}
+      {editar && <CadastroPessoa id={p.id} onFechar={() => setEditar(false)} />}
     </Pagina>
   )
 }

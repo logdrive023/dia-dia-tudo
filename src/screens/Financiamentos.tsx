@@ -12,8 +12,8 @@ import type { Id } from '../core/domain/tipos'
 import type { PassoFinanciamento, StatusFinanciamento } from '../core/services/financiamentos'
 import { CATEGORIAS_CABELO } from '../modules/cabelo'
 import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, ErroTela, Escolha, GramasInput, Janela, Pagina, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, gramasTexto, moedaPadrao } from '../ui/base'
-import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
-import { Anexos, SeletorPessoa, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
+import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
+import { Anexos, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { BarraFinanciamento, StatusFinanciamentoPilula } from '../ui/financiamento'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { useT } from '../ui/i18n'
@@ -98,70 +98,6 @@ export function Financiamentos() {
 }
 
 /** NOVO ADIANTAMENTO (#/adiantamentos/novo): quem, quanto, em que moeda e de onde sai. */
-export function NovoFinanciamento() {
-  const t = useT()
-  const { voltar, ir, marcarSujo, nav } = useApp()
-  const { cfg } = useCotacoes()
-  const { executar, ocupado } = useComando()
-  const [id] = useState(() => novoId())
-  const [pessoaId, setPessoaId] = useState<Id | undefined>(nav.params.pessoaId as Id | undefined)
-  const [moedaEscolhida, setMoeda] = useState<string>()
-  const moeda = moedaEscolhida ?? cfg?.moedaPrincipal ?? moedaPadrao()
-  const [valor, setValor] = useState<number>()
-  const [forma, setForma] = useState('dinheiro')
-  const [viagemId, setViagemId] = useState<string>((nav.params.viagemId as string | undefined) ?? '')
-  const [abater, setAbater] = useState(false)
-  const [obs, setObs] = useState('')
-  const { dados: viagens } = useConsulta('viagens', { status: 'aberta' })
-  const { dados: pessoas } = useConsulta('pessoas', {})
-  useAvisoSaida(!ocupado && (!!pessoaId || valor !== undefined))
-  const formas = (cfg?.formas ?? []).filter((f) => f.moedas.includes(moeda))
-  const nome = pessoas?.find((p) => p.id === pessoaId)?.nome
-  return (
-    <Pagina
-      titulo={t('Novo adiantamento')}
-      subtitulo={t('Dinheiro para o parceiro comprar cabelo. A dívida é paga com o cabelo que ele entregar.')}
-      voltarRotulo="Adiantamentos"
-      onVoltar={voltar}
-      rodape={
-        <Botao grande className="w-full" disabled={ocupado || !pessoaId || !valor} onClick={async () => {
-          const r = await executar('criarFinanciamento', { id, pessoaId: pessoaId!, moeda, valor: valor!, forma, viagemId: viagemId || undefined, abaterComissoes: abater, obs }, t('Adiantamento registrado.'))
-          if (r) {
-            marcarSujo(false)
-            ir('financiamento', { id })
-          }
-        }}>{t('Registrar adiantamento')}</Botao>
-      }
-    >
-      <div className="grid gap-4 md:grid-cols-[1fr_18rem]">
-        <div className="space-y-3">
-          <SeletorPessoa valor={pessoaId} onChange={setPessoaId} rotulo="Quem vai comprar (comprador)" />
-          <Campo rotulo="Valor" comoDiv>
-            <div className="grid grid-cols-[7rem_1fr] gap-2">
-              <Selecao valor={moeda} onChange={(v) => (setMoeda(v), setForma((cfg?.formas ?? []).find((f) => f.moedas.includes(v))?.id ?? 'dinheiro'))} opcoes={(cfg?.moedasAtivas ?? [moeda]).map((x) => ({ id: x, nome: x }))} />
-              <ValorInput moeda={moeda} valor={valor} onChange={setValor} />
-            </div>
-          </Campo>
-          <Campo rotulo="Sai do caixa como"><Selecao valor={forma} onChange={setForma} opcoes={formas.map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
-          <Campo rotulo="Viagem de compra (opcional)" ajuda="As entregas deste adiantamento entram como compras da viagem.">
-            <Selecao valor={viagemId} onChange={setViagemId} vazio="Sem viagem" opcoes={(viagens?.linhas ?? []).map((v) => ({ id: v.id, nome: `${v.codigo} · ${v.nome}` }))} />
-          </Campo>
-          <label className="flex min-h-10 items-center gap-2 text-sm">
-            <input type="checkbox" checked={abater} onChange={(e) => setAbater(e.target.checked)} /> {t('Abater sozinho das próximas comissões pagas a esta pessoa')}
-          </label>
-          <Campo rotulo="Observação (opcional)"><Entrada value={obs} onChange={(e) => setObs(e.target.value)} placeholder={t('Ex.: compra na feira de Oruro')} /></Campo>
-        </div>
-        <aside className="h-fit space-y-2 rounded-2xl bg-[var(--fundo)] p-4 text-sm md:sticky md:top-4">
-          <b className="block">{t('O que acontece')}</b>
-          <p>💸 {t('Sai do caixa')}: <b className="num">{valor ? formatar(valor, moeda) : '—'}</b> {t('como "Saída por empréstimo operacional" (não é despesa nem compra).')}</p>
-          <p>📒 {nome ? t('{nome} passa a dever esse valor na conta corrente.', { nome }) : t('A pessoa passa a dever esse valor na conta corrente.')}</p>
-          <p>💇‍♀️ {t('Cada entrega de cabelo vira uma compra normal que abate a dívida, sem sair do caixa.')}</p>
-        </aside>
-      </div>
-    </Pagina>
-  )
-}
-
 const ICONE_PASSO: Record<PassoFinanciamento['tipo'], string> = { emprestimo: '💸', entrega: '💇‍♀️', recebimento: '💵', comissao: '🧾', diferenca: '↩️', baixa: '✂️', quitacao: '✅', encerramento: '🔒' }
 
 /** Linha do tempo do adiantamento: um passo por acontecimento, com o efeito na dívida e o saldo depois. */

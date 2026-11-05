@@ -2,6 +2,7 @@
 // (salário por mês, semana ou dia) e a "ponta do lápis" de cada unidade: entradas × saídas = margem.
 
 import { useState } from 'react'
+import { CadastroFuncionario } from './cadastros/CadastroFuncionario'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id, Pessoa } from '../core/domain/tipos'
@@ -9,7 +10,6 @@ import type { NoOrganograma } from '../core/services/equipe'
 import { memoriaCalculo } from '../core/domain/comissao'
 import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Info, Janela, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, moedaPadrao } from '../ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
-import { useCotacoes } from '../ui/compartilhados'
 import { SeletorPeriodo, useLembrado, usePeriodo } from '../ui/filtros'
 import { useT } from '../ui/i18n'
 import { useLargo } from '../ui/calendario'
@@ -44,7 +44,7 @@ export function Equipe() {
         <Unidades de={periodo.de} ate={periodo.ate} onComissoes={() => setAba('comissoes')} />
       )}
       {resumo && <Resumo id={resumo} de={periodo.de} ate={periodo.ate} onFechar={() => setResumo(undefined)} onEditar={(p) => (setResumo(undefined), setEditar(p))} onComissoes={(id) => (setResumo(undefined), ajustarParams({ aba: 'comissoes', pessoaId: id }))} />}
-      {editar && <EditarFuncionario pessoa={editar === 'novo' ? undefined : editar} localPadrao={localId} onFechar={() => setEditar(undefined)} />}
+      {editar && <CadastroFuncionario pessoa={editar === 'novo' ? undefined : editar} localPadrao={localId} onFechar={() => setEditar(undefined)} />}
     </div>
   )
 }
@@ -209,62 +209,6 @@ function PagarSalario({ pessoa, onFechar }: { pessoa: Pessoa; onFechar(): void }
         <Campo rotulo="Valor"><ValorInput moeda={moeda} valor={v} onChange={setValor} /></Campo>
         <Campo rotulo="Forma"><Selecao valor={forma ?? sug?.forma ?? 'dinheiro'} onChange={setForma} opcoes={(cfg?.config.formas ?? []).filter((f) => f.moedas.includes(moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
         <Campo rotulo="Referência (opcional)"><Entrada value={ref} placeholder={t('Ex.: semana 1 a 7, diária de sábado')} onChange={(e) => setRef(e.target.value)} /></Campo>
-      </div>
-    </Janela>
-  )
-}
-
-function EditarFuncionario({ pessoa, localPadrao, onFechar }: { pessoa?: Pessoa; localPadrao?: string; onFechar(): void }) {
-  const t = useT()
-  const { executar, ocupado } = useComando()
-  const { dados: locais } = useConsulta('locais', {})
-  const { dados: todos } = useConsulta('pessoas', { papel: 'funcionario' })
-  const { cfg } = useCotacoes()
-  const [d, setD] = useState({
-    id: pessoa?.id ?? novoId(),
-    nome: pessoa?.nome ?? '',
-    telefone: pessoa?.telefone ?? '',
-    cargo: pessoa?.cargo ?? '',
-    localId: pessoa?.localId ?? localPadrao ?? '',
-    superiorId: pessoa?.superiorId ?? '',
-    salario: pessoa?.salario?.valor,
-    moeda: pessoa?.salario?.moeda as string | undefined,
-    periodo: pessoa?.salario?.periodo ?? 'mes',
-    comissao: pessoa?.comissaoBp ? String(pessoa.comissaoBp / 100) : '',
-    atende: pessoa ? pessoa.papeis.includes('profissional') : true,
-    acesso: pessoa?.acesso ?? 'funcionario',
-  })
-  const [inicial] = useState(() => JSON.stringify(d))
-  const moeda = d.moeda ?? cfg?.moedaPrincipal ?? moedaPadrao()
-  const fechar = () => (JSON.stringify(d) === inicial || window.confirm(t('Sair sem salvar?'))) && onFechar()
-  const salvar = async () => {
-    const r = await executar('salvarPessoa', {
-      id: d.id,
-      nome: d.nome,
-      telefone: d.telefone,
-      papeis: [...new Set([...(pessoa?.papeis ?? []).filter((x) => x !== 'profissional'), 'funcionario', ...(d.atende ? ['profissional' as const] : [])])] as Pessoa['papeis'],
-      cargo: d.cargo,
-      localId: d.localId || undefined,
-      superiorId: d.superiorId || undefined,
-      salario: d.salario !== undefined ? { moeda, valor: d.salario, periodo: d.periodo as 'mes' | 'semana' | 'dia' } : undefined,
-      comissaoBp: d.comissao ? Math.round(Number(d.comissao.replace(',', '.')) * 100) : undefined,
-      acesso: d.acesso as 'admin' | 'funcionario',
-    }, t('Salvo.'))
-    if (r) onFechar()
-  }
-  return (
-    <Janela aberta titulo={t(pessoa ? 'Editar funcionário' : 'Novo funcionário')} onFechar={fechar} rodape={<Botao grande className="w-full" disabled={ocupado} onClick={salvar}>{t('Salvar')}</Botao>}>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Campo rotulo="Nome"><Entrada value={d.nome} onChange={(e) => setD({ ...d, nome: e.target.value })} /></Campo>
-        <Campo rotulo="Cargo"><Entrada list="cargos" value={d.cargo} onChange={(e) => setD({ ...d, cargo: e.target.value })} /><datalist id="cargos">{['Diretora geral', 'Gerente', 'Cabeleireira sênior', 'Cabeleireira', 'Manicure', 'Recepção'].map((c) => <option key={c} value={c} />)}</datalist></Campo>
-        <Campo rotulo="Unidade"><Selecao valor={d.localId} onChange={(v) => setD({ ...d, localId: v })} vazio="—" opcoes={(locais ?? []).map((l) => ({ id: l.id, nome: l.nome }))} /></Campo>
-        <Campo rotulo="Responde a" ajuda="Monta o organograma."><Selecao valor={d.superiorId} onChange={(v) => setD({ ...d, superiorId: v })} vazio="Ninguém (topo)" opcoes={(todos ?? []).filter((p) => p.id !== d.id).map((p) => ({ id: p.id, nome: `${p.nome}${p.cargo ? ` · ${p.cargo}` : ''}` }))} /></Campo>
-        <Campo rotulo="Salário / custo" ajuda="Pode ser por mês, semana ou dia. Serve de estimativa do custo; o pago de verdade fica no caixa."><div className="grid grid-cols-[6rem_1fr] gap-2"><Selecao valor={moeda} onChange={(m) => setD({ ...d, moeda: m })} opcoes={(cfg?.moedasAtivas ?? [moeda]).map((m) => ({ id: m, nome: m }))} /><ValorInput moeda={moeda} valor={d.salario} onChange={(v) => setD({ ...d, salario: v })} /></div></Campo>
-        <Campo rotulo="Período"><Selecao valor={d.periodo} onChange={(v) => setD({ ...d, periodo: v as 'mes' })} opcoes={Object.entries(PERIODOS).map(([id, nome]) => ({ id, nome: t(nome) }))} /></Campo>
-        <Campo rotulo="Comissão (%)"><Entrada inputMode="decimal" value={d.comissao} onChange={(e) => setD({ ...d, comissao: e.target.value })} /></Campo>
-        <Campo rotulo="WhatsApp"><Entrada value={d.telefone} onChange={(e) => setD({ ...d, telefone: e.target.value })} /></Campo>
-        <Campo rotulo="Acesso ao sistema"><Selecao valor={d.acesso} onChange={(v) => setD({ ...d, acesso: v as 'admin' })} opcoes={[{ id: 'funcionario', nome: t('Funcionário (só a unidade e a própria agenda)') }, { id: 'admin', nome: t('Administrador (tudo)') }]} /></Campo>
-        <label className="flex min-h-10 items-center gap-2 self-end text-sm"><input type="checkbox" className="h-5 w-5" checked={d.atende} onChange={(e) => setD({ ...d, atende: e.target.checked })} /> {t('Atende clientes (aparece na agenda)')}</label>
       </div>
     </Janela>
   )

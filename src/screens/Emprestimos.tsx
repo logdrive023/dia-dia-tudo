@@ -3,13 +3,11 @@
 
 import { useState } from 'react'
 import { formatar } from '../core/domain/dinheiro'
-import { dataLocal, somarMeses } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
-import type { Id, TipoJuros } from '../core/domain/tipos'
-import { calcularParcelas } from '../core/services/emprestimos'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Escolha, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, ErroTela, moedaPadrao } from '../ui/base'
-import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
-import { Anexos, SeletorPessoa, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
+import type { Id } from '../core/domain/tipos'
+import { Abas, Botao, Campo, Carregando, Cartao, Janela, Pagina, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, ErroTela } from '../ui/base'
+import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
+import { Anexos, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { useT } from '../ui/i18n'
 import { Etiqueta } from './Vendas'
@@ -45,64 +43,6 @@ export function Emprestimos() {
 }
 
 /** Tela de NOVO EMPRÉSTIMO (#/emprestimos/novo): a prévia das parcelas aparece enquanto digita. */
-export function NovoEmprestimo() {
-  const { voltar, ir, marcarSujo } = useApp()
-  const t = useT()
-  const { cfg } = useCotacoes()
-  const { executar, ocupado } = useComando()
-  const [id] = useState(() => novoId())
-  const [direcao, setDirecao] = useState<'dado' | 'tomado'>('dado')
-  const [pessoaId, setPessoaId] = useState<Id>()
-  const [moedaEscolhida, setMoeda] = useState<string>()
-  const moeda = moedaEscolhida ?? cfg?.moedaPrincipal ?? moedaPadrao()
-  const [principal, setPrincipal] = useState<number>()
-  const [tipo, setTipo] = useState<TipoJuros>('simples')
-  const [taxa, setTaxa] = useState('5')
-  const [fixo, setFixo] = useState<number>()
-  const [n, setN] = useState(4)
-  const [primeiro, setPrimeiro] = useState(somarMeses(dataLocal(), 1))
-  const [forma, setForma] = useState('dinheiro')
-  useAvisoSaida(!ocupado && (!!pessoaId || principal !== undefined || fixo !== undefined))
-  let previa: ReturnType<typeof calcularParcelas> | undefined
-  try {
-    if (principal) previa = calcularParcelas(principal, { tipo, taxaMensalBp: Math.round(Number(taxa.replace(',', '.')) * 100), valorFixo: fixo }, n, primeiro)
-  } catch {
-    previa = undefined
-  }
-  return (
-    <Pagina titulo={t('Novo empréstimo')} subtitulo={t('O sistema só registra e calcula o que foi combinado.')} voltarRotulo="Empréstimos" onVoltar={voltar} rodape={<Botao grande className="w-full" disabled={ocupado || !previa || !pessoaId} onClick={async () => {
-      const r = await executar('criarEmprestimo', { id, direcao, pessoaId: pessoaId!, moeda, principal: principal!, juros: { tipo, taxaMensalBp: Math.round(Number(taxa.replace(',', '.')) * 100), valorFixo: fixo }, parcelas: n, primeiroVencimento: primeiro, forma }, t('Empréstimo registrado.'))
-      if (r) {
-        marcarSujo(false)
-        ir('emprestimo', { id })
-      }
-    }}>{t('Registrar')}</Botao>}>
-      <div className="space-y-3">
-        <Escolha<typeof direcao> rotulo="Direção" valor={direcao} onChange={setDirecao} opcoes={[{ id: 'dado', nome: 'Eu emprestei' }, { id: 'tomado', nome: 'Eu peguei emprestado' }]} />
-        <SeletorPessoa valor={pessoaId} onChange={setPessoaId} papel={direcao === 'dado' ? 'devedor' : 'credor'} />
-        <div className="grid grid-cols-[7rem_1fr] gap-2">
-          <Selecao valor={moeda} onChange={setMoeda} opcoes={(cfg?.moedasAtivas ?? []).map((x) => ({ id: x, nome: x }))} />
-          <ValorInput moeda={moeda} valor={principal} onChange={setPrincipal} />
-        </div>
-        <Campo rotulo="Juros"><Selecao valor={tipo} onChange={(v) => setTipo(v as TipoJuros)} opcoes={[{ id: 'nenhum', nome: t('Sem juros') }, { id: 'simples', nome: t('Simples (% ao mês)') }, { id: 'composto', nome: t('Composto (parcelas iguais)') }, { id: 'fixo', nome: t('Valor fixo combinado') }]} /></Campo>
-        {(tipo === 'simples' || tipo === 'composto') && <Campo rotulo="% ao mês"><Entrada inputMode="decimal" value={taxa} onChange={(e) => setTaxa(e.target.value)} /></Campo>}
-        {tipo === 'fixo' && <Campo rotulo="Juros combinados (valor)"><ValorInput moeda={moeda} valor={fixo} onChange={setFixo} /></Campo>}
-        <div className="grid grid-cols-2 gap-2">
-          <Campo rotulo="Parcelas"><Entrada inputMode="numeric" value={n} onChange={(e) => setN(Number(e.target.value) || 1)} /></Campo>
-          <Campo rotulo="1º vencimento"><Entrada type="date" value={primeiro} onChange={(e) => setPrimeiro(e.target.value)} /></Campo>
-        </div>
-        <Campo rotulo={direcao === 'dado' ? 'Saiu do caixa como' : 'Entrou no caixa como'}><Selecao valor={forma} onChange={setForma} opcoes={(cfg?.formas ?? []).filter((f) => f.moedas.includes(moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
-        {previa && (
-          <div className="rounded-xl bg-[var(--fundo)] p-3 text-sm">
-            <b>{t('Total')}: {formatar(previa.total, moeda)}</b> ({t('juros')} {formatar(previa.juros, moeda)})
-            <ul className="mt-1">{previa.parcelas.map((p) => <li key={p.numero} className="num">{p.numero}. {dataBR(p.vencimento)} · {formatar(p.valor, moeda)}</li>)}</ul>
-          </div>
-        )}
-      </div>
-    </Pagina>
-  )
-}
-
 export function FichaEmprestimo() {
   const t = useT()
   const { nav, voltar, ir } = useApp()

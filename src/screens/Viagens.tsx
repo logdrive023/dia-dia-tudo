@@ -21,7 +21,7 @@ import { useT } from '../ui/i18n'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { NumeroGrande, NumeroPequeno } from '../ui/numeroGrande'
 import { MenuAcoes } from '../ui/menuAcoes'
-import { Passo } from '../ui/passoAPasso'
+import { Passo, useAssistente } from '../ui/passoAPasso'
 import { CampoCidade } from '../ui/campoCidade'
 import { CIDADES_BOLIVIA, textoCidade } from '../core/dados/cidadesBolivia'
 import { AvisoNoAparelho, BarraOrcamento, CarteiraViagem, FolhaDespesa, LinhaGasto, PainelViajante } from '../ui/viagem'
@@ -263,12 +263,12 @@ function FormViagem({ viagem }: { viagem?: Viagem }) {
   }
   const pessoas = dados?.viajantesPossiveis ?? []
   // PASSO A PASSO (como Separar e Nova compra): 1 Para onde · 2 Quem vai · 3 Quanto pode gastar · 4 Como dividir
-  const [abertos, setAbertos] = useState<Set<number>>(() => new Set([1]))
-  const alternar = (n: number) => setAbertos((s) => { const x = new Set(s); if (x.has(n)) x.delete(n); else x.add(n); return x })
-  const ir_ = (n: number) => setAbertos(new Set([n]))
+  const w = useAssistente()
+  const alternar = w.alternar
+  const abertos = { has: w.aberto }
   const dias = inicio && fim && fim >= inicio ? Math.round((new Date(`${fim}T12:00:00`).getTime() - new Date(`${inicio}T12:00:00`).getTime()) / 86400000) + 1 : undefined
   const nomesViajantes = pessoas.filter((p) => viajantes.includes(p.id)).map((p) => p.nome)
-  const proximo = (n: number, rotulo: string) => <div className="flex justify-end"><Botao variante="secundario" onClick={() => ir_(n + 1)}>{t('Próximo')}: {t(rotulo)} →</Botao></div>
+  const proximo = (n: number, rotulo: string) => w.proximo(n, rotulo)
   const falta = !nome.trim() ? t('o nome da viagem') : !viajantes.length ? t('quem vai') : ''
   return (
     <Pagina titulo={t(viagem ? 'Editar viagem' : 'Nova viagem de compra')} subtitulo={viagem?.codigo} onVoltar={voltar} rodape={

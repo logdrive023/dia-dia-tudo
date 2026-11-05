@@ -18,7 +18,8 @@ import { Comprar, NovaCompraTela, Pedido } from './screens/Comprar'
 import { destinoVoltar, hashParaNav, navParaHash, normalizarNav } from './app/rotas'
 import { Config } from './screens/Configuracoes'
 import { Entrar } from './screens/Entrar'
-import { Emprestimos, FichaEmprestimo, NovoEmprestimo } from './screens/Emprestimos'
+import { Emprestimos, FichaEmprestimo } from './screens/Emprestimos'
+import { CadastroEmprestimo } from './screens/cadastros/CadastroEmprestimo'
 import { Equipe } from './screens/Equipe'
 import { Estoque, FichaLote, Rastreio, SepararTela } from './screens/Estoque'
 import { Etiquetas } from './screens/Etiquetas'
@@ -34,7 +35,8 @@ import { Vender } from './screens/Vender'
 import { VendaRapida } from './screens/VendaRapida'
 import { PacoteVenda } from './screens/PacoteVenda'
 import { FichaViagem, Viagens, NovaViagemTela } from './screens/Viagens'
-import { Financiamentos, FichaFinanciamento, NovoFinanciamento } from './screens/Financiamentos'
+import { Financiamentos, FichaFinanciamento } from './screens/Financiamentos'
+import { CadastroAdiantamento } from './screens/cadastros/CadastroAdiantamento'
 
 const TELAS: Record<string, () => JSX.Element> = {
   painel: Painel,
@@ -56,7 +58,7 @@ const TELAS: Record<string, () => JSX.Element> = {
   pessoa: FichaPessoa,
   emprestimos: Emprestimos,
   emprestimo: FichaEmprestimo,
-  novoEmprestimo: NovoEmprestimo,
+  novoEmprestimo: CadastroEmprestimo,
   separar: SepararTela,
   precos: Precos,
   tabelaPreco: Precos,
@@ -70,7 +72,7 @@ const TELAS: Record<string, () => JSX.Element> = {
   viagem: FichaViagem,
   adiantamentos: Financiamentos,
   financiamento: FichaFinanciamento,
-  novoFinanciamento: NovoFinanciamento,
+  novoFinanciamento: CadastroAdiantamento,
   novaViagem: NovaViagemTela,
 }
 const SO_ADMIN = new Set([...MENU.filter((m) => m.admin).map((m) => m.tela), 'rastreio', 'emprestimo', 'vendas', 'pedido', 'novaCompra', 'tabelaPreco', 'novoEmprestimo', 'separar', 'configSecao', 'viagem', 'novaViagem', 'novoFinanciamento'])
