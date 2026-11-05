@@ -33,6 +33,8 @@ export function CadastroPessoa({ id, onFechar }: { id?: Id; onFechar(): void }) 
   const comeco = { nome: p?.nome ?? '', telefone: p?.telefone ?? '', documento: p?.documento ?? '', obs: p?.obs ?? '', papeis: p?.papeis ?? ([] as Papel[]), localId: p?.localId ?? '' }
   const [inicial] = useState(() => JSON.stringify(comeco))
   const [d, setD] = useState(comeco)
+  // versão da pessoa quando o formulário abriu (a lista recarrega se outra aba mudar; o formulário, não): o servidor recusa o velho
+  const [versaoBase] = useState(() => p?.versao)
   const w = useAssistente()
   if (id && !p) return null
   const sujo = JSON.stringify(d) !== inicial
@@ -40,7 +42,7 @@ export function CadastroPessoa({ id, onFechar }: { id?: Id; onFechar(): void }) 
   const falta = !d.nome.trim() ? t('o nome') : !d.papeis.length ? t('o que ela é para você') : ''
   const nomesPapeis = PAPEIS_PESSOA.filter((x) => d.papeis.includes(x.id)).map((x) => t(x.nome))
   const detalhes = [d.documento && `🪪 ${d.documento}`, d.localId && `📍 ${locais?.find((l) => l.id === d.localId)?.nome ?? ''}`, d.obs && `📝 ${d.obs}`].filter(Boolean)
-  const salvar = async () => (await executar('salvarPessoa', { ...p, id: id ?? novoId(), ...d, nome: d.nome.trim(), localId: d.localId || undefined }, t(id ? 'Salvo.' : 'Pessoa cadastrada.'))) && onFechar()
+  const salvar = async () => (await executar('salvarPessoa', { ...p, id: id ?? novoId(), ...d, nome: d.nome.trim(), localId: d.localId || undefined, versaoBase: id ? versaoBase : undefined }, t(id ? 'Salvo.' : 'Pessoa cadastrada.'))) && onFechar()
   return (
     <Janela aberta larga titulo={t(id ? 'Editar pessoa' : 'Nova pessoa')} onFechar={fechar} rodape={
       <Botao grande className="w-full" disabled={ocupado || !!falta} onClick={salvar}>{falta ? t('Falta: {x}', { x: falta }) : t(id ? 'Salvar' : 'Cadastrar')}</Botao>

@@ -411,8 +411,32 @@ const ehConferencia = (m: MovEstoque, compraId: Id) => m.motivo === 'ajuste' && 
 /** O lote da compra ainda não foi separado, juntado, vendido nem ajustado (fora a entrada e a conferência de peso). */
 async function exigirLoteIntacto(ctx: Ctx, compra: Transacao, lote: Item, mensagem: string) {
   const movs = await ctx.repos.movEstoque.listar({ itemId: lote.id })
-  const mexido = movs.some((m) => !(m.motivo === 'compra' && m.origemId === compra.id) && !ehConferencia(m, compra.id))
-  exigir(!mexido, `${mensagem} (${lote.codigo ?? lote.nome}).`)
+  const outros = movs.filter((m) => !(m.motivo === 'compra' && m.origemId === compra.id) && !ehConferencia(m, compra.id))
+  exigir(!(await mexeuDeVerdade(ctx, outros)), `${mensagem} (${lote.codigo ?? lote.nome}).`)
+}
+
+/**
+ * Movimentos que se anulam não contam como "mexido": triagem DESFEITA (separou/juntou e voltou) e venda CANCELADA
+ * (saiu e voltou). Cada operação dessas tem de somar zero; qualquer outro movimento (venda, ajuste, triagem ativa) conta.
+ */
+async function mexeuDeVerdade(ctx: Ctx, movs: MovEstoque[]) {
+  if (!movs.length) return false
+  // chave de cada operação desfeita: o id da triagem (o pacote juntado "-u" e a separação apontam para ela)
+  const chave = new Map<Id, Id>()
+  for (const i of await ctx.repos.itens.listar()) {
+    if (!i.campos.triagemDesfeita) continue
+    const sep = typeof i.campos.separacaoId === 'string' ? i.campos.separacaoId : undefined
+    const tid = i.triagem?.id ?? sep ?? i.id
+    for (const x of [i.id, sep, tid]) if (x) chave.set(x, tid)
+  }
+  for (const v of await ctx.repos.transacoes.listar({ tipo: 'venda' })) if (v.etapa === ETAPA_CANCELADO) chave.set(v.id, v.id)
+  const soma = new Map<Id, number>()
+  for (const m of movs) {
+    const k = m.origemId ? chave.get(m.origemId) : undefined
+    if (!k) return true
+    soma.set(k, (soma.get(k) ?? 0) + m.delta)
+  }
+  return [...soma.values()].some((v) => v !== 0)
 }
 
 /** Lotes que nasceram desta compra (no registro ou na última etapa). */
@@ -461,6 +485,15 @@ async function lancarConferencia(ctx: Ctx, compra: Transacao, linhaId: Id, pesad
     origemId: compra.id,
     descricao: `${PREFIXO_CONFERENCIA}: comprou ${gTxt(l.quantidade)} · pesou ${gTxt(pesado)} (${delta > 0 ? '+' : '−'}${gTxt(Math.abs(delta))}) · ${motivo}`,
   })
+  // o custo pago passa a valer para o peso conferido (nem cria custo com peso a mais, nem perde com peso a menos):
+  // o que ainda está no lote continua custando o mesmo, agora dividido pelo peso novo
+  const atual = (await ctx.repos.itens.obter(lote.id))!
+  const ini = lote.quantidadeInicial ?? lote.saldo
+  const resto = custoDe(lote, lote.saldo)
+  const qIni = Math.max(0, ini + delta)
+  const jaSaiu = qIni - atual.saldo
+  const custo = atual.saldo > 0 ? resto + (jaSaiu > 0 ? proporcao(resto, jaSaiu, atual.saldo) : 0) : lote.custoPrincipal
+  await ctx.repos.itens.salvar(tocar(ctx, { ...atual, quantidadeInicial: qIni, custoPrincipal: custo }))
   await auditar(ctx, 'conferirPesoCompra', compra.id, `${compra.codigo ?? ''} · ${l.descricao}: comprou ${gTxt(l.quantidade)} · pesou ${gTxt(pesado)} · ${motivo}`, [lote.id])
 }
 
@@ -473,6 +506,7 @@ export async function conferirPesoCompra(ctx: Ctx, d: { compraId: Id; linhaId?: 
   exigir(t && t.tipo === 'compra', 'Compra não encontrada.')
   exigir(t.etapa !== ETAPA_CANCELADO && t.etapa !== ETAPA_RECUSADO, 'Essa compra foi cancelada.')
   exigir(Number.isSafeInteger(d.pesado) && d.pesado >= 0, 'Peso conferido inválido.', 'pesado')
+  exigirInteiroPositivo(d.pesado, 'Peso conferido', true)
   exigir(d.motivo?.trim(), 'Diga o motivo da diferença.', 'motivo')
   // na triagem (passo 1 do Separar) vem o pacote, não a linha
   const linhaId = d.linhaId ?? t.linhas.find((l) => l.itemId && l.itemId === d.itemId)?.id
@@ -589,6 +623,10 @@ export async function cancelarCompra(ctx: Ctx, d: { compraId: Id; motivo: string
       if (!l.itemId) continue
       const item = await ctx.repos.itens.obter(l.itemId)
       exigir(item && item.saldo >= l.quantidade, `"${l.descricao}" já foi vendido ou usado: ajuste o estoque em vez de cancelar a compra.`)
+      // custo médio: tira o que esta compra pôs (o inverso da entrada), para a venda seguinte sair com o custo certo
+      const fica = item.saldo - l.quantidade
+      const custoFica = fica ? Math.max(0, custoDe(item, item.saldo) - l.totalPrincipal) : 0
+      await ctx.repos.itens.salvar(tocar(ctx, { ...item, custoPrincipal: custoFica, quantidadeInicial: fica }))
       await moverEstoque(ctx, { itemId: l.itemId, delta: -l.quantidade, motivo: 'cancelamento', origemId: t.id, descricao: 'Compra cancelada' })
     }
   }
@@ -615,12 +653,15 @@ export async function cancelarCompra(ctx: Ctx, d: { compraId: Id; motivo: string
 // ---------- consultas ----------
 
 /** Fila da triagem: compras por etapa, com quantos dias estão paradas e o que falta. */
-export async function filaTriagem(ctx: Ctx, p: { moduloId?: string; incluirEncerradas?: boolean; pendencia?: string } = {}) {
+export async function filaTriagem(ctx: Ctx, p: { moduloId?: string; incluirEncerradas?: boolean; pendencia?: string; /** só esta compra (a tela do pedido) */ id?: Id } = {}) {
   const viagens = await mapaViagens(ctx)
   const hoje = ctx.relogio.hoje()
   const cfg = await lerConfig(ctx)
-  const compras = (await ctx.repos.transacoes.listar({ tipo: 'compra' })).filter((t) => !p.moduloId || t.moduloId === p.moduloId)
-  const anexos = await ctx.repos.anexos.listar()
+  const uma = p.id ? await ctx.repos.transacoes.obter(p.id) : undefined
+  const compras = (p.id ? (uma && uma.tipo === 'compra' ? [uma] : []) : await ctx.repos.transacoes.listar({ tipo: 'compra' })).filter((t) => !p.moduloId || t.moduloId === p.moduloId)
+  // anexos agrupados por compra uma vez (antes: filtrava a lista inteira para cada compra)
+  const anexosPorDono = new Map<Id, Awaited<ReturnType<typeof ctx.repos.anexos.listar>>>()
+  for (const a of p.id ? await ctx.repos.anexos.listar({ donoId: p.id }) : await ctx.repos.anexos.listar()) anexosPorDono.set(a.donoId, [...(anexosPorDono.get(a.donoId) ?? []), a])
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x]))
   const siglas = await siglasPorPessoa(ctx)
   const saldoConta = new Map<string, number>()
@@ -630,7 +671,7 @@ export async function filaTriagem(ctx: Ctx, p: { moduloId?: string; incluirEncer
     .map((t) => {
       const mod = ctx.modulos.obter(t.moduloId)
       const ultimo = t.historico[t.historico.length - 1]?.em ?? t.criadoEm
-      const meus = anexos.filter((a) => a.donoId === t.id)
+      const meus = anexosPorDono.get(t.id) ?? []
       const etapas = mod.compra?.etapas ?? []
       const idxPago = etapas.findIndex((e) => e.faz?.includes('pagamento'))
       const diasParada = diasEntre(ultimo.slice(0, 10), hoje)
@@ -743,7 +784,8 @@ export async function fechamentoCompra(ctx: Ctx, p: { id: Id }) {
  * conta do fornecedor, lotes que nasceram dela e as outras compras da mesma pessoa.
  */
 export async function pedido(ctx: Ctx, p: { id: Id }) {
-  const fila = await filaTriagem(ctx, { incluirEncerradas: true })
+  // só a fila DESTA compra (antes calculava a de todas as compras para achar uma)
+  const fila = await filaTriagem(ctx, { incluirEncerradas: true, id: p.id })
   const t = fila.find((x) => x.id === p.id)
   if (!t) throw new ErroNegocio('Pedido não encontrado.')
   const mod = ctx.modulos.obter(t.moduloId)
@@ -754,11 +796,14 @@ export async function pedido(ctx: Ctx, p: { id: Id }) {
   const todosItens = await ctx.repos.itens.listar()
   const lotes = todosItens.filter((i) => comprasDe(i).includes(t.id))
   const F = await leitorFotos(ctx, { porId: new Map(todosItens.map((i) => [i.id, i])) })
-  const outras = fila.filter((x) => x.pessoaId && x.pessoaId === t.pessoaId && x.id !== t.id).slice(0, 5)
+  // outras compras da mesma pessoa (as 5 mais novas): só as dela, sem montar a fila inteira
+  const outras = !t.pessoaId ? [] : (await ctx.repos.transacoes.listar({ tipo: 'compra', pessoaId: t.pessoaId }))
+    .filter((x) => x.id !== t.id).sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1)).slice(0, 5)
+    .map((x) => ({ ...x, nomeEtapa: ctx.modulos.obter(x.moduloId).compra?.etapas.find((e) => e.id === x.etapa)?.nome ?? x.etapa }))
   const vg = t.viagemId ? await ctx.repos.viagens.obter(t.viagemId) : undefined
   const gramas = t.linhas.reduce((s, l) => s + l.quantidade, 0)
   const hoje = ctx.relogio.hoje()
-  const movsCompra = (await ctx.repos.movEstoque.listar()).filter((m) => m.origemId === t.id)
+  const movsCompra = await ctx.repos.movEstoque.listar({ origemId: t.id })
   return {
     compra: t,
     /** comprado = em pacotes + aguardando + vendido + perda + diferença (✓ quando fecha); sem lote ainda = undefined */

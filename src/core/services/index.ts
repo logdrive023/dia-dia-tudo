@@ -60,6 +60,7 @@ export const comandos = {
   salvarFluxoTriagem: triagem.salvarFluxoTriagem,
   triarLotes: triagem.triarLotes,
   desfazerTriagem: triagem.desfazerTriagem,
+  tirarDaMistura: triagem.tirarDaMistura,
   // tabelas de preço
   salvarTabelaPreco: precos.salvarTabelaPreco,
   // conta corrente
@@ -166,6 +167,7 @@ export const consultas = {
   cidades: cidades.cidades,
   origemDaVenda: origem.origemDaVenda,
   triagens: triagem.triagens,
+  mistura: triagem.mistura,
   // livro do cabelo (lançamentos de gramas) e histórico de cada pacote
   livroCabelo: livro.livroCabelo,
   historicoPacote: livro.historicoPacote,

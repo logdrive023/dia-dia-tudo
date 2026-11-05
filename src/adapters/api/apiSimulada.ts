@@ -51,7 +51,9 @@ interface SessaoServidor {
 
 export function criarFetchSimulado(servidor: Backend, opcoes: OpcoesServidorSimulado = {}): typeof fetch {
   const agora = opcoes.agora ?? (() => Date.now())
-  const idempotencia = new Map<string, unknown>()
+  // idempotência por PEDIDO (chave nova a cada chamada do app, repetida só nas tentativas automáticas) e por token:
+  // guarda a promessa → duas cópias do mesmo pedido ao mesmo tempo não executam duas vezes (a 2ª espera a 1ª)
+  const idempotencia = new Map<string, Promise<unknown>>()
   const sessoes = new Map<string, SessaoServidor>()
   const arquivos = new Map<string, { mime: string; conteudo: string }>()
   const binario = (status: number, corpo?: Uint8Array) =>
@@ -122,12 +124,21 @@ export function criarFetchSimulado(servidor: Backend, opcoes: OpcoesServidorSimu
     // envelope velho (ou relógio do aparelho muito errado): não executa; o app ajusta o relógio e manda outro
     if (typeof m.ts !== 'number' || Math.abs(t - m.ts) > JANELA_MS) return responder({ ok: false, falha: 'relogio' })
     try {
-      if (m.chave && idempotencia.has(m.chave)) return responder({ ok: true, r: idempotencia.get(m.chave) })
-      const r = await executar(m)
       // JSON de ida e volta: garante que tudo que trafega é JSON puro
-      const json = r === undefined ? undefined : JSON.parse(JSON.stringify(r))
-      if (m.chave) idempotencia.set(m.chave, json)
-      return responder({ ok: true, r: json })
+      const rodar = async () => {
+        const r = await executar(m)
+        return r === undefined ? undefined : JSON.parse(JSON.stringify(r))
+      }
+      if (!m.chave) return responder({ ok: true, r: await rodar() })
+      const chave = `${m.token ?? ''}|${m.chave}`
+      let p = idempotencia.get(chave)
+      if (!p) {
+        p = rodar()
+        idempotencia.set(chave, p)
+        // recusa de regra não fica guardada: a pessoa corrige e o app manda outro pedido (chave nova) — mas a cópia em voo vê a mesma recusa
+        p.catch(() => idempotencia.delete(chave))
+      }
+      return responder({ ok: true, r: await p })
     } catch (e) {
       if (e instanceof ErroNegocio) return responder({ ok: false, erro: { mensagem: e.message, campo: e.campo } })
       return binario(500) // erro interno: nada de pilha ou mensagem técnica para fora

@@ -226,7 +226,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
             if (!resto.length) return undefined
             return { texto: resto.length === 1 ? (resto[0].id === 'semComprovante' ? t('sem comprovante') : t(resto[0].texto)) : t('{n} pendências', { n: resto.length }), tom: 'alerta' }
           },
-          marca: (v) => <SelosViagem vs={v.viagens} curto />,
+          marca: (v) => <SelosViagem vs={v.viagens} curto soLeitura />,
           fatos: (v) => [formas(v) && `💳 ${formas(v)}`, v.feitoPor && `👤 ${v.feitoPor}`, `📅 ${dataBR(v.data)}`],
           aberto: (v) => <>
             {v.linhas.length > 1 && <ul className="space-y-0.5">{v.linhas.map((l, k) => <li key={k} className="flex justify-between gap-3"><span className="min-w-0 truncate">{l.descricao}</span></li>)}</ul>}

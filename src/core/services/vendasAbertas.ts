@@ -40,13 +40,21 @@ async function lerTodas(ctx: Ctx) {
   return (await ctx.repos.config.listar()).filter((r) => r.id.startsWith(CHAVE) && !r.apagadoEm)
 }
 
+/** funcionária só mexe na venda em aberto que ELA guardou (o administrador, em todas) */
+function exigirDona(ctx: Ctx, r: { criadoPor?: Id }) {
+  exigir(ctx.sessao.perfil === 'admin' || r.criadoPor === ctx.sessao.usuarioId, 'Essa venda em aberto é de outra pessoa.')
+}
+
 export async function salvarVendaAberta(ctx: Ctx, d: VendaAberta) {
   exigir(d.id, 'Venda sem id.')
+  // a venda já foi fechada (talvez em outra aba): o "salvar sozinho" atrasado não ressuscita o rascunho
+  if (await ctx.repos.transacoes.obter(d.id)) return { id: d.id }
   const ids = [...new Set((d.linhas ?? []).map((l) => l.itemId))]
   for (const id of ids) exigir(await ctx.repos.itens.obter(id), 'Pacote não encontrado.')
   for (const l of d.linhas ?? []) exigir(Number.isInteger(l.quantidade) && l.quantidade > 0, 'Quantidade inválida.')
   const chave = CHAVE + d.id
   const atual = await ctx.repos.config.obter(chave)
+  if (atual) exigirDona(ctx, atual)
   const valor = { ...d, linhas: d.linhas ?? [], salvaEm: ctx.relogio.agora(), porNome: ctx.sessao.nome, porId: ctx.sessao.usuarioId }
   // sem nada dentro: não guarda (e apaga a que existia)
   if (!valor.linhas.length) {
@@ -64,13 +72,17 @@ export async function salvarVendaAberta(ctx: Ctx, d: VendaAberta) {
 export async function descartarVendaAberta(ctx: Ctx, d: { id: Id; motivo?: string }) {
   const r = await ctx.repos.config.obter(CHAVE + d.id)
   if (!r || r.apagadoEm) return { id: d.id }
+  exigirDona(ctx, r)
   await ctx.repos.config.salvar(tocar(ctx, { ...r, apagadoEm: ctx.relogio.agora() }))
   const v = r.valor as VendaAberta
   await auditar(ctx, 'descartarVendaAberta', d.id, `venda em aberto descartada${d.motivo ? ` · ${d.motivo}` : ''}`, v.linhas.map((l) => l.itemId))
   return { id: d.id }
 }
 
-/** tira um pacote de uma venda em aberto (ele vai para outra venda): a pessoa confirmou na tela */
+/**
+ * tira um pacote de uma venda em aberto (ele vai para outra venda): a pessoa confirmou na tela. Vale também na venda em
+ * aberto de OUTRA pessoa (o caixa vende o pacote que estava guardado lá; fica no registro) — tirar tudo/descartar não.
+ */
 export async function tirarDaVendaAberta(ctx: Ctx, d: { id: Id; itemId: Id; para?: string }) {
   const r = await ctx.repos.config.obter(CHAVE + d.id)
   if (!r || r.apagadoEm) return { id: d.id }

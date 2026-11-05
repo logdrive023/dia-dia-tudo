@@ -116,6 +116,7 @@ const NOMES_ACAO: Record<string, string> = {
   separarLote: 'Lote separado',
   unificarLotes: 'Lotes unificados',
   triarLotes: 'Triagem feita',
+  tirarDaMistura: 'Mistura desfeita',
   moverFaseTriagem: 'Lote mudou de coluna na triagem',
   salvarFluxoTriagem: 'Etapas da triagem mudadas',
   ajustarEstoque: 'Estoque ajustado',

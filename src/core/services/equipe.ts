@@ -93,8 +93,9 @@ export async function resumoFuncionario(ctx: Ctx, p: { id: Id; de: string; ate: 
     (t) => t.etapa === 'agendado' && (t.profissionalId === pessoa.id || t.linhas.some((l) => l.profissionalId === pessoa.id)),
   ).length
   const salarioPrincipal = salarioMensal(pessoa, conv)
-  const pagos = (await ctx.repos.movCaixa.listar()).filter((m) => m.pessoaId === pessoa.id && m.categoria === 'Salários' && m.data >= p.de && m.data <= p.ate && !m.estornadoPor)
-  const pagoNoPeriodo = -pagos.reduce((s, m) => s + conv(m.delta, m.moeda), 0)
+  // pago de verdade = salários − o que foi desfeito deles (o desfazer leva a mesma categoria e pessoa)
+  const pagos = (await ctx.repos.movCaixa.listar()).filter((m) => m.pessoaId === pessoa.id && m.categoria === 'Salários' && m.data >= p.de && m.data <= p.ate && (m.tipo === 'despesa' || m.tipo === 'estorno'))
+  const pagoNoPeriodo = 0 - pagos.reduce((s, m) => s + conv(m.delta, m.moeda), 0)
   return {
     pagoNoPeriodo, pessoa, local, superior, salarioPrincipal, ...des, agendados, ticket: des.atendimentos ? Math.round(des.faturamento / des.atendimentos) : 0 }
 }
@@ -110,16 +111,22 @@ export async function resumoFuncionario(ctx: Ctx, p: { id: Id; de: string; ate: 
 export async function unidades(ctx: Ctx, p: { de: string; ate: string }) {
   const cfg = await lerConfig(ctx)
   const conv = await conversor(ctx)
-  const dias = diasEntre(p.de, p.ate) + 1
+  // período ao contrário (de depois de até) não tem dia nenhum: nada de salário "negativo"
+  const dias = Math.max(0, diasEntre(p.de, p.ate) + 1)
   const locais = (await ctx.repos.locais.listar()).filter((l) => ctx.sessao.perfil !== 'funcionario' || l.id === ctx.sessao.localId)
   const pessoas = await ctx.repos.pessoas.listar()
   const vendas = (await ctx.repos.transacoes.listar({ tipo: 'venda' })).filter((t) => t.data >= p.de && t.data <= p.ate)
-  const caixa = (await ctx.repos.movCaixa.listar()).filter((m) => m.data >= p.de && m.data <= p.ate && m.localId)
+  const todoCaixa = await ctx.repos.movCaixa.listar()
+  const porId = new Map(todoCaixa.map((m) => [m.id, m]))
+  const caixa = todoCaixa.filter((m) => m.data >= p.de && m.data <= p.ate && m.localId)
+  // desfazer de despesa conta (devolve a despesa); desfazer de entrada não é despesa — a mesma regra do DRE
+  const ehDespesa = (m: (typeof todoCaixa)[number]) => m.tipo === 'despesa' || (m.tipo === 'estorno' && !!m.estornaId && porId.get(m.estornaId)?.tipo === 'despesa')
   const lista = locais.map((l) => {
     const equipe = pessoas.filter((x) => ehEquipe(x) && x.localId === l.id)
     const salarioMes = equipe.reduce((s, x) => s + salarioMensal(x, conv), 0)
     const salarios = proporcao(salarioMes, dias, 30)
-    const salariosPagos = -caixa.filter((m) => m.localId === l.id && m.pessoaId && m.categoria === 'Salários' && !m.estornadoPor).reduce((s, m) => s + conv(m.delta, m.moeda), 0)
+    // pago de verdade = salários pagos − os desfeitos (antes tirava o original e somava o desfazer: dava negativo)
+    const salariosPagos = 0 - caixa.filter((m) => m.localId === l.id && m.pessoaId && m.categoria === 'Salários' && ehDespesa(m)).reduce((s, m) => s + conv(m.delta, m.moeda), 0)
     const daUnidade = vendas.filter((t) => t.localId === l.id)
     const concluidas = daUnidade.filter((t) => t.etapa === 'concluido')
     const entradas = concluidas.reduce((s, t) => s + t.totalPrincipal, 0)
@@ -128,7 +135,7 @@ export async function unidades(ctx: Ctx, p: { de: string; ate: string }) {
     // insumos dos serviços (tinta, água oxigenada…): custo da unidade
     const insumos = concluidas.reduce((s, t) => s + t.linhas.reduce((x, li) => x + (li.insumoPrincipal ?? 0), 0), 0)
     // despesas da unidade, sem os salários (esses entram pela estimativa acima)
-    const despesas = -caixa.filter((m) => m.localId === l.id && !m.pessoaId && (m.tipo === 'despesa' || (m.tipo === 'estorno' && m.categoria !== undefined))).reduce((s, m) => s + conv(m.delta, m.moeda), 0)
+    const despesas = 0 - caixa.filter((m) => m.localId === l.id && !m.pessoaId && ehDespesa(m)).reduce((s, m) => s + conv(m.delta, m.moeda), 0)
     const saidas = salarios + comissoes + custoCabelo + insumos + despesas
     return {
       local: l,

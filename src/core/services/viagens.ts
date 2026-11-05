@@ -17,7 +17,7 @@ import { diasEntre } from '../domain/datas'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { novoId } from '../domain/ids'
 import type { DespesaViagem, Id, Item, MovCaixa, MovCarteiraViagem, MovEstoque, Pessoa, Transacao, Viagem } from '../domain/tipos'
-import { auditar, type Ctx, exigirInteiroPositivo, lerConfig, novo, paraPrincipal, tocar } from './contexto'
+import { auditar, exigirVersao, type Ctx, exigirInteiroPositivo, lerConfig, novo, paraPrincipal, tocar } from './contexto'
 import { moverCaixa } from './caixa'
 import { proximoCodigo, unidadeTexto } from './estoque'
 import { semAcento } from '../dados/cidadesBolivia'
@@ -106,7 +106,7 @@ export async function salvarCategoriasViagem(ctx: Ctx, d: { categorias: Categori
 /** Cria ou edita a viagem (só admin). Código "VG-0001" na criação. */
 export async function salvarViagem(
   ctx: Ctx,
-  d: { id: Id; nome: string; destino?: string; naBolivia?: boolean; viajantes: Id[]; inicio: string; fim?: string; orcamento?: number; orcamentoCompra?: number; rateio?: 'grama' | 'valor'; obs?: string; confirmarParecida?: boolean },
+  d: { id: Id; nome: string; destino?: string; naBolivia?: boolean; viajantes: Id[]; inicio: string; fim?: string; orcamento?: number; orcamentoCompra?: number; rateio?: 'grama' | 'valor'; obs?: string; confirmarParecida?: boolean; versaoBase?: number },
 ) {
   exigirAdmin(ctx, 'Só o administrador cria ou muda uma viagem.')
   const nome = d.nome?.trim()
@@ -120,6 +120,8 @@ export async function salvarViagem(
   if (d.orcamentoCompra !== undefined) exigirInteiroPositivo(d.orcamentoCompra, 'Orçamento de compra', true)
   exigir(!d.rateio || d.rateio === 'grama' || d.rateio === 'valor', 'Rateio inválido.')
   const antes = await ctx.repos.viagens.obter(d.id)
+  // tela da viagem aberta antes de outra aba mudar (ex.: orçamento): não grava a viagem velha por cima
+  exigirVersao(antes, d.versaoBase)
   if (!antes && !d.confirmarParecida) {
     const parecidas = await viagensParecidas(ctx, { id: d.id, nome, destino: d.destino, inicio: d.inicio, fim: d.fim })
     if (parecidas.length) throw new ErroNegocio(`Já existe uma viagem parecida em andamento: ${parecidas.map((x) => `${x.codigo} · ${x.nome}`).join(', ')}. Confirme para criar outra.`, 'parecida')
@@ -315,7 +317,8 @@ export async function vincularCompras(ctx: Ctx, d: { viagemId: Id; compraIds: Id
   if (emOutra.length && !d.mover)
     throw new ErroNegocio(`${emOutra.length === 1 ? 'A compra' : `${emOutra.length} compras`} ${emOutra.map((l) => `${l.codigo} (em ${l.de!.codigo})`).join(', ')} já ${emOutra.length === 1 ? 'está' : 'estão'} em outra viagem. Confirme para mover.`, 'mover')
   const mudar = linhas.filter((l) => l.situacao === 'ligar' || l.situacao === 'outra')
-  const antes = mudar.map((l) => ({ compraId: l.id, viagemId: l.de?.id }))
+  // "agora" = onde a compra fica depois deste passo: o Desfazer só vale se ela ainda estiver lá
+  const antes = mudar.map((l) => ({ compraId: l.id, viagemId: l.de?.id, agora: v.id }))
   for (const l of mudar) {
     const t = (await ctx.repos.transacoes.obter(l.id))!
     await ctx.repos.transacoes.salvar(tocar(ctx, { ...t, viagemId: v.id }))
@@ -345,17 +348,20 @@ export async function desvincularCompra(ctx: Ctx, d: { viagemId: Id; compraId: I
   await ctx.repos.transacoes.salvar(tocar(ctx, { ...t, viagemId: undefined }))
   await auditar(ctx, 'desvincularCompra', v.id, `${v.codigo}: tirou ${t.codigo ?? t.id}`, [t.id])
   await redividirGasto(ctx, v.id)
-  return { id: v.id, antes: [{ compraId: t.id, viagemId: v.id }] }
+  return { id: v.id, antes: [{ compraId: t.id, viagemId: v.id, agora: '' }] }
 }
 
 /** DESFAZER: volta cada compra para a viagem em que estava (ou sem viagem), como a resposta de ligar/tirar devolveu. */
-export async function desfazerLigacao(ctx: Ctx, d: { antes: { compraId: Id; viagemId?: Id }[] }) {
+export async function desfazerLigacao(ctx: Ctx, d: { antes: { compraId: Id; viagemId?: Id; agora?: Id }[] }) {
   exigirAdmin(ctx)
   exigir(d.antes?.length, 'Nada para desfazer.')
   const afetadas = new Set<Id>()
   for (const a of d.antes) {
     const t = await ctx.repos.transacoes.obter(a.compraId)
     exigir(t && t.tipo === 'compra', 'Compra não encontrada.')
+    // outra aba já mudou a compra de viagem depois deste passo: desfazer agora apagaria a escolha dela (recusa tudo)
+    if (a.agora !== undefined)
+      exigir((t.viagemId ?? '') === a.agora || (t.viagemId ?? '') === (a.viagemId ?? ''), `A compra ${t.codigo ?? t.id} já foi mudada de viagem por outra pessoa: este "Desfazer" não vale mais.`)
     if (a.viagemId) exigir(await ctx.repos.viagens.obter(a.viagemId), 'Viagem não encontrada.')
     if ((t.viagemId ?? '') === (a.viagemId ?? '')) continue
     if (t.viagemId) afetadas.add(t.viagemId)

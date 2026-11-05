@@ -85,6 +85,8 @@ export async function estornarLancamento(ctx: Ctx, d: { lancamentoId: Id; motivo
 }
 
 export async function encerrarDia(ctx: Ctx, d: { data: string; contado: Record<CodigoMoeda, number> }) {
+  exigir(typeof d.data === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.data), 'Data inválida.')
+  exigir(d.data <= ctx.relogio.hoje(), 'Não dá para encerrar um dia que ainda não chegou.')
   const dia = await garantirDiaAberto(ctx, d.data)
   for (const [m, v] of Object.entries(d.contado)) exigirInteiroPositivo(v, `Contado em ${m}`, true)
   await ctx.repos.dias.salvar(tocar(ctx, { ...dia, status: 'encerrado', contado: d.contado }))

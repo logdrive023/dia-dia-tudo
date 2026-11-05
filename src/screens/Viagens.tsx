@@ -259,6 +259,8 @@ function FormViagem({ viagem }: { viagem?: Viagem }) {
   const [orcamentoCompra, setOrcamentoCompra] = useState<number | undefined>(viagem?.orcamentoCompra)
   const [rateio, setRateio] = useState<'grama' | 'valor'>(viagem?.rateio ?? 'grama')
   const [obs, setObs] = useState(viagem?.obs ?? '')
+  // versão da viagem quando o formulário abriu: se outra aba mudar no meio, o servidor recusa em vez de gravar por cima
+  const [versaoBase] = useState(() => viagem?.versao)
   useAvisoSaida(!viagem && !ocupado && (!!nome || viajantes.length > 0))
   const { backend } = useApp()
   const [parecidas, setParecidas] = useState<{ id: Id; codigo: string; nome: string; destino?: string; inicio: string; fim?: string }[]>()
@@ -269,7 +271,7 @@ function FormViagem({ viagem }: { viagem?: Viagem }) {
       if (ps.length) return setParecidas(ps)
     }
     setParecidas(undefined)
-    const r = await executar('salvarViagem', { id, nome, destino, naBolivia: naBolivia === 'sim', viajantes, inicio, fim: fim || undefined, orcamento, orcamentoCompra, rateio, obs, confirmarParecida }, t(viagem ? 'Viagem salva.' : 'Viagem criada.'))
+    const r = await executar('salvarViagem', { id, nome, destino, naBolivia: naBolivia === 'sim', viajantes, inicio, fim: fim || undefined, orcamento, orcamentoCompra, rateio, obs, confirmarParecida, versaoBase }, t(viagem ? 'Viagem salva.' : 'Viagem criada.'))
     if (!r) return
     marcarSujo(false)
     if (viagem) voltar()
@@ -647,7 +649,7 @@ function AbaRateio({ d }: { d: Dados }) {
   const [confirmar, setConfirmar] = useState(false)
   const v = d.viagem
   const m = d.moeda
-  const mudarRateio = (rateio: 'grama' | 'valor') => executar('salvarViagem', { id: v.id, nome: v.nome, destino: v.destino, viajantes: v.viajantes, inicio: v.inicio, fim: v.fim, orcamento: v.orcamento, orcamentoCompra: v.orcamentoCompra, rateio, obs: v.obs }, t('Rateio mudado.'))
+  const mudarRateio = (rateio: 'grama' | 'valor') => executar('salvarViagem', { id: v.id, nome: v.nome, destino: v.destino, naBolivia: v.naBolivia, viajantes: v.viajantes, inicio: v.inicio, fim: v.fim, orcamento: v.orcamento, orcamentoCompra: v.orcamentoCompra, rateio, obs: v.obs, versaoBase: v.versao }, t('Rateio mudado.'))
   if (d.prospeccao) return <Vazio texto="Sem compra na viagem: não há o que ratear." />
   return (
     <div className="space-y-3">

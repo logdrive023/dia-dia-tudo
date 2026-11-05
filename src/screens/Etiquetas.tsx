@@ -13,7 +13,7 @@ import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
 import { passaEtiqueta } from '../core/services/estoque'
 import { Botao, Campo, Carregando, Entrada, Pilula, Selecao, Titulo, Vazio, cx, fmt, diaMes } from '../ui/base'
-import { useApp, useConsulta, useParamTela, useFiltrosTela } from '../ui/contexto'
+import { useApp, useComando, useConsulta, useParamTela, useFiltrosTela } from '../ui/contexto'
 import { ImprimirEtiquetas, RefazerEtiqueta } from '../ui/etiquetas'
 import { MenuAcoes } from '../ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../ui/fotos'
@@ -37,6 +37,7 @@ const FILTROS = ['compra', 'lote', 'pessoa', 'quem', 'impr', 'medida', 'pmin', '
 export function Etiquetas() {
   const t = useT()
   const { ir, ajustarParams } = useApp()
+  const { executar } = useComando()
   const [filtro, setFiltro] = useParamTela<Filtro>('f', 'sem')
   const { p, setP, tirar } = useFiltrosTela()
   const { dados } = useConsulta('estoque', { moduloId: 'cabelo', somenteComSaldo: true })
@@ -216,7 +217,11 @@ export function Etiquetas() {
           opcoes={[{ id: 'imprimir', icone: '🖨', principal: true, onClick: () => setImprimir(selecionados.map((i) => i.id)),
             titulo: selecionados.length === 1 ? t('Imprimir 1 etiqueta') : t('Imprimir {n} etiquetas', { n: selecionados.length }),
             legenda: 'Uma etiqueta por pacote, com o código, o peso de agora e o QR.',
-            ajuda: 'Imprime de uma vez as etiquetas dos marcados. Quem já tinha etiqueta ganha uma nova via com o peso de agora. Ex.: vendeu 2 kg de um pacote de 18 kg → a nova diz 16 kg.' }]}
+            ajuda: 'Imprime de uma vez as etiquetas dos marcados. Quem já tinha etiqueta ganha uma nova via com o peso de agora. Ex.: vendeu 2 kg de um pacote de 18 kg → a nova diz 16 kg.' },
+          { id: 'marcar', icone: '✓', onClick: async () => { const ids = selecionados.map((i) => i.id); if (await executar('marcarEtiquetasImpressas', { ids }, t('{n} etiqueta(s) marcada(s) como gerada(s).', { n: ids.length }))) impressoOk() },
+            titulo: selecionados.length === 1 ? t('Marcar como gerada') : t('Marcar {n} como geradas', { n: selecionados.length }),
+            legenda: 'Sem imprimir agora: o pacote sai de "Sem etiqueta".',
+            ajuda: 'Para quando a etiqueta já foi feita em outro lugar ou vai ser impressa depois. Fica registrado quem marcou e quando, igual a imprimir. Ex.: imprimiu as etiquetas de L-0021, L-0022 e L-0023 na outra loja → marque aqui.' }]}
         />
       )}
 

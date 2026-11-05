@@ -100,9 +100,17 @@ export interface CodigoExistente {
   anterior?: boolean
 }
 
-/** Todos os códigos (atuais e anteriores) de um tipo → o registro que usa. */
-async function indice(ctx: Ctx, tipo: TipoCodigo) {
-  const m = new Map<string, { id: Id; anterior: boolean }>()
+/** id de quem acabou de ganhar um código NESTE comando (o registro ainda não foi gravado quando o código sai) */
+const RECEM = '(código dado neste comando)'
+type Indice = Map<string, { id: Id; anterior: boolean }>
+/**
+ * Índice dos códigos, montado UMA vez por comando (ctx) e mantido em dia pelos códigos que saem daqui (marcar).
+ * Antes era refeito (listar + copiar todos os itens) a cada código conferido: o custo crescia com o quadrado do estoque.
+ */
+const CACHE = new WeakMap<Ctx, Partial<Record<TipoCodigo, Indice>>>()
+
+async function montarIndice(ctx: Ctx, tipo: TipoCodigo): Promise<Indice> {
+  const m: Indice = new Map()
   const por = (id: Id, atual: string | undefined, anteriores: string[] | undefined) => {
     for (const c of anteriores ?? []) if (!m.has(normalizarCodigo(c))) m.set(normalizarCodigo(c), { id, anterior: true })
     if (atual) m.set(normalizarCodigo(atual), { id, anterior: false })
@@ -110,6 +118,20 @@ async function indice(ctx: Ctx, tipo: TipoCodigo) {
   if (tipo === 'lote') for (const i of await ctx.repos.itens.listar()) por(i.id, i.codigo, i.codigosAnteriores)
   else for (const t of await ctx.repos.transacoes.listar({ tipo: 'compra' })) por(t.id, t.codigo, t.codigosAnteriores)
   return m
+}
+
+/** Todos os códigos (atuais e anteriores) de um tipo → o registro que usa. Não mexa no mapa devolvido. */
+async function indice(ctx: Ctx, tipo: TipoCodigo, refazer = false): Promise<Indice> {
+  let c = CACHE.get(ctx)
+  if (!c) CACHE.set(ctx, (c = {}))
+  if (refazer || !c[tipo]) c[tipo] = await montarIndice(ctx, tipo)
+  return c[tipo]!
+}
+
+/** o código acabou de ser dado (a registro novo = RECEM, ou trocado num registro existente) */
+function marcar(ctx: Ctx, tipo: TipoCodigo, codigo: string, id: Id = RECEM) {
+  CACHE.get(ctx)?.[tipo]?.set(normalizarCodigo(codigo), { id, anterior: false })
+  return codigo
 }
 
 async function descrever(ctx: Ctx, tipo: TipoCodigo, id: Id, anterior: boolean, procurado: string): Promise<CodigoExistente | undefined> {
@@ -131,8 +153,11 @@ async function descrever(ctx: Ctx, tipo: TipoCodigo, id: Id, anterior: boolean, 
 export async function procurarCodigo(ctx: Ctx, tipo: TipoCodigo, codigo: string, ignorarId?: Id): Promise<CodigoExistente | undefined> {
   const k = normalizarCodigo(codigo)
   if (!k) return undefined
-  const achou = (await indice(ctx, tipo)).get(k)
+  let achou = (await indice(ctx, tipo)).get(k)
+  // código dado agora mesmo neste comando: relê o banco para saber de quem é (o registro já foi gravado)
+  if (achou?.id === RECEM) achou = (await indice(ctx, tipo, true)).get(k) ?? achou
   if (!achou || achou.id === ignorarId) return undefined
+  if (achou.id === RECEM) return { id: '', codigo: codigo.trim(), tela: tipo === 'lote' ? 'lote' : 'pedido', resumo: `${tipo === 'lote' ? 'lote' : 'compra'} ${codigo.trim()} (criado agora)` }
   return descrever(ctx, tipo, achou.id, achou.anterior, codigo.trim())
 }
 
@@ -142,6 +167,8 @@ export async function exigirCodigoLivre(ctx: Ctx, tipo: TipoCodigo, codigo: stri
   validarFormato(c)
   const existe = await procurarCodigo(ctx, tipo, c, ignorarId)
   exigir(!existe, `Já existe: ${existe?.resumo}`, 'codigo')
+  // troca de código de um registro que já existe: o código passa a ser dele já neste comando
+  if (ignorarId) marcar(ctx, tipo, c, ignorarId)
   return c
 }
 
@@ -194,7 +221,7 @@ export async function proximoSequencial(ctx: Ctx, chave: Chave, reservados?: Set
   const usados = chave === 'compra' || chave === 'lote' ? new Set([...(await indice(ctx, chave)).keys(), ...(reservados ?? [])]) : new Set<string>()
   const [{ n, codigo }] = proximosLivres(regras[chave], await contador(ctx, letra), usados, 1)
   await gravarContador(ctx, letra, n)
-  return codigo
+  return chave === 'compra' || chave === 'lote' ? marcar(ctx, chave, codigo) : codigo
 }
 
 /** Próximo número "base + N" ("M" → M3; "M1-" → M1-4), olhando os códigos já usados. */
@@ -326,11 +353,11 @@ async function sugestoesCompra(ctx: Ctx, r: RegrasCodigos, p: ParamsCompra, quan
 export async function codigoNovaCompra(ctx: Ctx, d: ParamsCompra & { codigo?: string }): Promise<string> {
   const r = await lerCodigos(ctx)
   const modo = modoDe(r, d)
-  if (d.codigo?.trim() && (!d.modoCodigo || modo === 'manual')) return exigirCodigoLivre(ctx, 'compra', d.codigo)
+  if (d.codigo?.trim() && (!d.modoCodigo || modo === 'manual')) return marcar(ctx, 'compra', await exigirCodigoLivre(ctx, 'compra', d.codigo))
   const dono = donoDaSequencia(r, d)
   if (modo === 'porPessoa' && dono) {
     const sigla = await siglaFixa(ctx, r, dono, true)
-    if (sigla) return proximoComBase(sigla, (await indice(ctx, 'compra')).keys())[0]
+    if (sigla) return marcar(ctx, 'compra', proximoComBase(sigla, (await indice(ctx, 'compra')).keys())[0])
   }
   return proximoSequencial(ctx, 'compra')
 }
@@ -376,9 +403,9 @@ async function sugestoesLote(ctx: Ctx, r: RegrasCodigos, p: ParamsLote, quantos:
  * 3 compras: incremental. reservados = códigos digitados para outros lotes do mesmo passo (o automático não pega).
  */
 export async function codigoNovoLote(ctx: Ctx, d: ParamsLote & { codigo?: string; reservados?: Set<string> }): Promise<string> {
-  if (d.codigo?.trim()) return exigirCodigoLivre(ctx, 'lote', d.codigo)
+  if (d.codigo?.trim()) return marcar(ctx, 'lote', await exigirCodigoLivre(ctx, 'lote', d.codigo))
   const r = await lerCodigos(ctx)
-  if (await baseDoLote(ctx, r, d)) return (await sugestoesLote(ctx, r, d, 1, d.reservados))[0]
+  if (await baseDoLote(ctx, r, d)) return marcar(ctx, 'lote', (await sugestoesLote(ctx, r, d, 1, d.reservados))[0])
   return proximoSequencial(ctx, 'lote', d.reservados)
 }
 

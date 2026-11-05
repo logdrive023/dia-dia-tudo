@@ -71,7 +71,8 @@ function TabelaTela() {
   const tb = dados?.tabela
   const [inicial] = useState(() => (novo ? rascunhoDe(undefined, t) : undefined))
   // rascunho + pilha para o "Desfazer" (um passo por vez)
-  const [est, setEst] = useState<{ r?: Rascunho; pilha: Rascunho[] }>({ r: inicial, pilha: [] })
+  // versao = número da versão publicada sobre a qual o rascunho começou (outra aba publicou depois → o servidor recusa)
+  const [est, setEst] = useState<{ r?: Rascunho; pilha: Rascunho[]; versao?: number }>({ r: inicial, pilha: [] })
   const [nota, setNota] = useState('')
   const [edit, setEditState] = useState<{ k: string; texto: string }>()
   const editRef = useRef<{ k: string; texto: string }>()
@@ -96,9 +97,9 @@ function TabelaTela() {
       const de = s.r ?? base!
       const para = f(de)
       if (!para || JSON.stringify(para) === JSON.stringify(de)) return s
-      return { r: para, pilha: [...s.pilha, de].slice(-100) }
+      return { r: para, pilha: [...s.pilha, de].slice(-100), versao: s.versao ?? atual }
     })
-  const desfazer = () => setEst((s) => (s.pilha.length ? { r: s.pilha[s.pilha.length - 1], pilha: s.pilha.slice(0, -1) } : s))
+  const desfazer = () => setEst((s) => (s.pilha.length ? { r: s.pilha[s.pilha.length - 1], pilha: s.pilha.slice(0, -1), versao: s.versao } : s))
   const descartar = () => (setEst({ r: novo ? inicial : undefined, pilha: [] }), setNota(''))
 
   // ----- edição célula a célula -----
@@ -171,7 +172,7 @@ function TabelaTela() {
   }
 
   const publicar = async () => {
-    const res = await executar('salvarTabelaPreco', { ...g, nota }, t('Versão publicada.'))
+    const res = await executar('salvarTabelaPreco', { ...g, nota, versaoBase: novo ? undefined : est.versao ?? atual }, t('Versão publicada.'))
     if (!res) return
     marcarSujo(false)
     setEst({ r: undefined, pilha: [] })

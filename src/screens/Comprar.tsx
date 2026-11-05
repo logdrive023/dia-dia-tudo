@@ -205,7 +205,7 @@ export function Comprar() {
           alerta: (c) => c.pendencias.length
             ? { texto: t(c.pendencias.length === 1 ? '1 pendência' : '{n} pendências', { n: c.pendencias.length }), tom: c.pendencias.some((p) => p.nivel === 'urgente') ? 'ruim' : 'alerta' }
             : { texto: `✓ ${t('Completa')}`, tom: 'bom' },
-          marca: (c) => <SeloViagem v={c.viagem} curto />,
+          marca: (c) => <SeloViagem v={c.viagem} curto soLeitura />,
           progresso: (c) => <Progresso etapas={etapasDo(c.moduloId)} atual={c.etapa} mini />,
           fatos: (c) => [`📅 ${dataBR(c.data)}`, `📦 ${t('{n} item(ns)', { n: c.linhas.length })}`, !ENCERRADAS.includes(c.etapa) && `⏱ ${t('parada há {n} d', { n: c.diasParada })}`],
           aberto: (c) => c.pendencias.length > 0 && <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} />,

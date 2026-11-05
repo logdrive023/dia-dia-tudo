@@ -47,14 +47,16 @@ export function ConfigFiscal() {
   const { executar, ocupado } = useComando()
   const [parte, setParte] = useParamTela<'impostos' | 'regime' | 'relatorio'>('parte', 'impostos')
   const [f, setF] = useState<ConfigFiscal>()
+  // como estava quando a pessoa começou a mexer: o servidor junta com o que outra aba mudou (ou recusa se for o mesmo campo)
+  const [antes, setAntes] = useState<ConfigFiscal>()
   const atual = dados?.config.fiscal ?? FISCAL_PADRAO
   const v = f ?? atual
   const sujo = !!f && JSON.stringify(f) !== JSON.stringify(atual)
   useAvisoSaida(sujo)
   if (!dados) return <Carregando />
-  const mudar = (p: Partial<ConfigFiscal>) => setF({ ...v, ...p })
+  const mudar = (p: Partial<ConfigFiscal>) => (f || setAntes(atual), setF({ ...v, ...p }))
   const moeda = dados.config.moedaPrincipal
-  const salvar = async () => (await executar('salvarConfig', { fiscal: v }, t('Salvo.'))) && setF(undefined)
+  const salvar = async () => (await executar('salvarConfig', { fiscal: v, antes: { fiscal: antes ?? atual } }, t('Salvo.'))) && setF(undefined)
   return (
     <div className="max-w-2xl pb-24">
       <Abas variante="sublinhado" atual={parte} onChange={(x) => setParte(x as typeof parte)} abas={[

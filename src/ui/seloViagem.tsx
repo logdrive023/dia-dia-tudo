@@ -12,22 +12,26 @@ import { useT } from './i18n'
 import { CampoCidade } from './campoCidade'
 import { semAcento } from '../core/dados/cidadesBolivia'
 
-export function SeloViagem({ v, curto, className }: { v?: ViagemCurta; curto?: boolean; className?: string }) {
+export function SeloViagem({ v, curto, className, soLeitura }: { v?: ViagemCurta; curto?: boolean; className?: string
+  /** dentro de outro botão (a linha do celular): só o selo, sem virar botão (botão dentro de botão não vale) */
+  soLeitura?: boolean }) {
   const t = useT()
   const { ir } = useApp()
   if (!v) return null
+  const classe = cx('inline-flex min-h-6 max-w-full shrink-0 items-center gap-1 rounded-full bg-sky-500/10 px-2 text-xs font-semibold text-sky-700 ring-1 ring-sky-500/25 dark:text-sky-300', !soLeitura && 'hover:bg-sky-500/20', className)
+  const dentro = <><span aria-hidden>✈️</span><span className="font-mono">{v.codigo}</span>{!curto && <span className="truncate font-normal">· {v.nome}</span>}</>
+  if (soLeitura) return <span title={`${t('Viagem')} ${v.codigo} · ${v.nome}`} className={classe}>{dentro}</span>
   return (
-    <button type="button" title={`${t('Viagem')} ${v.codigo} · ${v.nome}`} onClick={(e) => (e.stopPropagation(), ir('viagem', { id: v.id }))}
-      className={cx('inline-flex min-h-6 max-w-full shrink-0 items-center gap-1 rounded-full bg-sky-500/10 px-2 text-xs font-semibold text-sky-700 ring-1 ring-sky-500/25 hover:bg-sky-500/20 dark:text-sky-300', className)}>
-      <span aria-hidden>✈️</span><span className="font-mono">{v.codigo}</span>{!curto && <span className="truncate font-normal">· {v.nome}</span>}
+    <button type="button" title={`${t('Viagem')} ${v.codigo} · ${v.nome}`} onClick={(e) => (e.stopPropagation(), ir('viagem', { id: v.id }))} className={classe}>
+      {dentro}
     </button>
   )
 }
 
 /** os vários selos (um pacote juntado pode vir de duas viagens) */
-export function SelosViagem({ vs, curto }: { vs?: ViagemCurta[]; curto?: boolean }) {
+export function SelosViagem({ vs, curto, soLeitura }: { vs?: ViagemCurta[]; curto?: boolean; soLeitura?: boolean }) {
   if (!vs?.length) return null
-  return <span className="inline-flex flex-wrap gap-1">{vs.map((v) => <SeloViagem key={v.id} v={v} curto={curto} />)}</span>
+  return <span className="inline-flex flex-wrap gap-1">{vs.map((v) => <SeloViagem key={v.id} v={v} curto={curto} soLeitura={soLeitura} />)}</span>
 }
 
 /** "" = todas · "sem" = sem viagem · id = a viagem */

@@ -70,6 +70,14 @@ export function custoDe(item: Item, quantidade: number): number {
 
 // ---------- comandos ----------
 
+export const MSG_ALTERADO_POR_OUTRO = 'Este registro foi alterado por outra pessoa enquanto você editava. Abra de novo e refaça a mudança.'
+
+/** O que o FORMULÁRIO do item muda (nome, preço, estoque ideal, duração, retorno, comissão, insumos, ativo).
+ *  É a base do "alterado por outra pessoa": compara só estes campos — venda e ajuste de estoque mexem no item
+ *  (saldo, versão) mas não no formulário, então não geram conflito falso. */
+const formularioDe = (i: Pick<Item, 'nome' | 'precoSugerido' | 'estoqueIdeal' | 'duracaoMin' | 'retornoDias' | 'ativo' | 'comissaoBp' | 'insumo'>) =>
+  JSON.stringify([i.nome, i.precoSugerido ?? null, i.estoqueIdeal ?? null, i.duracaoMin ?? null, i.retornoDias ?? null, i.ativo ?? true, i.comissaoBp ?? null, i.insumo ?? null])
+
 export async function salvarItem(
   ctx: Ctx,
   d: {
@@ -88,11 +96,15 @@ export async function salvarItem(
     comissaoBp?: number
     /** serviço: insumos fixos (moeda + valor, itens opcionais que somam o valor). Ausente na edição = mantém. */
     insumo?: InsumoServico
+    /** o item COMO A TELA CARREGOU (os campos do formulário): se outra pessoa mudou algum deles depois, recusa em vez
+     *  de desfazer a mudança dela. Venda/estoque no meio não contam. Sem `antes` (cadastro novo, importação): salva. */
+    antes?: Pick<Item, 'nome' | 'precoSugerido' | 'estoqueIdeal' | 'duracaoMin' | 'retornoDias' | 'ativo' | 'comissaoBp' | 'insumo'>
   },
 ) {
   exigir(d.nome?.trim(), 'Dê um nome.', 'nome')
   const tipo = ctx.modulos.tipoItem(d.moduloId, d.tipoItem)
   const existente = await ctx.repos.itens.obter(d.id)
+  if (existente && d.antes) exigir(formularioDe(d.antes) === formularioDe(existente), MSG_ALTERADO_POR_OUTRO)
   if (d.comissaoBp !== undefined) exigir(Number.isInteger(d.comissaoBp) && d.comissaoBp >= 0 && d.comissaoBp <= 10000, 'Comissão inválida.', 'comissaoBp')
   const insumo = normalizarInsumo(d.insumo)
   const regra = {
@@ -100,19 +112,18 @@ export async function salvarItem(
     insumo: 'insumo' in d ? insumo : existente?.insumo,
   }
   if (existente) {
-    await ctx.repos.itens.salvar(
-      tocar(ctx, {
-        ...existente,
-        nome: d.nome.trim(),
-        precoSugerido: d.precoSugerido,
-        estoqueIdeal: d.estoqueIdeal,
-        duracaoMin: d.duracaoMin,
-        retornoDias: d.retornoDias,
-        campos: { ...existente.campos, ...(d.campos ?? {}) },
-        ativo: d.ativo ?? existente.ativo,
-        ...regra,
-      }),
-    )
+    const salvo = tocar(ctx, {
+      ...existente,
+      nome: d.nome.trim(),
+      precoSugerido: d.precoSugerido,
+      estoqueIdeal: d.estoqueIdeal,
+      duracaoMin: d.duracaoMin,
+      retornoDias: d.retornoDias,
+      campos: { ...existente.campos, ...(d.campos ?? {}) },
+      ativo: d.ativo ?? existente.ativo,
+      ...regra,
+    })
+    await ctx.repos.itens.salvar(salvo)
     if (existente.comissaoBp !== regra.comissaoBp || JSON.stringify(existente.insumo) !== JSON.stringify(regra.insumo))
       await auditar(ctx, 'regraServico', existente.id, `${existente.nome}: comissão ${existente.comissaoBp !== undefined ? existente.comissaoBp / 100 + '%' : 'padrão'} → ${regra.comissaoBp !== undefined ? regra.comissaoBp / 100 + '%' : 'padrão'} · insumos ${existente.insumo?.valor ?? 0} → ${regra.insumo?.valor ?? 0}`)
     return { id: d.id }
@@ -221,9 +232,25 @@ export async function novaTriagem(ctx: Ctx, id: Id): Promise<Omit<Triagem, 'pape
   return { id, codigo: await proximoCodigo(ctx, 'T'), em: ctx.relogio.agora(), por: ctx.sessao.nome }
 }
 
+/**
+ * Ids dos pacotes que uma triagem vai criar: sem repetir entre si e sem existir (nem ser um dos pacotes de entrada).
+ * Conferido ANTES de mexer no estoque: id repetido ou de um pacote que já existe faria o pacote novo apagar o outro.
+ */
+export async function exigirIdsLivres(ctx: Ctx, ids: Id[]) {
+  const vistos = new Set<Id>()
+  for (const id of ids) {
+    exigir(id, 'Pacote sem identificação: abra a triagem de novo.')
+    exigir(!vistos.has(id), 'Duas partes estão com a mesma identificação: abra a triagem de novo e refaça.')
+    vistos.add(id)
+    const ja = await ctx.repos.itens.obter(id)
+    exigir(!ja, `Já existe um pacote com essa identificação (${ja?.codigo ?? ja?.nome ?? id}): abra a triagem de novo e refaça.`)
+  }
+}
+
 export async function separarLote(ctx: Ctx, d: DadosSeparacao) {
-  const primeiro = d.saidas?.[0]?.id ?? d.paraDepois?.id
-  if (primeiro && (await ctx.repos.itens.obter(primeiro))) return { id: d.id, lotes: [...(d.saidas ?? []).map((x) => x.id), ...(d.paraDepois?.quantidade ? [d.paraDepois.id] : [])] }
+  // repetição (toque duplo, retentativa com ids novos das partes): a mesma separação (d.id) não separa de novo
+  const ja = (await ctx.repos.itens.listar()).filter((i) => i.origem?.tipo === 'transformacao' && i.campos.separacaoId === d.id)
+  if (ja.length) return { id: d.id, lotes: ja.map((i) => i.id) }
   exigir(d.saidas?.length || d.paraDepois?.quantidade, 'Diga em que lotes ele foi separado.')
   return separarNaTriagem(ctx, d, await novaTriagem(ctx, d.id))
 }
@@ -238,6 +265,7 @@ export async function separarNaTriagem(ctx: Ctx, d: DadosSeparacao, tg: Omit<Tri
   exigirInteiroPositivo(d.quantidadeUsada, 'Quantidade usada')
   for (const x of saidas) exigirInteiroPositivo(x.quantidade, 'Quantidade de cada parte')
   if (depois) exigirInteiroPositivo(depois.quantidade, 'Quantidade para depois')
+  await exigirIdsLivres(ctx, [...saidas.map((x) => x.id), ...(depois ? [depois.id] : [])])
   // perda = o que sobra depois das partes E do que ficou para depois
   const soma = saidas.reduce((s, x) => s + x.quantidade, 0) + (depois?.quantidade ?? 0)
   exigir(soma <= d.quantidadeUsada, `As partes somam ${unidadeTexto(lote.unidade, soma)}, mais do que foi usado (${unidadeTexto(lote.unidade, d.quantidadeUsada)}).`)

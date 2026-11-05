@@ -20,6 +20,9 @@ export interface Acao {
   separar?: boolean
   /** o grupo (título pequeno em cima): itens seguidos do mesmo grupo ficam juntos */
   grupo?: string
+  /** vários do mesmo tipo (5 compras, 4 fornecedores…): UMA linha "🛒 Compras de origem · 5 ▸" que abre a lista
+   *  dentro do próprio menu (o menu não vira uma lista sem fim) */
+  filhos?: Acao[]
 }
 
 /** junta as ações em blocos: muda o grupo (ou `separar`) → bloco novo */
@@ -43,6 +46,8 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
   const aberto = !!pos
   // celular + ação principal ("+ Nova venda"): abre uma FOLHA de baixo com as opções grandes (o menu solto sairia da tela)
   const [folha, setFolha] = useState(false)
+  // a linha com "filhos" que está aberta (uma por vez)
+  const [abertoGrupo, setAbertoGrupo] = useState<string>()
   const fechar = (voltarFoco = true) => {
     setPos(undefined)
     if (voltarFoco) botao.current?.focus()
@@ -118,7 +123,27 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
           {emGrupos(acoes).map((g, k) => (
             <div key={k} role="group" aria-label={g.grupo ? t(g.grupo) : undefined} className={cx(k > 0 && 'mt-1 border-t border-[var(--borda)] pt-1')}>
               {g.grupo && <p aria-hidden className="px-2.5 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--suave)]">{t(g.grupo)}</p>}
-              {g.itens.map((a, j) => (
+              {g.itens.map((a, j) => a.filhos?.length ? (
+                <div key={j}>
+                  <button type="button" role="menuitem" aria-expanded={abertoGrupo === `${k}-${j}`} onClick={() => setAbertoGrupo(abertoGrupo === `${k}-${j}` ? undefined : `${k}-${j}`)}
+                    className="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left text-sm font-medium outline-none transition-colors hover:bg-[var(--marca-suave)] focus-visible:bg-[var(--marca-suave)]">
+                    <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--fundo)] text-base">{a.icone ?? '•'}</span>
+                    <span className="min-w-0 flex-1 break-words">{t(a.rotulo)}</span>
+                    <span className="num shrink-0 rounded-full bg-[var(--marca-suave)] px-2 text-xs font-bold text-[var(--marca)]">{a.filhos.length}</span>
+                    <span aria-hidden className={cx('shrink-0 text-[var(--suave)] transition-transform', abertoGrupo === `${k}-${j}` && 'rotate-90')}>›</span>
+                  </button>
+                  {abertoGrupo === `${k}-${j}` && (
+                    <div className="mb-1 ml-5 border-l-2 border-[var(--borda)] pl-2">
+                      {a.filhos.map((f, m) => (
+                        <button key={m} type="button" role="menuitem" onClick={() => (fechar(false), f.onClick())}
+                          className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-sm outline-none hover:bg-[var(--marca-suave)] focus-visible:bg-[var(--marca-suave)]">
+                          <span className="min-w-0 flex-1 truncate">{f.rotulo}</span>{f.descricao && <span className="shrink-0 truncate text-xs text-[var(--suave)]">{f.descricao}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <button
                   key={j}
                   type="button"
@@ -180,11 +205,15 @@ export function acoesLote(
   const acoes: Acao[] = []
   if (!o.semAbrir) acoes.push({ grupo: 'Ver', rotulo: 'Abrir lote', icone: '📄', onClick: () => ir('lote', { id: l.id }) })
   const compras = l.compras ?? []
-  for (const c of compras)
-    acoes.push({ grupo: 'Ver', rotulo: compras.length > 1 ? `${t('Compra')} ${c.codigo ?? ''}${c.fornecedor ? ` · ${c.fornecedor}` : ''}` : t('Ver compra de origem'), icone: '🛒', onClick: () => ir('pedido', { id: c.id }) })
   const fornecedores = [...new Map(compras.filter((c) => c.fornecedorId).map((c) => [c.fornecedorId!, c.fornecedor])).entries()]
-  for (const [pid, nome] of fornecedores) acoes.push({ grupo: 'Ver', rotulo: fornecedores.length > 1 ? `${t('Ver fornecedor')} · ${nome ?? ''}` : t('Ver fornecedor'), icone: '👤', onClick: () => ir('pessoa', { id: pid }) })
-  for (const x of l.origens ?? []) acoes.push({ grupo: 'Ver', rotulo: (l.origens ?? []).length > 1 ? `${t('Ver lote de origem')} ${x.codigo ?? ''}` : t('Ver lote de origem'), icone: '🧬', onClick: () => ir('lote', { id: x.id }) })
+  const origens = l.origens ?? []
+  // um só: abre direto; vários (pacote misturado): uma linha com o número que abre a lista ali mesmo
+  if (compras.length === 1) acoes.push({ grupo: 'Ver', rotulo: t('Ver compra de origem'), icone: '🛒', onClick: () => ir('pedido', { id: compras[0].id }) })
+  else if (compras.length > 1) acoes.push({ grupo: 'Ver', rotulo: t('Compras de origem'), icone: '🛒', onClick: () => undefined, filhos: compras.map((c) => ({ rotulo: c.codigo ?? t('Compra'), descricao: c.fornecedor, onClick: () => ir('pedido', { id: c.id }) })) })
+  if (fornecedores.length === 1) acoes.push({ grupo: 'Ver', rotulo: t('Ver fornecedor'), icone: '👤', onClick: () => ir('pessoa', { id: fornecedores[0][0] }) })
+  else if (fornecedores.length > 1) acoes.push({ grupo: 'Ver', rotulo: t('Fornecedores'), icone: '👤', onClick: () => undefined, filhos: fornecedores.map(([pid, nome]) => ({ rotulo: nome ?? '—', onClick: () => ir('pessoa', { id: pid }) })) })
+  if (origens.length === 1) acoes.push({ grupo: 'Ver', rotulo: t('Ver lote de origem'), icone: '🧬', onClick: () => ir('lote', { id: origens[0].id }) })
+  else if (origens.length > 1) acoes.push({ grupo: 'Ver', rotulo: t('Lotes de origem (misturados)'), icone: '🧬', onClick: () => undefined, filhos: origens.map((x) => ({ rotulo: x.codigo ?? '—', onClick: () => ir('lote', { id: x.id }) })) })
   acoes.push({ grupo: 'Rastrear', rotulo: 'Rastrear origem e destino', icone: '🔎', onClick: () => ir('rastreio', { itemId: l.id }) })
   acoes.push({ grupo: 'Rastrear', rotulo: 'Vendas deste lote', icone: '🧾', onClick: () => ir('rastreio', { itemId: l.id }) })
   if (l.saldo > 0 && l.vendavel !== false) acoes.push({ grupo: 'Fazer', rotulo: o.rotuloVender ?? 'Vender', icone: '💰', onClick: () => ir('vender', { modulo: 'cabelo', lote: l.id }) })

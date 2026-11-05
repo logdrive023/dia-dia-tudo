@@ -30,10 +30,29 @@ export class BackendNoAparelho implements Backend {
     private relogio: Relogio,
     private sessao: Sessao,
     private modulos: RegistroModulos,
-  ) {}
+  ) {
+    this.ligarCanal()
+  }
 
-  private ctx(relogio: Relogio = this.relogio): Ctx {
-    return { repos: this.repos, relogio, sessao: this.sessao, modulos: this.modulos }
+  /** aviso entre abas (mesmo banco no aparelho): a outra aba manda "mudou" e as telas daqui recarregam */
+  private canal?: BroadcastChannel
+  /** sair() já foi chamado (a limpeza da sessão roda na fila): comando novo não entra mais */
+  private saindo = false
+
+  /** ctx com uma CÓPIA da sessão: quem estava dentro quando o comando foi aceito é quem assina (sair/entrar não muda no meio) */
+  private ctx(relogio: Relogio = this.relogio, sessao: Sessao = this.sessao): Ctx {
+    return { repos: this.repos, relogio, sessao, modulos: this.modulos }
+  }
+
+  private ligarCanal() {
+    if (this.canal || this.tipo === 'memory' || typeof BroadcastChannel === 'undefined') return
+    try {
+      this.canal = new BroadcastChannel('tudo-dados')
+      this.canal.onmessage = () => this.ouvintes.forEach((f) => f())
+      ;(this.canal as unknown as { unref?: () => void }).unref?.()
+    } catch {
+      this.canal = undefined
+    }
   }
 
   /** modalidades criadas pela tela ficam guardadas na configuração: carrega antes de usar */
@@ -52,16 +71,37 @@ export class BackendNoAparelho implements Backend {
     return r
   }
 
+  /**
+   * Relê o usuário guardado (outra aba pode ter desativado ou mudado o perfil): desativado não age; o perfil que vale é o
+   * guardado. Atualiza a cópia do comando e, se ainda for a mesma pessoa, a sessão desta aba. Sem cadastro (demonstração
+   * antes de criar usuários, "Sistema"): segue com a sessão como está.
+   */
+  private async conferirUsuario(s: Sessao): Promise<boolean> {
+    const u = await this.repos.usuarios.obter(s.usuarioId)
+    if (!u) return true
+    if (!u.ativo || u.apagadoEm) return false
+    const novo = { nome: u.nome, perfil: u.perfil, pessoaId: u.pessoaId, localId: u.localId }
+    Object.assign(s, novo)
+    if (this.sessao.usuarioId === s.usuarioId) Object.assign(this.sessao, novo)
+    return true
+  }
+
   comando<N extends NomeComando>(nome: N, dados: DadosComando<N>, relogio?: Relogio): Promise<ResultadoComando<N>> {
     const handler = comandos[nome] as unknown as (ctx: Ctx, d: unknown) => Promise<ResultadoComando<N>>
     if (!handler) return Promise.reject(new ErroNegocio(`Comando desconhecido: ${String(nome)}`))
-    if (!this.sessao.usuarioId) return Promise.reject(new ErroNegocio('Sem permissão para isso. Peça a um administrador.'))
-    const ctx = this.ctx(relogio)
-    if (!podeComando(this.sessao.perfil, nome)) {
-      const erro = new ErroNegocio('Sem permissão para isso. Peça a um administrador.')
-      return this.enfileirar(async () => { await this.registrarRecusa(ctx, nome, dados, erro); throw erro })
-    }
+    if (!this.sessao.usuarioId || this.saindo) return Promise.reject(new ErroNegocio('Sem permissão para isso. Peça a um administrador.'))
+    const ctx = this.ctx(relogio, { ...this.sessao })
     return this.enfileirar(async (): Promise<ResultadoComando<N>> => {
+      if (!(await this.conferirUsuario(ctx.sessao))) {
+        const erro = new ErroNegocio('Seu usuário foi desativado. Entre de novo ou fale com um administrador.')
+        await this.registrarRecusa(ctx, nome, dados, erro)
+        throw erro
+      }
+      if (!podeComando(ctx.sessao.perfil, nome)) {
+        const erro = new ErroNegocio('Sem permissão para isso. Peça a um administrador.')
+        await this.registrarRecusa(ctx, nome, dados, erro)
+        throw erro
+      }
       await this.carregarModulos()
       // criptografia antes da transação (o IndexedDB não espera); a senha em texto não segue adiante
       const prontos = await prepararSenhas(ctx, nome, (dados ?? {}) as Record<string, unknown>)
@@ -81,7 +121,7 @@ export class BackendNoAparelho implements Backend {
         if (e instanceof ErroNegocio) await this.registrarRecusa(ctx, nome, dados, e)
         throw e
       }
-      this.avisar()
+      this.avisar(true)
       return r
     })
   }
@@ -145,14 +185,24 @@ export class BackendNoAparelho implements Backend {
     // confere o hash fora da transação; depois registra o acesso
     const u = (await this.repos.usuarios.listar({ login: login.trim().toLowerCase() }))[0]
     const hash = u ? await hashSenha(senha, u.sal) : ''
-    const s = await this.enfileirar(() => this.transacao(() => entrar(this.ctx(), { login, senha: '', hashConferido: hash })))
-    Object.assign(this.sessao, s)
+    // na fila: o que foi aceito antes roda no nome de quem estava; a troca vale só para o que vier depois
+    const s = await this.enfileirar(async () => {
+      const nova = await this.transacao(() => entrar(this.ctx(), { login, senha: '', hashConferido: hash }))
+      Object.assign(this.sessao, nova)
+      this.saindo = false
+      return nova
+    })
     this.avisar()
-    return { ...this.sessao }
+    return { ...this.sessao, ...s }
   }
 
   async sair() {
-    Object.assign(this.sessao, { usuarioId: '', nome: '', login: undefined, perfil: 'funcionario', pessoaId: undefined, localId: undefined })
+    // na fila: o comando já aceito termina no nome de quem estava; nada novo entra depois de pedir para sair
+    this.saindo = true
+    await this.enfileirar(async () => {
+      Object.assign(this.sessao, { usuarioId: '', nome: '', login: undefined, perfil: 'funcionario', pessoaId: undefined, localId: undefined })
+    })
+    this.saindo = false
     this.avisar()
   }
 
@@ -179,8 +229,16 @@ export class BackendNoAparelho implements Backend {
     }
   }
 
-  private avisar() {
+  /** avisa as telas desta aba; `outras` = houve gravação → avisa também as outras abas (não volta para esta) */
+  private avisar(outras = false) {
     this.ouvintes.forEach((f) => f())
+    if (outras) {
+      try {
+        this.canal?.postMessage({ mudou: Date.now() })
+      } catch {
+        // aviso entre abas é só conforto: nunca atrapalha o comando
+      }
+    }
   }
 
   async exportar(): Promise<Backup> {
@@ -211,7 +269,7 @@ export class BackendNoAparelho implements Backend {
     await this.arquivos.limpar()
     for (const [id, url] of Object.entries(b.arquivos ?? {})) await this.arquivos.guardar(id, dataUrlParaBlob(url))
     this.urls.clear()
-    this.avisar()
+    this.avisar(true)
   }
 
   async limparTudo() {
@@ -222,7 +280,7 @@ export class BackendNoAparelho implements Backend {
     )
     await this.arquivos.limpar()
     this.urls.clear()
-    this.avisar()
+    this.avisar(true)
   }
 }
 

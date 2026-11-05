@@ -4,7 +4,7 @@
 import { ErroNegocio, exigir } from '../domain/erros'
 import type { Id, Usuario } from '../domain/tipos'
 import type { Sessao } from '../ports/portas'
-import { auditar, type Ctx, novo, tocar } from './contexto'
+import { auditar, type Ctx, exigirVersao, novo, tocar, versaoDoFormulario } from './contexto'
 
 const ITERACOES = 20000
 
@@ -56,7 +56,7 @@ export async function prepararSenhas(ctx: Ctx, nome: string, dados: Record<strin
 
 export async function salvarUsuario(
   ctx: Ctx,
-  d: { id: Id; login: string; nome: string; perfil: 'admin' | 'funcionario'; pessoaId?: Id; localId?: Id; senha?: string; ativo?: boolean; _senha?: SenhaPreparada },
+  d: { id: Id; login: string; nome: string; perfil: 'admin' | 'funcionario'; pessoaId?: Id; localId?: Id; senha?: string; ativo?: boolean; _senha?: SenhaPreparada; versaoBase?: number },
 ) {
   if (d.senha && !d._senha) {
     // chamado direto (fora do backend): prepara aqui mesmo
@@ -70,6 +70,8 @@ export async function salvarUsuario(
   exigir(!outro || outro.id === d.id, 'Esse usuário já existe.', 'login')
   const existente = await ctx.repos.usuarios.obter(d.id)
   exigir(existente || d._senha, 'Defina uma senha.', 'senha')
+  // formulário aberto antes de outro administrador mudar (ex.: desativar): não grava o velho por cima
+  exigirVersao(existente, versaoDoFormulario(d))
   const todos = await ctx.repos.usuarios.listar()
   const vaiFicarSemAdmin = existente?.perfil === 'admin' && (d.perfil !== 'admin' || d.ativo === false) && !todos.some((u) => u.id !== d.id && u.perfil === 'admin' && u.ativo)
   exigir(!vaiFicarSemAdmin, 'Precisa ficar pelo menos um administrador ativo.')

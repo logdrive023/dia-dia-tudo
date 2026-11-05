@@ -80,6 +80,8 @@ export default defineConfig(({ command, mode }) => {
       // testes de regra (.test.ts) rodam em Node puro (sem simular navegador): sobem bem mais rápido
       environmentMatchGlobs: [['src/__tests__/**/*.test.ts', 'node']],
       setupFiles: ['src/__tests__/setup.ts'],
+      // a Operação Caos (estresse e concorrência) roda à parte: npx vitest run --config vitest.caos.config.ts
+      exclude: ['**/node_modules/**', 'caos/**'],
       testTimeout: 60000,
       // arquivos em paralelo (cada um no seu processo, com o próprio banco): ~4x mais rápido que um por vez
       pool: 'forks',

@@ -42,6 +42,8 @@ export function CadastroFuncionario({ pessoa, localPadrao, onFechar }: { pessoa?
   })
   const [confirmarAdmin, setConfirmarAdmin] = useState(false)
   const [inicial] = useState(() => JSON.stringify(d))
+  // versão da pessoa quando o formulário abriu: outra aba mudou no meio → o servidor recusa em vez de gravar por cima
+  const [versaoBase] = useState(() => pessoa?.versao)
   const w = useAssistente()
   const moeda = d.moeda ?? cfg?.moedaPrincipal ?? moedaPadrao()
   const fechar = () => (JSON.stringify(d) === inicial || window.confirm(t('Sair sem salvar?'))) && onFechar()
@@ -61,6 +63,7 @@ export function CadastroFuncionario({ pessoa, localPadrao, onFechar }: { pessoa?
       comissaoBp: d.comissao ? Math.round(Number(d.comissao.replace(',', '.')) * 100) : undefined,
       acesso: d.acesso,
       verAgendaEquipe: d.acesso === 'funcionario' ? d.verAgendaEquipe : undefined,
+      versaoBase,
     }, t(pessoa ? 'Salvo.' : 'Funcionário cadastrado.'))
     if (r) onFechar()
   }

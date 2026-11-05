@@ -10,7 +10,7 @@ import { aoConcluirVenda } from './vendasAbertas'
 import { dataDeInstante } from '../domain/datas'
 import type { Id, Item, Linha, RegraComissao, Transacao } from '../domain/tipos'
 import { dividir, pct, resolverComissao } from '../domain/comissao'
-import { auditar, cotacoesAtuais, type Ctx, exigirInteiroPositivo, formaPagamento, lerConfig, novo, paraPrincipal, tocar, marcarDiaFechado } from './contexto'
+import { auditar, cotacoesAtuais, type Ctx, exigirInteiroPositivo, formaPagamento, lerConfig, novo, paraPrincipal, tocar, marcarDiaFechado, garantirDiaAberto } from './contexto'
 import { moverCaixa } from './caixa'
 import { comprasDe, custoDe, moverEstoque, proximoCodigo } from './estoque'
 import { montarPagamentos, type PagamentoEntrada } from './pagamentos'
@@ -233,6 +233,8 @@ async function concluir(ctx: Ctx, v: Transacao, pagamentosEntrada: PagamentoEntr
   // com cliente identificado pode pagar em partes: o resto vai para a conta dela (fiado)
   const pagamentos = await montarPagamentos(ctx, pagamentosEntrada, v.totalPrincipal, v.linhas, !!v.pessoaId, 'venda')
   const hoje = ctx.relogio.hoje()
+  // dia encerrado: a venda (paga, fiado ou de valor zero) não entra — mesma regra do dinheiro (reabra no Caixa)
+  await garantirDiaAberto(ctx, hoje)
   for (const l of v.linhas) {
     const item = await ctx.repos.itens.obter(l.itemId!)
     if (item?.controlaEstoque) {

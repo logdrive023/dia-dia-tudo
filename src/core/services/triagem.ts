@@ -9,7 +9,7 @@ import { exigir } from '../domain/erros'
 import type { Campos, Id, Item, Transacao } from '../domain/tipos'
 import type { CampoDef } from '../modulos'
 import { auditar, type Ctx, novo, paraPrincipal, tocar, lerConfig } from './contexto'
-import { type Cadeia, NAO_IDENTIFICADO, type ParaDepois, type SaidaSeparacao, type Triagem, aplicarCampos, comprasDe, custoDe, leitorCadeia, lotesDeOrigem, moverEstoque, novaTriagem, separarNaTriagem, unidadeTexto } from './estoque'
+import { type Cadeia, NAO_IDENTIFICADO, type ParaDepois, type SaidaSeparacao, type Triagem, aplicarCampos, comprasDe, custoDe, exigirIdsLivres, leitorCadeia, lotesDeOrigem, moverEstoque, novaTriagem, separarNaTriagem, unidadeTexto } from './estoque'
 import { codigoNovoLote, exigirCodigosLivres, siglasPorPessoa } from './codigos'
 import { fatorDaTabela, tabelaVigente } from './precos'
 import { type FotoResumo, leitorFotos } from './fotos'
@@ -118,7 +118,12 @@ async function exigirMesmaEtapa(ctx: Ctx, ids: Id[]) {
 
 export async function unificarLotes(ctx: Ctx, d: { id: Id; ids: Id[]; motivo?: string; codigo?: string }) {
   exigir(ctx.sessao.perfil === 'admin', 'Só o administrador unifica lotes.')
-  if (await ctx.repos.itens.obter(d.id)) return { id: d.id }
+  const ja = await ctx.repos.itens.obter(d.id)
+  // repetição: só é "a mesma unificação" se o pacote nasceu dela; um pacote qualquer com esse id é recusado
+  if (ja) {
+    exigir(ja.origem?.tipo === 'unificacao' && ja.triagem?.id === d.id, `Já existe um pacote com essa identificação (${ja.codigo ?? ja.nome}): abra a unificação de novo e refaça.`)
+    return { id: d.id }
+  }
   exigir(new Set(d.ids ?? []).size >= 2, 'Escolha pelo menos 2 lotes brutos para unificar.')
   await exigirMesmaEtapa(ctx, [...new Set(d.ids)])
   return unificarNaTriagem(ctx, d, await novaTriagem(ctx, d.id), 'saida')
@@ -311,6 +316,8 @@ export interface CartaoTriagem {
   /** de quantos lotes foi unificado (0 = não é unificado) e os códigos deles */
   unificado: number
   unificadoDe?: { id: Id; codigo?: string }[]
+  /** pacote misturado (unificado): dá para desfazer a mistura? se não, por quê (venda, separação, ajuste…) */
+  mistura?: { pode: boolean; porque?: string }
   /** lote-mãe quando veio de uma separação */
   pai?: { id: Id; codigo?: string }
   triadoEm?: string
@@ -370,6 +377,8 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
   const viagensMapa = await mapaViagens(ctx)
   const F = await leitorFotos(ctx, { porId: L.porId, compras })
   const siglas = await siglasPorPessoa(ctx)
+  const movsTodos = await ctx.repos.movEstoque.listar()
+  const canceladas = await canceladasVenda(ctx)
   let vendidosOcultos = 0
   const lotes: CartaoTriagem[] = []
   for (const i of itens) {
@@ -422,6 +431,7 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
       compras: cs.map((t) => ({ id: t.id, codigo: t.codigo, fornecedor: t.pessoaId ? pessoas.get(t.pessoaId) : undefined, fornecedorId: t.pessoaId, viagem: t.viagemId ? viagensMapa.get(t.viagemId) : undefined })),
       unificado: i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).length : 0,
       unificadoDe: i.origem?.tipo === 'unificacao' ? (i.origem.ids ?? []).map((id) => ({ id, codigo: porId.get(id)?.codigo })) : undefined,
+      mistura: i.origem?.tipo === 'unificacao' && i.triagem ? ((porque) => ({ pode: !porque, porque }))(lerMisturaDe(i, L.porId, movsTodos, canceladas).porque) : undefined,
       pai: i.origem?.tipo === 'transformacao' && i.origem.id ? { id: i.origem.id, codigo: porId.get(i.origem.id)?.codigo } : undefined,
       triadoEm: i.campos.separacaoId ? i.criadoEm.slice(0, 10) : undefined,
       vendidoEm,
@@ -446,7 +456,7 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
   // números do topo: gramas por coluna, triado na semana e perda do mês (separações)
   const semanaDesde = somarDias(hoje, -6)
   const mesDesde = inicioDoMes(hoje)
-  const movs = (await ctx.repos.movEstoque.listar()).filter((m) => m.motivo === 'transformacao' && doModulo.has(m.itemId))
+  const movs = movsTodos.filter((m) => m.motivo === 'transformacao' && doModulo.has(m.itemId))
   const soma = (f: (m: (typeof movs)[number]) => boolean) => movs.filter(f).reduce((s, m) => s + m.delta, 0)
   const usadoMes = -soma((m) => m.delta < 0 && m.data >= mesDesde)
   const geradoMes = soma((m) => m.delta > 0 && m.data >= mesDesde)
@@ -501,10 +511,13 @@ export async function triarLotes(ctx: Ctx, d: { id: Id; ids: Id[]; quantidadeUsa
   await exigirFotoParaSair(ctx, (await Promise.all(ids.map((x) => ctx.repos.itens.obter(x)))).filter((x): x is Item => !!x))
   // códigos digitados (lote juntado e partes): conferidos antes de mexer em qualquer lote
   const { reservados } = await exigirCodigosLivres(ctx, 'lote', [d.codigo, ...(d.saidas ?? []).map((x) => x.codigo), d.paraDepois?.codigo])
+  // ids dos pacotes que vão nascer (juntado e partes): livres e sem repetir, também conferidos antes de mexer
+  const juntadoId = ids.length > 1 ? (separa ? `${d.id}-u` : d.id) : undefined
+  await exigirIdsLivres(ctx, [...(juntadoId ? [juntadoId] : []), ...(d.saidas ?? []).map((x) => x.id), ...(d.paraDepois?.quantidade ? [d.paraDepois.id] : [])])
   const tg = await novaTriagem(ctx, d.id)
   let loteId = ids[0]
   if (ids.length > 1) {
-    loteId = separa ? `${d.id}-u` : d.id
+    loteId = juntadoId!
     await unificarNaTriagem(ctx, { id: loteId, ids, motivo: d.motivo, codigo: d.codigo, reservados: new Set([...reservados].filter((c) => c !== (d.codigo ?? '').trim().toUpperCase())) }, tg, separa ? 'intermediario' : 'saida', true)
   }
   if (!separa) return { id: d.id, codigo: tg.codigo, lotes: [loteId] }
@@ -550,9 +563,12 @@ export async function desfazerTriagem(ctx: Ctx, d: { triagemId: Id; motivo: stri
   const tg = S.find((i) => i.triagem)?.triagem
   const codigo = tg?.codigo ?? `T·${d.triagemId.slice(-4).toUpperCase()}`
   const texto = `Triagem ${codigo} desfeita · ${motivo}`
-  // devolve aos pacotes de entrada (do mais novo para o mais antigo)
+  // devolve aos pacotes de entrada (do mais novo para o mais antigo); pacote que já saiu e voltou (tirado da mistura
+  // antes) dá zero e não é mexido — ele já é independente de novo
+  const liquido = new Map<Id, number>()
+  for (const m of R) liquido.set(m.itemId, (liquido.get(m.itemId) ?? 0) + m.delta)
   for (const m of [...R].sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1))) {
-    if (ids.has(m.itemId)) continue
+    if (ids.has(m.itemId) || !liquido.get(m.itemId)) continue
     await moverEstoque(ctx, { itemId: m.itemId, delta: -m.delta, motivo: 'cancelamento', origemId: d.triagemId, descricao: texto })
   }
   const desfeita = `${codigo} · ${dataCurta(ctx.relogio.agora())} · ${ctx.sessao.nome} · ${motivo}`
@@ -565,6 +581,129 @@ export async function desfazerTriagem(ctx: Ctx, d: { triagemId: Id; motivo: stri
   const etiquetas = S.filter((i) => i.etiquetaImpressaEm).map((i) => i.codigo ?? i.nome)
   await auditar(ctx, 'desfazerTriagem', d.triagemId, `${texto}${etiquetas.length ? ` · etiquetas para jogar fora: ${etiquetas.join(', ')}` : ''}`, [...ids])
   return { id: d.triagemId, codigo, etiquetasParaJogarFora: etiquetas }
+}
+
+// ---------- desfazer a mistura (o contrário de unificar) ----------
+
+type MovsDe = Awaited<ReturnType<Ctx['repos']['movEstoque']['listar']>>
+
+/**
+ * A MISTURA de um pacote unificado como está agora: cada pacote de origem com as gramas e o custo que pôs (o que ainda
+ * está lá dentro) e se dá para desfazer. Só dá enquanto o pacote misturado não foi mexido depois de juntar (venda,
+ * separação, ajuste, perda); venda cancelada não conta (saiu e voltou) e as retiradas da própria mistura também não.
+ */
+function lerMisturaDe(u: Item, porId: Map<Id, Item>, movs: MovsDe, canceladas: Set<Id>) {
+  const daMistura = (m: MovsDe[number]) => m.motivo === 'unificacao' && m.origemId === u.id
+  const fontes = (u.origem?.tipo === 'unificacao' ? u.origem.ids ?? [] : [])
+    .map((id) => {
+      const i = porId.get(id)
+      const g = -movs.filter((m) => m.itemId === id && daMistura(m)).reduce((s, m) => s + m.delta, 0)
+      return i && g > 0 ? { item: i, g, custo: custoDe(i, g) } : undefined
+    })
+    .filter((x): x is { item: Item; g: number; custo: number } => !!x)
+  const mexeu = movs.some((m) => m.itemId === u.id && !daMistura(m) && !(m.origemId && canceladas.has(m.origemId)))
+  const cod = u.codigo ?? u.nome
+  const porque =
+    u.origem?.tipo !== 'unificacao' || !u.triagem ? `${cod} não é uma mistura de pacotes.`
+      : u.campos.triagemDesfeita || !u.ativo ? `A mistura ${cod} já foi desfeita.`
+        : u.triagem.papel === 'intermediario' ? `${cod} foi juntado e separado no mesmo passo: desfaça a triagem ${u.triagem.codigo}.`
+          : mexeu ? `Já mexeram em ${cod} depois de juntar (venda, separação ou ajuste): não dá para desfazer a mistura.`
+            : fontes.length < 2 ? `A mistura ${cod} não tem pacotes de origem para devolver.`
+              : undefined
+  return { fontes, porque }
+}
+
+async function canceladasVenda(ctx: Ctx) {
+  return new Set((await ctx.repos.transacoes.listar({ tipo: 'venda' })).filter((v) => v.etapa === 'cancelado').map((v) => v.id))
+}
+
+/** MISTURA DO PACOTE (para a janela "Desfazer mistura"): os pacotes de origem com gramas, custo e compra, e se dá. */
+export async function mistura(ctx: Ctx, p: { loteId: Id }) {
+  const u = await ctx.repos.itens.obter(p.loteId)
+  exigir(u, 'Pacote não encontrado.')
+  const itens = await ctx.repos.itens.listar({ moduloId: u.moduloId })
+  const porId = new Map(itens.map((i) => [i.id, i]))
+  const { fontes, porque } = lerMisturaDe(u, porId, await ctx.repos.movEstoque.listar(), await canceladasVenda(ctx))
+  const compras = new Map((await ctx.repos.transacoes.listar({ tipo: 'compra' })).map((t) => [t.id, t] as [Id, Transacao]))
+  const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x.nome]))
+  const admin = ctx.sessao.perfil === 'admin'
+  return {
+    lote: { id: u.id, codigo: u.codigo, nome: u.nome, saldo: u.saldo, unidade: u.unidade, custo: admin ? custoDe(u, u.saldo) : undefined, etiquetaImpressaEm: u.etiquetaImpressaEm, triagem: u.triagem?.codigo },
+    fontes: fontes.map((f) => ({
+      id: f.item.id,
+      codigo: f.item.codigo,
+      nome: f.item.nome,
+      g: f.g,
+      custo: admin ? f.custo : undefined,
+      compras: comprasDe(f.item).map((c) => compras.get(c)).filter((t): t is Transacao => !!t).map((t) => ({ id: t.id, codigo: t.codigo, fornecedor: t.pessoaId ? pessoas.get(t.pessoaId) : undefined })),
+    })),
+    podeDesfazer: !porque,
+    porque,
+  }
+}
+
+/**
+ * DESFAZER A MISTURA (tudo ou só alguns): cada pacote escolhido em `tirar` volta a existir com EXATAMENTE as gramas e o
+ * custo que pôs na mistura; o pacote misturado perde essas gramas e esse custo. Se sobrar menos de 2 pacotes de origem,
+ * desfaz a mistura inteira (o mesmo que desfazer a triagem da unificação). Só enquanto o misturado está intacto desde
+ * que juntou. Um passo só, repetir com o mesmo id não faz de novo.
+ * Ex.: L-0027 = L-0021 (1,2 kg) + L-0022 (3,3 kg) + L-0023 (2 kg); tirar L-0023 → L-0023 volta com 2 kg, L-0027 fica 4,5 kg.
+ */
+export async function tirarDaMistura(ctx: Ctx, d: { id: Id; loteId: Id; tirar: Id[]; motivo?: string }) {
+  exigir(ctx.sessao.perfil === 'admin', 'Só o administrador desfaz a mistura.')
+  exigir(d.id, 'Abra a janela de novo e refaça.')
+  const ja = (await ctx.repos.auditoria.listar()).find((a) => a.acao === 'tirarDaMistura' && a.ligados?.includes(d.id))
+  if (ja) {
+    const u = await ctx.repos.itens.obter(d.loteId)
+    return { id: d.id, loteId: d.loteId, desfeita: !u?.ativo, restante: u?.ativo ? u.saldo : 0, devolvidos: [] as { id: Id; codigo?: string; g: number }[], etiquetasParaJogarFora: [] as string[] }
+  }
+  const u = await ctx.repos.itens.obter(d.loteId)
+  exigir(u, 'Pacote não encontrado.')
+  const itens = await ctx.repos.itens.listar({ moduloId: u.moduloId })
+  const porId = new Map(itens.map((i) => [i.id, i]))
+  const { fontes, porque } = lerMisturaDe(u, porId, await ctx.repos.movEstoque.listar(), await canceladasVenda(ctx))
+  exigir(!porque, porque!)
+  const tirar = new Set(d.tirar ?? [])
+  exigir(tirar.size, 'Escolha qual pacote sai da mistura.')
+  for (const x of tirar) exigir(fontes.some((f) => f.item.id === x), `${porId.get(x)?.codigo ?? 'Esse pacote'} não está nesta mistura.`)
+  const saem = fontes.filter((f) => tirar.has(f.item.id))
+  const ficam = fontes.filter((f) => !tirar.has(f.item.id))
+  const cod = u.codigo ?? u.nome
+  const motivo = d.motivo?.trim() || undefined
+  const lista = saem.map((f) => `${f.item.codigo ?? f.item.nome} (${unidadeTexto(u.unidade, f.g)})`).join(' + ')
+  const devolvidos = saem.map((f) => ({ id: f.item.id, codigo: f.item.codigo, g: f.g }))
+  // sobra 0 ou 1 pacote de origem: não é mais mistura → desfaz tudo (igual a desfazer a triagem da unificação)
+  if (ficam.length < 2) {
+    const r = await desfazerTriagem(ctx, { triagemId: u.triagem!.id, motivo: motivo ?? `Mistura ${cod} desfeita` })
+    await auditar(ctx, 'tirarDaMistura', u.id, `${cod} desfeita: ${fontes.map((f) => `${f.item.codigo ?? f.item.nome} (${unidadeTexto(u.unidade, f.g)})`).join(' + ')} voltaram${motivo ? ` · ${motivo}` : ''}`, [d.id, ...fontes.map((f) => f.item.id)])
+    return { id: d.id, loteId: u.id, desfeita: true, restante: 0, devolvidos: fontes.map((f) => ({ id: f.item.id, codigo: f.item.codigo, g: f.g })), etiquetasParaJogarFora: r.etiquetasParaJogarFora }
+  }
+  const g = saem.reduce((s, f) => s + f.g, 0)
+  const custo = saem.reduce((s, f) => s + f.custo, 0)
+  // as gramas voltam para cada pacote de origem (ligadas à mistura: a conta da genealogia continua fechando)
+  for (const f of saem) {
+    await moverEstoque(ctx, { itemId: f.item.id, delta: f.g, motivo: 'unificacao', origemId: u.id, descricao: `Saiu da mistura ${cod}` })
+    const atual = (await ctx.repos.itens.obter(f.item.id))!
+    if (!atual.ativo) await ctx.repos.itens.salvar(tocar(ctx, { ...atual, ativo: true }))
+  }
+  await moverEstoque(ctx, { itemId: u.id, delta: -g, motivo: 'unificacao', origemId: u.id, descricao: `Tirado da mistura: ${lista}` })
+  // o misturado fica só com quem ficou: origem, compras, custo e peso inicial (atributos recalculados se ninguém mudou)
+  const antes = (await ctx.repos.itens.obter(u.id))!
+  const tipo = ctx.modulos.tipoItem(u.moduloId, u.tipoItem)
+  const eraAuto = JSON.stringify(antes.campos) === JSON.stringify(camposUnificados(tipo.campos, fontes.map((f) => f.item.campos)))
+  const campos = eraAuto ? camposUnificados(tipo.campos, ficam.map((f) => f.item.campos)) : antes.campos
+  const compraIds = [...new Set(ficam.flatMap((f) => comprasDe(f.item)))]
+  const fornecedores = new Set(ficam.map((f) => f.item.origem?.pessoaId))
+  await ctx.repos.itens.salvar(tocar(ctx, {
+    ...antes,
+    nome: eraAuto ? tipo.nomear?.(campos) ?? antes.nome : antes.nome,
+    campos,
+    custoPrincipal: (antes.custoPrincipal ?? 0) - custo,
+    quantidadeInicial: (antes.quantidadeInicial ?? 0) - g,
+    origem: { ...antes.origem!, ids: ficam.map((f) => f.item.id), compraIds, compraId: compraIds[0], pessoaId: fornecedores.size === 1 ? ficam[0].item.origem?.pessoaId : undefined },
+  }))
+  await auditar(ctx, 'tirarDaMistura', u.id, `${cod}: ${lista} voltaram · ficou ${unidadeTexto(u.unidade, antes.saldo)}${motivo ? ` · ${motivo}` : ''}`, [d.id, ...saem.map((f) => f.item.id)])
+  return { id: d.id, loteId: u.id, desfeita: false, restante: antes.saldo, devolvidos, etiquetasParaJogarFora: u.etiquetaImpressaEm ? [cod] : [] }
 }
 
 /**

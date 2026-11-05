@@ -120,7 +120,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
       <div className="bg-[linear-gradient(180deg,var(--marca-suave),transparent)] px-3 pb-6 pt-4 sm:px-5 sm:pb-8 sm:pt-5">
         <div className="mb-4 flex flex-wrap items-baseline gap-x-2">
           <h2 className="text-base font-bold sm:text-lg">🧬 {t('Caminho do cabelo')}</h2>
-          <span className="text-xs text-[var(--suave)]">{t('por onde ele passou e para onde vai · toque numa etapa para filtrar, num código para abrir')}</span>
+          <span className="text-xs text-[var(--suave)]">{t('por onde ele passou e para onde vai · toque num código para abrir')}</span>
         </div>
         {/* 0. A SITUAÇÃO AGORA, em uma frase */}
         <p className="num mb-4 rounded-xl bg-[var(--cartao)] px-3 py-2 text-sm shadow-sm ring-1 ring-[var(--borda)]">
@@ -168,17 +168,21 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
       </div>
 
       {!compacto && <>
-        {/* 2. OS FILTROS POR ETAPA */}
-        <div className="border-y border-[var(--borda)] bg-[var(--fundo)] px-3 pb-3 pt-4 sm:px-5">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]">{t('Filtrar por etapa')}</p>
-        <div role="group" aria-label={t('Filtrar por etapa')} className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-          {[{ id: '' as const, nome: 'Tudo', n: etapas.reduce((s, e) => s + e.n, 0) }, ...etapas.map((e) => ({ id: e.id, nome: `${ICONE[e.id]} ${t(NOME[e.id])}`, n: e.n }))].map((f) => (
-            <button key={f.id || 'tudo'} type="button" aria-pressed={filtro === f.id} onClick={() => setFiltro(f.id)}
-              className={cx('min-h-10 shrink-0 rounded-full px-3 text-sm font-semibold', filtro === f.id ? 'bg-[var(--marca)] text-white' : 'bg-[var(--cartao)] text-[var(--texto)] ring-1 ring-[var(--borda)] hover:ring-[var(--marca)]')}>
-              {t(f.nome)} <span className="num opacity-70">{f.n}</span>
-            </button>
-          ))}
-        </div>
+        {/* 2. O DETALHE: uma parte própria, com o título dizendo o que é e a escolha da etapa logo em cima (só as que têm
+            registro; o resto some — nada de "Compra 0") */}
+        <div className="border-t-4 border-[var(--fundo)] bg-[var(--cartao)] px-3 pb-3 pt-4 sm:px-5">
+          <div className="mb-2 flex flex-wrap items-baseline gap-x-2">
+            <h3 className="text-base font-bold">📋 {t('Detalhe de cada etapa')}</h3>
+            <span className="text-xs text-[var(--suave)]">{t('escolha uma etapa para ver só ela')}</span>
+          </div>
+          <div role="radiogroup" aria-label={t('Ver o detalhe de')} className="sem-barra -mx-1 flex gap-1 overflow-x-auto rounded-xl bg-[var(--fundo)] p-1">
+            {[{ id: '' as const, nome: t('Tudo'), n: etapas.reduce((s, e) => s + e.n, 0) }, ...etapas.filter((e) => e.n > 0 || filtro === e.id).map((e) => ({ id: e.id, nome: `${ICONE[e.id]} ${t(NOME[e.id])}`, n: e.n }))].map((f) => (
+              <button key={f.id || 'tudo'} type="button" role="radio" aria-checked={filtro === f.id} onClick={() => setFiltro(f.id)}
+                className={cx('inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition', filtro === f.id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)] hover:text-[var(--texto)]')}>
+                {f.nome}<span className={cx('num rounded-full px-1.5 text-[11px]', filtro === f.id ? 'bg-[var(--marca-suave)]' : 'bg-[var(--cartao)]')}>{f.n}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* 3. O DETALHE DE CADA ETAPA (só as do filtro) */}
@@ -278,24 +282,40 @@ type ItemEtapa = { id: Id; codigo?: string; desta?: boolean; info?: string; valo
  *  · compra → tudo o que veio dela   · pacote → de onde veio + para onde foi   · triagem → as entradas para trás e as
  *    saídas para a frente   · venda → só de onde veio (as outras vendas do mesmo pacote NÃO são o caminho dela)
  */
-function caminhoProprio(g: NonNullable<ResultadoConsulta<'genealogia'>>, de: { compraId: Id } | { itemId: Id } | { vendaId: Id } | { triagemId: Id }) {
+export function caminhoProprio(g: NonNullable<ResultadoConsulta<'genealogia'>>, de: { compraId: Id } | { itemId: Id } | { vendaId: Id } | { triagemId: Id }) {
   const lote = new Map(g.lotes.map((l) => [l.id, l]))
   const triagem = new Map(g.triagens.map((x) => [x.id, x]))
   const compra = new Map(g.compras.map((c) => [c.id, c]))
   const venda = new Map(g.vendas.map((v) => [v.id, v]))
   const ids = new Set<Id>()
+  // visitados À PARTE por sentido e por tipo: a triagem da UNIFICAÇÃO tem o MESMO id do pacote misturado — misturar os
+  // dois num conjunto só fazia o caminho parar no meio (a mistura aparecia sem compra de origem)
+  const atrasL = new Set<Id>()
+  const frenteL = new Set<Id>()
+  const vistasT = new Set<Id>()
   const tras = (id: Id) => {
-    if (ids.has(id) && !lote.has(id)) return
+    if (atrasL.has(id)) return
+    atrasL.add(id)
     ids.add(id)
     const l = lote.get(id)
-    if (l) for (const x of l.de) { if (x.tipo === 'triagem') { if (!ids.has(x.id)) { ids.add(x.id); for (const e of triagem.get(x.id)?.entradas ?? []) if (!ids.has(e.id)) tras(e.id) } } else ids.add(x.id) }
+    // de onde veio: triagem (as entradas dela), outro pacote (segue até a compra dele) ou a compra
+    if (l) for (const x of l.de) {
+      if (x.tipo === 'triagem') { const k = 'T:' + x.id; if (!vistasT.has(k)) { vistasT.add(k); ids.add(x.id); for (const e of triagem.get(x.id)?.entradas ?? []) tras(e.id) } }
+      else if (lote.has(x.id)) tras(x.id)
+      else ids.add(x.id)
+    }
   }
   const frente = (id: Id) => {
+    if (frenteL.has(id)) return
+    frenteL.add(id)
     ids.add(id)
     const c = compra.get(id)
-    if (c) for (const x of c.lotes) if (!ids.has(x.id)) frente(x.id)
+    if (c) for (const x of c.lotes) frente(x.id)
     const l = lote.get(id)
-    if (l) for (const x of l.para) { if (x.tipo === 'triagem') { if (!ids.has(x.id)) { ids.add(x.id); for (const s of triagem.get(x.id)?.saidas ?? []) if (!ids.has(s.id)) frente(s.id) } } else ids.add(x.id) }
+    if (l) for (const x of l.para) {
+      if (x.tipo === 'triagem') { const k = 'F:' + x.id; if (!vistasT.has(k)) { vistasT.add(k); ids.add(x.id); for (const s of triagem.get(x.id)?.saidas ?? []) frente(s.id) } }
+      else ids.add(x.id)
+    }
   }
   if ('compraId' in de) frente(de.compraId)
   else if ('itemId' in de) { tras(de.itemId); frente(de.itemId) }

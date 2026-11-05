@@ -204,6 +204,11 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
     const feitos = ids.filter((id) => copiasDe(id) > 0)
     if (feitos.length && (await executar('marcarEtiquetasImpressas', { ids: feitos }))) (setImpresso(true), onImpresso?.())
   }
+  // SÓ MARCAR (sem imprimir): já imprimiu em outro lugar ou vai imprimir depois — o pacote sai de "Sem etiqueta" igual
+  const soMarcar = async () => {
+    const feitos = ids.filter((id) => copiasDe(id) > 0)
+    if (feitos.length && (await executar('marcarEtiquetasImpressas', { ids: feitos }, t('{n} etiqueta(s) marcada(s) como gerada(s).', { n: feitos.length })))) (setImpresso(true), onImpresso?.())
+  }
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onFechar()
     window.addEventListener('keydown', esc)
@@ -351,6 +356,9 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
             {passou && <span role="alert" className="block font-semibold text-[var(--ruim)]">{t('Máximo {n} por vez: diminua as cópias ou imprima em partes.', { n: limite })}</span>}
             {impresso && <span role="status" className="block font-semibold text-[var(--bom)]">✓ {t('Marcadas como impressas')}</span>}
           </div>
+          {sessao.perfil === 'admin' && !impresso && (
+            <Botao variante="secundario" className="shrink-0" disabled={!dados || !pacotes} onClick={soMarcar} title={t('Marca as etiquetas como geradas sem imprimir agora (o pacote sai de "Sem etiqueta").')}>✓ {t('Só marcar como gerada')}</Botao>
+          )}
           <Botao grande className="shrink-0" disabled={!dados || !total || passou} onClick={imprimir}>🖨 {t(impresso ? 'Imprimir de novo' : 'Imprimir')}</Botao>
         </div>
       </footer>
@@ -472,7 +480,9 @@ export function VerEtiqueta({ id, onFechar, admin }: { id: Id; onFechar(): void;
   )
 }
 
-export function SeloEtiqueta({ id, impressaEm, por, via, className }: { id: Id; impressaEm?: string; por?: string; via?: number; className?: string }) {
+export function SeloEtiqueta({ id, impressaEm, por, via, className, soLeitura }: { id: Id; impressaEm?: string; por?: string; via?: number; className?: string
+  /** dentro de outro botão (a linha do celular): só o selo, sem o botão de imprimir (botão dentro de botão não vale) */
+  soLeitura?: boolean }) {
   const t = useT()
   const [imprimir, setImprimir] = useState(false)
   const viaTxt = via && via > 1 ? t('{n}ª via', { n: via }) : ''
@@ -484,6 +494,7 @@ export function SeloEtiqueta({ id, impressaEm, por, via, className }: { id: Id; 
       </span>
     )
   }
+  if (soLeitura) return <span className={cx('inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[color-mix(in_srgb,var(--alerta)_14%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--alerta)]', className)}>🏷 {t('Sem etiqueta')}</span>
   // o clique não chega na linha (que abre o pacote), nem o que acontece dentro da folha de impressão
   return (
     <span className={cx('inline-flex shrink-0', className)} onClick={pararEv} onKeyDown={pararEv}>

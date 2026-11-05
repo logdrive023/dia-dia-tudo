@@ -211,7 +211,8 @@ describe('LOST UPDATE: aba A salva o objeto velho depois que a aba B mudou', () 
     const velho = await repos(A.b).pessoas.obter('forn')
     await Bb.b.comando('salvarPessoa', { id: 'forn', nome: velho.nome, papeis: velho.papeis, telefone: '999' })
     // aba A (formulário aberto antes) só mudou a observação, mas a tela manda o formulário inteiro
-    await resultado(A.b.comando('salvarPessoa', { id: 'forn', nome: velho.nome, papeis: velho.papeis, telefone: velho.telefone, obs: 'nova obs' }))
+    // a tela velha manda a versão que CARREGOU (igual às telas de verdade, desde a correção): o servidor sabe que é velha
+    await resultado(A.b.comando('salvarPessoa', { id: 'forn', nome: velho.nome, papeis: velho.papeis, telefone: velho.telefone, obs: 'nova obs', versaoBase: velho.versao } as Q))
     const p = await repos(A.b).pessoas.obter('forn')
     // certo: ou recusa (versão mudou) ou mantém o 999 — nunca volta ao 111 em silêncio
     expect(p.telefone).toBe('999')
@@ -223,7 +224,8 @@ describe('LOST UPDATE: aba A salva o objeto velho depois que a aba B mudou', () 
     await A.b.comando('salvarTabelaPreco', tabela({ '60|lp': '17', '60|hel': '18' }, 'v1'))
     const grade = { ...(await repos(A.b).tabelasPreco.obter('t')).valores }
     await Bb.b.comando('salvarTabelaPreco', tabela({ ...grade, '60|lp': '20' }, 'B sobe LP'))
-    await resultado(A.b.comando('salvarTabelaPreco', tabela({ ...grade, '60|hel': '19' }, 'A sobe Helena')))
+    // a tela velha manda a versão que CARREGOU (igual às telas de verdade, desde a correção): o servidor sabe que é velha
+    await resultado(A.b.comando('salvarTabelaPreco', { ...tabela({ ...grade, '60|hel': '19' }, 'A sobe Helena'), versaoBase: 1 } as Q))
     const t = await repos(A.b).tabelasPreco.obter('t')
     // certo: a publicação da A (baseada na v1) é recusada, ou o LP da B (20) continua
     expect(t.valores['60|lp']).toBe('20')
@@ -231,12 +233,13 @@ describe('LOST UPDATE: aba A salva o objeto velho depois que a aba B mudou', () 
 
   it('C18 salvarConfig com a lista velha de módulos ativos religa o módulo que a outra aba desligou', async () => {
     const { A, Bb } = await cenario()
-    const ativos: string[] = ((await A.b.consulta('configuracoes', {})) as Q).modulosAtivos
+    const ativos: string[] = ((await A.b.consulta('configuracoes', {})) as Q).config.modulosAtivos
     expect(ativos.length).toBeGreaterThan(1)
     const desligado = ativos.find((m) => m !== 'cabelo')!
     await Bb.b.comando('salvarConfig', { modulosAtivos: ativos.filter((m) => m !== desligado) } as Q)
     // aba A (tela aberta antes) muda outro módulo e manda a lista que tinha
-    await A.b.comando('salvarConfig', { modulosAtivos: [...ativos] } as Q)
+    // a tela manda também o que CARREGOU ("antes"): só o que ela mudou vale; o que a outra aba mudou fica
+    await A.b.comando('salvarConfig', { modulosAtivos: [...ativos], antes: { modulosAtivos: [...ativos] } } as Q)
     const depois = ((await repos(A.b).config.obter('geral')) as Q).valor.modulosAtivos as string[]
     expect(depois).not.toContain(desligado)
   })
@@ -245,7 +248,8 @@ describe('LOST UPDATE: aba A salva o objeto velho depois que a aba B mudou', () 
     const { A, Bb } = await cenario()
     const velho = ((await A.b.consulta('usuarios', {})) as Q[]).find((u) => u.id === 'u-sofia')
     await Bb.b.comando('salvarUsuario', { id: 'u-sofia', login: 'sofia', nome: velho.nome, perfil: 'funcionario', pessoaId: 'p-sofia', ativo: false })
-    await resultado(A.b.comando('salvarUsuario', { id: 'u-sofia', login: 'sofia', nome: 'Sofia F. (nome corrigido)', perfil: 'funcionario', pessoaId: 'p-sofia', ativo: velho.ativo }))
+    // a tela velha manda a versão que CARREGOU (igual às telas de verdade, desde a correção): o servidor sabe que é velha
+    await resultado(A.b.comando('salvarUsuario', { id: 'u-sofia', login: 'sofia', nome: 'Sofia F. (nome corrigido)', perfil: 'funcionario', pessoaId: 'p-sofia', ativo: velho.ativo, versaoBase: velho.versao } as Q))
     expect((await repos(A.b).usuarios.obter('u-sofia')).ativo).toBe(false)
   })
 
@@ -253,7 +257,8 @@ describe('LOST UPDATE: aba A salva o objeto velho depois que a aba B mudou', () 
     const { A, Bb } = await cenario()
     await A.b.comando('salvarItem', { id: 'pc', moduloId: 'produtos', tipoItem: 'peca', nome: 'Escova', precoSugerido: { moeda: 'BOB', valor: bs(50) }, estoqueIdeal: 5 })
     await Bb.b.comando('salvarItem', { id: 'pc', moduloId: 'produtos', tipoItem: 'peca', nome: 'Escova', precoSugerido: { moeda: 'BOB', valor: bs(70) }, estoqueIdeal: 5 })
-    await resultado(A.b.comando('salvarItem', { id: 'pc', moduloId: 'produtos', tipoItem: 'peca', nome: 'Escova grande', precoSugerido: { moeda: 'BOB', valor: bs(50) }, estoqueIdeal: 5 }))
+    // a tela da aba A abriu o item quando ele custava 50 (é o que ela manda como "antes", igual à tela de verdade)
+    await resultado(A.b.comando('salvarItem', { id: 'pc', moduloId: 'produtos', tipoItem: 'peca', nome: 'Escova grande', precoSugerido: { moeda: 'BOB', valor: bs(50) }, estoqueIdeal: 5, antes: { nome: 'Escova', precoSugerido: { moeda: 'BOB', valor: bs(50) }, estoqueIdeal: 5, ativo: true } } as Q))
     expect((await repos(A.b).itens.obter('pc')).precoSugerido.valor).toBe(bs(70))
   })
 
@@ -263,7 +268,8 @@ describe('LOST UPDATE: aba A salva o objeto velho depois que a aba B mudou', () 
     const v = (await repos(A.b).viagens.obter('vg')) as Q
     await Bb.b.comando('salvarViagem', { id: 'vg', nome: v.nome, destino: v.destino, viajantes: v.viajantes, inicio: v.inicio, orcamento: bs(3000) } as Q)
     // tela da viagem aberta na aba A: "mudarRateio" manda a viagem inteira que ela tinha
-    await resultado(A.b.comando('salvarViagem', { id: 'vg', nome: v.nome, destino: v.destino, viajantes: v.viajantes, inicio: v.inicio, fim: v.fim, orcamento: v.orcamento, orcamentoCompra: v.orcamentoCompra, rateio: 'valor', obs: v.obs } as Q))
+    // a tela velha manda a versão que CARREGOU (igual às telas de verdade, desde a correção): o servidor sabe que é velha
+    await resultado(A.b.comando('salvarViagem', { id: 'vg', nome: v.nome, destino: v.destino, viajantes: v.viajantes, inicio: v.inicio, fim: v.fim, orcamento: v.orcamento, orcamentoCompra: v.orcamentoCompra, rateio: 'valor', obs: v.obs, versaoBase: v.versao } as Q))
     expect((await repos(A.b).viagens.obter('vg')).orcamento).toBe(bs(3000))
   })
 
@@ -295,6 +301,8 @@ describe('SESSÃO e PERFIL numa aba que ficou aberta', () => {
     const { A, Bb } = await cenario()
     const lote = await compraPaga(A.b, 'c1')
     await entrarComo(Bb, 'bianca')
+    // outro administrador guardado antes (a regra "fica pelo menos um administrador ativo" não deixa rebaixar o único)
+    await A.b.comando('salvarUsuario', { id: 'u-adm3', login: 'carla', nome: 'Carla Admin', perfil: 'admin', ativo: true, senha: '1234' } as Q)
     await A.b.comando('salvarUsuario', { id: 'u-adm2', login: 'bianca', nome: 'Bianca Admin', perfil: 'funcionario', ativo: true })
     const rr = await resultado(Bb.b.comando('ajustarEstoque', { itemId: lote, novoSaldo: 0, motivo: 'perda', descricao: 'sumiu' }))
     expect(rr).not.toBe('ok')

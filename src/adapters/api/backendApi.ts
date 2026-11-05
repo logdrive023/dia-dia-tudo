@@ -1,7 +1,8 @@
 // Adaptador API (pronto para quando o servidor existir). Implementa a MESMA porta Backend das telas.
 // TODO pedido passa pelo canal cifrado (canalSeguro.ts): aperto de mão em POST /v1/k e tudo o mais em POST /v1/r.
 // Na aba Rede não aparece nome de comando, parâmetro, token, valor nem mensagem: só bytes cifrados.
-//   comando  → { tipo: 'comando',  nome, dados, chave: 'nome:id' }   (chave = idempotência: toque duplo não duplica)
+//   comando  → { tipo: 'comando',  nome, dados, chave: 'nome:uuid' } (chave = idempotência DO PEDIDO: uma nova por chamada,
+//              repetida só pelas tentativas automáticas daquela chamada; o toque duplo com o mesmo id quem segura é a regra)
 //   consulta → { tipo: 'consulta', nome, dados: params }
 //   login    → { tipo: 'auth', nome: 'entrar' } → { token, sessao }; o token viaja DENTRO de cada mensagem
 //   backup   → { tipo: 'backup', nome: 'exportar' | 'importar' }
@@ -43,6 +44,14 @@ async function lerArquivo(b: Blob): Promise<Uint8Array> {
   })
 }
 
+/** id único do pedido (uuid; reserva para ambientes sem crypto.randomUUID) */
+function idPedido(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const b = new Uint8Array(16)
+  crypto.getRandomValues(b)
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+}
+
 export class BackendApi implements Backend {
   readonly tipo = 'api' as const
   private ouvintes = new Set<() => void>()
@@ -75,8 +84,9 @@ export class BackendApi implements Backend {
   }
 
   async comando<N extends NomeComando>(nome: N, dados: DadosComando<N>): Promise<ResultadoComando<N>> {
-    const id = (dados as { id?: string })?.id
-    const r = await this.pedir<ResultadoComando<N>>('comando', nome, dados, { chave: id ? `${nome}:${id}` : undefined })
+    // chave POR CHAMADA (não pelo id do registro): a 2ª correção/autosave do mesmo registro é outro pedido e tem de valer.
+    // Só as tentativas automáticas desta chamada (resposta perdida) reusam a mesma chave → o servidor não executa 2×.
+    const r = await this.pedir<ResultadoComando<N>>('comando', nome, dados, { chave: `${nome}:${idPedido()}` })
     this.avisar()
     return r
   }
@@ -119,7 +129,7 @@ export class BackendApi implements Backend {
   }
 
   async importar(b: Backup) {
-    await this.pedir('backup', 'importar', b, { chave: `backup:${b.exportadoEm}` })
+    await this.pedir('backup', 'importar', b, { chave: `backup:${idPedido()}` })
     this.avisar()
   }
 

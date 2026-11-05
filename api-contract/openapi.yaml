@@ -144,6 +144,7 @@ components:
         - salvarFluxoTriagem
         - triarLotes
         - desfazerTriagem
+        - tirarDaMistura
         - salvarTabelaPreco
         - registrarAcerto
         - ajustarConta
@@ -237,6 +238,7 @@ components:
         - cidades
         - origemDaVenda
         - triagens
+        - mistura
         - livroCabelo
         - historicoPacote
         - tabelasPreco

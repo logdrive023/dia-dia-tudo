@@ -2,10 +2,10 @@
 
 import { MOEDAS, type CodigoMoeda } from '../domain/dinheiro'
 import { textoCotacao, valorDeUm, type UsoCambio } from '../domain/dinheiro'
-import { exigir } from '../domain/erros'
+import { ErroNegocio, exigir } from '../domain/erros'
 import { diasEntre } from '../domain/datas'
 import type { Anexo, CategoriaAnexo, CotacaoRegistro, Id, Local, Papel, Pessoa } from '../domain/tipos'
-import { auditar, type Configuracoes, type Ctx, cotacoesAtuais, lerConfig, novo, tocar } from './contexto'
+import { auditar, type Configuracoes, type Ctx, cotacoesAtuais, exigirVersao, lerConfig, MSG_ALTERADO_POR_OUTRA, novo, tocar, versaoDoFormulario } from './contexto'
 import { situacaoDe } from './emprestimos'
 import { type ModuloConfig, moduloDeConfig } from '../modulosConfig'
 import { type AtributosConfig, type CampoDef, ETAPA_FINAL, type FluxoCompraConfig } from '../modulos'
@@ -26,6 +26,8 @@ export async function salvarPessoa(
     superiorId?: Id
     acesso?: 'admin' | 'funcionario'
     verAgendaEquipe?: boolean
+    /** versão da pessoa que o formulário carregou (outra aba mudou no meio → recusa) */
+    versaoBase?: number
   },
 ) {
   exigir(d.nome?.trim(), 'Diga o nome.', 'nome')
@@ -33,6 +35,7 @@ export async function salvarPessoa(
   const tel = d.telefone?.replace(/[^\d+]/g, '') || undefined
   if (d.comissaoBp !== undefined) exigir(Number.isInteger(d.comissaoBp) && d.comissaoBp >= 0 && d.comissaoBp <= 10000, 'Comissão entre 0% e 100%.')
   const existente = await ctx.repos.pessoas.obter(d.id)
+  exigirVersao(existente, versaoDoFormulario(d))
   if (d.salario) exigir(Number.isSafeInteger(d.salario.valor) && d.salario.valor >= 0, 'Salário inválido.')
   exigir(!d.superiorId || d.superiorId !== d.id, 'A pessoa não pode responder a ela mesma.')
   if (d.superiorId) {
@@ -71,12 +74,30 @@ export async function salvarPessoa(
   return { id: d.id }
 }
 
-export async function salvarLocal(ctx: Ctx, d: Omit<Local, keyof import('../domain/tipos').Base> & { id: Id }) {
+export async function salvarLocal(ctx: Ctx, d: Omit<Local, keyof import('../domain/tipos').Base> & { id: Id; versaoBase?: number }) {
   exigir(d.nome?.trim(), 'Dê um nome ao local.', 'nome')
+  // a tela pode mandar o registro inteiro: os campos de servidor não vêm do formulário
+  const { versaoBase: _vb, versao: _v, criadoEm: _c, criadoPor: _cp, atualizadoEm: _a, empresaId: _e, ...dados } = d as typeof d & Partial<import('../domain/tipos').Base>
   const existente = await ctx.repos.locais.obter(d.id)
-  if (existente) await ctx.repos.locais.salvar(tocar(ctx, { ...existente, ...d, nome: d.nome.trim() }))
-  else await ctx.repos.locais.salvar(novo<Local>(ctx, { ...d, nome: d.nome.trim() }))
+  exigirVersao(existente, versaoDoFormulario(d))
+  const salvo = existente ? tocar(ctx, { ...existente, ...dados, nome: d.nome.trim() }) : novo<Local>(ctx, { ...dados, nome: d.nome.trim() })
+  await ctx.repos.locais.salvar(salvo)
+  const mudou = existente ? resumoMudancas(existente as unknown as Record<string, unknown>, salvo as unknown as Record<string, unknown>, ['atualizadoEm', 'versao']) : ''
+  await auditar(ctx, 'salvarLocal', d.id, existente ? `${salvo.nome}${mudou ? `: ${mudou}` : ' (sem mudança)'}` : `${salvo.nome} criado`)
   return { id: d.id }
+}
+
+/** "campo: antes → depois; …" das chaves que mudaram (para o log de auditoria). */
+function resumoMudancas(antes: Record<string, unknown>, depois: Record<string, unknown>, ignorar: string[] = []) {
+  const txt = (v: unknown) => {
+    if (v === undefined || v === null || v === '') return '—'
+    const t = typeof v === 'string' ? v : JSON.stringify(v)
+    return t.length > 80 ? `${t.slice(0, 77)}…` : t
+  }
+  return [...new Set([...Object.keys(antes), ...Object.keys(depois)])]
+    .filter((k) => !ignorar.includes(k) && JSON.stringify(antes[k]) !== JSON.stringify(depois[k]))
+    .map((k) => `${k}: ${txt(antes[k])} → ${txt(depois[k])}`)
+    .join('; ')
 }
 
 export async function salvarCotacao(
@@ -181,8 +202,83 @@ export async function cambio(ctx: Ctx, _p: object = {}) {
   return { principal: p, auto: cfg.cambioAuto, status, moedas, historico }
 }
 
-export async function salvarConfig(ctx: Ctx, d: Partial<Configuracoes>) {
+/** igualdade de valores de configuração (a ordem das chaves não importa) */
+function igual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || !a || !b || Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a)) return a.length === (b as unknown[]).length && a.every((x, i) => igual(x, (b as unknown[])[i]))
+  const ka = Object.keys(a).filter((k) => (a as Record<string, unknown>)[k] !== undefined)
+  const kb = Object.keys(b).filter((k) => (b as Record<string, unknown>)[k] !== undefined)
+  return ka.length === kb.length && ka.every((k) => igual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
+}
+const objetoSimples = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x)
+const listaSimples = (x: unknown): x is (string | number)[] => Array.isArray(x) && x.every((v) => typeof v === 'string' || typeof v === 'number')
+
+/**
+ * Junta a mudança da tela com o que está gravado agora, sabendo o que a tela tinha quando abriu (antes):
+ *  - a tela não mudou esta parte → fica a gravada (a mudança da outra aba continua);
+ *  - ninguém mais mudou → vale a da tela;
+ *  - lista simples (módulos ativos, moedas) → aplica só o que a tela ligou/desligou sobre a gravada;
+ *  - objeto (fiscal, câmbio) → o mesmo, chave por chave;
+ *  - os dois mudaram a mesma coisa de jeitos diferentes → recusa (abrir de novo).
+ */
+function juntar(atual: unknown, antes: unknown, novo: unknown): unknown {
+  if (igual(novo, antes)) return atual
+  if (igual(atual, antes) || igual(atual, novo)) return novo
+  if (listaSimples(atual) && listaSimples(antes) && listaSimples(novo)) {
+    const tirou = antes.filter((x) => !novo.includes(x))
+    const pos = atual.filter((x) => !tirou.includes(x))
+    return [...pos, ...novo.filter((x) => !antes.includes(x) && !pos.includes(x))]
+  }
+  if (objetoSimples(atual) && objetoSimples(antes) && objetoSimples(novo)) {
+    const r: Record<string, unknown> = { ...atual }
+    for (const k of new Set([...Object.keys(antes), ...Object.keys(novo)])) {
+      const v = juntar(atual[k], antes[k], novo[k])
+      if (v === undefined) delete r[k]
+      else r[k] = v
+    }
+    return r
+  }
+  throw new ErroNegocio(MSG_ALTERADO_POR_OUTRA)
+}
+
+/** Linhas "campo: antes → depois" da configuração (objetos como o fiscal: chave por chave). */
+function mudancasConfig(antes: Record<string, unknown>, depois: Record<string, unknown>, prefixo = ''): string[] {
+  const txt = (v: unknown) => {
+    if (v === undefined || v === null || v === '') return '—'
+    const t = typeof v === 'string' ? v : JSON.stringify(v)
+    return t.length > 200 ? `${t.slice(0, 197)}…` : t
+  }
+  const out: string[] = []
+  for (const k of new Set([...Object.keys(antes), ...Object.keys(depois)])) {
+    const a = antes[k]
+    const b = depois[k]
+    if (igual(a, b)) continue
+    if (!prefixo && objetoSimples(a) && objetoSimples(b)) out.push(...mudancasConfig(a, b, `${k}.`))
+    else out.push(`${prefixo}${k}: ${txt(a)} → ${txt(b)}`)
+  }
+  return out
+}
+
+export async function salvarConfig(
+  ctx: Ctx,
+  dados: Partial<Configuracoes> & {
+    /** versão da configuração que a tela carregou */
+    versaoBase?: number
+    /** valores que a tela tinha quando abriu (das chaves mandadas): com eles, a mudança junta com a da outra aba */
+    antes?: Partial<Configuracoes>
+  },
+) {
+  const { versaoBase, antes, ...semMeta } = dados
+  let d = semMeta as Partial<Configuracoes>
   const atual = await lerConfig(ctx)
+  const r = await ctx.repos.config.obter('geral')
+  if (antes) {
+    // três vias: o que a tela tinha × o que ela manda × o que está gravado agora
+    const j: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(d)) j[k] = k in antes ? juntar((atual as unknown as Record<string, unknown>)[k], (antes as Record<string, unknown>)[k], v) : v
+    d = j as Partial<Configuracoes>
+  } else exigirVersao(r, versaoBase)
   const valor = { ...atual, ...d }
   exigir(valor.moedasAtivas.includes(valor.moedaPrincipal), 'A moeda principal precisa estar ativa.')
   if (valor.moedaPrincipal !== atual.moedaPrincipal && (await ctx.repos.transacoes.listar()).length)
@@ -204,8 +300,9 @@ export async function salvarConfig(ctx: Ctx, d: Partial<Configuracoes>) {
     exigir(valor.socios.every((x) => x.nome.trim() && Number.isInteger(x.parteBp) && x.parteBp > 0), 'Cada sócio precisa de nome e parte.')
     exigir(valor.socios.reduce((s, x) => s + x.parteBp, 0) === 10000, 'As partes dos sócios precisam somar 100%.')
   }
-  const r = await ctx.repos.config.obter('geral')
+  const mudou = mudancasConfig(atual as unknown as Record<string, unknown>, valor as unknown as Record<string, unknown>)
   await ctx.repos.config.salvar(r ? tocar(ctx, { ...r, valor }) : novo(ctx, { id: 'geral', valor }))
+  await auditar(ctx, 'salvarConfig', 'geral', mudou.length ? mudou.join('; ') : r ? 'salvou sem mudança' : 'configuração criada')
   return { id: 'geral' }
 }
 

@@ -5,7 +5,7 @@
 //     A pagar = ganho − pago. No resultado (DRE) o pagamento não vira despesa de novo.
 
 import type { CodigoMoeda } from '../domain/dinheiro'
-import { converter } from '../domain/dinheiro'
+import { converter, formatar } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
 import type { Id } from '../domain/tipos'
 import { auditar, type Ctx, cotacoesAtuais, exigirInteiroPositivo, lerConfig, paraPrincipal } from './contexto'
@@ -94,7 +94,13 @@ export async function pagarComissao(ctx: Ctx, d: { id: Id; pessoaId: Id; valor: 
   const pessoa = await ctx.repos.pessoas.obter(d.pessoaId)
   exigir(pessoa, 'Escolha a profissional.', 'pessoaId')
   exigirInteiroPositivo(d.valor, 'Valor')
-  const { valorPrincipal: totalPrincipal } = await paraPrincipal(ctx, d.valor, d.moeda)
+  const { valorPrincipal: totalPrincipal, moedaPrincipal } = await paraPrincipal(ctx, d.valor, d.moeda)
+  // no máximo o que falta pagar AGORA (outra aba pode ter pago enquanto a tela estava aberta). Em outra moeda tolera o
+  // arredondamento da conversão (meia unidade menor dela, no mínimo 1 da principal)
+  const aPagar = (await comissoes(ctx, { pessoaId: pessoa.id })).porPessoa.find((x) => x.pessoaId === pessoa.id)?.aPagar ?? 0
+  const folga = d.moeda === moedaPrincipal ? 0 : Math.max(1, Math.ceil(totalPrincipal / d.valor / 2))
+  exigir(aPagar > 0, `Não há comissão a pagar para ${pessoa.nome}.`)
+  exigir(totalPrincipal <= aPagar + folga, `A comissão a pagar de ${pessoa.nome} é ${formatar(aPagar, moedaPrincipal)}. Não dá para pagar mais que isso.`, 'valor')
   // adiantamento marcado "abater das comissões": parte (ou tudo) fica retida e paga a dívida; só o resto sai do caixa
   const retido = await reterComissaoFinanciamentos(ctx, { pessoaId: pessoa.id, valorPrincipal: totalPrincipal, pagamentoId: d.id })
   if (retido >= totalPrincipal) {

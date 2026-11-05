@@ -4,7 +4,7 @@
 import { fatorValido, multiplicarFator, moeda as moedaDe } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
 import type { Id, TabelaPreco } from '../domain/tipos'
-import { auditar, type Ctx, novo, tocar } from './contexto'
+import { auditar, type Ctx, exigirVersao, novo, tocar } from './contexto'
 
 export function chaveCelula(linha: number, colunaId: string) {
   return `${linha}|${colunaId}`
@@ -38,6 +38,8 @@ export async function salvarTabelaPreco(
     valores: Record<string, string>
     /** nota da versão: o que mudou e por quê (ex.: "subiu 60–70 cm para a P.W.") */
     nota?: string
+    /** número da versão PUBLICADA em que a grade da tela se baseou (outra aba publicou depois → recusa) */
+    versaoBase?: number
   },
 ) {
   exigir(d.nome?.trim(), 'Dê um nome à tabela.', 'nome')
@@ -69,7 +71,10 @@ export async function salvarTabelaPreco(
     // tabela antiga (antes das versões): a primeira versão vira a situação de antes
     if (!anterior.length) await gravarVersao(ctx, existente.id, 1, existente, 'Versão inicial', existente.atualizadoEm)
   }
-  const numero = (anterior[0]?.numero ?? (existente ? 1 : 0)) + 1
+  const ultimaPublicada = anterior[0]?.numero ?? (existente ? 1 : 0)
+  // a grade foi aberta sobre a v1 e alguém publicou a v2 no meio: publicar agora desfaria a v2 sem ninguém ver
+  if (existente) exigirVersao({ versao: ultimaPublicada }, d.versaoBase)
+  const numero = ultimaPublicada + 1
   const salvo = existente ? tocar(ctx, { ...existente, ...dados }) : novo<TabelaPreco>(ctx, { id: d.id, ...dados })
   await ctx.repos.tabelasPreco.salvar(salvo)
   // PUBLICA uma versão nova a cada alteração (foto completa + quem + quando + nota)

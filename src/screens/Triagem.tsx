@@ -4,7 +4,7 @@
 // fechado numa linha; o quadro (colunas do negócio, arrastar) fica atrás de "Ver quadro" (lembrado no aparelho).
 // Seleção (juntar e separar, mover, etiquetas) só aparece ao tocar "Selecionar". O resto fica no "⋯" de cada linha.
 
-import { type DragEvent, type KeyboardEvent, type ReactNode, useCallback, useState } from 'react'
+import { type DragEvent, type KeyboardEvent, type ReactNode, useState } from 'react'
 import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { TabelaDados, SeloCodigo } from '../ui/tabelaDados'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
@@ -13,21 +13,22 @@ import { Paginada } from '../ui/paginacao'
 import { AcaoIcone } from '../ui/acoesPagina'
 import { NumeroGrande, GrupoNumeros, type Selo } from '../ui/numeroGrande'
 import { formatar } from '../core/domain/dinheiro'
-import { novoId } from '../core/domain/ids'
 import type { Id } from '../core/domain/tipos'
 import type { ResultadoConsulta } from '../core/services'
-import { COLUNA_VENDIDO, type ColunaTriagem, camposUnificados } from '../core/services/triagem'
+import { COLUNA_VENDIDO, type ColunaTriagem } from '../core/services/triagem'
 import { Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, GramasInput, Info, Janela, Pilula, Selecao, cx, dataBR, fmt, gramasTexto, moedaPadrao, Vazio, TituloSecao, BotaoExpandir, Titulo } from '../ui/base'
-import { resumoCampos } from '../ui/camposDinamicos'
 import { clicavel } from '../ui/compartilhados'
 import { type Params, useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 import { type Acao, MenuAcoes, acoesLote } from '../ui/menuAcoes'
 import { EditarAtributos, useCamposModulo } from './Estoque'
-import { CampoCodigo, TrocarCodigo, CodigoTexto } from '../ui/codigos'
+import { TrocarCodigo, CodigoTexto } from '../ui/codigos'
 import { CadeiaChips, RastreioTotal } from '../ui/rastreioTotal'
 import { LinkTirarFoto, MiniaturaLote, marcadorLote, useTirarFoto } from '../ui/fotos'
-import { AvisoPacotesNovos, ImprimirEtiquetas, SeloEtiqueta } from '../ui/etiquetas'
+import { ImprimirEtiquetas, SeloEtiqueta } from '../ui/etiquetas'
+import { Unificar } from './triagem/Unificar'
+import { DesfazerMistura } from './triagem/DesfazerMistura'
+import { DepoisDeSeparar, ProximoPasso } from './triagem/guia'
 import { LeitorCodigo } from '../ui/estoqueUi'
 import { usePistola } from '../ui/leitorPistola'
 import { useLembrado } from '../ui/filtros'
@@ -53,15 +54,6 @@ const MAX_PRONTOS = 12
 const GRADE_PRONTOS = 'grid grid-cols-[minmax(0,1fr)_3.75rem_6rem_2.5rem] items-center gap-x-1.5 sm:grid-cols-[minmax(0,1fr)_3.5rem_6rem_8rem_2.75rem] sm:gap-x-3'
 const NOME_GRUPO: Record<string, string> = { medida: 'Medida', faixa: 'Faixa', categoria: 'Categoria', cor: 'Cor' }
 const corDe = (c?: ColunaTriagem) => c?.cor ?? 'var(--marca)'
-
-/** De onde veio, por extenso: "de P-0003 · Helena · separado de L-0001" (unificado: "de P-0001 + P-0004 · unificado de L-1 + L-2"). */
-function origemTexto(l: Lote, t: T) {
-  const fornecedores = [...new Set(l.compras.map((c) => c.fornecedor).filter(Boolean))]
-  const compras = l.compras.length ? `${t('de')} ${l.compras.map((c) => c.codigo ?? '?').join(' + ')}${fornecedores.length ? ` · ${fornecedores.join(', ')}` : ''}` : t('sem compra (cadastro)')
-  const pai = l.pai ? ` · ${t('separado de')} ${l.pai.codigo ?? '?'}` : ''
-  const uni = l.unificadoDe?.length ? ` · ${t('unificado de')} ${l.unificadoDe.map((x) => x.codigo ?? '?').join(' + ')}` : ''
-  return compras + pai + uni
-}
 
 /** Rótulo curto: só o que se sabe (medida · cor · categoria); se nada, "Bruto". */
 function rotuloCurto(l: Lote, t: T) {
@@ -93,6 +85,10 @@ export function Triagem() {
   // sair de uma coluna de lavagem ("pedir peso depois"): pergunta o peso depois, opcional
   const [pesar, setPesar] = useState<{ ids: Id[]; fase: string }>()
   const [editar, setEditar] = useState<Lote>()
+  // ↩ desfazer a mistura de um pacote juntado (janela própria, a mesma da ficha do pacote)
+  const [desfazer, setDesfazer] = useState<Id>()
+  // etiquetas dos prontos que ainda não têm (o próximo passo quando não há nada para separar)
+  const [imprimirProntos, setImprimirProntos] = useState<Id[]>()
   const [arrastando, setArrastando] = useState<Id[]>()
   const [opcoes, setOpcoes] = useState(false)
   const [aba] = useParamTela('aba', 'separar')
@@ -176,6 +172,7 @@ export function Triagem() {
           { grupo: 'Foto', rotulo: 'Tirar foto', icone: '📷', onClick: () => tirar(l.id) },
           { grupo: 'Foto', rotulo: 'Escolher foto da galeria', icone: '🖼', onClick: () => tirar(l.id, { galeria: true }) },
           ...(l.saldo > 0 ? [{ rotulo: 'Editar atributos', icone: '✎', onClick: () => setEditar(l), separar: true }] : []),
+          ...(l.mistura ? [{ rotulo: 'Desfazer mistura', icone: '↩', descricao: l.mistura.pode ? t('Os pacotes de origem voltam com o peso deles.') : t(l.mistura.porque ?? ''), onClick: () => setDesfazer(l.id) }] : []),
           // "Marcar como triado" e "Mover para…" ficam aqui (o caminho principal é Separar; arrastar continua no quadro)
           ...(primeiraPronta && precisaSeparar(l) && l.saldo > 0 ? [{ grupo: 'Mover na triagem', rotulo: 'Marcar como triado', icone: '✓', onClick: () => (setSel(new Set([l.id])), setJanela('triado')) }] : []),
           ...(l.fase === COLUNA_VENDIDO ? [] : trabalho.filter((c) => c.id !== l.fase).map((c) => ({ grupo: 'Mover na triagem', rotulo: `${t('Mover para')} “${c.nome}”`, icone: '→', onClick: () => entrar(c, [l.id]) }))),
@@ -263,12 +260,23 @@ export function Triagem() {
     return trabalho.filter((c) => pagina.some((l) => l.fase === c.id)).map((c) => ({ fase: c.id, nome: c.nome, varias, ls: pagina.filter((l) => l.fase === c.id), todos: paraSeparar.filter((l) => l.fase === c.id) }))
       .concat(pagina.some((l) => !trabalho.some((c) => c.id === l.fase)) ? [{ fase: '?', nome: 'Outras', varias, ls: pagina.filter((l) => !trabalho.some((c) => c.id === l.fase)), todos: [] }] : [])
   }
+  const prontosSemEtiqueta = dados.lotes.filter((l) => ehPronto(l) && !l.etiqueta.impressaEm)
+  const maisAntigo = [...separarTodos].sort((a, b) => b.dias - a.dias)[0]
+  /** a dica do próximo passo de cada linha (abre no celular): o que fazer com ESTE pacote */
+  const proximoDoLote = (l: Lote) => l.campos.estado === NAO_ID ? t('Próximo passo: separar o que ficou para depois.') : precisaSeparar(l) ? t('Próximo passo: separar por medida (cada parte vira um pacote com etiqueta).') : t('Próximo passo: mover para a próxima etapa.')
+  /** o selo do pacote juntado: "🔗 Misturado de 2 · ↩ Desfazer mistura" (apagado, com o porquê, se já mexeram nele) */
+  const seloMistura = (l: Lote) => l.mistura && (
+    <button type="button" onClick={(e) => (e.stopPropagation(), setDesfazer(l.id))} title={l.mistura.pode ? t('Os pacotes de origem voltam com o peso deles.') : t(l.mistura.porque ?? '')}
+      className={cx('inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 text-xs font-semibold', l.mistura.pode ? 'border-[var(--marca)]/40 bg-[var(--marca-suave)] text-[var(--marca)] hover:border-[var(--marca)]' : 'border-dashed border-[var(--borda)] text-[var(--suave)]')}>
+      🔗 {t('Misturado de {n}', { n: l.unificado })} · {l.mistura.pode ? `↩ ${t('Desfazer mistura')}` : `🔒 ${t('não dá para desfazer')}`}
+    </button>
+  )
   const alternarQuadro = () => { setQuadroLembrado(visao !== 'quadro'); if (visaoP) setVisao('') }
 
   return (
     <div className="space-y-5 pb-24">
       {/* acabou de separar: "✓ 3 pacotes novos · Imprimir etiquetas · Depois" */}
-      <AvisoPacotesNovos />
+      <DepoisDeSeparar onProntos={() => irAba('prontos')} />
       {/* topo: o que fazer agora */}
       {/* CABEÇALHO PADRÃO: nome · para que serve · ações com nome e dica (📷 ler etiqueta, ⚙ opções da tela) */}
       <Titulo subtitulo={t('Separe o cabelo bruto por medida; o que fica pronto vai para o estoque.')} acao={<>
@@ -359,6 +367,16 @@ export function Triagem() {
         {/* MISTURAR COMPRAS: com 2+ pacotes, mostra como juntar (ex.: compra 1 + compra 2 numa separação só); a origem
             de cada grama fica guardada (a ligação aparece no pacote novo e na triagem feita) */}
         {/* AS REGRAS DE JUNTAR, à vista (cada uma com ícone): mesma etapa · compras diferentes pode · saldo pequeno avisa */}
+        {/* PRÓXIMO PASSO (sempre à vista): separar o mais antigo; juntar antes é opcional */}
+        {visao !== 'quadro' && !comSelecao && abaReal === 'separar' && maisAntigo && (
+          <div className="mb-3">
+            <ProximoPasso agora="separar" titulo={t('Próximo passo: separar {c}', { c: maisAntigo.codigo ?? '' })}
+              texto={<span className="text-[var(--suave)]">{t('É o que espera há mais tempo ({g}). Diga as partes por medida; o que sobrar é perda.', { g: gramasTexto(maisAntigo.saldo) })}{separarTodos.length >= 2 ? ` ${t('Mesma qualidade? Junte antes (opcional, logo abaixo).')}` : ''}</span>}
+              acoes={<>
+                <Botao disabled={ocupado} onClick={() => separar(maisAntigo.id)}>✂️ {t('Separar {c}', { c: maisAntigo.codigo ?? '' })}</Botao>
+              </>} />
+          </div>
+        )}
         {visao !== 'quadro' && daAba.length >= 2 && (!comSelecao || sel.size < 2) && (
           <section aria-label={t('Como juntar pacotes')} className="mb-3 rounded-2xl border border-[var(--marca)]/40 bg-[var(--marca-suave)] p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -413,9 +431,22 @@ export function Triagem() {
             ))}
           </div>
         ) : !aguardando.length ? (
-          <div className="rounded-2xl border border-dashed border-[var(--borda)] px-4 py-10 text-center">
-            <p className="text-2xl font-bold">{t('Nada para separar 🎉')}</p>
-            {prontos.length > 0 && <button type="button" onClick={verPronto} className="mt-2 min-h-11 px-3 font-semibold text-[var(--marca)] hover:underline">{t('Ver o que está pronto para vender →')}</button>}
+          // VAZIO que explica o que vem depois: de onde chega cabelo bruto (compra) e onde estão os pacotes prontos
+          <div className="space-y-3 rounded-2xl border border-dashed border-[var(--borda)] px-4 py-6">
+            <p className="text-center text-2xl font-bold">{t('Nada para separar 🎉')}</p>
+            {prontosSemEtiqueta.length > 0 ? (
+              <ProximoPasso agora="etiqueta" titulo={t(prontosSemEtiqueta.length === 1 ? 'Próximo passo: gerar 1 etiqueta' : 'Próximo passo: gerar {n} etiquetas', { n: prontosSemEtiqueta.length })}
+                texto={<span className="text-[var(--suave)]">{t('Já separados, mas ainda sem etiqueta: com a etiqueta ficam prontos para vender.')}</span>}
+                acoes={<Botao onClick={() => setImprimirProntos(prontosSemEtiqueta.map((l) => l.id))}>🏷 {t('Gerar as etiquetas')}</Botao>} />
+            ) : (
+              <ProximoPasso agora="pronto" tom="bom" titulo={t('Tudo pronto ✓ — os pacotes estão no estoque para vender')}
+                texto={<span className="text-[var(--suave)]">{t('Cabelo bruto novo chega por uma compra: registre a compra e ele aparece aqui para separar.')}</span>}
+                acoes={<>
+                  {prontos.length > 0 && <Botao onClick={verPronto}>✅ {t('Ver os prontos')}</Botao>}
+                  <Botao variante="secundario" onClick={() => ir('estoque', { modulo: 'cabelo' })}>📦 {t('Estoque')}</Botao>
+                  {admin && <Botao variante="secundario" onClick={() => ir('novaCompra')}>🛒 {t('Nova compra')}</Botao>}
+                </>} />
+            )}
           </div>
         ) : !paraSeparar.length ? (
           <p className="rounded-2xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nada encontrado.')}</p>
@@ -459,6 +490,7 @@ export function Triagem() {
                       {sobraPequena(l) && <span title={t('Sobra pequena: junte com outro ou ajuste como perda.')}><Pilula pequena tom="alerta">⚠️ {t('só {g}', { g: gramasTexto(l.saldo) })}</Pilula></span>}
                       {l.campos.estado === NAO_ID && <Pilula pequena tom="alerta">❓ {t('para depois')}</Pilula>}
                       {col && !col.entrada && <Pilula pequena>{t(col.nome)}</Pilula>}
+                      {seloMistura(l)}
                     </span>
                   </>
                 } },
@@ -476,9 +508,9 @@ export function Triagem() {
                 codigo: (l) => l.codigo,
                 situacao: (l) => { const col = colDe(l.fase); return col && !col.entrada ? { texto: col.nome, tom: 'marca' } : undefined },
                 alerta: (l) => (l.atrasado ? { texto: t('parado'), tom: 'ruim' } : sobraPequena(l) ? { texto: t('só {g}', { g: gramasTexto(l.saldo) }), tom: 'alerta' } : l.campos.estado === NAO_ID ? { texto: t('para depois'), tom: 'alerta' } : undefined),
-                marca: (l) => <><SelosViagem vs={viagensDasLinhas(l.compras.map((c) => c.viagem))} curto /><SeloEtiqueta id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} /></>,
+                marca: (l) => <><SelosViagem vs={viagensDasLinhas(l.compras.map((c) => c.viagem))} curto soLeitura /><SeloEtiqueta soLeitura id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} /></>,
                 fatos: (l) => [...l.compras.map((c) => `🛒 ${c.codigo ?? ''}`), l.pai && `🧬 ${t('separado de')} ${l.pai.codigo ?? '?'}`],
-                aberto: (l) => comSelecao && foraDaEtapa(l) && <button type="button" onClick={() => setSel(new Set([l.id]))} className="min-h-10 rounded-full border border-dashed border-[var(--borda)] px-3 text-xs font-semibold text-[var(--suave)]">🔒 {t('outra etapa')} · {t('começar com este')}</button>,
+                aberto: (l) => !(comSelecao && foraDaEtapa(l)) ? <div className="space-y-2">{seloMistura(l)}<p className="text-xs font-semibold text-[var(--marca)]">👉 {proximoDoLote(l)}</p></div> : <button type="button" onClick={() => setSel(new Set([l.id]))} className="min-h-10 rounded-full border border-dashed border-[var(--borda)] px-3 text-xs font-semibold text-[var(--suave)]">🔒 {t('outra etapa')} · {t('começar com este')}</button>,
               }}
             />
             </section>
@@ -540,6 +572,8 @@ export function Triagem() {
         />
       )}
       {pesar && <PesoDepois lotes={pesar.ids.map((id) => dados.lotes.find((l) => l.id === id)).filter((l): l is Lote => !!l)} destino={colDe(pesar.fase)?.nome ?? pesar.fase} ocupado={ocupado} onFechar={() => setPesar(undefined)} onMover={async (pesos) => { setPesar(undefined); await mover(pesar.ids, pesar.fase, pesos) }} />}
+      {desfazer && <DesfazerMistura loteId={desfazer} onFechar={() => setDesfazer(undefined)} onFeito={limparSel} />}
+      {imprimirProntos && <ImprimirEtiquetas ids={imprimirProntos} onFechar={() => setImprimirProntos(undefined)} />}
       {editar && <EditarAtributos id={editar.id} campos={campos} valores={editar.campos} onFechar={() => setEditar(undefined)} />}
       {trocar && <TrocarCodigo tipo="lote" id={trocar.id} atual={trocar.codigo} onFechar={() => setTrocar(undefined)} />}
       {lendo && <LeitorCodigo onLer={(c) => (setLendo(false), setBuscaAberta(true), setBusca(c))} onFechar={() => setLendo(false)} />}
@@ -871,66 +905,6 @@ function PesoDepois({ lotes, destino, ocupado, onFechar, onMover }: { lotes: Lot
             {pesos[l.id] !== undefined && pesos[l.id]! < l.saldo && <span className="num mt-1 block text-sm text-[var(--ruim)]">{gramasTexto(l.saldo)} → {gramasTexto(pesos[l.id]!)} (−{gramasTexto(l.saldo - pesos[l.id]!)})</span>}
           </Campo>
         ))}
-      </div>
-    </Janela>
-  )
-}
-
-/** Confirmação da unificação: o que entra, o total (peso e custo) e como fica o lote novo. */
-function Unificar({ lotes, campos, onFechar, onFeito }: { lotes: Lote[]; campos: ReturnType<typeof useCamposModulo>; onFechar(): void; onFeito(): void }) {
-  const t = useT()
-  const { executar, ocupado } = useComando()
-  const [id] = useState(() => novoId())
-  const [motivo, setMotivo] = useState('')
-  const { dados: regras } = useConsulta('codigos', {})
-  const [digitar, setDigitar] = useState<boolean>()
-  const [codigo, setCodigo] = useState('')
-  const [codigoOk, setCodigoOk] = useState(true)
-  const marcarCodigo = useCallback((ok: boolean) => setCodigoOk(ok), [])
-  const digitarCodigo = digitar ?? regras?.regras.lote.modo === 'manual'
-  const m = moedaPadrao()
-  const total = lotes.reduce((s, l) => s + l.saldo, 0)
-  const custo = lotes.reduce((s, l) => s + (l.custo ?? 0), 0)
-  const resultado = resumoCampos(campos, camposUnificados(campos, lotes.map((l) => l.campos)))
-  const compras = [...new Set(lotes.flatMap((l) => l.compras.map((c) => [c.codigo, c.fornecedor].filter(Boolean).join(' · '))))]
-  return (
-    <Janela aberta larga titulo={<span className="inline-flex items-center">{t('Unificar {n} lotes', { n: lotes.length })}<Info texto={DICA_JUNTAR} /></span>} onFechar={onFechar} rodape={
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="num text-sm text-[var(--suave)]">{t('Vira 1 lote de')} <b className="text-[var(--texto)]">{gramasTexto(total)}</b></span>
-        <div className="flex gap-2">
-          <Botao variante="leve" onClick={onFechar}>{t('Voltar')}</Botao>
-          <Botao grande disabled={ocupado || (digitarCodigo && !codigoOk)} onClick={async () => { const r = await executar('triarLotes', { id, ids: lotes.map((l) => l.id), motivo, codigo: digitarCodigo ? codigo.trim() || undefined : undefined }, t('Lotes juntados.')); if (r) (onFechar(), onFeito()) }}>🔗 {t('Unificar')}</Botao>
-        </div>
-      </div>
-    }>
-      <div className="space-y-4">
-        <div className="rounded-xl bg-[var(--fundo)] p-3">
-          <CampoCodigo tipo="lote" rotulo="Código do lote juntado" valor={codigo} onChange={setCodigo} bloqueado={!digitarCodigo} contexto={{ comprasUnificadas: [...new Set(lotes.flatMap((l) => l.compras.map((c) => c.id)))] }} onEstado={marcarCodigo} />
-          {regras?.regras.lote.modo !== 'manual' && <button type="button" className="min-h-10 text-sm font-semibold text-[var(--marca)]" onClick={() => (setDigitar(!digitarCodigo), setCodigo(''))}>{digitarCodigo ? t('Usar o código automático') : `✎ ${t('Digitar outro código')}`}</button>}
-        </div>
-        <ul className="divide-y divide-[var(--borda)] rounded-xl border border-[var(--borda)]">
-          {lotes.map((l) => (
-            <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 p-2 text-sm">
-              <span className="min-w-0"><span className="font-mono text-xs">{l.codigo}</span> · <b>{l.nome}</b><span className="block text-xs text-[var(--suave)]">{origemTexto(l, t)}</span></span>
-              <span className="num whitespace-nowrap">{gramasTexto(l.saldo)}{l.custo !== undefined ? ` · ${formatar(l.custo, m)}` : ''}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <div className="rounded-xl bg-[var(--fundo)] p-3"><div className="text-xs text-[var(--suave)]">{t('Peso total')}</div><div className="num whitespace-nowrap text-xl font-black">{gramasTexto(total)}</div></div>
-          <div className="rounded-xl bg-[var(--fundo)] p-3"><div className="text-xs text-[var(--suave)]">{t('Custo total')}</div><div className="num whitespace-nowrap text-xl font-black">{formatar(custo, m)}</div></div>
-          <div className="rounded-xl bg-[var(--fundo)] p-3"><div className="text-xs text-[var(--suave)]">{t('Custo por kg')}</div><div className="num whitespace-nowrap text-xl font-black">{total ? formatar(Math.round((custo * 1000) / total), m) : '—'}</div></div>
-        </div>
-        <div>
-          <h3 className="mb-1 text-sm font-bold">{t('Como fica o lote novo')}</h3>
-          <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-sm">
-            {resultado.map((a) => <div key={a.id} className="contents"><dt className="text-[var(--suave)]">{t(a.nome)}</dt><dd className="font-semibold">{t(a.valor)}</dd></div>)}
-            <dt className="text-[var(--suave)]">{t('Compras')}</dt><dd className="font-semibold">{compras.join(' + ') || '—'}</dd>
-          </dl>
-          <p className="mt-1 text-xs text-[var(--suave)]">{t('O que é igual em todos fica; o que é diferente vira “Misturado” (ou fica vazio). Dá para editar depois.')}</p>
-        </div>
-        <Campo rotulo="Motivo (fica no histórico)"><Entrada value={motivo} placeholder={t('Ex.: mesma qualidade, lavar junto')} onChange={(e) => setMotivo(e.target.value)} /></Campo>
-        <p className="text-xs text-[var(--suave)]">{t('Os lotes de origem ficam zerados e o lote novo guarda de onde veio cada grama (compras, quem e quando).')}</p>
       </div>
     </Janela>
   )

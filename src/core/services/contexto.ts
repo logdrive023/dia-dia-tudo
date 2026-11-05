@@ -2,7 +2,7 @@
 
 import { MOEDAS, type CodigoMoeda, type Cotacao, type TabelaCotacoes, type UsoCambio, ajustarCotacao, converter } from '../domain/dinheiro'
 import { FISCAL_PADRAO, IMPOSTOS_PADRAO_BO, IMPOSTOS_PADRAO_BR, type ConfigFiscal } from '../dados/impostos'
-import { exigir } from '../domain/erros'
+import { ErroNegocio, exigir } from '../domain/erros'
 import { novoId } from '../domain/ids'
 import type { Base, Dia, Id } from '../domain/tipos'
 import type { RegistroModulos } from '../modulos'
@@ -34,6 +34,25 @@ export function novo<T extends Base>(ctx: Ctx, dados: SemBase<T>): T {
 /** Marca um registro como alterado (sobe a versão: base para detectar conflito na API). */
 export function tocar<T extends Base>(ctx: Ctx, r: T): T {
   return { ...r, atualizadoEm: ctx.relogio.agora(), versao: r.versao + 1 }
+}
+
+export const MSG_ALTERADO_POR_OUTRA = 'Este registro foi alterado por outra pessoa enquanto você editava. Abra de novo e refaça a mudança.'
+
+/**
+ * TRAVA DE EDIÇÃO (lost update): a tela manda a versão do registro que ela carregou (versaoBase). Se o registro já
+ * está em outra versão, outra aba/pessoa mudou no meio: recusa em vez de gravar o formulário velho por cima.
+ * Sem versaoBase (chamada antiga ou interna) não confere nada.
+ */
+export function exigirVersao(existente: { versao: number } | undefined, versaoBase: number | undefined) {
+  if (versaoBase === undefined || versaoBase === null || !existente) return
+  if (existente.versao !== versaoBase) throw new ErroNegocio(MSG_ALTERADO_POR_OUTRA, 'versaoBase')
+}
+
+/** Versão que o formulário carregou: `versaoBase` ou, se a tela mandou o registro inteiro, o `versao` dele. */
+export function versaoDoFormulario(d: object): number | undefined {
+  const x = d as { versaoBase?: unknown; versao?: unknown }
+  const v = x.versaoBase ?? x.versao
+  return typeof v === 'number' ? v : undefined
 }
 
 /** Registra a ação no log com o usuário da sessão (toda ação do sistema passa por aqui). */
