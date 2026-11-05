@@ -29,6 +29,7 @@ import * as usuarios from './usuarios'
 import * as vendas from './vendas'
 import * as documentos from './documentos'
 import * as divisao from './divisao'
+import * as impostoRenda from './impostoRenda'
 import * as viagens from './viagens'
 import * as vendasAbertas from './vendasAbertas'
 import * as viagemCurta from './viagemCurta'
@@ -86,6 +87,11 @@ export const comandos = {
   cancelarVenda: vendas.cancelarVenda,
   // DIVISÃO DO VALOR da venda (só registro: não mexe no caixa)
   salvarDivisaoVenda: divisao.salvarDivisaoVenda,
+  // IMPOSTO DE RENDA (Relatórios): documento de cada compra/gasto, declarações e pagamentos do SIAT, situação do exercício
+  classificarDocumentoFiscal: impostoRenda.classificarDocumentoFiscal,
+  registrarObrigacaoFiscal: impostoRenda.registrarObrigacaoFiscal,
+  removerObrigacaoFiscal: impostoRenda.removerObrigacaoFiscal,
+  mudarSituacaoExercicio: impostoRenda.mudarSituacaoExercicio,
   corrigirVenda: vendas.corrigirVenda,
   pagarComissao: comissoes.pagarComissao,
   // agenda: compromissos/lembretes e "Pago" depois do atendimento
@@ -210,6 +216,8 @@ export const consultas = {
   // a NOTA DE VENTA (documento comercial, sem validade fiscal): os dados prontos para o modelo de papel
   documentoVenda: documentos.documentoVenda,
   divisaoVenda: divisao.divisaoVenda,
+  impostoRenda: impostoRenda.impostoRenda,
+  exerciciosFiscais: impostoRenda.exerciciosFiscais,
   agenda: vendas.agenda,
   conflitosAgenda: vendas.conflitosAgenda,
   // calendário: atendimentos + viagens + compromissos numa lista só

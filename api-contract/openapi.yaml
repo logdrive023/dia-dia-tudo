@@ -163,6 +163,10 @@ components:
         - atenderAgendamento
         - cancelarVenda
         - salvarDivisaoVenda
+        - classificarDocumentoFiscal
+        - registrarObrigacaoFiscal
+        - removerObrigacaoFiscal
+        - mudarSituacaoExercicio
         - corrigirVenda
         - pagarComissao
         - salvarEvento
@@ -276,6 +280,8 @@ components:
         - venda
         - documentoVenda
         - divisaoVenda
+        - impostoRenda
+        - exerciciosFiscais
         - agenda
         - conflitosAgenda
         - calendario

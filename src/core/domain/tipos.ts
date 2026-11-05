@@ -298,6 +298,8 @@ export interface MovCaixa extends Base {
   estornaId?: Id
   /** dinheiro de uma VIAGEM de compra (adiantamento, devolução da sobra, reembolso) */
   viagemId?: Id
+  /** DOCUMENTO FISCAL do gasto (Imposto de Renda): factura (dá crédito de IVA), recibo ou sem; e se é dedutível no IUE */
+  docFiscal?: { documento: 'factura' | 'recibo' | 'sem'; dedutivel: boolean; numero?: string }
 }
 
 /**

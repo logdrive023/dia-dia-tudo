@@ -33,6 +33,10 @@ export interface ConfigFiscal {
   endereco?: string
   atividade?: string
   contador?: string
+  /** IMPOSTO DE RENDA: o tipo de atividade registrado no NIT (define o cierre de gestión), o código CAEB-SIN e a natureza jurídica */
+  tipoAtividade?: 'comercial' | 'servicos' | 'industrial' | 'agro' | 'mineira'
+  caeb?: string
+  naturezaJuridica?: string
   representante?: string
   /** as FIRMAS (Contador · Representante legal) no fim do relatório impresso — padrão: sim; dá para tirar na hora */
   firmasNoRelatorio?: boolean

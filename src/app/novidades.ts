@@ -57,6 +57,25 @@ export const naLingua = (x: Texto2, idioma: 'pt' | 'es') => (idioma === 'es' ? x
 export const NOVIDADES: Novidade[] = [
   {
     data: '2026-11-05',
+    titulo: { pt: 'Imposto de Renda: o exercício fiscal inteiro', es: 'Impuesto a las Utilidades: la gestión fiscal completa' },
+    resumo: {
+      pt: 'Em Relatórios, a aba Imposto de Renda junta IVA, IT, IUE e as retenções do ano, mês a mês, com o que falta revisar e o documento anual para o contador.',
+      es: 'En Informes, la pestaña Impuesto a las Utilidades junta IVA, IT, IUE y las retenciones del año, mes a mes, con lo que falta revisar y el documento anual para el contador.',
+    },
+    itens: [
+      { area: 'Impostos', tipo: 'novo', tela: 'relatorios', params: { relatorio: 'ir' }, texto: {
+        pt: 'Escolha o exercício e veja receita, compras, custo, gastos, lucro contábil e tributável, impostos apurados, pagos e pendentes — cada número diz se é calculado, estimado ou confirmado.',
+        es: 'Elija la gestión y vea ingresos, compras, costo, gastos, utilidad contable e imponible, impuestos determinados, pagados y pendientes — cada número dice si es calculado, estimado o confirmado.' } },
+      { area: 'Impostos', tipo: 'novo', texto: {
+        pt: 'Compra de cabelo sem factura: o sistema calcula a retenção de 8% (IUE 5% + IT 3%, F-570 e F-410) e avisa os meses sem retenção registrada.',
+        es: 'Compra de cabello sin factura: el sistema calcula la retención del 8% (IUE 5% + IT 3%, F-570 y F-410) y avisa los meses sin retención registrada.' } },
+      { area: 'Impostos', tipo: 'novo', texto: {
+        pt: 'Documento anual para imprimir ou salvar em PDF, com as regras da época (versionadas) e o fechamento do exercício que congela os números.',
+        es: 'Documento anual para imprimir o guardar en PDF, con las reglas de la época (versionadas) y el cierre de la gestión que congela los números.' } },
+    ],
+  },
+  {
+    data: '2026-11-05',
     titulo: { pt: 'A venda vira um documento: a Nota de venta', es: 'La venta se vuelve un documento: la Nota de venta' },
     resumo: {
       pt: 'O Resumo da venda agora é a nota, no jeito da factura boliviana, pronta para imprimir ou salvar em PDF. O caminho do cabelo fica só no Histórico.',
