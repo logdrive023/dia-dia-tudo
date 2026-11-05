@@ -3,10 +3,11 @@
 // Nada de conta nova aqui: totais, descontos e pagamentos são os da venda; os impostos são os ESTIMADOS que a venda
 // guardou na hora (impostosRegistro.ts), ou, em venda antiga sem esse registro, a mesma regra do regime de hoje.
 import type { Id, Unidade } from '../domain/tipos'
-import { impostosDaOperacao, impostosDoRegime } from '../dados/impostos'
 import { MODELO_PADRAO, totalPorExtenso } from '../dados/documentos'
 import { type Ctx, lerConfig } from './contexto'
 import { venda } from './vendas'
+import { calcularDivisao } from '../domain/divisao'
+import { detalheDeValores, impostosDaVenda } from './divisao'
 
 const UNIDADE: Record<Unidade, string> = { grama: 'g', peca: 'Unidad', servico: 'Servicio' }
 
@@ -20,13 +21,9 @@ export async function documentoVenda(ctx: Ctx, p: { id: Id }) {
   const itens = new Map((await ctx.repos.itens.listar()).map((i) => [i.id, i]))
 
   // DETALHE: tudo na moeda principal (a venda pode ter linhas em outra moeda; o total do papel é um só)
-  let produto = 0
-  let servico = 0
   const linhas = v.linhas.map((l) => {
     const it = l.itemId ? itens.get(l.itemId) : undefined
     const ehServico = it?.tipoItem === 'servico' || it?.moduloId === 'salao'
-    if (ehServico) servico += l.totalPrincipal
-    else produto += l.totalPrincipal
     const desconto = l.descontoPrincipal ?? 0
     const bruto = l.totalPrincipal + desconto
     const unidade = it?.unidade ?? (ehServico ? 'servico' : 'peca')
@@ -46,17 +43,8 @@ export async function documentoVenda(ctx: Ctx, p: { id: Id }) {
   const descontos = linhas.reduce((s, l) => s + l.desconto, 0)
   const subtotal = linhas.reduce((s, l) => s + l.subtotal + l.desconto, 0)
 
-  // IMPOSTOS (estimados): o registro do dia da venda; sem ele, a regra do regime de hoje
-  const reg = impostosDoRegime(fis)
-  const guardado = v.impostosEstimados
-  const calc = guardado ? undefined : impostosDaOperacao(reg.lista, { produto, servico }, fis.modoPreco ?? 'dentro')
-  const impostos = {
-    modoPreco: guardado?.modoPreco ?? calc!.modoPreco,
-    linhas: (guardado?.linhas ?? calc!.linhas).filter((l) => l.lado === 'venda').map((l) => ({ sigla: l.sigla, nome: l.nome, taxaBp: l.taxaBp, base: l.base, valor: l.valor })),
-    total: guardado?.total ?? calc!.venda,
-    doDia: !!guardado,
-    aviso: reg.aviso,
-  }
+  // IMPOSTOS (estimados): a MESMA conta da divisão de valores (o registro do dia; sem ele, a regra do regime de hoje)
+  const impostos = await impostosDaVenda(ctx, v)
 
   // PAGAMENTOS: cada forma (com a moeda em que entrou) e o saldo
   const nomeForma = (id: string) => cfg.formas.find((f) => f.id === id)?.nome ?? id
@@ -75,7 +63,14 @@ export async function documentoVenda(ctx: Ctx, p: { id: Id }) {
   if (!d.cliente) faltando.push('nome da cliente')
   else if (!d.cliente.documento?.trim()) faltando.push('NIT/CI da cliente')
 
+  // a DIVISÃO gravada (aba Divisão de valores): cada parte com quanto leva e o que fica com a casa — vai na nota se ligar
+  const det = detalheDeValores(v, true, impostos)
+  const div = calcularDivisao(v.divisao?.partes ?? [], { total: det.totais.cobrado, liquido: det.totais.liquido, lucro: det.totais.lucro ?? 0 })
+  const BASE_ES = { total: 'del total', liquido: 'del neto', lucro: 'de la utilidad' } as const
+  const divisao = { partes: div.partes.map((p) => ({ nome: p.nome, valor: p.calculado, como: p.modo === 'pct' ? `${((p.pctBp ?? 0) / 100).toLocaleString('es-BO')}% ${BASE_ES[p.base]}` : 'monto fijo' })), casa: div.casa }
+
   return {
+    divisao,
     modeloPadrao: cfg.modeloNota ?? MODELO_PADRAO,
     impostosNaNota: cfg.impostosNaNota !== false,
     pais: fis.pais,

@@ -120,6 +120,21 @@ export interface InsumoServico {
 /** de onde veio o % da comissão (precedência: linha > serviço > profissional > padrão) */
 export type RegraComissao = 'linha' | 'servico' | 'profissional' | 'padrao'
 
+/** uma parte da divisão do valor da venda: quem, como (% de uma base ou valor fixo) e uma observação */
+export interface ParteDivisao {
+  id: Id
+  pessoaId?: Id
+  nome: string
+  modo: 'pct' | 'valor'
+  /** % em pontos-base (2500 = 25%), quando modo = pct */
+  pctBp?: number
+  /** valor fixo na moeda principal, quando modo = valor */
+  valor?: number
+  /** o % é sobre o quê: o total cobrado, o líquido (sem impostos) ou o lucro */
+  base: 'total' | 'liquido' | 'lucro'
+  obs?: string
+}
+
 export interface Pagamento {
   id: Id
   forma: string
@@ -218,6 +233,8 @@ export interface Transacao extends Base {
   financiamentoId?: Id
   /** SÓ REGISTRO: os impostos estimados na hora (alíquota vigente e fonte daquele dia) — nunca cobrados */
   impostosEstimados?: { em: string; modoPreco: 'dentro' | 'fora'; total: number; linhas: { sigla: string; nome: string; taxaBp: number; base: number; valor: number; lado: 'venda' | 'compra'; credito?: boolean; fonte?: string; vigenteDesde?: string }[] }
+  /** DIVISÃO DO VALOR (só registro: não mexe no caixa) — com quem esta venda é dividida, por % ou por valor fixo */
+  divisao?: { partes: ParteDivisao[]; em: string; porNome?: string }
 }
 
 export type MotivoEstoque = 'compra' | 'venda' | 'uso' | 'ajuste' | 'perda' | 'cancelamento' | 'transformacao' | 'correcao' | 'unificacao'

@@ -14,7 +14,7 @@ const es = (s: string) => traduzir('es', s)
 const num = (n: number) => n.toLocaleString('es-BO')
 const pct = (bp: number) => `${(bp / 100).toLocaleString('es-BO')}%`
 
-export function NotaVenda({ doc, modelo, includeTaxesInPrint }: { doc: DocumentoVenda; modelo: ModeloDocumentoId; includeTaxesInPrint: boolean }) {
+export function NotaVenda({ doc, modelo, includeTaxesInPrint, comDivisao }: { doc: DocumentoVenda; modelo: ModeloDocumentoId; includeTaxesInPrint: boolean; comDivisao?: boolean }) {
   const md = MODELOS_DOCUMENTO[modelo]
   const rolo = md.formato === 'rollo'
   const v = (c: number) => formatar(c, doc.moeda)
@@ -131,6 +131,17 @@ export function NotaVenda({ doc, modelo, includeTaxesInPrint }: { doc: Documento
         </section>
       )}
 
+      {/* DIVISÃO DO VALOR (se ligada): com quem a venda é dividida e o que fica com a casa */}
+      {comDivisao && doc.divisao.partes.length > 0 && (
+        <section className={cx('break-inside-avoid text-[11px]', rolo ? 'border-t border-dashed border-black py-2' : 'mt-4 rounded-md border border-black/40 px-3 py-2')}>
+          <p className="font-bold uppercase">División del valor</p>
+          <ul className="mt-1 space-y-0.5">
+            {doc.divisao.partes.map((p, k) => <li key={k} className="num flex justify-between gap-2"><span className="min-w-0 break-words">{p.nome} <span className="opacity-70">({p.como})</span></span><span>{v(p.valor)}</span></li>)}
+            <li className="num flex justify-between gap-2 border-t border-black/30 pt-0.5 font-semibold"><span>Queda para el negocio</span><span>{v(doc.divisao.casa)}</span></li>
+          </ul>
+        </section>
+      )}
+
       {/* PAGAMENTOS: cada forma, o pago e o saldo */}
       <section className={cx('break-inside-avoid text-[11px]', rolo ? 'border-t border-dashed border-black py-2' : 'mt-4')}>
         <p className="font-bold uppercase">Forma de pago</p>
@@ -157,7 +168,7 @@ export function NotaVenda({ doc, modelo, includeTaxesInPrint }: { doc: Documento
 }
 
 /** a impressão: uma CÓPIA da nota fora do app (portal no <body>), só ela vai para o papel — o app inteiro some */
-export function ImprimirNota({ onPronto, ...p }: { doc: DocumentoVenda; modelo: ModeloDocumentoId; includeTaxesInPrint: boolean; onPronto(): void }) {
+export function ImprimirNota({ onPronto, ...p }: { doc: DocumentoVenda; modelo: ModeloDocumentoId; includeTaxesInPrint: boolean; comDivisao?: boolean; onPronto(): void }) {
   useEffect(() => {
     document.body.classList.add('imprimindo-nota')
     // espera a cópia aparecer antes de abrir a impressão do navegador

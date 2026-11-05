@@ -28,6 +28,7 @@ import * as servicosSalao from './servicosSalao'
 import * as usuarios from './usuarios'
 import * as vendas from './vendas'
 import * as documentos from './documentos'
+import * as divisao from './divisao'
 import * as viagens from './viagens'
 import * as vendasAbertas from './vendasAbertas'
 import * as viagemCurta from './viagemCurta'
@@ -83,6 +84,8 @@ export const comandos = {
   concluirVenda: vendas.concluirVenda,
   atenderAgendamento: vendas.atenderAgendamento,
   cancelarVenda: vendas.cancelarVenda,
+  // DIVISÃO DO VALOR da venda (só registro: não mexe no caixa)
+  salvarDivisaoVenda: divisao.salvarDivisaoVenda,
   corrigirVenda: vendas.corrigirVenda,
   pagarComissao: comissoes.pagarComissao,
   // agenda: compromissos/lembretes e "Pago" depois do atendimento
@@ -206,6 +209,7 @@ export const consultas = {
   venda: vendas.venda,
   // a NOTA DE VENTA (documento comercial, sem validade fiscal): os dados prontos para o modelo de papel
   documentoVenda: documentos.documentoVenda,
+  divisaoVenda: divisao.divisaoVenda,
   agenda: vendas.agenda,
   conflitosAgenda: vendas.conflitosAgenda,
   // calendário: atendimentos + viagens + compromissos numa lista só

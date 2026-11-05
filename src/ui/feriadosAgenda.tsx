@@ -7,6 +7,7 @@
 import type { CategoriaFeriado, FeriadoNoDia } from '../core/dados/feriados'
 import { cx, dataBR } from './base'
 import { useT } from './i18n'
+import { Legenda } from './legenda'
 
 export const CAT_FERIADO: Record<CategoriaFeriado, { nome: string; cor: string }> = {
   nacional: { nome: 'Feriado nacional', cor: '#e11d48' },
@@ -64,19 +65,12 @@ export function AvisoFeriado({ f, compacto }: { f: FeriadoNoDia; compacto?: bool
   )
 }
 
-/** a LEGENDA: as bolinhas (o que está marcado) e os quadradinhos (feriados ligados); some o que não está na tela */
-export function LegendaCalendario({ tipos, categorias }: { tipos: { id: string; nome: string; icone: string; cor: string }[]; categorias: CategoriaFeriado[] }) {
-  const t = useT()
+/** a LEGENDA do calendário (componente padrão Legenda): os eventos (bolinhas) e os feriados ligados (quadradinhos) */
+export function LegendaCalendario({ tipos, categorias }: { tipos: { id: string; nome: string; cor: string }[]; categorias: CategoriaFeriado[] }) {
   return (
-    <div aria-label={t('Legenda')} className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-[var(--suave)]">
-      <span className="font-semibold">{t('Legenda')}:</span>
-      {tipos.map((x) => (
-        <span key={x.id} className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2 w-2 rounded-full" style={{ background: x.cor }} />{x.icone} {t(x.nome)}</span>
-      ))}
-      {categorias.map((c) => (
-        <span key={c} className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2 w-2 rounded-[2px]" style={{ background: CAT_FERIADO[c].cor }} />{t(CAT_FERIADO[c].nome)}</span>
-      ))}
-      <span className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2 w-2 rounded-full bg-[var(--suave)] opacity-45" />{t('já feito')}</span>
-    </div>
+    <Legenda className="mt-3" grupos={[
+      { titulo: 'Eventos', dica: '● bolinha', itens: [...tipos.map((x) => ({ id: x.id, nome: x.nome, cor: x.cor })), { id: 'feito', nome: 'já feito', cor: 'var(--suave)', forma: 'apagada' as const, dica: 'A bolinha fica mais clara quando o atendimento ou a parcela já foi feito.' }] },
+      { titulo: 'Feriados', dica: '■ quadradinho', itens: categorias.map((c) => ({ id: c, nome: CAT_FERIADO[c].nome, cor: CAT_FERIADO[c].cor, forma: 'quadrado' as const, dica: 'Só informativo: não bloqueia nada. Liga e desliga em ⚙ Filtros.' })) },
+    ]} />
   )
 }

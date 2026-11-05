@@ -16,6 +16,8 @@ import { useT } from '../ui/i18n'
 import { MemoriaLinha } from '../ui/linhaServico'
 import { dividir, memoriaCalculo, pct } from '../core/domain/comissao'
 import { FaltaNaVenda } from '../ui/faltaNaVenda'
+import { useLembrado } from '../ui/filtros'
+import { DivisaoValores } from './venda/DivisaoValores'
 import { Receber } from './Agenda'
 import { ImprimirNota, NotaVenda } from '../ui/notaVenda'
 import { MODELOS_DOCUMENTO, type ModeloDocumentoId } from '../core/dados/documentos'
@@ -44,7 +46,7 @@ export function DetalheVenda() {
   const [cancelar, setCancelar] = useState(false)
   const [corrigir, setCorrigir] = useState(false)
   const [receber, setReceber] = useState(false)
-  const [aba, setAba] = useParamTela<'resumo' | 'historico' | 'arquivos' | 'correcoes'>('aba', 'resumo')
+  const [aba, setAba] = useParamTela<'resumo' | 'divisao' | 'historico' | 'arquivos' | 'correcoes'>('aba', 'resumo')
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
   const v = dados.venda
@@ -87,6 +89,8 @@ export function DetalheVenda() {
         </div>
         <Abas variante="sublinhado" atual={aba} onChange={(a) => setAba(a as typeof aba)} abas={[
           { id: 'resumo', nome: 'Resumo' },
+          // DIVISÃO DE VALORES (administrador): o detalhe do dinheiro e com quem a venda é dividida
+          ...(sessao.perfil === 'admin' ? [{ id: 'divisao', nome: 'Divisão de valores' }] : []),
           { id: 'arquivos', nome: 'Arquivos', extra: dados.anexos.length ? <span className="num text-xs opacity-70">{dados.anexos.length}</span> : undefined },
           { id: 'historico', nome: 'Histórico' },
           ...(correcoes.length ? [{ id: 'correcoes', nome: 'Correções', extra: <span className="num text-xs opacity-70">{correcoes.length}</span> }] : []),
@@ -96,6 +100,8 @@ export function DetalheVenda() {
           v.linhas.some((l) => l.itemId)
             ? <div className="space-y-4"><CaminhoDoCabelo de={{ vendaId: v.id }} atual="venda" semCadeia={<LinhaDoTempo id={v.id} />} />{sessao.perfil === 'admin' && <RastreioCompleto vendaId={v.id} />}</div>
             : <Cartao titulo={t('Histórico')}><LinhaDoTempo id={v.id} /></Cartao>
+        ) : aba === 'divisao' && sessao.perfil === 'admin' ? (
+          <DivisaoValores vendaId={v.id} />
         ) : aba === 'arquivos' ? (
           // ARQUIVOS padrão de toda ficha (o mesmo do pedido e do pacote)
           <AbaAnexos donoId={v.id} categorias={['comprovante', 'pedido', 'resultado']} padrao="comprovante" />
@@ -261,6 +267,8 @@ function ResumoNota({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transacao
   const [modelo, setModelo] = useState<ModeloDocumentoId>()
   const [comImpostos, setComImpostos] = useState<boolean>()
   const [imprimindo, setImprimindo] = useState(false)
+  // DIVISÃO NA NOTA: só aparece a escolha quando a venda tem divisão gravada; lembrada neste aparelho
+  const [comDivisao, setComDivisao] = useLembrado('nota.divisao', false)
   const fimImpressao = useCallback(() => setImprimindo(false), [])
   if (!doc) return <Carregando />
   const md = modelo ?? doc.modeloPadrao
@@ -285,6 +293,12 @@ function ResumoNota({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transacao
           <input type="checkbox" className="h-5 w-5" disabled={!temImpostos} checked={temImpostos && includeTaxesInPrint} onChange={(e) => setComImpostos(e.target.checked)} />
           <span><b>{t('Impostos na nota')}</b>{!temImpostos && <span className="block text-xs text-[var(--suave)]">{t(doc.impostos.aviso ?? 'Esta venda não tem imposto estimado.')}</span>}</span>
         </label>
+        {doc.divisao.partes.length > 0 && (
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+            <input type="checkbox" className="h-5 w-5" checked={comDivisao} onChange={(e) => setComDivisao(e.target.checked)} />
+            <b>{t('Divisão na nota')}</b>
+          </label>
+        )}
         <Botao className="ml-auto" onClick={() => setImprimindo(true)}>🖨 {t('Imprimir nota')}</Botao>
         {mudou && <p className="basis-full text-xs text-[var(--suave)]">{t('Só nesta impressão — o padrão de todas as notas fica em Configurações › Geral.')}</p>}
       </div>
@@ -300,7 +314,7 @@ function ResumoNota({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transacao
       {/* A PRÉVIA: o papel sobre a mesa (como num leitor de PDF) */}
       <div className="rounded-2xl bg-[#525659] p-2 sm:p-6">
         <div className="mx-auto shadow-[0_4px_24px_rgba(0,0,0,.35)]" style={{ maxWidth: md === 'rollo' ? '80mm' : '210mm' }}>
-          <NotaVenda doc={doc} modelo={md} includeTaxesInPrint={includeTaxesInPrint} />
+          <NotaVenda doc={doc} modelo={md} includeTaxesInPrint={includeTaxesInPrint} comDivisao={comDivisao} />
         </div>
       </div>
       <p className="text-xs text-[var(--suave)]">{t('É uma nota de venda (documento comercial), não uma factura: o sistema não está ligado ao SIN, por isso não tem código de autorização nem QR.')}</p>
@@ -313,7 +327,7 @@ function ResumoNota({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transacao
           </ul>
         </Cartao>
       )}
-      {imprimindo && <ImprimirNota doc={doc} modelo={md} includeTaxesInPrint={includeTaxesInPrint} onPronto={fimImpressao} />}
+      {imprimindo && <ImprimirNota doc={doc} modelo={md} includeTaxesInPrint={includeTaxesInPrint} comDivisao={comDivisao} onPronto={fimImpressao} />}
     </div>
   )
 }

@@ -162,6 +162,7 @@ components:
         - concluirVenda
         - atenderAgendamento
         - cancelarVenda
+        - salvarDivisaoVenda
         - corrigirVenda
         - pagarComissao
         - salvarEvento
@@ -274,6 +275,7 @@ components:
         - vendas
         - venda
         - documentoVenda
+        - divisaoVenda
         - agenda
         - conflitosAgenda
         - calendario
