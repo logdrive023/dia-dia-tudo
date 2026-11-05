@@ -2,6 +2,7 @@
 // CSV), SEPARAR lote bruto em N lotes, ajustar, PRONTUÁRIO do lote (compra → triagem → venda) e RASTREIO.
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { pacotesFinais } from '../core/services/leitura'
 import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { GrupoVisao, useVisaoLista } from '../ui/visaoLista'
@@ -549,10 +550,12 @@ export function FichaLote() {
   // PRÓXIMO PASSO (um só, destacado): bruto → Separar; vendável → Vender; acabou → ver para onde foi
   // separações que saíram deste pacote (ele é a entrada) → os pacotes novos
   const viraram = i.saldo > 0 ? [] : (gen?.triagens ?? []).filter((x) => x.separou && x.entradas.some((e) => e.id === i.id) && x.saidas.length > 0)
+  // os pacotes de AGORA em que ele virou, mesmo depois de juntar e separar de novo (a mesma regra do caixa)
+  const finais = i.saldo > 0 || !gen ? [] : pacotesFinais(gen, i.id)
   // só foi separado (nada vendido direto dele): vendido/lucro aqui seriam sempre 0 e confundem
   const soSeparado = f.separado > 0 && !dados.vendido
   const podeReservar = i.saldo > 0 && !bruto
-  const proximo = !admin ? undefined : i.saldo > 0 && bruto ? { rotulo: '✂️ Separar', f: separar } : i.saldo > 0 ? { rotulo: '💰 Vender', f: vender } : viraram.length ? undefined : { rotulo: '📊 Ver para onde foi', f: verRastreio }
+  const proximo = !admin ? undefined : i.saldo > 0 && bruto ? { rotulo: '✂️ Separar', f: separar } : i.saldo > 0 ? { rotulo: '💰 Vender', f: vender } : finais.length ? undefined : { rotulo: '📊 Ver para onde foi', f: verRastreio }
   return (
     <div className="space-y-4">
       <Trilha atual={i.codigo ?? i.nome} />
@@ -583,14 +586,15 @@ export function FichaLote() {
         </>}
       />
       {/* JÁ SEPARADO (bruto que zerou): a primeira coisa é em que pacotes ele virou, com o atalho para cada um */}
-      {viraram.length > 0 && (
+      {finais.length > 0 && (
         <section aria-label={t('Virou')} className="rounded-2xl border-2 border-[var(--marca)] bg-[var(--marca-suave)] p-3">
           <p className="text-sm font-bold">✂️ {t('Este pacote já foi separado')}{viraram.length === 1 ? ` · ${viraram[0].codigo}` : ''}</p>
           <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-            {viraram.flatMap((x) => x.saidas).map((s) => (
+            {finais.map((s) => (
               <li key={s.id}>
                 <button type="button" onClick={() => ir('lote', { id: s.id })} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl bg-[var(--cartao)] px-3 text-left shadow-sm hover:ring-2 hover:ring-[var(--marca)]">
-                  <b className="font-mono">📦 {s.codigo ?? '—'}</b><span className="num font-semibold">{q(s.g)} ›</span>
+                  <span className="min-w-0"><b className="font-mono">📦 {s.codigo ?? '—'}</b>{s.via && <span className="block text-xs font-normal text-[var(--suave)]">{t('passou por {c}', { c: s.via })}</span>}</span>
+                  <span className="num shrink-0 font-semibold">{s.saldo > 0 ? q(s.saldo) : t('sem saldo')} ›</span>
                 </button>
               </li>
             ))}

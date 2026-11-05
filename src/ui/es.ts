@@ -4939,4 +4939,5 @@ export const ES: Record<string, string> = {
   'Todas as medidas': 'Todas las medidas',
   '{n} resultado(s)': '{n} resultado(s)',
   'Preço por grama · peso conferido na balança · envio a combinar': 'Precio por gramo · peso revisado en la balanza · envío a coordinar',
+  'passou por {c}': 'pasó por {c}',
 }

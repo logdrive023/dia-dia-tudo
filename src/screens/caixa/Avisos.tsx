@@ -62,7 +62,7 @@ export function JaSaiu({ texto, onAdicionar, onFechar }: { texto: string; onAdic
           <ul className="space-y-1">
             {r.viraram?.map((l) => (
               <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--cartao)] px-3 py-2">
-                <span className="num min-w-0"><b className="font-mono">{l.codigo ?? '—'}</b> · {l.nome} · <b>{l.saldo > 0 ? gramasTexto(l.saldo) : t('sem saldo')}</b></span>
+                <span className="num min-w-0"><b className="font-mono">{l.codigo ?? '—'}</b> · {l.nome} · <b>{l.saldo > 0 ? gramasTexto(l.saldo) : t('sem saldo')}</b>{l.via && <span className="block text-xs text-[var(--suave)]">{t('passou por {c}', { c: l.via })}</span>}</span>
                 {l.saldo > 0 && <Botao onClick={() => onAdicionar(l.id)}>+ {t('Adicionar')}</Botao>}
               </li>
             ))}

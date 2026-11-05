@@ -28,7 +28,46 @@ export interface LeituraPacote {
   codigoAntigo?: string
   vendas: { id: Id; codigo: string; cliente?: string; data: string; g: number }[]
   triagens: { id: Id; codigo: string; em: string }[]
-  viraram: { id: Id; codigo?: string; nome: string; saldo: number }[]
+  /** os pacotes de AGORA em que ele virou — mesmo depois de juntar e separar de novo (via = o pacote do meio) */
+  viraram: { id: Id; codigo?: string; nome: string; saldo: number; via?: string }[]
+}
+
+type Genealogia = Awaited<ReturnType<typeof genealogia>>
+
+/**
+ * Os PACOTES FINAIS de um pacote que já saiu do estoque: desce a família (separou → juntou → separou…) até os pacotes
+ * que existem hoje. Um pacote do meio que ainda tem peso também conta (dá para vender o que sobrou dele), junto com os
+ * pacotes que já saíram dele.
+ * Seguro: não repete pacote, não entra em laço e para em 12 níveis / 300 pacotes.
+ * Ex.: bruto A (zerou) → juntado com B em J (zerou) → J separado em J1, J2 → finais: J1 e J2 (via J).
+ */
+export function pacotesFinais(g: Genealogia, itemId: Id) {
+  const porId = new Map(g.lotes.map((l) => [l.id, l]))
+  const saidasDe = (loteId: Id) =>
+    (porId.get(loteId)?.para ?? [])
+      .filter((x) => x.tipo === 'triagem')
+      .flatMap((x) => g.triagens.find((t) => t.id === x.id)?.saidas ?? [])
+      .map((s) => s.id as Id)
+      .filter((id) => id !== loteId)
+  const finais: { id: Id; codigo?: string; nome: string; saldo: number; via?: string }[] = []
+  const vistos = new Set<Id>([itemId])
+  let nivel = saidasDe(itemId).map((id) => ({ id, via: undefined as string | undefined }))
+  for (let n = 0; n < 12 && nivel.length && vistos.size < 300; n++) {
+    const proximo: typeof nivel = []
+    for (const { id, via } of nivel) {
+      if (vistos.has(id)) continue
+      vistos.add(id)
+      const l = porId.get(id)
+      if (!l) continue
+      const filhos = saidasDe(id).filter((f) => !vistos.has(f))
+      // tem peso (sobrou de uma separação parcial) ou é a ponta da família: é um pacote final
+      if (l.saldo > 0 || !filhos.length) finais.push({ id: l.id as Id, codigo: l.codigo, nome: l.nome, saldo: l.saldo, via })
+      if (filhos.length) proximo.push(...filhos.map((f) => ({ id: f, via: via ?? l.codigo })))
+    }
+    nivel = proximo
+  }
+  // os que ainda têm peso primeiro (o caixa oferece esses)
+  return finais.sort((a, b) => Number(b.saldo > 0) - Number(a.saldo > 0))
 }
 
 export async function lerCodigoPacote(ctx: Ctx, p: { texto: string }): Promise<LeituraPacote> {
@@ -54,9 +93,8 @@ export async function lerCodigoPacote(ctx: Ctx, p: { texto: string }): Promise<L
     .filter((v) => v.lotes.some((l) => l.id === item.id))
     .map((v) => ({ id: v.id as Id, codigo: v.codigo ?? '', cliente: v.cliente, data: v.data, g: v.lotes.find((l) => l.id === item.id)!.g }))
   const triagens = (eu?.para ?? []).filter((x) => x.tipo === 'triagem').map((x) => g.triagens.find((t) => t.id === x.id)).filter((t): t is NonNullable<typeof t> => !!t)
-  // os pacotes em que virou, com o peso de AGORA (o caixa oferece vender os que ainda têm)
-  const viraram = triagens.flatMap((t) => t.saidas.map((s) => g.lotes.find((l) => l.id === s.id)).filter((l): l is NonNullable<typeof l> => !!l))
-    .map((l) => ({ id: l.id as Id, codigo: l.codigo, nome: l.nome, saldo: l.saldo }))
+  // os pacotes em que virou, com o peso de AGORA (o caixa oferece vender os que ainda têm) — até o fim da família
+  const viraram = pacotesFinais(g, item.id)
   const situacao: SituacaoLeitura = vendas.length ? 'vendido' : viraram.length ? 'separado' : 'zerado'
   return { ...base, situacao, vendas, triagens: triagens.map((t) => ({ id: t.id as Id, codigo: t.codigo, em: t.em })), viraram }
 }

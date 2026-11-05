@@ -94,8 +94,8 @@ describe('modo caixa sob estresse', () => {
 
   it('QR do BRUTO que já foi SEPARADO: mostra os pacotes em que virou e "Adicionar" põe um deles na venda', async () => {
     const { campo, estoque } = await abrir()
-    // o bruto da 1ª compra (virou pacotes direto); o juntado-e-separado dos dados de exemplo tem os pacotes um nível abaixo
-    const triado = estoque.find((i) => i.codigo && i.saldo <= 0 && i.campos.estado === 'Bruto' && i.origem?.id === 'c-bruto')
+    // qualquer bruto já separado — inclusive o que foi JUNTADO e depois separado (os pacotes ficam um nível abaixo)
+    const triado = estoque.find((i) => i.codigo && i.saldo <= 0 && i.campos.estado === 'Bruto' && i.origem?.tipo === 'compra' && i.origem?.id === 'c-sucre')
     expect(triado).toBeTruthy()
     await ler(campo, triado!.codigo!)
     const card = await screen.findByRole('alert', { name: new RegExp(`${triado!.codigo} já foi separado`) }, { timeout: 10000 })
