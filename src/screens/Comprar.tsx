@@ -333,11 +333,11 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
   const [viagemEscolhida, setViagemEscolhida] = useState<string>()
   const quemViaja = compradorId ?? sessao.pessoaId
   const viagemSugerida = quemViaja ? viagensAbertas.find((v) => v.viajantes.some((x) => x.id === quemViaja)) : undefined
-  const viagemId = viagemEscolhida === undefined ? viagemSugerida?.id : viagemEscolhida || undefined
+  const [abertos, setAbertos] = useState<Set<CampoFormId>>(() => new Set(form.campos.filter((c) => c.aberto || c.obrigatorio).map((c) => c.id)))
+  const viagemId = viagemEscolhida === undefined ? (abertos.has('viagem') ? viagemSugerida?.id : undefined) : viagemEscolhida || undefined
   const viagemAtual = viagensAbertas.find((v) => v.id === viagemId)
   const nomeViagem = (v: (typeof viagensAbertas)[number]) => [v.codigo, v.nome, v.destino].filter(Boolean).join(' · ')
   const [tentou, setTentou] = useState(false)
-  const [abertos, setAbertos] = useState<Set<CampoFormId>>(() => new Set(form.campos.filter((c) => c.aberto || c.obrigatorio).map((c) => c.id)))
   const [focarCampo, setFocarCampo] = useState<CampoFormId>()
   const [attrAbertos, setAttrAbertos] = useState<Set<Id>>(new Set())
   // PASSO A PASSO (como o Separar): 1 Fornecedor · 2 O que veio · 3 Detalhes; repetir compra já começa no 2
@@ -464,10 +464,9 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     setFocarCampo(undefined)
   }, [focarCampo])
 
-  // a viagem abre sozinha quando há viagem aberta, mas o X fecha de verdade (antes ficava presa aberta)
-  const [viagemFechada, setViagemFechada] = useState(false)
-  const abrir = (c: CampoFormId) => (setAbertos(new Set([...abertos, c])), setFocarCampo(c), c === 'viagem' && setViagemFechada(false))
-  const estaAberto = (c: CampoFormId) => abertos.has(c) || (c === 'comprador' && porComprador) || (c === 'viagem' && viagensAbertas.length > 0 && !viagemFechada)
+  // a viagem NÃO abre sozinha: fica no "+ Viagem"; ao abrir já vem a viagem de quem comprou (se houver). O X fecha.
+  const abrir = (c: CampoFormId) => (setAbertos(new Set([...abertos, c])), setFocarCampo(c))
+  const estaAberto = (c: CampoFormId) => abertos.has(c) || (c === 'comprador' && porComprador)
   // TROCAR fornecedor ou módulo com algo preenchido: pergunta e começa limpo (só o módulo/fornecedor novo fica)
   const preenchido = linhas.some((l) => l.quantidade || l.total || l.itemId) || estado.length > 0 || !!obs.trim() || (anexos?.length ?? 0) > 0 || !!codigo.trim()
   const limparRascunho = (cabelo: boolean) => {
@@ -781,13 +780,13 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     fotos: 'Ex.: foto do pedido, do cabelo e o comprovante de origem (nota ou recibo de quem vendeu).',
     viagem: 'Ex.: viagem a Cochabamba → os gastos da viagem são divididos entre as compras dela.',
   }
-  const forcado = (c: CampoFormId) => (c === 'comprador' && porComprador) || (c === 'viagem' && !!viagemSugerida && viagemEscolhida === undefined)
+  const forcado = (c: CampoFormId) => (c === 'comprador' && porComprador)
   const fechar = (c: CampoFormId) => {
     setAbertos((s) => { const n = new Set(s); n.delete(c); return n })
     if (c === 'comprador') setCompradorId(undefined)
     else if (c === 'estado') setEstado([])
     else if (c === 'obs') setObs('')
-    else if (c === 'viagem') (setViagemEscolhida(''), setViagemFechada(true))
+    else if (c === 'viagem') setViagemEscolhida(undefined)
     else if (c === 'codigo') (setCodigo(''), setModoEscolhido(form.padroes.modoCodigo))
     else if (c === 'coluna') setColuna(undefined)
   }
