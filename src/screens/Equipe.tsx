@@ -2,6 +2,7 @@
 // (salário por mês, semana ou dia) e a "ponta do lápis" de cada unidade: entradas × saídas = margem.
 
 import { useState } from 'react'
+import { formasEmUso } from '../core/domain/formas'
 import { FiltroUnidade } from '../ui/filtroUnidade'
 import { Unidades } from './equipe/Unidades'
 import { Comissoes } from './equipe/Comissoes'
@@ -275,7 +276,7 @@ function PagarSalario({ pessoa, onFechar }: { pessoa: Pessoa; onFechar(): void }
       <div className="space-y-3">
         {sug && <p className="rounded-xl bg-[var(--marca-suave)] p-2 text-sm text-[var(--marca)]">⟳ {sug.origem === 'ultimo' ? t('Repetindo o último pagamento ({d}). Mude se precisar.', { d: dataBR(sug.data) }) : t('Valor do cadastro. Mude se precisar.')}</p>}
         <Campo rotulo="Valor"><ValorInput moeda={moeda} valor={v} onChange={setValor} /></Campo>
-        <Campo rotulo="Forma"><Selecao valor={forma ?? sug?.forma ?? 'dinheiro'} onChange={setForma} opcoes={(cfg?.config.formas ?? []).filter((f) => f.moedas.includes(moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
+        <Campo rotulo="Forma"><Selecao valor={forma ?? sug?.forma ?? 'dinheiro'} onChange={setForma} opcoes={formasEmUso(cfg?.config.formas, moeda).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
         <Campo rotulo="Referência (opcional)"><Entrada value={ref} placeholder={t('Ex.: semana 1 a 7, diária de sábado')} onChange={(e) => setRef(e.target.value)} /></Campo>
       </div>
     </Janela>

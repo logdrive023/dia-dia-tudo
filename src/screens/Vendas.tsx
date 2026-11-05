@@ -1,6 +1,7 @@
 // DETALHE da venda com linha do tempo (a LISTA de vendas é a tela Vender: ListaVendas.tsx).
 
 import { RastreioTotal } from '../ui/rastreioTotal'
+import { formasEmUso } from '../core/domain/formas'
 import { SelosViagem } from '../ui/seloViagem'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
 import { useCallback, useState } from 'react'
@@ -218,7 +219,7 @@ function CorrigirVenda({ venda, temCliente, onFechar }: { venda: Transacao; temC
             {destino === 'caixa' && (
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <Selecao valor={moeda} onChange={(m) => (setMoeda(m), setForma('dinheiro'))} opcoes={(cfg?.moedasAtivas ?? []).map((m) => ({ id: m, nome: m }))} />
-                <Selecao valor={forma} onChange={setForma} opcoes={(cfg?.formas ?? []).filter((f) => f.moedas.includes(moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} />
+                <Selecao valor={forma} onChange={setForma} opcoes={formasEmUso(cfg?.formas, moeda).map((f) => ({ id: f.id, nome: t(f.nome) }))} />
               </div>
             )}
           </Campo>

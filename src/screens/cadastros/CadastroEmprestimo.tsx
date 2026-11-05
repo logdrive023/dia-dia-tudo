@@ -5,6 +5,7 @@
 //   4 Parcelas               quantas, 1º vencimento e a conta pronta (total, juros, cada parcela)
 // Registra com o mesmo comando (criarEmprestimo); a conta de cada parcela vem de calcularParcelas.
 import { useState } from 'react'
+import { formasEmUso } from '../../core/domain/formas'
 import { formatar } from '../../core/domain/dinheiro'
 import { dataLocal, somarMeses } from '../../core/domain/datas'
 import { novoId } from '../../core/domain/ids'
@@ -52,7 +53,7 @@ export function CadastroEmprestimo() {
     previa = undefined
   }
   const nome = pessoas?.find((p) => p.id === pessoaId)?.nome
-  const formas = (cfg?.formas ?? []).filter((f) => f.moedas.includes(moeda))
+  const formas = formasEmUso(cfg?.formas, moeda)
   const falta = !pessoaId ? t('quem') : !principal ? t('o valor') : !tipo ? t('os juros') : !previa ? t('as parcelas') : ''
   const nomeJuros = JUROS.find((j) => j.id === tipo)
   const registrar = async () => {
@@ -82,7 +83,7 @@ export function CadastroEmprestimo() {
           ajuda="O valor emprestado e como ele saiu (ou entrou) no caixa." exemplo="Ex.: Bs 5.000 em dinheiro">
           <Campo rotulo="Valor *" comoDiv>
             <div className="grid grid-cols-[7rem_1fr] gap-2">
-              <Selecao valor={moeda} onChange={(v) => (setMoeda(v), setForma((cfg?.formas ?? []).find((f) => f.moedas.includes(v))?.id ?? 'dinheiro'))} opcoes={(cfg?.moedasAtivas ?? [moeda]).map((x) => ({ id: x, nome: x }))} />
+              <Selecao valor={moeda} onChange={(v) => (setMoeda(v), setForma(formasEmUso(cfg?.formas, v)[0]?.id ?? 'dinheiro'))} opcoes={(cfg?.moedasAtivas ?? [moeda]).map((x) => ({ id: x, nome: x }))} />
               <ValorInput moeda={moeda} valor={principal} onChange={setPrincipal} />
             </div>
           </Campo>

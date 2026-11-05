@@ -2,6 +2,7 @@
 // Com a API, o mesmo fluxo vira POST /v1/auth/entrar e o servidor confere e devolve um token.
 
 import { ErroNegocio, exigir } from '../domain/erros'
+import { MENSAGEM_SENHA_FRACA, faltaNaSenha } from '../domain/senha'
 import type { Id, Usuario } from '../domain/tipos'
 import type { Sessao } from '../ports/portas'
 import { auditar, type Ctx, exigirVersao, novo, tocar, versaoDoFormulario } from './contexto'
@@ -39,13 +40,13 @@ export interface SenhaPreparada {
 export async function prepararSenhas(ctx: Ctx, nome: string, dados: Record<string, unknown>): Promise<Record<string, unknown>> {
   if (nome === 'salvarUsuario' && typeof dados.senha === 'string' && dados.senha) {
     const { senha, ...resto } = dados
-    exigir((senha as string).length >= 4, 'Senha com pelo menos 4 caracteres.', 'senha')
+    exigir(!faltaNaSenha(senha as string).length, MENSAGEM_SENHA_FRACA, 'senha')
     const sal = novoSal()
     return { ...resto, _senha: { sal, senhaHash: await hashSenha(senha as string, sal) } satisfies SenhaPreparada }
   }
   if (nome === 'trocarMinhaSenha') {
     const { atual, nova } = dados as { atual: string; nova: string }
-    exigir(nova?.length >= 4, 'Senha com pelo menos 4 caracteres.', 'nova')
+    exigir(typeof nova === 'string' && !faltaNaSenha(nova).length, MENSAGEM_SENHA_FRACA, 'nova')
     const u = await ctx.repos.usuarios.obter(ctx.sessao.usuarioId)
     exigir(u, 'Entre de novo.')
     const sal = novoSal()

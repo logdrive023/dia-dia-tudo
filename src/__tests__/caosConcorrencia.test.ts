@@ -54,7 +54,7 @@ describe('LOST UPDATE: formulário velho é recusado (versaoBase)', () => {
 
   it('C-08 salvarUsuario: formulário velho não reativa quem outro administrador desativou', async () => {
     const { b } = await novoBackend()
-    await b.comando('salvarUsuario', { id: 'u', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', senha: '1234' })
+    await b.comando('salvarUsuario', { id: 'u', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', senha: 'senha123' })
     const velho = ((await b.consulta('usuarios', {})) as Q[]).find((u) => u.id === 'u')
     await b.comando('salvarUsuario', { id: 'u', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', ativo: false, versaoBase: velho.versao })
     await expect(b.comando('salvarUsuario', { id: 'u', login: 'sofia', nome: 'Sofia F.', perfil: 'funcionario', ativo: true, versaoBase: velho.versao })).rejects.toThrow(ALTERADO)

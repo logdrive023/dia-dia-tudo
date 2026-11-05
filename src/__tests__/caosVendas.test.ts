@@ -19,9 +19,9 @@ async function comItem(saldo = 10) {
 }
 
 async function comUsuarios(b: BackendNoAparelho) {
-  await b.comando('salvarUsuario', { id: 'u-f', login: 'fulana', nome: 'Fu', perfil: 'funcionario', senha: '1234' } as any)
-  await b.comando('salvarUsuario', { id: 'u-g', login: 'gema', nome: 'Ge', perfil: 'funcionario', senha: '1234' } as any)
-  await b.comando('salvarUsuario', { id: 'u-a', login: 'adma', nome: 'Ad', perfil: 'admin', senha: '1234' } as any)
+  await b.comando('salvarUsuario', { id: 'u-f', login: 'fulana', nome: 'Fu', perfil: 'funcionario', senha: 'senha123' } as any)
+  await b.comando('salvarUsuario', { id: 'u-g', login: 'gema', nome: 'Ge', perfil: 'funcionario', senha: 'senha123' } as any)
+  await b.comando('salvarUsuario', { id: 'u-a', login: 'adma', nome: 'Ad', perfil: 'admin', senha: 'senha123' } as any)
 }
 
 function api() {
@@ -99,12 +99,12 @@ describe('CAOS-C-01/C-02 usuário relido antes de cada comando', () => {
   it('desativada em outra aba não vende; administradora rebaixada perde o poder', async () => {
     const { b, sessao } = await comItem()
     await comUsuarios(b)
-    Object.assign(sessao, await b.entrar('fulana', '1234'))
+    Object.assign(sessao, await b.entrar('fulana', 'senha123'))
     const u = await repos(b).usuarios.obter('u-f')
     await repos(b).usuarios.salvar({ ...u, ativo: false })
     expect(await msg(b.comando('concluirVenda', { id: 'v', linhas: linha('x', bs(10)), pagamentos: [pag('p', bs(10))] } as any))).toMatch(/desativado/)
     expect(await repos(b).transacoes.obter('v')).toBeUndefined()
-    Object.assign(sessao, await b.entrar('adma', '1234'))
+    Object.assign(sessao, await b.entrar('adma', 'senha123'))
     const a = await repos(b).usuarios.obter('u-a')
     await repos(b).usuarios.salvar({ ...a, perfil: 'funcionario' })
     expect(await msg(b.comando('ajustarEstoque', { itemId: 'x', novoSaldo: 0, motivo: 'perda' } as any))).toMatch(/permissão/)
@@ -117,9 +117,9 @@ describe('CAOS-B-06/C-15 venda em aberto', () => {
   it('funcionária não descarta nem sobrescreve a da outra; o caixa ainda tira o pacote; admin pode', async () => {
     const { b, sessao } = await comItem()
     await comUsuarios(b)
-    Object.assign(sessao, await b.entrar('fulana', '1234'))
+    Object.assign(sessao, await b.entrar('fulana', 'senha123'))
     await b.comando('salvarVendaAberta', { id: 'va', linhas: [{ id: 'l', itemId: 'x', quantidade: 1 }] } as any)
-    Object.assign(sessao, await b.entrar('gema', '1234'))
+    Object.assign(sessao, await b.entrar('gema', 'senha123'))
     expect(await msg(b.comando('descartarVendaAberta', { id: 'va' } as any))).toMatch(/outra pessoa/)
     expect(await msg(b.comando('salvarVendaAberta', { id: 'va', linhas: [{ id: 'l', itemId: 'x', quantidade: 5 }] } as any))).toMatch(/outra pessoa/)
     expect((await repos(b).config.obter('vendaAberta:va')).apagadoEm).toBeFalsy()

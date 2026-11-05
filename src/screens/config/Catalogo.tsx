@@ -5,9 +5,10 @@ import { formatar } from '../../core/domain/dinheiro'
 import { novoId } from '../../core/domain/ids'
 import { COMISSAO_PADRAO_BP, dividir, memoriaCalculo, pct } from '../../core/domain/comissao'
 import type { Item } from '../../core/domain/tipos'
-import { Botao, Campo, Carregando, Cartao, Entrada, Escolha, Janela, Pilula, Selecao, ValorInput, moedaPadrao } from '../../ui/base'
+import { Botao, Campo, Carregando, Cartao, Entrada, Escolha, Pilula, Selecao, ValorInput, moedaPadrao } from '../../ui/base'
 import { useApp, useComando, useConsulta } from '../../ui/contexto'
 import { useT } from '../../ui/i18n'
+import { JanelaCadastro } from '../../ui/janelaCadastro'
 
 export function Catalogo() {
   const t = useT()
@@ -125,7 +126,7 @@ export function Catalogo() {
         </ul>
       )}
       {ed && tipo && (
-        <Janela aberta titulo={t(ed.novo ? 'Novo' : 'Editar')} onFechar={() => setEd(undefined)} rodape={<Botao grande className="w-full" disabled={ocupado} onClick={salvar}>{t('Salvar')}</Botao>}>
+        <JanelaCadastro titulo={tipo.controlaEstoque ? (ed.novo ? 'Novo item' : 'Editar item') : ed.novo ? 'Novo serviço' : 'Editar serviço'} onFechar={() => setEd(undefined)} onSalvar={salvar} ocupado={ocupado} podeSalvar={!!ed.nome.trim()}>
           <div className="space-y-3">
             <Campo rotulo="Nome"><Entrada value={ed.nome} onChange={(e) => setEd({ ...ed, nome: e.target.value })} /></Campo>
             <Campo rotulo="Preço sugerido"><ValorInput moeda={ed.moedaPreco ?? moeda} valor={ed.preco} onChange={(v) => setEd({ ...ed, preco: v })} /></Campo>
@@ -180,7 +181,7 @@ export function Catalogo() {
               </>
             )}
           </div>
-        </Janela>
+        </JanelaCadastro>
       )}
     </div>
   )

@@ -5,6 +5,7 @@
 // ("Ver em Bs | US$ | R$"), com a cotação digitada aqui (só para ver: não muda nenhum lançamento).
 
 import { useEffect, useRef, useState } from 'react'
+import { formasEmUso } from '../core/domain/formas'
 import { BarraPartes } from '../ui/barras'
 import { MOEDAS, formatar, moeda as moedaDe, type TabelaCotacoes, valorDeUm } from '../core/domain/dinheiro'
 import { dataCurta, dataLocal, somarDias } from '../core/domain/datas'
@@ -403,7 +404,7 @@ function SaldoDoCaixa({ contas, movimentos, data, cot, linha, onOntem }: { conta
   const banco = somar((c) => c.banco)
   // vendas de hoje por forma (formas da configuração que aceitam alguma moeda ativa)
   const ativas = cfg?.moedasAtivas ?? [principal]
-  const formas = (cfg?.formas ?? []).filter((f) => f.moedas.some((m) => ativas.includes(m)))
+  const formas = formasEmUso(cfg?.formas).filter((f) => f.moedas.some((m) => ativas.includes(m)))
   const vendas = movimentos.filter((m) => m.tipo === 'venda')
   const porForma = formas.map((f) => ({ f, valor: vendas.filter((m) => m.forma === f.id).reduce((s, m) => s + (conv(m.delta, m.moeda, ver, tab) ?? 0), 0) }))
   const totalVendas = porForma.reduce((s, x) => s + x.valor, 0)
@@ -599,7 +600,7 @@ function Lancar({ tipoInicial, data, hoje, onFechar }: { tipoInicial: TipoLancar
   const sujo = valor !== undefined || !!descricao.trim() || !!categoria.trim()
   const fechar = () => (!sujo || window.confirm(t('Sair sem salvar?'))) && onFechar()
   const info = BOTOES.find((b) => b.tipo === tipo)!
-  const formas = (cfg?.formas ?? []).filter((f) => f.moedas.includes(moeda))
+  const formas = formasEmUso(cfg?.formas, moeda)
   const moedas = [principal, ...(cfg?.moedasAtivas ?? []).filter((m) => m !== principal)]
   const repetir = async () => {
     if (tipo === 'pagamento') return

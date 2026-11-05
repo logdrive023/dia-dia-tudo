@@ -434,7 +434,8 @@ export function Campo({ rotulo, ajuda, children, className, comoDiv }: { rotulo:
   const Tag = comoDiv ? 'div' : 'label'
   return (
     <Tag className={cx('block', className)}>
-      <span className="mb-1 flex items-center text-sm font-semibold text-[var(--suave)]">
+      {/* altura fixa: rótulo com ⓘ e sem ⓘ lado a lado ficam alinhados */}
+      <span className="mb-1 flex min-h-6 items-center text-sm font-semibold text-[var(--suave)]">
         {t(rotulo)}
         {ajuda && <Info texto={ajuda} />}
       </span>

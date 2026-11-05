@@ -35,8 +35,10 @@ const VALORES: Record<number, (string | null)[]> = {
   90: [null, null, '19', null, null, null, null, '22', null, null, null, null],
 }
 
-/** Usuários de teste (senha 1234). "admin" vê tudo; as outras entram com o perfil do cargo. */
-export const SENHA_DEMO = '1234'
+/** Usuários de teste (senha demo1234). "admin" vê tudo; as outras entram com o perfil do cargo. */
+export const SENHA_DEMO = 'demo1234'
+/** a senha dos dados de exemplo carregados antes da regra de senha (8 caracteres): o botão de entrar tenta as duas */
+export const SENHA_DEMO_ANTIGA = '1234'
 
 export async function carregarDemo(b: BackendNoAparelho) {
   await b.comoSistema(() => montar(b))
@@ -349,7 +351,7 @@ async function montar(b: BackendNoAparelho) {
   await c(2, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-cocha', categoria: 'combustivel', moeda: 'BOB', valor: bs(300) }, 12)
   await c(1, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-cocha', categoria: 'hospedagem', moeda: 'BOB', valor: bs(250) }, 21)
 
-  // ---------- usuários (senha 1234) ----------
+  // ---------- usuários (senha demo1234) ----------
   const U = (login: string, nome: string, perfil: 'admin' | 'funcionario', pessoaId?: string, localId?: string) =>
     c(0, 'salvarUsuario', { id: `u-${login}`, login, nome, perfil, pessoaId, localId, senha: SENHA_DEMO })
   await U('admin', 'Administrador', 'admin')

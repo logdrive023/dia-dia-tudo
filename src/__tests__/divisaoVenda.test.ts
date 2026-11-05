@@ -58,10 +58,10 @@ describe('divisão de valores', () => {
   it('funcionária não abre a divisão (custo e lucro são do administrador) e não divide', async () => {
     const { b, sessao } = await novoBackend()
     await b.comando('salvarPessoa', { id: 'p-s', nome: 'Sofia', papeis: ['funcionario'] } as any)
-    await b.comando('salvarUsuario', { id: 'u-s', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', pessoaId: 'p-s', senha: '1234' } as any)
+    await b.comando('salvarUsuario', { id: 'u-s', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', pessoaId: 'p-s', senha: 'senha123' } as any)
     await b.comando('salvarItem', { id: 'x', moduloId: 'produtos', tipoItem: 'peca', nome: 'Escova', saldoInicial: 10 })
     await b.comando('concluirVenda', { id: 'v', profissionalId: 'p-s', linhas: [{ id: 'l', itemId: 'x', quantidade: 1, moeda: 'BOB', total: bs(100), profissionalId: 'p-s' }], pagamentos: [{ id: 'p', forma: 'dinheiro', moeda: 'BOB', valor: bs(100) }] } as any)
-    Object.assign(sessao, await b.entrar('sofia', '1234'))
+    Object.assign(sessao, await b.entrar('sofia', 'senha123'))
     await expect(b.consulta('divisaoVenda', { id: 'v' })).rejects.toThrow(/permissão/)
     await expect(b.comando('salvarDivisaoVenda', { id: 'v', partes: [] })).rejects.toThrow(/administrador/)
   })

@@ -3,6 +3,7 @@
 // Funcionária que viaja vê só o painel do viajante (lança os gastos dela; sem custos nem resultado).
 
 import { useState } from 'react'
+import { formasEmUso } from '../core/domain/formas'
 import { corDoNome, iniciais } from '../ui/tabelaDados'
 import { FiltroViagem } from '../ui/seloViagem'
 import { LigarCompras } from './compra/LigarCompras'
@@ -786,7 +787,7 @@ function AbaContas({ d, onAdiantar }: { d: Dados; onAdiantar(): void }) {
                 </p>
               </Campo>
             ))}
-            {!!d.carteira.length && <Campo rotulo="Volta ao caixa como"><Selecao valor={forma} onChange={setForma} opcoes={(cfg?.formas ?? []).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>}
+            {!!d.carteira.length && <Campo rotulo="Volta ao caixa como"><Selecao valor={forma} onChange={setForma} opcoes={formasEmUso(cfg?.formas).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>}
             {temNegativo && <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" checked={reembolsar} onChange={(e) => setReembolsar(e.target.checked)} /> {t('Reembolsar quem pagou do bolso (sai do caixa)')}</label>}
             {!d.prospeccao && <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" checked={incorporar} onChange={(e) => setIncorporar(e.target.checked)} /> {t('Incorporar o gasto ao custo dos lotes em estoque')}</label>}
             <div className="grid gap-2 sm:grid-cols-2">
@@ -845,7 +846,7 @@ function FormAdiantamento({ viagemId, onFechar }: { viagemId: Id; onFechar(): vo
           <Selecao valor={moeda} onChange={setMoeda} opcoes={(cfg?.moedasAtivas ?? [moeda]).map((x) => ({ id: x, nome: x }))} />
           <ValorInput moeda={moeda} valor={valor} onChange={setValor} />
         </div>
-        <Campo rotulo="Saiu do caixa como"><Selecao valor={forma} onChange={setForma} opcoes={(cfg?.formas ?? []).filter((f) => f.moedas.includes(moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
+        <Campo rotulo="Saiu do caixa como"><Selecao valor={forma} onChange={setForma} opcoes={formasEmUso(cfg?.formas, moeda).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
         <Campo rotulo="Observação"><Entrada value={obs} onChange={(e) => setObs(e.target.value)} /></Campo>
       </div>
     </Janela>

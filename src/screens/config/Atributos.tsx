@@ -6,6 +6,7 @@ import { Botao, Campo, Carregando, Cartao, Entrada, Escolha, Pilula, Selecao, Va
 import { BarraSalvar } from '../../ui/barraSalvar'
 import { useAvisoSaida, useComando, useConsulta, useParamTela } from '../../ui/contexto'
 import { useT } from '../../ui/i18n'
+import { Chave } from '../../ui/interruptor'
 
 export function Atributos() {
   const t = useT()
@@ -36,7 +37,7 @@ function EditorAtributos({ item }: { item: { moduloId: string; tipoId: string; p
   const lerOpcoes = (txt: string) => txt.split(',').map((o) => o.trim())
   return (
     <div className="grid gap-4 2xl:grid-cols-2">
-      <Cartao titulo={t('Atributos do sistema')} ajuda="Os marcados com 🔒 não podem ser escondidos: o nome do lote, o preço e a separação dependem deles.">
+      <Cartao titulo={t('Atributos do sistema')} ajuda="Desligue o que o negócio não usa: some da compra, do lote e dos filtros. Os marcados com 🔒 ficam sempre ligados: o nome do lote, o preço e a separação dependem deles.">
         <ul className="divide-y divide-[var(--borda)]">
           {item.padrao.map((f) => {
             const oculto = c.ocultos.includes(f.id)
@@ -45,11 +46,8 @@ function EditorAtributos({ item }: { item: { moduloId: string; tipoId: string; p
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={cx('flex-1 font-semibold', oculto && 'text-[var(--suave)] line-through')}>{t(f.nome)}{f.unidade ? ` (${f.unidade})` : ''}</span>
                   <Pilula>{t(TIPOS_CAMPO.find((x) => x.id === f.tipo)?.nome ?? f.tipo)}</Pilula>
-                  {f.fixo ? (
-                    <span className="min-w-10 text-center" title={t('Não pode ser escondido')}>🔒</span>
-                  ) : (
-                    <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={!oculto} onChange={() => setC({ ...c, ocultos: oculto ? c.ocultos.filter((x) => x !== f.id) : [...c.ocultos, f.id] })} /> {t('Usar')}</label>
-                  )}
+                  {f.fixo && <span className="text-xs text-[var(--suave)]">🔒 {t('sempre usado')}</span>}
+                  <Chave ligado={!oculto} travado={f.fixo} rotulo={f.nome} onChange={() => setC({ ...c, ocultos: oculto ? c.ocultos.filter((x) => x !== f.id) : [...c.ocultos, f.id] })} />
                 </div>
                 {f.tipo === 'lista' && !oculto && (
                   <Campo rotulo="Opções (separadas por vírgula)" className="mt-2">

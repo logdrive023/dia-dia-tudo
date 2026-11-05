@@ -11,6 +11,8 @@ import { Bandeira } from '../ui/bandeira'
 import { useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { EscolhaCartoes } from '../ui/escolhaCartoes'
 import { useT } from '../ui/i18n'
+import { Interruptor } from '../ui/interruptor'
+import { limparEspacos, nomeProprio, soNumeros } from '../core/domain/textoFormatado'
 
 const pct = (bp: number) => String(bp / 100).replace('.', ',')
 const bp = (txt: string) => Math.round(Number(txt.replace(',', '.')) * 100)
@@ -25,19 +27,6 @@ function CampoTaxa({ rotulo, valor, onChange }: { rotulo: string; valor: number;
         <span className="text-sm font-semibold text-[var(--suave)]">%</span>
       </div>
     </Campo>
-  )
-}
-
-/** interruptor com nome e explicação (o mesmo desenho em todas as opções liga/desliga) */
-function Interruptor({ ligado, onChange, titulo, texto }: { ligado: boolean; onChange(v: boolean): void; titulo: string; texto: string }) {
-  const t = useT()
-  return (
-    <button type="button" role="switch" aria-checked={ligado} onClick={() => onChange(!ligado)} className="flex w-full items-start gap-3 rounded-2xl bg-[var(--fundo)] p-3 text-left">
-      <span aria-hidden className={cx('relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors', ligado ? 'bg-[var(--marca)]' : 'bg-[var(--borda)]')}>
-        <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', ligado ? 'left-[22px]' : 'left-0.5')} />
-      </span>
-      <span className="text-sm"><b className="block">{t(titulo)}</b><span className="text-[var(--suave)]">{t(texto)}</span></span>
-    </button>
   )
 }
 
@@ -130,12 +119,12 @@ export function ConfigFiscal() {
       {parte === 'relatorio' && (
         <Cartao titulo={t('Cabeçalho do relatório impresso')} ajuda="Aparece no topo de cada página e nas firmas do fim. Ex.: Razón social · NIT 1234567 · Av. 6 de Agosto 123.">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Campo rotulo="Razão social"><Entrada value={v.razaoSocial ?? ''} placeholder={dados.config.nomeNegocio} onChange={(e) => mudar({ razaoSocial: e.target.value })} /></Campo>
-            <Campo rotulo="NIT"><Entrada inputMode="numeric" value={v.nit ?? ''} onChange={(e) => mudar({ nit: e.target.value })} /></Campo>
-            <Campo rotulo="Endereço"><Entrada value={v.endereco ?? ''} onChange={(e) => mudar({ endereco: e.target.value })} /></Campo>
-            <Campo rotulo="Atividade"><Entrada value={v.atividade ?? ''} placeholder={t('Ex.: venta de cabello y servicios de salón')} onChange={(e) => mudar({ atividade: e.target.value })} /></Campo>
-            <Campo rotulo="Contador(a)"><Entrada value={v.contador ?? ''} onChange={(e) => mudar({ contador: e.target.value })} /></Campo>
-            <Campo rotulo="Representante legal"><Entrada value={v.representante ?? ''} onChange={(e) => mudar({ representante: e.target.value })} /></Campo>
+            <Campo rotulo="Razão social"><Entrada value={v.razaoSocial ?? ''} placeholder={dados.config.nomeNegocio} onChange={(e) => mudar({ razaoSocial: e.target.value })} onBlur={() => v.razaoSocial && mudar({ razaoSocial: limparEspacos(v.razaoSocial) })} /></Campo>
+            <Campo rotulo="NIT" ajuda="Só os números do NIT, como está no certificado do SIN. Ex.: 1234567019."><Entrada inputMode="numeric" className="num" value={v.nit ?? ''} placeholder="1234567019" onChange={(e) => mudar({ nit: soNumeros(e.target.value) })} /></Campo>
+            <Campo rotulo="Endereço"><Entrada value={v.endereco ?? ''} placeholder={t('Ex.: Av. 6 de Agosto 123, Santa Cruz')} onChange={(e) => mudar({ endereco: e.target.value })} onBlur={() => v.endereco && mudar({ endereco: nomeProprio(v.endereco) })} /></Campo>
+            <Campo rotulo="Atividade"><Entrada value={v.atividade ?? ''} placeholder={t('Ex.: venta de cabello y servicios de salón')} onChange={(e) => mudar({ atividade: e.target.value })} onBlur={() => v.atividade && mudar({ atividade: limparEspacos(v.atividade) })} /></Campo>
+            <Campo rotulo="Contador(a)"><Entrada value={v.contador ?? ''} placeholder={t('Nome completo')} onChange={(e) => mudar({ contador: e.target.value })} onBlur={() => v.contador && mudar({ contador: nomeProprio(v.contador) })} /></Campo>
+            <Campo rotulo="Representante legal"><Entrada value={v.representante ?? ''} placeholder={t('Nome completo')} onChange={(e) => mudar({ representante: e.target.value })} onBlur={() => v.representante && mudar({ representante: nomeProprio(v.representante) })} /></Campo>
           </div>
           <div className="mt-3">
             <Interruptor ligado={v.firmasNoRelatorio !== false} onChange={(firmasNoRelatorio) => mudar({ firmasNoRelatorio })} titulo="Firmas no fim do relatório"

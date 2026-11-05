@@ -57,6 +57,34 @@ export const naLingua = (x: Texto2, idioma: 'pt' | 'es') => (idioma === 'es' ? x
 export const NOVIDADES: Novidade[] = [
   {
     data: '2026-11-05',
+    titulo: { pt: 'Configurações mais simples e uma tela de entrar nova', es: 'Configuración más simple y una nueva pantalla para entrar' },
+    resumo: {
+      pt: 'Formas de pagamento que ligam e desligam, senha com regra e olho, cadastros no mesmo formato e o relatório que compara as viagens.',
+      es: 'Formas de pago que se encienden y apagan, contraseña con regla y ojo, registros con el mismo formato y el informe que compara los viajes.',
+    },
+    itens: [
+      { area: 'Sistema', tipo: 'novo', tela: 'config', params: { aba: 'pagamentos' }, texto: {
+        pt: 'Formas de pagamento: desligue a que o negócio não usa (ex.: Pix) e ela some da venda, da compra, do caixa e das comissões. O que já foi pago continua nos relatórios.',
+        es: 'Formas de pago: apague la que el negocio no usa (ej.: Pix) y desaparece de la venta, la compra, la caja y las comisiones. Lo ya pagado sigue en los informes.' } },
+      { area: 'Acesso', tipo: 'novo', texto: {
+        pt: 'Senha nova com pelo menos 8 caracteres, uma letra e um número ou caractere especial; o olho mostra o que foi digitado e o administrador pode gerar uma senha para passar à pessoa.',
+        es: 'Contraseña nueva con al menos 8 caracteres, una letra y un número o carácter especial; el ojo muestra lo escrito y el administrador puede generar una contraseña para pasar a la persona.' } },
+      { area: 'Acesso', tipo: 'melhoria', texto: {
+        pt: 'Tela de entrar renovada, com “Esqueceu a senha?” e o modo de teste separado (usuários de teste para entrar com um toque).',
+        es: 'Pantalla para entrar renovada, con “¿Olvidó la contraseña?” y el modo de prueba aparte (usuarios de prueba para entrar con un toque).' } },
+      { area: 'Sistema', tipo: 'melhoria', texto: {
+        pt: 'Unidades, usuários, catálogo e modalidades usam o mesmo cadastro (Nova/Editar, campos em grupos, Cancelar e Salvar). Moedas e câmbio ficaram numa tela só, com uma linha por moeda.',
+        es: 'Unidades, usuarios, catálogo y modalidades usan el mismo registro (Nuevo/Editar, campos en grupos, Cancelar y Guardar). Monedas y tipo de cambio quedaron en una sola pantalla, con una línea por moneda.' } },
+      { area: 'Impostos', tipo: 'melhoria', tela: 'config', params: { aba: 'fiscal', parte: 'relatorio' }, texto: {
+        pt: 'Cabeçalho do relatório impresso arrumado sozinho: NIT só com números e nomes com maiúscula, no preenchimento e no relatório.',
+        es: 'Encabezado del informe impreso ordenado solo: NIT solo con números y nombres con mayúscula, al llenar y en el informe.' } },
+      { area: 'Viagens', tipo: 'novo', tela: 'relatorios', params: { relatorio: 'viagens' }, texto: {
+        pt: 'Relatórios › Viagens: quanto custou cada kg em cada viagem (cabelo + gastos) e uma viagem contra a outra, com o ✓ em quem foi melhor.',
+        es: 'Informes › Viajes: cuánto costó cada kg en cada viaje (cabello + gastos) y un viaje contra otro, con el ✓ en el mejor.' } },
+    ],
+  },
+  {
+    data: '2026-11-05',
     titulo: { pt: 'Imposto de Renda: o exercício fiscal inteiro', es: 'Impuesto a las Utilidades: la gestión fiscal completa' },
     resumo: {
       pt: 'Em Relatórios, a aba Imposto de Renda junta IVA, IT, IUE e as retenções do ano, mês a mês, com o que falta revisar e o documento anual para o contador.',

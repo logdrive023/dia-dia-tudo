@@ -2,6 +2,7 @@
 // moedas, fotos/comprovantes, conversor de moedas e recibo no WhatsApp.
 
 import { useEffect, useState } from 'react'
+import { formasEmUso } from '../core/domain/formas'
 import { CampoTelefone } from './campoTelefone'
 import { MOEDAS, type Cotacao, converter, formatar, moeda as moedaDe, type TabelaCotacoes, valorDeUm } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
@@ -143,7 +144,7 @@ export function conv(v: number, de: string, para: string, cot: TabelaCotacoes) {
 export function EditorPagamentos({ total, moedaTotal, pagamentos, onChange, permiteFiado, uso = 'venda', cotacaoEditavel, cotacoesSugeridas = {} }: { total: number; moedaTotal: string; pagamentos: PagamentoTela[]; onChange(p: PagamentoTela[]): void; permiteFiado: boolean; uso?: 'venda' | 'compra'; cotacaoEditavel?: boolean; cotacoesSugeridas?: Record<string, string> }) {
   const t = useT()
   const { cot, cfg } = useCotacoes(uso)
-  const formas = cfg?.formas ?? []
+  const formas = formasEmUso(cfg?.formas)
   const principal = cfg?.moedaPrincipal ?? moedaPadrao()
   // tabela para converter: a do sistema + as sugeridas (ex.: a cotação de cobrança digitada) + a de cada pagamento
   const base: TabelaCotacoes = { ...cot }
@@ -166,7 +167,7 @@ export function EditorPagamentos({ total, moedaTotal, pagamentos, onChange, perm
         const formasDaMoeda = formas.filter((f) => f.moedas.includes(p.moeda))
         return (
           <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--borda)] p-2">
-            <Selecao className="w-28" valor={p.moeda} onChange={(m) => atualizar(i, { moeda: m, forma: formas.find((f) => f.moedas.includes(m))?.id ?? 'dinheiro', valor: undefined, cotacao: undefined })} opcoes={MOEDAS.filter((m) => cfg?.moedasAtivas.includes(m.codigo)).map((m) => ({ id: m.codigo, nome: `${m.simbolo} ${m.codigo}` }))} />
+            <Selecao className="w-28" valor={p.moeda} onChange={(m) => atualizar(i, { moeda: m, forma: formasEmUso(formas, m)[0]?.id ?? 'dinheiro', valor: undefined, cotacao: undefined })} opcoes={MOEDAS.filter((m) => cfg?.moedasAtivas.includes(m.codigo)).map((m) => ({ id: m.codigo, nome: `${m.simbolo} ${m.codigo}` }))} />
             <Selecao className="w-auto min-w-0 flex-1" valor={p.forma} onChange={(f) => atualizar(i, { forma: f })} opcoes={formasDaMoeda.map((f) => ({ id: f.id, nome: t(f.nome) }))} />
             <button type="button" className="h-10 w-10 text-xl sm:order-last" aria-label={t('Tirar')} onClick={() => onChange(pagamentos.filter((_, k) => k !== i))}>×</button>
             <div className="w-full sm:w-auto sm:flex-1"><ValorInput moeda={p.moeda} valor={p.valor} onChange={(v) => atualizar(i, { valor: v })} /></div>

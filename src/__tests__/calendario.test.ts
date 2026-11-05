@@ -15,7 +15,7 @@ async function montar() {
   await ag('a2', 'p-o', '2026-11-04', '15:00')
   await b.comando('salvarViagem', { id: 'v1', nome: 'Viagem a Cochabamba', viajantes: ['p-s'], inicio: '2026-11-10', fim: '2026-11-12' })
   await b.comando('salvarViagem', { id: 'v2', nome: 'Viagem a Santa Cruz', viajantes: ['p-o'], inicio: '2026-11-20', fim: '2026-11-21' })
-  await b.comando('salvarUsuario', { id: 'u-s', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', pessoaId: 'p-s', senha: '1234' })
+  await b.comando('salvarUsuario', { id: 'u-s', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', pessoaId: 'p-s', senha: 'senha123' })
   return { b, sessao, r }
 }
 
@@ -46,7 +46,7 @@ describe('agenda em calendário', () => {
     await b.comando('salvarEvento', { id: 'adm', titulo: 'Fechar o mês', data: '2026-11-05' })
     await b.comando('salvarEvento', { id: 'pra-sofia', titulo: 'Levar amostras', data: '2026-11-06', pessoaId: 'p-s' })
     await b.comando('salvarEvento', { id: 'pra-outra', titulo: 'Folga', data: '2026-11-06', pessoaId: 'p-o' })
-    Object.assign(sessao, await b.entrar('sofia', '1234'))
+    Object.assign(sessao, await b.entrar('sofia', 'senha123'))
     await b.comando('salvarEvento', { id: 'meu', titulo: 'Dentista', data: '2026-11-07', hora: '08:00', pessoaId: 'p-o' })
     const cal = await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30', pessoaId: 'p-o' })
     expect(cal.map((i) => i.id).sort()).toEqual(['a1', 'meu', 'pra-sofia', 'v1'])
@@ -79,7 +79,7 @@ describe('agenda em calendário', () => {
 
   it('atendimento: Feito, pagar depois → falta receber → Pago (só o que falta)', async () => {
     const { b, sessao } = await montar()
-    Object.assign(sessao, await b.entrar('sofia', '1234'))
+    Object.assign(sessao, await b.entrar('sofia', 'senha123'))
     await b.comando('atenderAgendamento', { id: 'a1', pagamentos: [] })
     let a1 = (await b.consulta('calendario', { de: '2026-11-04', ate: '2026-11-04' })).find((i) => i.id === 'a1')!
     expect(a1).toMatchObject({ status: 'feito', pago: false, falta: bs(80) })
@@ -91,7 +91,7 @@ describe('agenda em calendário', () => {
     // atendimento de outra profissional: não
     Object.assign(sessao, { usuarioId: 'sistema', perfil: 'admin', pessoaId: undefined })
     await b.comando('atenderAgendamento', { id: 'a2', pagamentos: [] })
-    Object.assign(sessao, await b.entrar('sofia', '1234'))
+    Object.assign(sessao, await b.entrar('sofia', 'senha123'))
     await expect(b.comando('receberAtendimento', { id: 'r3', vendaId: 'a2', forma: 'dinheiro', moeda: 'BOB', valor: bs(80) })).rejects.toThrow(/não é seu/)
     Object.assign(sessao, { usuarioId: 'sistema', perfil: 'admin', pessoaId: undefined })
     expect((await b.consulta('diagnostico', {})).problemas).toEqual([])
@@ -113,13 +113,13 @@ describe('agenda: equipe e empréstimos', () => {
     await b.comando('salvarEvento', { id: 'pra-outra', titulo: 'Folga', data: '2026-11-06', pessoaId: 'p-o' })
     // sem permissão: só a dela
     const antes = sessao.perfil
-    Object.assign(sessao, await b.entrar('sofia', '1234'))
+    Object.assign(sessao, await b.entrar('sofia', 'senha123'))
     expect((await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30' })).map((i) => i.id).sort()).toEqual(['a1', 'v1'])
     expect((await b.consulta('agendaFiltros', {})).equipe).toBe(false)
     // o admin dá a permissão
     Object.assign(sessao, { perfil: antes, usuarioId: 'admin', pessoaId: undefined })
     await b.comando('salvarPessoa', { id: 'p-s', nome: 'Sofia', papeis: ['profissional'], verAgendaEquipe: true })
-    Object.assign(sessao, await b.entrar('sofia', '1234'))
+    Object.assign(sessao, await b.entrar('sofia', 'senha123'))
     const cal = await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30' })
     expect(cal.map((i) => i.id).sort()).toEqual(['a1', 'a2', 'pra-outra', 'v1', 'v2'])
     expect((await b.consulta('agendaFiltros', {})).pessoas.map((p) => p.id).sort()).toEqual(['p-o', 'p-s'])

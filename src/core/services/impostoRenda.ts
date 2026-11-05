@@ -5,6 +5,7 @@
 // Cada número tem a sua ORIGEM: 'calculado' (das operações) · 'estimado' (imposto calculado pelo sistema) ·
 // 'confirmado' (declaração/pagamento registrado) · 'pendente' (falta validar) · 'externo' (documento de fora).
 import { formatar } from '../domain/dinheiro'
+import { empresaFormatada } from '../domain/textoFormatado'
 import { exigir } from '../domain/erros'
 import type { Id } from '../domain/tipos'
 import { aplicar } from '../dados/impostos'
@@ -60,6 +61,7 @@ export async function impostoRenda(ctx: Ctx, p: { ano: number }) {
   exigirAdmin(ctx)
   const cfg = await lerConfig(ctx)
   const fis = cfg.fiscal
+  const emp = empresaFormatada(fis)
   const m = cfg.moedaPrincipal
   const hoje = ctx.relogio.hoje()
   const tipo: TipoAtividade = fis.tipoAtividade ?? 'comercial'
@@ -216,7 +218,7 @@ export async function impostoRenda(ctx: Ctx, p: { ano: number }) {
   return {
     exercicio: { ...ex, cierreNome: CIERRE[tipo].nome, tipoConfirmado: !!fis.tipoAtividade },
     regras: { versao: regras.versao, vigenteDesde: regras.vigenteDesde, vigenteAte: regras.vigenteAte, notas: regras.notas, versoesNoExercicio: [...new Set(meses.map((x) => x.versao))] },
-    empresa: { razaoSocial: fis.razaoSocial || cfg.nomeNegocio, nit: fis.nit ?? '', caeb: fis.caeb ?? '', naturezaJuridica: fis.naturezaJuridica ?? '', atividade: fis.atividade ?? '', endereco: fis.endereco ?? '', contador: fis.contador ?? '', representante: fis.representante ?? '', regime: general ? 'Régimen General' : 'Régimen Tributario Simplificado (RTS)' },
+    empresa: { razaoSocial: emp.razaoSocial || cfg.nomeNegocio, nit: emp.nit ?? '', caeb: fis.caeb ?? '', naturezaJuridica: fis.naturezaJuridica ?? '', atividade: emp.atividade ?? '', endereco: emp.endereco ?? '', contador: emp.contador ?? '', representante: emp.representante ?? '', regime: general ? 'Régimen General' : 'Régimen Tributario Simplificado (RTS)' },
     moeda: m,
     hoje,
     visao: {

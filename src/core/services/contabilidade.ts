@@ -9,6 +9,7 @@
 // Os números base vêm dos relatórios que já existem (dre, balanco, livroCaixa…): o motor só organiza e calcula impostos.
 
 import { NOMES_REGIME, aplicar, impostosDaOperacao, impostosDoRegime } from '../dados/impostos'
+import { empresaFormatada } from '../domain/textoFormatado'
 import type { Ctx } from './contexto'
 import { lerConfig } from './contexto'
 import { balanco, comprasDetalhadas, dre, inventario, livroCaixa, vendasDetalhadas } from './relatorios'
@@ -34,6 +35,7 @@ const meses = (de: string, ate: string) => {
 export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; padrao?: 'BO' | 'BR' }) {
   const cfg = await lerConfig(ctx)
   const fis = cfg.fiscal
+  const emp = empresaFormatada(fis)
   const pais = p.padrao ?? fis.pais
   const BO = pais === 'BO'
   const regime = BO ? fis.regimeBO : fis.regimeBR
@@ -181,7 +183,7 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
     titulo: BO ? 'Estados Financieros' : 'Demonstrações Contábeis',
     tituloResultado: BO ? 'Estado de Resultados' : 'Demonstração do Resultado do Exercício (DRE)',
     tituloBalanco: BO ? 'Balance General' : 'Balanço Patrimonial',
-    empresa: { nome: fis.razaoSocial || cfg.nomeNegocio, nit: fis.nit, endereco: fis.endereco, atividade: fis.atividade, contador: fis.contador, representante: fis.representante, firmas: fis.firmasNoRelatorio !== false },
+    empresa: { nome: emp.razaoSocial || cfg.nomeNegocio, nit: emp.nit, endereco: emp.endereco, atividade: emp.atividade, contador: emp.contador, representante: emp.representante, firmas: fis.firmasNoRelatorio !== false },
     de: p.de,
     ate: p.ate,
     moeda: m,

@@ -2,6 +2,7 @@
 // fiado, adiantamento, "falta"). Ficha 360° com tudo o que a pessoa fez e linha do tempo.
 
 import { useState } from 'react'
+import { formasEmUso } from '../core/domain/formas'
 import { BotaoEscolha, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 import { Trilha } from '../ui/trilha'
 import { corDoNome, iniciais } from '../ui/tabelaDados'
@@ -319,7 +320,7 @@ function Acerto({ pessoaId, direcao, onFechar }: { pessoaId: Id; direcao: 'receb
           <Selecao valor={moeda} onChange={(v) => (setMoeda(v), setForma('dinheiro'))} opcoes={(cfg?.moedasAtivas ?? []).map((x) => ({ id: x, nome: x }))} />
           <ValorInput moeda={moeda} valor={valor} onChange={setValor} />
         </div>
-        <Campo rotulo="Forma"><Selecao valor={forma} onChange={setForma} opcoes={(cfg?.formas ?? []).filter((f) => f.moedas.includes(moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
+        <Campo rotulo="Forma"><Selecao valor={forma} onChange={setForma} opcoes={formasEmUso(cfg?.formas, moeda).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
         <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={adiantamento} onChange={(e) => setAdiantamento(e.target.checked)} /> {t('É adiantamento (antes da mercadoria/serviço)')}</label>
         <Campo rotulo="Descrição"><Entrada value={desc} onChange={(e) => setDesc(e.target.value)} /></Campo>
       </div>

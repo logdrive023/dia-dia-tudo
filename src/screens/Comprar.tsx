@@ -6,6 +6,7 @@
 // pagamento e a entrega (quem fez fica registrado). A conferência de peso é um lançamento no lote, sem mudar o comprado.
 
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { formasEmUso } from '../core/domain/formas'
 import { ImpostosDaOperacao } from '../ui/impostosOperacao'
 import { PainelSelecao } from '../ui/painelSelecao'
 import { FiltroViagem, SeloViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
@@ -941,7 +942,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       {totalPago > 0 && (
         <label className="flex items-center gap-2 text-sm">
           <span className="text-[var(--suave)]">{t('Pago em')}</span>
-          <Selecao className="w-auto" valor={formaPaga} onChange={setFormaPaga} opcoes={(cfgApp?.config.formas ?? []).filter((f) => f.moedas.includes(moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} />
+          <Selecao className="w-auto" valor={formaPaga} onChange={setFormaPaga} opcoes={formasEmUso(cfgApp?.config.formas, moeda).map((f) => ({ id: f.id, nome: t(f.nome) }))} />
         </label>
       )}
     </div>

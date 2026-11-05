@@ -4,6 +4,7 @@
 // (dinheiro → entregas → acertos → quitação) e as ações: entrega, receber, abater da comissão, pagar diferença, encerrar.
 
 import { useState } from 'react'
+import { formasEmUso } from '../core/domain/formas'
 import { dataLocal, diasEntre } from '../core/domain/datas'
 import { BotaoEscolha, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 import { NumeroGrande, GrupoNumeros } from '../ui/numeroGrande'
@@ -205,7 +206,7 @@ export function FichaFinanciamento() {
   const f = dados.financiamento
   const mp = dados.moedaPrincipal
   const moeda = moedaEscolhida ?? mp
-  const formas = (cfg?.formas ?? []).filter((x) => x.moedas.includes(moeda))
+  const formas = formasEmUso(cfg?.formas, moeda)
   const totalEntrega = linhas.reduce((s, l) => s + (l.valor ?? 0), 0)
   const gramasEntrega = linhas.reduce((s, l) => s + (l.gramas ?? 0), 0)
   const entregaOk = linhas.length > 0 && linhas.every((l) => l.gramas && l.valor)
@@ -232,7 +233,7 @@ export function FichaFinanciamento() {
   const seletorMoeda = (
     <Campo rotulo="Valor" comoDiv>
       <div className="grid grid-cols-[7rem_1fr] gap-2">
-        <Selecao valor={moeda} onChange={(v) => (setMoeda(v), setForma((cfg?.formas ?? []).find((x) => x.moedas.includes(v))?.id ?? 'dinheiro'))} opcoes={(cfg?.moedasAtivas ?? [mp]).map((x) => ({ id: x, nome: x }))} />
+        <Selecao valor={moeda} onChange={(v) => (setMoeda(v), setForma(formasEmUso(cfg?.formas, v)[0]?.id ?? 'dinheiro'))} opcoes={(cfg?.moedasAtivas ?? [mp]).map((x) => ({ id: x, nome: x }))} />
         <ValorInput moeda={moeda} valor={valor} onChange={setValor} />
       </div>
     </Campo>

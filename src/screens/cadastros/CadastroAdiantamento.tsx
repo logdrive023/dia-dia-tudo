@@ -6,6 +6,7 @@
 //   4 Confira            o que vai acontecer (caixa, conta corrente, entregas), antes de registrar
 // Registra com o mesmo comando (criarFinanciamento).
 import { useState } from 'react'
+import { formasEmUso } from '../../core/domain/formas'
 import { dataLocal, somarDias } from '../../core/domain/datas'
 import { formatar } from '../../core/domain/dinheiro'
 import { novoId } from '../../core/domain/ids'
@@ -41,7 +42,7 @@ export function CadastroAdiantamento() {
   // vindo da pessoa ou da viagem: a pessoa já está escolhida → começa no "Quanto"
   const w = useAssistente(pessoaId ? 2 : 1)
   useAvisoSaida(!ocupado && (!!pessoaId || valor !== undefined))
-  const formas = (cfg?.formas ?? []).filter((f) => f.moedas.includes(moeda))
+  const formas = formasEmUso(cfg?.formas, moeda)
   const nome = pessoas?.find((p) => p.id === pessoaId)?.nome
   const viagem = viagens?.find((v) => v.id === viagemId)
   const falta = !pessoaId ? t('quem vai comprar') : !valor ? t('o valor') : prazo && prazo < data ? t('a data limite depois da data') : ''
@@ -68,7 +69,7 @@ export function CadastroAdiantamento() {
           ajuda="Quanto sai do caixa agora e de que jeito." exemplo="Ex.: Bs 10.000 em dinheiro">
           <Campo rotulo="Valor *" comoDiv>
             <div className="grid grid-cols-[7rem_1fr] gap-2">
-              <Selecao valor={moeda} onChange={(v) => (setMoeda(v), setForma((cfg?.formas ?? []).find((f) => f.moedas.includes(v))?.id ?? 'dinheiro'))} opcoes={(cfg?.moedasAtivas ?? [moeda]).map((x) => ({ id: x, nome: x }))} />
+              <Selecao valor={moeda} onChange={(v) => (setMoeda(v), setForma(formasEmUso(cfg?.formas, v)[0]?.id ?? 'dinheiro'))} opcoes={(cfg?.moedasAtivas ?? [moeda]).map((x) => ({ id: x, nome: x }))} />
               <ValorInput moeda={moeda} valor={valor} onChange={setValor} />
             </div>
           </Campo>

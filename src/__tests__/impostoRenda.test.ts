@@ -112,8 +112,8 @@ describe('imposto de renda: o exercício', () => {
   it('funcionária não abre', async () => {
     const { b, sessao } = await ano2025()
     await b.comando('salvarPessoa', { id: 'p-s', nome: 'Sofia', papeis: ['funcionario'] } as any)
-    await b.comando('salvarUsuario', { id: 'u-s', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', pessoaId: 'p-s', senha: '1234' } as any)
-    Object.assign(sessao, await b.entrar('sofia', '1234'))
+    await b.comando('salvarUsuario', { id: 'u-s', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', pessoaId: 'p-s', senha: 'senha123' } as any)
+    Object.assign(sessao, await b.entrar('sofia', 'senha123'))
     await expect(b.consulta('impostoRenda', { ano: 2025 })).rejects.toThrow(/permissão|administrador/)
   })
 })

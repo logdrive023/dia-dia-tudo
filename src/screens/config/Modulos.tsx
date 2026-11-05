@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { type CampoDef } from '../../core/modulos'
 import type { ModuloConfig } from '../../core/modulosConfig'
-import { Botao, Campo, Carregando, Cartao, Entrada, Janela, Pilula, Selecao } from '../../ui/base'
+import { Botao, Campo, Carregando, Cartao, Entrada, Pilula, Selecao } from '../../ui/base'
 import { useComando, useConsulta } from '../../ui/contexto'
 import { useT } from '../../ui/i18n'
+import { GrupoCampos, JanelaCadastro } from '../../ui/janelaCadastro'
 
 export function Modulos() {
   const t = useT()
@@ -57,23 +58,23 @@ function CriarModalidade({ inicial, onFechar }: { inicial: ModuloConfig; onFecha
     if (ok) onFechar()
   }
   return (
-    <Janela aberta larga titulo={t('Nova modalidade')} onFechar={onFechar} rodape={<Botao grande className="w-full" disabled={ocupado || !m.nome.trim()} onClick={salvar}>{t('Salvar modalidade')}</Botao>}>
-      <div className="space-y-4">
-        <div className="grid grid-cols-[5rem_1fr] gap-2">
+    <JanelaCadastro larga titulo="Nova modalidade" rotuloSalvar="Salvar modalidade" onFechar={onFechar} onSalvar={salvar} ocupado={ocupado} podeSalvar={!!m.nome.trim()}>
+      <div className="space-y-3">
+        <div className="grid grid-cols-[5rem_1fr] gap-3">
           <Campo rotulo="Ícone"><Entrada value={m.icone} onChange={(e) => setM({ ...m, icone: e.target.value })} /></Campo>
           <Campo rotulo="Nome"><Entrada value={m.nome} placeholder={t('Ex.: Óculos')} onChange={(e) => setM({ ...m, nome: e.target.value })} /></Campo>
         </div>
         <Campo rotulo="Descrição"><Entrada value={m.descricao ?? ''} onChange={(e) => setM({ ...m, descricao: e.target.value })} /></Campo>
-        <Cartao titulo={t('Recursos (combine os que já existem)')}>
-          <div className="grid gap-3 md:grid-cols-2">
+      </div>
+        <GrupoCampos titulo="Recursos (combine os que já existem)">
             <Campo rotulo="Estoque"><Selecao valor={r.estoque || ''} onChange={(v) => setR({ estoque: (v || false) as 'peca' })} vazio="Sem estoque (só serviço)" opcoes={[{ id: 'peca', nome: t('Em peças') }, { id: 'grama', nome: t('Em gramas (como o cabelo)') }]} /></Campo>
             {r.estoque && <Campo rotulo="Etapas da triagem na compra (separadas por vírgula)" ajuda="Depois delas vêm “Pago” e “No estoque”."><Entrada value={etapas} placeholder={t('Chegou, Conferido')} onChange={(e) => setEtapas(e.target.value)} /></Campo>}
             {r.estoque && <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={!!r.loteNaCompra} onChange={(e) => setR({ loteNaCompra: e.target.checked })} /> {t('Cada compra vira um lote (com rastreio)')}</label>}
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={!!r.tabelaPreco} onChange={(e) => setR({ tabelaPreco: e.target.checked })} /> {t('Preço pela tabela medida × comprador (multiplicador do cabelo)')}</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={!!r.agenda} onChange={(e) => setR({ agenda: e.target.checked })} /> {t('Atendimento com agenda, unidade e profissional (como o salão)')}</label>
-          </div>
-        </Cartao>
-        <Cartao titulo={t('Campos próprios')}>
+        </GrupoCampos>
+        <GrupoCampos titulo="Campos próprios" colunas={1}>
+          <div>
           <ul className="space-y-2">
             {m.campos.map((c, i) => (
               <li key={i} className="grid grid-cols-[1fr_8rem_1fr_auto] gap-2">
@@ -85,9 +86,9 @@ function CriarModalidade({ inicial, onFechar }: { inicial: ModuloConfig; onFecha
             ))}
           </ul>
           <Botao variante="secundario" className="mt-2" onClick={() => setM({ ...m, campos: [...m.campos, { id: '', nome: '', tipo: 'texto' }] })}>+ {t('Campo')}</Botao>
-        </Cartao>
-      </div>
-    </Janela>
+          </div>
+        </GrupoCampos>
+    </JanelaCadastro>
   )
 }
 

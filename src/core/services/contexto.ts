@@ -71,6 +71,8 @@ export interface FormaPagamento {
   vivo: boolean
   moedas: CodigoMoeda[]
   descontoBp?: number
+  /** desligada: não aparece para escolher em nenhuma tela (ver domain/formas.ts) */
+  desligada?: boolean
 }
 
 export const FORMAS_PADRAO: FormaPagamento[] = [

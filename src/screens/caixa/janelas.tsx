@@ -2,6 +2,7 @@
 // pacote sem sair da venda.
 
 import { useEffect, useRef, useState } from 'react'
+import { formasEmUso } from '../../core/domain/formas'
 import { formatar } from '../../core/domain/dinheiro'
 import { novoId } from '../../core/domain/ids'
 import type { Id } from '../../core/domain/tipos'
@@ -61,7 +62,7 @@ export function EditarQuantidade({ titulo, grama, valor, max, onSalvar, onFechar
 export function Pagamento({ total, moeda, cotacoes, comCliente, ocupado, onPagar, onFechar }: { total: number; moeda: string; cotacoes: Record<string, string>; comCliente: boolean; ocupado: boolean; onPagar(p: PagamentoTela[], troco?: number): void; onFechar(): void }) {
   const t = useT()
   const { cfg } = useCotacoes('venda')
-  const formas = (cfg?.formas ?? []).filter((f) => f.moedas.includes(moeda))
+  const formas = formasEmUso(cfg?.formas, moeda)
   const [dinheiro, setDinheiro] = useState<string>()
   const [recebido, setRecebido] = useState<number>()
   const [dividir, setDividir] = useState(false)

@@ -2,6 +2,7 @@
 // (avatar, atendimentos, a barra do ganho já pago, o "a pagar" em destaque, Pagar e Ver histórico) e o HISTÓRICO
 // (ganhos venda a venda com a conta, e os pagamentos), filtrável por pessoa. A busca do filtro da tela vale aqui.
 import { useState } from 'react'
+import { formasEmUso } from '../../core/domain/formas'
 import { memoriaCalculo } from '../../core/domain/comissao'
 import { formatar } from '../../core/domain/dinheiro'
 import { Botao, Campo, Carregando, Entrada, Info, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, moedaPadrao } from '../../ui/base'
@@ -137,7 +138,7 @@ function PagarComissao({ id: pessoaId, nome, aPagar, onFechar }: { id: string; n
           <b className="num text-lg text-[var(--alerta)]">{formatar(aPagar, moeda)}</b>
         </div>
         <Campo rotulo="Valor"><ValorInput moeda={moeda} valor={valor} onChange={setValor} /></Campo>
-        <Campo rotulo="Forma"><Selecao valor={forma} onChange={setForma} opcoes={(cfg?.config.formas ?? []).filter((f) => f.moedas.includes(moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
+        <Campo rotulo="Forma"><Selecao valor={forma} onChange={setForma} opcoes={formasEmUso(cfg?.config.formas, moeda).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
         <Campo rotulo="Referência (opcional)"><Entrada value={ref} placeholder={t('Ex.: comissões da quinzena')} onChange={(e) => setRef(e.target.value)} /></Campo>
       </div>
     </Janela>

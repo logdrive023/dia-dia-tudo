@@ -7,6 +7,7 @@
 //          linha do tempo (a próxima marcada) → comprovantes e linha do tempo.
 
 import { useState } from 'react'
+import { formasEmUso } from '../core/domain/formas'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id } from '../core/domain/tipos'
@@ -226,7 +227,7 @@ export function FichaEmprestimo() {
             {dados.proxima && <Botao variante="secundario" onClick={() => setValor(dados.proxima?.falta)}>{t('Valor da próxima parcela')}</Botao>}
             <Botao variante="secundario" onClick={() => setValor(dados.saldo)}>{t('Quitar tudo')}</Botao>
           </div>
-          <Campo rotulo="Forma"><Selecao valor={forma} onChange={setForma} opcoes={(cfg?.formas ?? []).filter((f) => f.moedas.includes(e.moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
+          <Campo rotulo="Forma"><Selecao valor={forma} onChange={setForma} opcoes={formasEmUso(cfg?.formas, e.moeda).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
         </div>
       </Janela>
     </div>
