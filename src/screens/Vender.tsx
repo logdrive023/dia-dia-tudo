@@ -3,6 +3,7 @@
 // serviço: unidade, cliente, o que vai fazer, quem atende, agora ou agendar.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ImpostosDaOperacao } from '../ui/impostosOperacao'
 import { Trilha } from '../ui/trilha'
 import { MenuAcoes, type Acao } from '../ui/menuAcoes'
 import { ListaVendas } from './ListaVendas'
@@ -339,6 +340,7 @@ function AssistenteVenda(p: {
             <span className="num text-2xl font-black">{formatar(total, moedaVenda)}</span>
           </div>
           {total > 0 && <div className="mt-1"><ValoresConvertidos valor={total} moeda={moedaVenda} /></div>}
+          <ImpostosDaOperacao className="mt-2" produto={p.moduloId === 'salao' ? 0 : total} servico={p.moduloId === 'salao' ? total : 0} moeda={moedaVenda} />
           <div className="mt-4">
             {passo === 'itens' ? (
               <>

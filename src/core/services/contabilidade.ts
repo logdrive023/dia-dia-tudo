@@ -8,7 +8,7 @@
 //              gastos por categoría — cada centavo
 // Os números base vêm dos relatórios que já existem (dre, balanco, livroCaixa…): o motor só organiza e calcula impostos.
 
-import { NOMES_REGIME, aplicar } from '../dados/impostos'
+import { NOMES_REGIME, aplicar, impostosDaOperacao } from '../dados/impostos'
 import type { Ctx } from './contexto'
 import { lerConfig } from './contexto'
 import { balanco, comprasDetalhadas, dre, inventario, livroCaixa, vendasDetalhadas } from './relatorios'
@@ -60,13 +60,17 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
   let ivaPagar = 0
   let itPagar = 0
   let impostoLucro = 0
+  // IVA e IT: a taxa vem da LISTA de impostos vigentes (Configurações › Fiscal); desligado na lista = não entra
+  const daLista = (id: string, padrao: number) => { const i = fis.impostos?.find((x) => x.id === id); return i ? (i.ligado ? i.taxaBp : 0) : padrao }
+  const ivaBp = daLista('iva', fis.ivaBp)
+  const itBp = daLista('it', fis.itBp)
   if (BO) {
     const general = regime === 'general'
-    const ivaDebito = general && fis.vendasComFatura ? aplicar(r.receita, fis.ivaBp) : 0
-    const ivaCredito = general && fis.comprasComFatura ? aplicar(comprasPeriodo, fis.ivaBp) : 0
+    const ivaDebito = general && fis.vendasComFatura ? aplicar(r.receita, ivaBp) : 0
+    const ivaCredito = general && fis.comprasComFatura ? aplicar(comprasPeriodo, ivaBp) : 0
     // custo sem o crédito fiscal (a parte do IVA que volta não é custo)
-    const cmv = general && fis.comprasComFatura ? r.cmv - aplicar(r.cmv, fis.ivaBp) : r.cmv
-    const it = general ? aplicar(r.receita, fis.itBp) : 0
+    const cmv = general && fis.comprasComFatura ? r.cmv - aplicar(r.cmv, ivaBp) : r.cmv
+    const it = general ? aplicar(r.receita, itBp) : 0
     const rts = !general ? Math.round((fis.rtsCuotaBimestral * meses(p.de, p.ate)) / 2) : 0
     const ventasNetas = r.receita - ivaDebito
     const utilidadBruta = ventasNetas - cmv - custoServicos
@@ -77,13 +81,13 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
     impostoLucro = iue
     resultados = [
       { id: 'ventas', rotulo: general && fis.vendasComFatura ? 'Ventas brutas (facturado)' : 'Ventas', valor: r.receita, tipo: 'conta', anexo: 'vendas' },
-      ...(ivaDebito ? [{ id: 'iva', rotulo: `(−) IVA débito fiscal (${fmtPct(fis.ivaBp)})`, valor: -ivaDebito, tipo: 'conta' as const, anexo: 'impostos' as const, conta: `${fmtPct(fis.ivaBp)} × ventas facturadas` }] : []),
+      ...(ivaDebito ? [{ id: 'iva', rotulo: `(−) IVA débito fiscal (${fmtPct(ivaBp)})`, valor: -ivaDebito, tipo: 'conta' as const, anexo: 'impostos' as const, conta: `${fmtPct(ivaBp)} × ventas facturadas` }] : []),
       ...(ivaDebito ? [{ id: 'ventasNetas', rotulo: 'Ventas netas', valor: ventasNetas, tipo: 'subtotal' as const }] : []),
       { id: 'costo', rotulo: '(−) Costo de ventas', valor: -cmv, tipo: 'conta', anexo: 'vendas' },
       ...(custoServicos ? [{ id: 'servicios', rotulo: '(−) Insumos y comisiones de servicios', valor: -custoServicos, tipo: 'conta' as const, anexo: 'vendas' as const }] : []),
       { id: 'bruta', rotulo: 'Utilidad bruta', valor: utilidadBruta, tipo: 'subtotal' },
       ...gastos.map((g, k) => ({ id: `gasto${k}`, rotulo: `(−) ${g.categoria}`, valor: -g.valor, tipo: 'conta' as const, anexo: 'gastos' as const })),
-      ...(it ? [{ id: 'it', rotulo: `(−) Impuesto a las Transacciones (IT ${fmtPct(fis.itBp)})`, valor: -it, tipo: 'conta' as const, anexo: 'impostos' as const, conta: `${fmtPct(fis.itBp)} × ingresos brutos` }] : []),
+      ...(it ? [{ id: 'it', rotulo: `(−) Impuesto a las Transacciones (IT ${fmtPct(itBp)})`, valor: -it, tipo: 'conta' as const, anexo: 'impostos' as const, conta: `${fmtPct(itBp)} × ingresos brutos` }] : []),
       ...(!general ? [{ id: 'rts', rotulo: '(−) Cuota RTS', valor: -rts, tipo: 'conta' as const, anexo: 'impostos' as const }] : []),
       { id: 'antes', rotulo: general ? 'Utilidad antes del IUE' : 'Utilidad del período', valor: antesIue, tipo: general ? 'subtotal' : 'total' },
       ...(general ? [{ id: 'iue', rotulo: `(−) IUE estimado (${fmtPct(fis.iueBp)})`, valor: -iue, tipo: 'conta' as const, anexo: 'impostos' as const, conta: `${fmtPct(fis.iueBp)} × utilidad` }] : []),
@@ -91,10 +95,10 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
     ]
     if (general) {
       impostos.push(
-        { id: 'ivaD', rotulo: 'IVA débito fiscal (ventas facturadas)', valor: ivaDebito, tipo: 'conta', conta: fis.vendasComFatura ? `${fmtPct(fis.ivaBp)} × ${r.receita / 100}` : 'ventas sin factura' },
-        { id: 'ivaC', rotulo: '(−) IVA crédito fiscal (compras con factura)', valor: -ivaCredito, tipo: 'conta', conta: fis.comprasComFatura ? `${fmtPct(fis.ivaBp)} × ${comprasPeriodo / 100}` : 'compras sin factura' },
+        { id: 'ivaD', rotulo: 'IVA débito fiscal (ventas facturadas)', valor: ivaDebito, tipo: 'conta', conta: fis.vendasComFatura ? `${fmtPct(ivaBp)} × ${r.receita / 100}` : 'ventas sin factura' },
+        { id: 'ivaC', rotulo: '(−) IVA crédito fiscal (compras con factura)', valor: -ivaCredito, tipo: 'conta', conta: fis.comprasComFatura ? `${fmtPct(ivaBp)} × ${comprasPeriodo / 100}` : 'compras sin factura' },
         { id: 'ivaP', rotulo: ivaDebito >= ivaCredito ? 'IVA a pagar' : 'Saldo a favor (crédito fiscal)', valor: ivaDebito - ivaCredito, tipo: 'subtotal' },
-        { id: 'itP', rotulo: `IT a pagar (${fmtPct(fis.itBp)} × ingresos brutos)`, valor: it, tipo: 'subtotal' },
+        { id: 'itP', rotulo: `IT a pagar (${fmtPct(itBp)} × ingresos brutos)`, valor: it, tipo: 'subtotal' },
         { id: 'iueP', rotulo: `IUE estimado (${fmtPct(fis.iueBp)} × utilidad)`, valor: iue, tipo: 'subtotal' },
         { id: 'totalImp', rotulo: 'Total de impuestos del período', valor: ivaPagar + it + iue, tipo: 'total' },
       )
@@ -212,4 +216,13 @@ function rotuloBalanco(conta: string, BO: boolean) {
   }
   if (conta.startsWith('Caixa em ')) return `${BO ? 'Caja y bancos' : 'Caixa e equivalentes'} (${conta.slice(9)})`
   return mapa[conta]?.[BO ? 0 : 1] ?? conta
+}
+
+/** QUANTO DE IMPOSTO tem numa operação (a compra ou a venda que a pessoa está fazendo): só informa, não cobra.
+ *  ligado = false quando a pessoa desligou "Mostrar impostos nas compras e vendas" (a tela não mostra nada). */
+export async function impostosOperacao(ctx: Ctx, p: { produto?: number; servico?: number; compra?: number }) {
+  const cfg = await lerConfig(ctx)
+  const fis = cfg.fiscal
+  const r = impostosDaOperacao(fis.impostos ?? [], p, fis.modoPreco ?? 'dentro')
+  return { ligado: !!fis.mostrarNasOperacoes, pais: fis.pais, moeda: cfg.moedaPrincipal, ...r }
 }

@@ -6,6 +6,7 @@
 // pagamento e a entrega (quem fez fica registrado). A conferência de peso é um lançamento no lote, sem mudar o comprado.
 
 import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { ImpostosDaOperacao } from '../ui/impostosOperacao'
 import { PainelSelecao } from '../ui/painelSelecao'
 import { FiltroViagem, SeloViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { LigarCompras } from './compra/LigarCompras'
@@ -1039,6 +1040,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
               <div className="num truncate text-lg font-black leading-tight">{formatar(total, moeda)}</div>
               {/* peso total · custo médio por kg (cabelo) — o que diz se a compra vale a pena */}
               <div className="num truncate text-xs text-[var(--suave)]">{ehCabelo ? gramasTexto(pesoTotal) : `${linhas.length} ${t('item(ns)')}`}{custoKg !== undefined ? ` · ${formatar(custoKg, moeda)}/kg` : ''}{codigoMostrado && mostrarCodigo ? ` · ${codigoMostrado}` : ''}</div>
+              <ImpostosDaOperacao compacto compra={total} moeda={moeda} />
             </div>
             {botaoRegistrar('max-w-[60%] shrink-0 px-4 text-sm')}
           </div>
@@ -1066,6 +1068,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
               <div className="flex justify-between border-t border-[var(--borda)] pt-2 text-lg font-black"><dt>{t('Total')}</dt><dd className="num">{formatar(total, moeda)}</dd></div>
               {total > 0 && <div className="flex justify-end"><ValoresConvertidos valor={total} moeda={moeda} uso="compra" /></div>}
             </dl>
+            <ImpostosDaOperacao className="mt-3" compra={total} moeda={moeda} />
             <div className="mt-4 flex flex-col gap-2">
               {botaoRegistrar('w-full')}
             </div>

@@ -81,3 +81,34 @@ Receita bruta
 - IT 3%: https://yo-facturo.com/blog/impuesto-a-las-transacciones-it-bolivia/ · RTS: https://yo-facturo.com/blog/categorias-regimen-simplificado-bolivia/
 - DRE (Lei 6.404 / CPC 26): https://www.estrategiaconcursos.com.br/blog/demonstracao-do-resultado-do-exercicio-dre/amp/ · https://blog.grancursosonline.com.br/demonstracao-do-resultado-do-exercicio-estrutura-objetivo-e-importancia-contabil/
 - Livro Caixa no Simples: https://jornalcontabil.com.br/noticia/simples-nacional-entenda-a-obrigatoriedade-do-livro-caixa/amp/
+
+---
+
+## Impostos nas compras e vendas (o que a pessoa vê na hora)
+
+**Configurações › Fiscal e relatórios › Impostos nas compras e vendas** — tudo configurável:
+- **Mostrar ou não** (interruptor geral): desligado, nenhum imposto aparece em compra, venda, caixa, atendimento nem no Painel.
+- **Como mostrar** (SÓ INFORMATIVO — o preço cobrado nunca muda):
+  - **Embutido no preço** (padrão, Bolívia/IVA "por dentro"): "dos Bs 60 cobrados, Bs 9,60 é imposto".
+  - **Somado ao preço**: "custo final com impostos: Bs 60 + Bs 9,60 = Bs 69,60".
+- **A lista de impostos vigentes** (adicionar, tirar, ligar/desligar): sigla, nome, alíquota, alíquota diferente para **serviço**, onde vale (venda de produto · venda de serviço · compra como crédito ou custo), **fonte legal**, **vigente desde**, **conferido em** e a frase que explica a conta. IVA e IT do relatório contábil saem desta lista (uma só fonte).
+- **Onde aparece:** caixa (modo rápido), assistente de venda, atendimento na agenda, nova compra e o Painel (resultado antes/depois dos impostos, com filtro). Um toque abre o **detalhe** (`DetalheImpostos`): cada imposto com a alíquota vigente, a fonte, a conta (13% × Bs 4.100 = Bs 533) e a soma.
+
+### Alíquotas vigentes salvas no sistema (conferidas em 04/11/2026)
+| Imposto | Alíquota | Fonte | Vigente desde |
+|---|---|---|---|
+| 🇧🇴 IVA | 13% (por dentro) | Ley 843, arts. 1 y 15 (texto ordenado vigente) | 20/05/1986 |
+| 🇧🇴 IT | 3% | Ley 843, arts. 72–77 (3% pela Ley 1606) | 01/01/1995 |
+| 🇧🇴 IUE | 25% (sobre a utilidade, no relatório) | Ley 843, art. 50 (Ley 1606) | 01/01/1995 |
+| 🇧🇷 DAS (Simples) | alíquota efetiva configurada (padrão 6%) | Lei Complementar 123/2006, Anexos I e III | 01/01/2018 (tabelas atuais) |
+
+> As datas de vigência são as da lei que fixou a alíquota atual; o contador deve conferir uma vez. Mudou a lei? Troque a alíquota, a fonte e o "vigente desde" na lista e ponha a data de hoje em "conferido em".
+
+## Sincronização futura das alíquotas (a fazer com a API)
+
+Hoje as alíquotas ficam **salvas na configuração** (`fiscal.impostos`, ver `src/core/dados/impostos.ts`). O plano para sincronizar sozinho:
+1. **Uma tabela de alíquotas no servidor** (por país): `{ id, sigla, taxaBp, taxaServicoBp?, fonte, vigenteDesde, publicadoEm, url }`, mantida pela equipe a partir das fontes oficiais (SIN — impuestos.gob.bo; Receita Federal / Portal do Simples).
+2. **O app consulta essa tabela** ao abrir (ou 1×/dia), como já faz com o câmbio: compara `vigenteDesde`/`taxaBp` com o que está salvo.
+3. **Nunca troca sozinho em silêncio:** mostra um aviso "O IT mudou de 3% para X% desde dd/mm (fonte) — atualizar?"; aceitando, grava com `conferidoEm` = hoje e fica no histórico (auditoria `salvarConfig`).
+4. **O que a pessoa mudou à mão é dela:** se a alíquota local foi editada (difere do padrão e do servidor), o aviso mostra as duas e ela escolhe.
+5. **Vendas antigas não mudam:** a estimativa é sempre pela alíquota vigente na data da operação (guardar `vigenteDesde` permite recalcular períodos antigos com a alíquota da época).

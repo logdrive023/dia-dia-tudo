@@ -201,6 +201,7 @@ export const consultas = {
   // calendário: atendimentos + viagens + compromissos numa lista só
   calendario: agenda.calendario,
   relatorioContabil: contabilidade.relatorioContabil,
+  impostosOperacao: contabilidade.impostosOperacao,
   agendaFiltros: agenda.agendaFiltros,
   evento: agenda.evento,
   comissoes: comissoes.comissoes,

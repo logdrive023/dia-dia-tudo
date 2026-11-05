@@ -53,3 +53,46 @@ describe('relatório contábil', () => {
     expect(rel.conferencia.every((c) => c.ok)).toBe(true)
   })
 })
+
+describe('impostos nas operações (lista configurável)', () => {
+  it('venda: IVA 13% + IT 3%; compra: IVA como crédito; desligado não mostra; a lista manda no relatório', async () => {
+    const { b, hoje } = await montar()
+    const v = await b.consulta('impostosOperacao', { produto: bs(1000) })
+    expect(v).toMatchObject({ ligado: true, venda: bs(160) })
+    expect(v.linhas.map((l) => [l.sigla, l.valor])).toEqual([['IVA', bs(130)], ['IT', bs(30)]])
+    const c = await b.consulta('impostosOperacao', { compra: bs(1000) })
+    expect(c.linhas).toEqual([expect.objectContaining({ sigla: 'IVA', valor: bs(130), credito: true, lado: 'compra' })])
+    // serviço também paga (os dois estão marcados para serviço)
+    expect((await b.consulta('impostosOperacao', { servico: bs(100) })).venda).toBe(bs(16))
+
+    // desliga o IVA na lista → o relatório não tem mais a linha do IVA; o IT continua
+    const cfg = await b.consulta('configuracoes', {})
+    const lista = cfg.config.fiscal.impostos.map((i) => (i.id === 'iva' ? { ...i, ligado: false } : i))
+    await b.comando('salvarConfig', { fiscal: { impostos: lista } as never })
+    const rel = await b.consulta('relatorioContabil', { de: hoje, ate: hoje })
+    expect(rel.resultados.map((l) => l.id)).not.toContain('iva')
+    expect(rel.resultados.find((l) => l.id === 'it')?.valor).toBe(-bs(30))
+
+    // interruptor geral desligado: a tela não mostra nada
+    await b.comando('salvarConfig', { fiscal: { mostrarNasOperacoes: false } as never })
+    expect((await b.consulta('impostosOperacao', { produto: bs(1000) })).ligado).toBe(false)
+  })
+})
+
+describe('impostos: só informativo, configurável', () => {
+  it('"somado ao preço": cabelo de 60 → custo final 69,60; serviço com taxa própria; cada linha diz a fonte', async () => {
+    const { b } = await montar()
+    const dentro = await b.consulta('impostosOperacao', { produto: bs(60) })
+    expect(dentro).toMatchObject({ modoPreco: 'dentro', venda: bs(9.6), base: bs(60), precoFinal: bs(60) })
+    expect(dentro.linhas[0]).toMatchObject({ sigla: 'IVA', fonte: expect.stringMatching(/Ley 843/), vigenteDesde: '1986-05-20' })
+
+    const cfg = await b.consulta('configuracoes', {})
+    const lista = cfg.config.fiscal.impostos.map((i) => (i.id === 'it' ? { ...i, taxaServicoBp: 500 } : i))
+    await b.comando('salvarConfig', { fiscal: { modoPreco: 'fora', impostos: lista } as never })
+    const fora = await b.consulta('impostosOperacao', { produto: bs(60) })
+    expect(fora).toMatchObject({ modoPreco: 'fora', precoFinal: bs(69.6) })
+    // IT do serviço a 5% (o do produto continua 3%)
+    const serv = await b.consulta('impostosOperacao', { servico: bs(100) })
+    expect(serv.linhas.find((l) => l.sigla === 'IT')).toMatchObject({ taxaBp: 500, valor: bs(5) })
+  })
+})

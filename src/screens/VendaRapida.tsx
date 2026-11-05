@@ -10,6 +10,7 @@
 // Celular: tudo em coluna e a barra "Total · FECHAR" presa embaixo; com espaço: venda | cobrança fixa ao lado.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ImpostosDaOperacao } from '../ui/impostosOperacao'
 import { Trilha } from '../ui/trilha'
 import { type Cotacao, type TabelaCotacoes, formatar, moeda as moedaDe, multiplicarFator, valorDeUm } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
@@ -555,6 +556,7 @@ export function VendaRapida() {
             {cobrar}
             <div className="border-t border-[var(--borda)] pt-2">{opcoes}</div>
             <div className="border-t border-[var(--borda)] pt-3"><TotalVenda itens={vistas.length} total={totalTexto} equivalente={equivalente} desconto={descontoLinha} /></div>
+            <ImpostosDaOperacao produto={total} moeda={principal} />
             <div className="flex items-center gap-1">
               <Botao grande className="min-h-14 flex-1 text-lg" disabled={!podeFechar} onClick={abrirPagamento}>{t('FECHAR')}</Botao>
               <Info texto="Fecha a venda: escolha como pagou e pronto. O estoque baixa sozinho e a venda fica no histórico. Ex.: Enter com o campo vazio também fecha." />
@@ -567,7 +569,7 @@ export function VendaRapida() {
         // "+ mais" aberto: a barra deixa de flutuar e vem DEPOIS dos campos (empurrada para baixo, nada fica coberto)
         <div className={cx('z-20 mt-3 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] px-3 py-2 shadow-lg', mais ? 'relative' : 'sticky bottom-20 md:bottom-4')}>
           <div className="flex items-center gap-3">
-            <TotalVenda tamanho="barra" itens={vistas.length} total={totalTexto} equivalente={equivalente} />
+            <div className="min-w-0"><TotalVenda tamanho="barra" itens={vistas.length} total={totalTexto} equivalente={equivalente} /><ImpostosDaOperacao compacto produto={total} moeda={principal} /></div>
             <Botao grande className="min-h-14 flex-1 text-lg" disabled={!podeFechar} onClick={abrirPagamento}>{t('FECHAR')}</Botao>
           </div>
         </div>

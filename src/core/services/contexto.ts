@@ -1,7 +1,7 @@
 // O que toda regra recebe: as portas (repos, relógio, sessão) e o registro de módulos. Nada de banco aqui.
 
 import { MOEDAS, type CodigoMoeda, type Cotacao, type TabelaCotacoes, type UsoCambio, ajustarCotacao, converter } from '../domain/dinheiro'
-import { FISCAL_PADRAO, type ConfigFiscal } from '../dados/impostos'
+import { FISCAL_PADRAO, IMPOSTOS_PADRAO_BO, IMPOSTOS_PADRAO_BR, type ConfigFiscal } from '../dados/impostos'
 import { exigir } from '../domain/erros'
 import { novoId } from '../domain/ids'
 import type { Base, Dia, Id } from '../domain/tipos'
@@ -138,7 +138,11 @@ export const CONFIG_PADRAO: Configuracoes = {
 export async function lerConfig(ctx: Ctx): Promise<Configuracoes> {
   const r = await ctx.repos.config.obter('geral')
   const v = (r?.valor as Partial<Configuracoes>) ?? {}
-  return { ...CONFIG_PADRAO, ...v, fiscal: { ...FISCAL_PADRAO, ...(v.fiscal ?? {}) } }
+  const fiscal = { ...FISCAL_PADRAO, ...(v.fiscal ?? {}) }
+  // impostos salvos antes de existir fonte/vigência: completa pelo padrão do mesmo id (o que a pessoa mudou vale)
+  const padroes = [...IMPOSTOS_PADRAO_BO, ...IMPOSTOS_PADRAO_BR]
+  fiscal.impostos = (fiscal.impostos ?? []).map((i) => ({ ...(padroes.find((d) => d.id === i.id) ?? {}), ...i }))
+  return { ...CONFIG_PADRAO, ...v, fiscal }
 }
 
 export async function formaPagamento(ctx: Ctx, id: string): Promise<FormaPagamento> {

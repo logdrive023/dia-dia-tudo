@@ -5,6 +5,7 @@
 //   💵 Empréstimo e ✈️ Viagem abrem o cadastro deles (as parcelas e a viagem aparecem sozinhas na agenda)
 // Quem vê / para quem marca: admin marca para qualquer pessoa; funcionária marca para ela (o servidor confere).
 import { useState } from 'react'
+import { ImpostosDaOperacao } from '../../ui/impostosOperacao'
 import { formatar } from '../../core/domain/dinheiro'
 import { dataBR } from '../../ui/base'
 import { novoId } from '../../core/domain/ids'
@@ -132,6 +133,7 @@ function Atendimento({ passo1, w, dataInicial, horaInicial, localPadrao, profiss
               ))}
             </ul>
           )}
+          <ImpostosDaOperacao servico={total} moeda={principal} />
           <SeletorServicos moeda={principal} rotulo={linhas.length ? 'Mais um serviço' : 'O que vai fazer?'} onAdd={(i, preco) => setLinhas([...linhas, { id: novoId(), itemId: i.id, nome: i.nome, moeda: i.precoSugerido?.moeda ?? principal, total: preco }])} />
           {w.proximo(3, 'Quando e quem', linhas.length > 0)}
         </Passo>

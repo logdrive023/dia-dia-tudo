@@ -14,7 +14,7 @@ import { BarraLimite } from '../ui/barras'
 import { MOEDAS, formatar } from '../core/domain/dinheiro'
 import type { Cartao as CartaoDados } from '../core/modulos'
 import type { Alerta } from '../core/services/painel'
-import { Abas, Campo, Carregando, Cartao, Entrada, Erro, Info, Selecao, Titulo, cx, fmt, gramasTexto, moedaPadrao, Pilula, Vazio } from '../ui/base'
+import { Abas, Campo, Carregando, Cartao, Entrada, Erro, Info, Selecao, Titulo, cx, fmt, gramasTexto, moedaPadrao, Pilula, Vazio, Escolha } from '../ui/base'
 import { AtalhosChips, BotaoFiltros, CampoFaixa, ChipsFiltros, type FiltroAtivo, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
 import { NumeroGrande, type Selo } from '../ui/numeroGrande'
 import { useApp, useConsulta } from '../ui/contexto'
@@ -42,6 +42,8 @@ function Filtros(p: {
   moedas: string[]
   principal: string
   locais: { id: string; nome: string }[]
+  /** impostos ligados em Configurações › Fiscal: escolher ver antes ou depois dos impostos */
+  impostos?: { valor: 'antes' | 'depois'; onChange(v: 'antes' | 'depois'): void }
 }) {
   const t = useT()
   const [aberto, setAberto] = useState(false)
@@ -51,9 +53,10 @@ function Filtros(p: {
     ...(livre ? [{ k: 'datas', rotulo: `📅 ${dataBr(p.periodo.de)} – ${dataBr(p.periodo.ate)}` }] : []),
     ...(p.moeda !== 'convertido' ? [{ k: 'moeda', rotulo: `💱 ${t('Só')} ${p.moeda}` }] : []),
     ...(p.localId ? [{ k: 'local', rotulo: `📍 ${p.locais.find((l) => l.id === p.localId)?.nome ?? ''}` }] : []),
+    ...(p.impostos?.valor === 'depois' ? [{ k: 'impostos', rotulo: `🧾 ${t('Depois dos impostos')}` }] : []),
   ]
-  const tirar = (k: string) => (k === 'datas' ? p.setPeriodo(calcularPeriodo('30d')) : k === 'moeda' ? p.setMoeda('convertido') : p.setLocalId(''))
-  const limpar = () => (p.setMoeda('convertido'), p.setLocalId(''), livre && p.setPeriodo(calcularPeriodo('30d')))
+  const tirar = (k: string) => (k === 'datas' ? p.setPeriodo(calcularPeriodo('30d')) : k === 'moeda' ? p.setMoeda('convertido') : k === 'impostos' ? p.impostos?.onChange('antes') : p.setLocalId(''))
+  const limpar = () => (p.setMoeda('convertido'), p.setLocalId(''), p.impostos?.onChange('antes'), livre && p.setPeriodo(calcularPeriodo('30d')))
   return (
     <div className="mb-4 space-y-2">
       <div className="flex items-center gap-2">
@@ -79,6 +82,11 @@ function Filtros(p: {
             <Campo rotulo="Moeda"><Selecao valor={p.moeda === 'convertido' ? '' : p.moeda} onChange={(v) => p.setMoeda(v || 'convertido')} vazio={`${t('Tudo em')} ${p.principal}`} opcoes={p.moedas.map((m) => ({ id: m, nome: `${t('Só')} ${m}` }))} /></Campo>
             {p.locais.length > 0 && <Campo rotulo="Unidade"><Selecao valor={p.localId} onChange={p.setLocalId} vazio="Todas" opcoes={p.locais.map((l) => ({ id: l.id, nome: l.nome }))} /></Campo>}
           </GrupoFiltro>
+          {p.impostos && (
+            <GrupoFiltro titulo="Impostos" icone="🧾">
+              <Campo rotulo="Mostrar o resultado" comoDiv><Escolha<'antes' | 'depois'> rotulo="Mostrar o resultado" valor={p.impostos.valor} onChange={p.impostos.onChange} opcoes={[{ id: 'antes', nome: 'Antes dos impostos' }, { id: 'depois', nome: 'Depois dos impostos' }]} /></Campo>
+            </GrupoFiltro>
+          )}
         </PainelFiltros>
       )}
       <ChipsFiltros itens={ativos} onTirar={tirar} onLimpar={limpar} />
@@ -310,12 +318,16 @@ export function Painel() {
   const [moeda, setMoeda] = useLembrado('painel.moeda', 'convertido')
   const [area, setArea] = useLembrado<string>('painel.area', '')
   const [localId, setLocalId] = useLembrado<string>('painel.local', '')
+  const [visaoImposto, setVisaoImposto] = useLembrado<'antes' | 'depois'>('painel.impostos', 'antes')
   const areaAtual = (nav.params.area as string | undefined) ?? area
   const escolherArea = (id: string) => (setArea(id), ajustarParams({ area: id || undefined }))
   const { dados: cfg } = useConsulta('configuracoes', {})
   const { dados: locais } = useConsulta('locais', {})
   const moedaFiltro = moeda !== 'convertido' && !cfg?.config.moedasAtivas.includes(moeda) ? 'convertido' : moeda
   const { dados: p, erro } = useConsulta('painel', { de: periodo.de, ate: periodo.ate, comparar, moeda: moedaFiltro, area: areaAtual && areaAtual !== 'viagens' ? areaAtual : undefined, localId: localId || undefined })
+  // IMPOSTOS (Configurações › Fiscal): ligado → o Painel mostra o resultado antes e depois dos impostos estimados
+  const impostosLigados = !!cfg?.config.fiscal?.mostrarNasOperacoes
+  const { dados: rel } = useConsulta('relatorioContabil', { de: periodo.de, ate: periodo.ate }, impostosLigados)
   const ativos = cfg ? cfg.modulos.filter((m) => cfg.config.modulosAtivos.includes(m.id) && (m.temVenda || m.telaPropria)) : []
   const principal = cfg?.config.moedaPrincipal ?? moedaPadrao()
   const c = (id: string) => p?.cartoes.find((x) => x.id === id)
@@ -337,6 +349,7 @@ export function Painel() {
         moedas={(cfg?.config.moedasAtivas ?? []).filter((m) => MOEDAS.some((x) => x.codigo === m))}
         principal={principal}
         locais={(locais ?? []).filter((l) => l.tipo === 'salao').map((l) => ({ id: l.id, nome: l.nome }))}
+        impostos={impostosLigados ? { valor: visaoImposto, onChange: setVisaoImposto } : undefined}
       />
 
       {/* áreas: abas simples */}
@@ -366,6 +379,16 @@ export function Painel() {
               <Numero c={c('compras')} icone="🛒" neutro />
             </div>
           </Secao>
+
+          {impostosLigados && rel && (
+            <Secao id="impostos" titulo="Resultado e impostos" subtitulo="Estimativa do período (todas as unidades, moeda principal), pela lista de impostos de Configurações › Fiscal." resumo={`${visaoImposto === 'antes' ? t('antes dos impostos') : t('depois dos impostos')} ${fmt(visaoImposto === 'antes' ? rel.numeros.resultado + rel.numeros.impostos : rel.numeros.resultado, 'dinheiro', rel.moeda)}`}>
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3">
+                <NumeroGrande rotulo="Rendimento bruto (antes dos impostos)" icone="💼" cor="var(--marca)" ativo={visaoImposto === 'antes'} onClick={() => setVisaoImposto('antes')} valor={fmt(rel.numeros.resultado + rel.numeros.impostos, 'dinheiro', rel.moeda)} />
+                <NumeroGrande rotulo="Impostos estimados" icone="🧾" cor="var(--alerta)" colorirValor valor={fmt(rel.numeros.impostos, 'dinheiro', rel.moeda)} selos={[{ texto: rel.regimeNome }]} onClick={() => ir('relatorios', { relatorio: 'estados' })} />
+                <NumeroGrande rotulo="Rendimento líquido (depois dos impostos)" icone="🏁" cor={rel.numeros.resultado < 0 ? 'var(--ruim)' : 'var(--bom)'} colorirValor ativo={visaoImposto === 'depois'} onClick={() => setVisaoImposto('depois')} valor={fmt(rel.numeros.resultado, 'dinheiro', rel.moeda)} />
+              </div>
+            </Secao>
+          )}
 
           <Secao id="evolucao" titulo="Evolução no período" subtitulo="Faturamento por dia; a linha clara é o período anterior.">
             <Cartao>

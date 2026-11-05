@@ -271,6 +271,7 @@ components:
         - conflitosAgenda
         - calendario
         - relatorioContabil
+        - impostosOperacao
         - agendaFiltros
         - evento
         - comissoes

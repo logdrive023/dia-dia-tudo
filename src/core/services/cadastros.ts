@@ -194,6 +194,11 @@ export async function salvarConfig(ctx: Ctx, d: Partial<Configuracoes>) {
     for (const k of ['ivaBp', 'itBp', 'iueBp', 'simplesBp', 'pisBp', 'cofinsBp', 'icmsIssBp', 'irpjCsllBp'] as const) exigir(Number.isInteger(f[k]) && f[k] >= 0 && f[k] <= 10000, 'Taxa de imposto entre 0% e 100%.')
     exigir(Number.isInteger(f.rtsCuotaBimestral) && f.rtsCuotaBimestral >= 0, 'Cuota RTS inválida.')
     exigir(f.pais === 'BO' || f.pais === 'BR', 'País inválido.')
+    for (const i of f.impostos ?? []) {
+      exigir(i.id && i.sigla?.trim(), 'Cada imposto precisa de uma sigla (ex.: IVA).')
+      exigir(Number.isInteger(i.taxaBp) && i.taxaBp >= 0 && i.taxaBp <= 10000, `Taxa do ${i.sigla}: entre 0% e 100%.`)
+    }
+    exigir(new Set((f.impostos ?? []).map((i) => i.id)).size === (f.impostos ?? []).length, 'Há dois impostos com o mesmo código.')
   }
   if (valor.socios.length) {
     exigir(valor.socios.every((x) => x.nome.trim() && Number.isInteger(x.parteBp) && x.parteBp > 0), 'Cada sócio precisa de nome e parte.')
