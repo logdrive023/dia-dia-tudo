@@ -3,6 +3,7 @@
 import { MOEDAS, type CodigoMoeda, type Cotacao, type TabelaCotacoes, type UsoCambio, ajustarCotacao, converter } from '../domain/dinheiro'
 import { FISCAL_PADRAO, IMPOSTOS_PADRAO_BO, IMPOSTOS_PADRAO_BR, type ConfigFiscal } from '../dados/impostos'
 import type { ModeloDocumentoId } from '../dados/documentos'
+import { AJUSTES_PADRAO, type AjusteFeriado } from '../dados/feriados'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { novoId } from '../domain/ids'
 import type { Base, Dia, Id } from '../domain/tipos'
@@ -132,6 +133,8 @@ export interface Configuracoes {
   modeloNota: ModeloDocumentoId
   /** NOTA DE VENTA impressa: mostra o detalhe dos impostos (estimados)? Só a apresentação: o total não muda */
   impostosNaNota: boolean
+  /** FERIADOS: os ajustes do decreto de cada ano (mover · extra · tirar) — atualiza a agenda sem mudar o código */
+  feriadosAjustes: AjusteFeriado[]
   /** RELATÓRIOS CONTÁBEIS: país do padrão (Bolívia é o motor), regime, NIT, faturas e taxas — CONTABILIDADE.md */
   fiscal: ConfigFiscal
 }
@@ -158,6 +161,7 @@ export const CONFIG_PADRAO: Configuracoes = {
   saldoPequenoG: 50,
   modeloNota: 'carta',
   impostosNaNota: true,
+  feriadosAjustes: AJUSTES_PADRAO,
   fiscal: FISCAL_PADRAO,
 }
 

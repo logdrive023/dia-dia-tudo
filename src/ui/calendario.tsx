@@ -7,6 +7,8 @@ import { dataLocal, diaDaSemana, somarDias } from '../core/domain/datas'
 import type { ItemCalendario, TipoCalendario } from '../core/services/agenda'
 import { Pilula, Vazio, cx, dataBR } from './base'
 import { useT } from './i18n'
+import type { FeriadoNoDia } from '../core/dados/feriados'
+import { AvisoFeriado, CAT_FERIADO, FaixaFeriado, MarcaFeriado, dicaFeriado } from './feriadosAgenda'
 
 export const TIPOS_CAL: { id: TipoCalendario; nome: string; icone: string; cor: string }[] = [
   { id: 'atendimento', nome: 'Atendimento', icone: '✂️', cor: '#8b5cf6' },
@@ -126,7 +128,7 @@ function Chip({ i, onAbrir }: { i: ItemCalendario; onAbrir(i: ItemCalendario): v
 
 // ---------- mês ----------
 
-export function VistaMes({ data, itens, largo, onDia, onAbrir }: { data: string; itens: ItemCalendario[]; largo: boolean; onDia(d: string): void; onAbrir(i: ItemCalendario): void }) {
+export function VistaMes({ data, itens, largo, onDia, onAbrir, feriados = [] }: { data: string; itens: ItemCalendario[]; largo: boolean; onDia(d: string): void; onAbrir(i: ItemCalendario): void; feriados?: FeriadoNoDia[] }) {
   const t = useT()
   const hoje = dataLocal()
   const dias = gradeMes(data)
@@ -139,28 +141,35 @@ export function VistaMes({ data, itens, largo, onDia, onAbrir }: { data: string;
       <div className="grid grid-cols-7">
         {dias.map((d) => {
           const doDia = itens.filter((i) => noDia(i, d))
+          const fer = feriados.filter((x) => x.data === d)
           const fora = d.slice(0, 7) !== mes
           const ehHoje = d === hoje
+          // a dica do dia (tooltip): os feriados e o que está marcado, por tipo — ninguém precisa decorar as cores
+          const porTipo = TIPOS_CAL.map((x) => [x, doDia.filter((i) => i.tipo === x.id).length] as const).filter(([, n]) => n)
+          const dica = [...fer.map((x) => dicaFeriado(x, t).split('\n')[0]), ...porTipo.map(([x, n]) => `${x.icone} ${n} ${t(x.nome).toLowerCase()}`)].join('\n')
           return (
             <div
               key={d}
               role="button"
               tabIndex={0}
-              aria-label={`${t(diaDaSemana(d))} ${dataBR(d)}: ${doDia.length}`}
+              aria-label={`${t(diaDaSemana(d))} ${dataBR(d)}${fer.length ? ` · ${fer.map((x) => x.pt).join(', ')}` : ''}: ${doDia.length}`}
+              title={dica || undefined}
               onClick={() => onDia(d)}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onDia(d))}
-              className={cx('min-w-0 cursor-pointer border-b border-r border-[var(--borda)] p-1 text-left align-top hover:bg-[var(--marca-suave)]', largo ? 'min-h-28' : 'min-h-16', fora && 'opacity-50', ehHoje && 'bg-[var(--marca-suave)]')}
+              className={cx('min-w-0 cursor-pointer border-b border-r border-[var(--borda)] p-1 text-left align-top outline-none transition-colors hover:bg-[var(--marca-suave)]/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--marca)]', largo ? 'min-h-28' : 'min-h-16', fora && 'bg-[var(--fundo)]/50 text-[var(--suave)]', ehHoje && 'bg-[var(--marca-suave)]')}
             >
               <span className="flex items-center justify-between gap-1">
-                <span className={cx('num inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-bold', ehHoje && 'bg-[var(--marca)] text-white')}>{Number(d.slice(8))}</span>
+                <span className={cx('num inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-bold', ehHoje && 'bg-[var(--marca)] text-white', fora && 'font-medium opacity-60')} style={!ehHoje && fer[0] ? { color: CAT_FERIADO[fer[0].categoria].cor } : undefined}>{Number(d.slice(8))}</span>
               </span>
               {largo ? (
                 <span className="mt-1 block space-y-0.5">
+                  {fer.map((x) => <FaixaFeriado key={x.id} f={x} />)}
                   {doDia.slice(0, 3).map((i) => <Chip key={i.id} i={i} onAbrir={onAbrir} />)}
                   {doDia.length > 3 && <span className="block px-1 text-[11px] font-semibold text-[var(--marca)]">+{doDia.length - 3} {t('mais')}</span>}
                 </span>
               ) : (
-                <span className="mt-1 flex flex-wrap items-center gap-0.5">
+                <span className="mt-1 flex flex-wrap items-center gap-1">
+                  {fer.map((x) => <MarcaFeriado key={x.id} f={x} />)}
                   {doDia.slice(0, 3).map((i) => <span key={i.id} aria-hidden className="h-2 w-2 rounded-full" style={{ background: tipoCal(i.tipo).cor, opacity: i.status === 'feito' ? 0.45 : 1 }} />)}
                   {doDia.length > 3 && <span className="num text-[10px] font-bold leading-none text-[var(--suave)]">+{doDia.length - 3}</span>}
                 </span>
@@ -212,7 +221,7 @@ function CabecaDia({ d, onDia, children }: { d: string; onDia(d: string): void; 
   )
 }
 
-export function VistaSemana({ de, itens, largo, onDia, onAbrir }: { de: string; itens: ItemCalendario[]; largo: boolean; onDia(d: string): void; onAbrir(i: ItemCalendario): void }) {
+export function VistaSemana({ de, itens, largo, onDia, onAbrir, feriados = [] }: { de: string; itens: ItemCalendario[]; largo: boolean; onDia(d: string): void; onAbrir(i: ItemCalendario): void; feriados?: FeriadoNoDia[] }) {
   const t = useT()
   const dias = Array.from({ length: 7 }, (_, k) => somarDias(de, k))
   const hoje = dataLocal()
@@ -229,6 +238,7 @@ export function VistaSemana({ de, itens, largo, onDia, onAbrir }: { de: string; 
                 {d === hoje && <Pilula tom="marca">{t('Hoje')}</Pilula>}
                 <span className="ml-auto text-sm text-[var(--suave)]">{doDia.length || ''}</span>
               </button>
+              {feriados.filter((x) => x.data === d).map((x) => <div key={x.id} className="mb-2"><AvisoFeriado f={x} compacto /></div>)}
               {doDia.length ? <div className="space-y-2">{doDia.map((i) => <LinhaItem key={i.id} i={i} onAbrir={onAbrir} />)}</div> : <p className="text-sm text-[var(--suave)]">{t('Nada marcado')}</p>}
             </section>
           )
@@ -243,7 +253,7 @@ export function VistaSemana({ de, itens, largo, onDia, onAbrir }: { de: string; 
     <div className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
       <div className="grid border-b border-[var(--borda)]" style={{ gridTemplateColumns: '3rem repeat(7, minmax(0, 1fr))' }}>
         <div />
-        {dias.map((d) => <div key={d} className="border-l border-[var(--borda)] p-1"><CabecaDia d={d} onDia={onDia} /></div>)}
+        {dias.map((d) => <div key={d} className="border-l border-[var(--borda)] p-1"><CabecaDia d={d} onDia={onDia} />{feriados.filter((x) => x.data === d).map((x) => <FaixaFeriado key={x.id} f={x} />)}</div>)}
         {temDiaTodo && (
           <>
             <div className="p-1 text-right text-[10px] text-[var(--suave)]">{t('Dia todo')}</div>
@@ -294,7 +304,7 @@ export function VistaSemana({ de, itens, largo, onDia, onAbrir }: { de: string; 
 
 // ---------- dia ----------
 
-export function VistaDia({ data, itens, onAbrir, onHora }: { data: string; itens: ItemCalendario[]; onAbrir(i: ItemCalendario): void; onHora?(hora: string): void }) {
+export function VistaDia({ data, itens, onAbrir, onHora, feriados = [] }: { data: string; itens: ItemCalendario[]; onAbrir(i: ItemCalendario): void; onHora?(hora: string): void; feriados?: FeriadoNoDia[] }) {
   const t = useT()
   const doDia = itens.filter((i) => noDia(i, data))
   const diaTodo = doDia.filter((i) => i.diaTodo)
@@ -303,6 +313,7 @@ export function VistaDia({ data, itens, onAbrir, onHora }: { data: string; itens
   const horas = Array.from({ length: fim - ini }, (_, k) => ini + k)
   return (
     <div className="space-y-3">
+      {feriados.filter((x) => x.data === data).map((x) => <AvisoFeriado key={x.id} f={x} />)}
       {!doDia.length && <Vazio texto="Nada marcado" />}
       {diaTodo.length > 0 && (
         <section className="space-y-2">

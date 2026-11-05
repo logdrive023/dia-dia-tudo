@@ -8,6 +8,7 @@
 // Atendimento continua sendo venda: agendar = concluirVenda com agendadoPara; Feito = atenderAgendamento (vendas.ts).
 
 import { converter, type CodigoMoeda } from '../domain/dinheiro'
+import { AJUSTES_PADRAO, type CategoriaFeriado, feriadosEntre } from '../dados/feriados'
 import { dataDeInstante, horaCurta, somarDias } from '../domain/datas'
 import { exigir } from '../domain/erros'
 import type { Evento, Id, Transacao } from '../domain/tipos'
@@ -401,4 +402,11 @@ export async function receberAtendimento(ctx: Ctx, d: { id: Id; vendaId: Id; for
   exigir(principal <= falta + 1, 'Valor maior do que falta receber deste atendimento.')
   await registrarAcerto(ctx, { id: d.id, pessoaId: t.pessoaId, direcao: 'recebi', valor: d.valor, moeda: d.moeda, forma: d.forma, descricao: `Atendimento ${t.codigo ?? ''}`.trim() })
   return { id: d.id }
+}
+
+/** FERIADOS do período (Bolívia e/ou Santa Cruz), com os ajustes do decreto do ano (Configurações). Só informativo. */
+export async function feriados(ctx: Ctx, p: { de: string; ate: string; categorias: CategoriaFeriado[] }) {
+  exigir(p.de && p.ate && p.de <= p.ate, 'Período inválido.')
+  const cfg = await lerConfig(ctx)
+  return feriadosEntre(p.de, p.ate, p.categorias, cfg.feriadosAjustes ?? AJUSTES_PADRAO)
 }

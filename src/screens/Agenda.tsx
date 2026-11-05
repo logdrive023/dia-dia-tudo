@@ -20,6 +20,9 @@ import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { EditorPagamentos, type PagamentoTela, conv, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { type AjusteServico, EditorServico, SeletorServicos, ajusteParaEntrada, faltaNoAjuste } from '../ui/linhaServico'
 import { useT } from '../ui/i18n'
+import { useLembrado } from '../ui/filtros'
+import { CAT_FERIADO, LegendaCalendario } from '../ui/feriadosAgenda'
+import type { CategoriaFeriado } from '../core/dados/feriados'
 
 type Modo = 'mes' | 'semana' | 'dia'
 
@@ -43,6 +46,12 @@ export function Agenda() {
   const { dados: filtros } = useConsulta('agendaFiltros', {})
   const { dados, erro } = useConsulta('calendario', { de, ate, localId: localId || undefined, pessoaId: profissionalId || undefined })
   const aberto = dados?.find((i) => i.id === abertoId)
+  // FERIADOS (só visual — nada bloqueia): cada categoria liga e desliga sozinha; fica lembrado neste aparelho
+  const [verNacional, setVerNacional] = useLembrado('agenda.feriadosNacionais', true)
+  const [verSantaCruz, setVerSantaCruz] = useLembrado('agenda.feriadosSantaCruz', true)
+  const categorias: CategoriaFeriado[] = [...(verNacional ? ['nacional' as const] : []), ...(verSantaCruz ? ['santaCruz' as const] : [])]
+  const { dados: feriados } = useConsulta('feriados', { de, ate, categorias }, categorias.length > 0)
+  const fer = categorias.length ? feriados ?? [] : []
   const hoje = dataLocal()
   const b = busca.trim().toLowerCase()
   const porBusca = (dados ?? []).filter((i) => !b || [i.titulo, i.cliente, i.pessoa, i.detalhe, i.local].filter(Boolean).join(' ').toLowerCase().includes(b))
@@ -117,11 +126,22 @@ export function Agenda() {
         extra={unidades.length > 1 ? <FiltroUnidade valor={localId} onChange={setLocalId} /> : undefined}
         ativos={ativos} onTirar={(k) => (k === 'localId' ? setLocalId('') : setProfissionalId(''))} onLimpar={limpar}
         resultados={dados ? itens.length : undefined} total={dados?.length} unidade="item(ns)"
-        painel={temPainel ? <>
-          <GrupoFiltro titulo="Quem e onde" icone="👤">
+        painel={<>
+          {temPainel && <GrupoFiltro titulo="Quem e onde" icone="👤">
             {filtros?.equipe && pessoasFiltro.length > 1 && <Campo rotulo="Pessoa"><Selecao valor={profissionalId} onChange={setProfissionalId} vazio={admin ? 'Todas as pessoas' : 'Eu e a equipe'} opcoes={pessoasFiltro.map((p) => ({ id: p.id, nome: p.nome }))} /></Campo>}
+          </GrupoFiltro>}
+          {/* FERIADOS: só o que aparece na agenda (não muda datas nem trava vendas, compras ou triagens) */}
+          <GrupoFiltro titulo="Feriados" icone="🗓">
+            {([['nacional', verNacional, setVerNacional, 'Mostrar feriados nacionais da Bolívia'], ['santaCruz', verSantaCruz, setVerSantaCruz, 'Mostrar feriados de Santa Cruz']] as const).map(([c, on, set, rot]) => (
+              <label key={c} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl bg-[var(--cartao)] px-3 text-sm">
+                <input type="checkbox" className="h-5 w-5" checked={on} onChange={(e) => set(e.target.checked)} />
+                <span aria-hidden className="h-2.5 w-2.5 rounded-[3px]" style={{ background: CAT_FERIADO[c].cor }} />
+                <span>{t(rot)}</span>
+              </label>
+            ))}
+            <p className="col-span-full text-xs text-[var(--suave)]">{t('Só muda o que aparece na agenda: o feriado não bloqueia nada e não muda nenhuma data.')}</p>
           </GrupoFiltro>
-        </> : undefined}
+        </>}
       />
 
       <div onTouchStart={(e) => (toque.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })} onTouchEnd={fimToque}>
@@ -130,12 +150,14 @@ export function Agenda() {
         ) : !dados ? (
           <Carregando />
         ) : modo === 'mes' ? (
-          <VistaMes data={data} itens={itens} largo={largo} onDia={abrirDia} onAbrir={(i) => setAberto(i.id)} />
+          <VistaMes data={data} itens={itens} largo={largo} onDia={abrirDia} onAbrir={(i) => setAberto(i.id)} feriados={fer} />
         ) : modo === 'semana' ? (
-          <VistaSemana de={de} itens={itens} largo={largo} onDia={abrirDia} onAbrir={(i) => setAberto(i.id)} />
+          <VistaSemana de={de} itens={itens} largo={largo} onDia={abrirDia} onAbrir={(i) => setAberto(i.id)} feriados={fer} />
         ) : (
-          <VistaDia data={data} itens={itens} onAbrir={(i) => setAberto(i.id)} onHora={(h) => setMarcar({ data, hora: h, tipo: 'atendimento' })} />
+          <VistaDia data={data} itens={itens} onAbrir={(i) => setAberto(i.id)} onHora={(h) => setMarcar({ data, hora: h, tipo: 'atendimento' })} feriados={fer} />
         )}
+        {/* a LEGENDA: o que cada bolinha (eventos) e cada quadradinho (feriados) quer dizer */}
+        {dados && modo === 'mes' && <LegendaCalendario tipos={TIPOS_CAL.filter((x) => !tipo || x.id === tipo)} categorias={categorias} />}
       </div>
 
       {aberto && <Detalhe i={aberto} onFechar={() => setAberto(undefined)} onEditar={() => (setAberto(undefined), setMarcar({ data: aberto.data, editar: aberto.ref.id }))} />}
@@ -231,7 +253,8 @@ function Detalhe({ i, onFechar, onEditar }: { i: ItemCalendario; onFechar(): voi
 }
 
 /** "Pago" depois: recebe o que falta deste atendimento (caixa + conta da cliente). */
-function Receber({ vendaId, falta, moeda, onFechar, onPronto }: { vendaId: Id; falta: number; moeda: string; onFechar(): void; onPronto(): void }) {
+/** registrar o que falta receber de uma venda (atendimento ou venda): usado na Agenda e na venda ("O que falta") */
+export function Receber({ vendaId, falta, moeda, onFechar, onPronto }: { vendaId: Id; falta: number; moeda: string; onFechar(): void; onPronto(): void }) {
   const t = useT()
   const { executar, ocupado } = useComando()
   const [pagamentos, setPagamentos] = useState<PagamentoTela[]>([])

@@ -15,7 +15,8 @@ import { MenuAcoes } from '../ui/menuAcoes'
 import { useT } from '../ui/i18n'
 import { MemoriaLinha } from '../ui/linhaServico'
 import { dividir, memoriaCalculo, pct } from '../core/domain/comissao'
-import { SeloPendencias } from '../ui/pendencias'
+import { FaltaNaVenda } from '../ui/faltaNaVenda'
+import { Receber } from './Agenda'
 import { ImprimirNota, NotaVenda } from '../ui/notaVenda'
 import { MODELOS_DOCUMENTO, type ModeloDocumentoId } from '../core/dados/documentos'
 
@@ -42,6 +43,7 @@ export function DetalheVenda() {
   const { executar } = useComando()
   const [cancelar, setCancelar] = useState(false)
   const [corrigir, setCorrigir] = useState(false)
+  const [receber, setReceber] = useState(false)
   const [aba, setAba] = useParamTela<'resumo' | 'historico' | 'arquivos' | 'correcoes'>('aba', 'resumo')
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
@@ -67,7 +69,8 @@ export function DetalheVenda() {
     <Pagina onVoltar={voltar} trilha={[t('Venda'), v.codigo].filter(Boolean).join(' ')} titulo={<>{t('Venda')} · {dados.cliente ? <button type="button" className="underline-offset-4 hover:underline" onClick={() => ir('pessoa', { id: dados.cliente!.id })}>{dados.cliente.nome}</button> : t('Sem nome')}</>} subtitulo={<>{dataBR(v.data)} · <Pilula tom={v.etapa === 'concluido' ? 'bom' : v.etapa === 'cancelado' ? 'ruim' : 'marca'}>{t(NOME_ETAPA[v.etapa] ?? v.etapa)}</Pilula>{dados.local ? ` · ${dados.local.nome}` : ''}{dados.profissional ? ` · ${dados.profissional.nome}` : ''}{dados.viagens.length > 0 && <span className="ml-2 inline-flex align-middle"><SelosViagem vs={dados.viagens} /></span>}</>}>
       <div className="space-y-4">
         {v.etapa === 'concluido' && (
-          <SeloPendencias moeda={v.moedaPrincipal} pendencias={[...(faltaReceber ? [{ id: 'faltaReceber' as const, texto: 'Falta receber', valor: faltaReceber, nivel: 'urgente' as const }] : []), ...(semComprovante ? [{ id: 'semComprovante' as const, texto: 'Sem comprovante do pagamento', nivel: 'atencao' as const }] : [])]} />
+          // O QUE FALTA (componente próprio): classe e nível, desde quando, o porquê (ⓘ) e o botão que resolve
+          <FaltaNaVenda moeda={v.moedaPrincipal} desde={v.data} onAcao={(p) => (p === 'faltaReceber' ? setReceber(true) : setAba('arquivos'))} pendencias={[...(faltaReceber ? [{ id: 'faltaReceber' as const, texto: 'Falta receber', valor: faltaReceber, nivel: 'urgente' as const }] : []), ...(semComprovante ? [{ id: 'semComprovante' as const, texto: 'Sem comprovante do pagamento', nivel: 'atencao' as const }] : [])]} />
         )}
         {/* TOTAL + AÇÕES no alto (como no pacote): o que importa e o que fazer, sem rolar */}
         <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 shadow-sm">
@@ -113,6 +116,7 @@ export function DetalheVenda() {
           <ResumoNota vendaId={v.id} linhas={v.linhas} moeda={v.moedaPrincipal} />
         )}
       </div>
+      {receber && <Receber vendaId={v.id} falta={faltaReceber} moeda={v.moedaPrincipal} onFechar={() => setReceber(false)} onPronto={() => undefined} />}
       {corrigir && <CorrigirVenda venda={v} temCliente={!!v.pessoaId} onFechar={() => setCorrigir(false)} />}
       {cancelar && (
         <Confirmar
