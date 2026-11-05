@@ -12,6 +12,7 @@ import { FiltroViagem, SeloViagem, passaViagem, viagensDasLinhas } from '../ui/s
 import { LigarCompras } from './compra/LigarCompras'
 import { PagamentoCompra, Progresso } from './PagamentoCompra'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
+import { GrupoVisao, useVisaoLista } from '../ui/visaoLista'
 import { Paginacao, usePaginacao } from '../ui/paginacao'
 import { TabelaDados, SeloCodigo, SeloSituacao, type TomLista } from '../ui/tabelaDados'
 import { AcaoIcone } from '../ui/acoesPagina'
@@ -59,6 +60,8 @@ export function Comprar() {
   const [aba, setAba] = useParamTela<'abertas' | 'encerradas' | 'todas'>('aba', nav.params.encerradas ? 'encerradas' : 'abertas')
   const [pendencia, setPendencia] = useParamTela('pendencia', nav.params.semComprovante ? 'semComprovanteOrigem' : '')
   const [busca, setBusca] = useParamTela('busca', '')
+  // VER COMO (padrão das listagens): tabela ou cartões, no ⚙ Filtros
+  const vis = useVisaoLista('comprar')
   const [ordemTxt, setOrdemTxt] = useParamTela('ordem', 'data-desc')
   const ordem = { por: ordemTxt.split('-')[0] as Ordem, desc: ordemTxt.endsWith('-desc') }
   const setOrdem = (o: { por: Ordem; desc: boolean }) => setOrdemTxt(`${o.por}-${o.desc ? 'desc' : 'asc'}`)
@@ -135,7 +138,7 @@ export function Comprar() {
         {resumo.map((r) => <NumeroGrande key={r.nome} rotulo={r.nome} icone={r.icone} cor={r.cor} valor={r.valor} selos={r.selos} colorirValor={r.tom} ativo={r.ativo} onClick={r.abrir} carregando={!fila} />)}
       </GrupoNumeros>
 
-      {/* FILTRO PADRÃO: situação à vista (segmentos) + busca + ⚙ Filtros (o que falta, fornecedor, período) → chips ✕ */}
+      {/* FILTRO PADRÃO: situação à vista (segmentos) + busca + ⚙ Filtros (o que falta, fornecedor, período, como mostrar) → chips ✕ */}
       <FiltroLista
         className="mb-3"
         situacao={{ valor: aba, onChange: (id) => setAba(id as typeof aba), opcoes: [
@@ -156,11 +159,13 @@ export function Comprar() {
             <GrupoFiltro titulo="De quem" icone="👤">
               <Campo rotulo="Fornecedor"><Selecao valor={forn} onChange={(v) => ajustarParams({ forn: v || undefined })} vazio="Todos" opcoes={fornecedores.map((x) => ({ id: x, nome: x }))} /></Campo>
             </GrupoFiltro>
+            <GrupoVisao visao={vis.visao} onVisao={vis.setVisao} />
         </>}
       />
 
       {/* LISTAGEM PADRÃO (TabelaDados): colunas · ordem · o que falta abre numa linha embaixo; celular = linha curta */}
       <TabelaDados
+        cartoes={vis.cartoes}
         linhas={pag.itens}
         chave={(c) => c.id}
         carregando={!fila}
@@ -204,7 +209,7 @@ export function Comprar() {
           situacao: (c) => ({ texto: c.nomeEtapa, tom: tomEtapa(c.etapa) }),
           alerta: (c) => c.pendencias.length
             ? { texto: t(c.pendencias.length === 1 ? '1 pendência' : '{n} pendências', { n: c.pendencias.length }), tom: c.pendencias.some((p) => p.nivel === 'urgente') ? 'ruim' : 'alerta' }
-            : { texto: `✓ ${t('Completa')}`, tom: 'bom' },
+            : undefined,
           marca: (c) => <SeloViagem v={c.viagem} curto soLeitura />,
           progresso: (c) => <Progresso etapas={etapasDo(c.moduloId)} atual={c.etapa} mini />,
           fatos: (c) => [`📅 ${dataBR(c.data)}`, `📦 ${t('{n} item(ns)', { n: c.linhas.length })}`, !ENCERRADAS.includes(c.etapa) && `⏱ ${t('parada há {n} d', { n: c.diasParada })}`],

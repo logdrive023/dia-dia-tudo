@@ -153,3 +153,42 @@ export function PainelTriagem({ agora, tom = 'marca', rotulo = 'Próximo passo',
     </section>
   )
 }
+
+/**
+ * A TRIAGEM VAZIA (nada para separar) — a mesma moldura do PainelTriagem (contorno + trilha), com a composição de um
+ * estado vazio bem acabado: o símbolo num círculo, o título, UMA frase de onde está tudo agora, os números do que
+ * ficou pronto e as ações. Computador: símbolo · texto · ações numa linha; celular: tudo centrado, um embaixo do outro.
+ */
+export function TriagemVazia({ agora, tom = 'bom', icone, titulo, texto, fatos = [], acoes }: {
+  agora: EtapaFluxo
+  tom?: 'marca' | 'bom'
+  icone: string
+  titulo: string
+  texto: ReactNode
+  /** os números do que ficou pronto ("19 pacotes", "21,7 kg"): selos pequenos embaixo do texto */
+  fatos?: string[]
+  acoes?: ReactNode
+}) {
+  const t = useT()
+  const cor = tom === 'bom' ? 'var(--bom)' : 'var(--marca)'
+  return (
+    <section role="status" aria-label={t(titulo)} className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+      <div className="border-b border-[var(--borda)] px-4 py-2.5" style={{ background: `color-mix(in srgb, ${cor} 7%, transparent)` }}>
+        <TrilhaFluxo agora={agora} />
+      </div>
+      <div className="flex flex-col items-center gap-4 px-5 py-7 text-center md:flex-row md:items-center md:gap-6 md:px-6 md:py-6 md:text-left">
+        <span aria-hidden className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-3xl" style={{ background: `color-mix(in srgb, ${cor} 14%, transparent)`, boxShadow: `0 0 0 6px color-mix(in srgb, ${cor} 6%, transparent)` }}>{icone}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xl font-bold leading-snug">{t(titulo)}</p>
+          <p className="mx-auto mt-1 max-w-prose text-sm text-[var(--suave)] md:mx-0">{texto}</p>
+          {fatos.length > 0 && (
+            <p className="mt-2.5 flex flex-wrap justify-center gap-1.5 md:justify-start">
+              {fatos.map((f) => <span key={f} className="num rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ color: cor, background: `color-mix(in srgb, ${cor} 10%, transparent)` }}>{f}</span>)}
+            </p>
+          )}
+        </div>
+        {acoes && <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-center md:shrink-0 md:flex-col md:items-stretch lg:flex-row [&>button]:min-w-max">{acoes}</div>}
+      </div>
+    </section>
+  )
+}

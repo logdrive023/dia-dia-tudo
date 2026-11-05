@@ -7,6 +7,7 @@
 import { type ReactNode, useState } from 'react'
 import { dataLocal } from '../core/domain/datas'
 import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
+import { GrupoVisao, useVisaoLista } from '../ui/visaoLista'
 import { TabelaDados, SeloCodigo, corDoNome, iniciais } from '../ui/tabelaDados'
 import { formatar } from '../core/domain/dinheiro'
 import { Campo, Confirmar, Pilula, Selecao, Titulo, Vazio, cx, dataBR, diaCurto, hora, moedaPadrao } from '../ui/base'
@@ -34,6 +35,8 @@ function diaRelativo(iso: string, t: (s: string) => string) {
 
 export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?: ReactNode }) {
   const t = useT()
+  // VER COMO (padrão das listagens): tabela ou cartões, no ⚙ Filtros
+  const vis = useVisaoLista('vender')
   const { ir, ajustarParams, sessao } = useApp()
   const { p, setP, tirar } = useFiltrosTela()
   const { executar } = useComando()
@@ -147,12 +150,14 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
             {clientes.length > 0 && <Campo rotulo="Cliente"><Selecao valor={p('pessoaId')} onChange={(v) => mudar('pessoaId', v)} vazio="Todos" opcoes={clientes.map((u) => ({ id: u.id, nome: u.nome }))} /></Campo>}
             {(locais ?? []).length > 0 && <Campo rotulo="Unidade"><Selecao valor={p('localId')} onChange={(v) => mudar('localId', v)} vazio="Todas" opcoes={(locais ?? []).map((l) => ({ id: l.id, nome: l.nome }))} /></Campo>}
           </GrupoFiltro>
+          <GrupoVisao visao={vis.visao} onVisao={vis.setVisao} />
         </>}
       />
 
       {aba === 'abertas' ? (
         // EM ABERTO: a mesma listagem padrão — quem · total / o que tem dentro · quando guardou / quem guardou
         <TabelaDados
+          cartoes={vis.cartoes}
           linhas={abertasFiltradas}
           chave={(a) => a.id}
           carregando={!abertas}
@@ -184,6 +189,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
       <>
       {/* LISTAGEM PADRÃO (TabelaDados): só as colunas, as ações e o que abre; carregando/vazio/celular são dela */}
       <TabelaDados
+        cartoes={vis.cartoes}
         linhas={pag.itens}
         chave={(v) => v.id}
         carregando={carregando}

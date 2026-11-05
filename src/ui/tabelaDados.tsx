@@ -73,6 +73,8 @@ export interface LinhaCelular<T> {
   aberto?(l: T): ReactNode
   /** um selo a mais na 3ª linha, sempre à vista (ex.: a etiqueta do pacote) */
   marca?(l: T): ReactNode
+  /** à esquerda, FORA do botão da linha: a miniatura (foto do pacote) — pode ser um botão próprio (ver/tirar foto) */
+  midia?(l: T): ReactNode
   /** à esquerda: a inicial de quem é (ou um ícone), num círculo colorido — reconhece a linha sem ler */
   avatar?(l: T): { texto: string; cor?: string } | undefined
   /** a faixa colorida na borda esquerda (a situação de relance): bom = verde, ruim = vermelho… */
@@ -108,7 +110,7 @@ export function SeloFato({ children }: { children: ReactNode }) {
   return <span className="num inline-flex min-h-7 items-center gap-1 rounded-full bg-[var(--cartao)] px-2.5 text-xs text-[var(--suave)] ring-1 ring-[var(--borda)]">{children}</span>
 }
 
-export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 'Abrir', rotuloLinha, acoes, acaoRapida, ordem, onOrdenar, selecao, realce, detalhe, celular, compacta, carregando, erro, vazio }: {
+export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 'Abrir', rotuloLinha, acoes, acaoRapida, ordem, onOrdenar, selecao, realce, detalhe, celular, cartoes, compacta, carregando, erro, vazio }: {
   linhas: T[]
   chave(l: T): string
   colunas: Coluna<T>[]
@@ -129,6 +131,8 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
   /** uma linha extra embaixo do registro (ex.: as pendências abertas) */
   detalhe?(l: T): ReactNode
   celular?: LinhaCelular<T>
+  /** VER COMO CARTÕES (computador): a mesma linha padrão do celular, em cartões lado a lado (a escolha fica no ⚙ Filtros) */
+  cartoes?: boolean
   /** linhas mais baixas (listas com foto pequena) */
   compacta?: boolean
   carregando?: boolean
@@ -159,18 +163,19 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
       onChange={() => selecao.onAlternar(chave(l))} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} />
   )
 
-  // ---------- celular: linha curta que abre no lugar ----------
-  if (!larga && celular)
+  // ---------- celular (linha curta que abre no lugar) e CARTÕES no computador: o mesmo conteúdo, outra disposição ----------
+  if (celular && (!larga || cartoes))
     return (
-      <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
+      <ul className={!larga ? 'divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]' : 'grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3'}>
         {linhas.map((l) => {
           const id = chave(l)
           const aberta = abertas.has(id)
           const mais = acoes?.(l) ?? []
           return (
-            <li key={id} style={celular.tom?.(l) ? { boxShadow: `inset 4px 0 0 ${COR_TOM[celular.tom(l)!]}` } : undefined} className={cx(aberta && 'bg-[var(--marca-suave)]/40', marcada(l) && 'bg-[var(--marca-suave)]', apagada(l) && 'opacity-75')}>
+            <li key={id} style={celular.tom?.(l) ? { boxShadow: `inset 4px 0 0 ${COR_TOM[celular.tom(l)!]}` } : undefined} className={cx(larga && 'overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm transition hover:border-[var(--marca)]', aberta && 'bg-[var(--marca-suave)]/40', marcada(l) && 'bg-[var(--marca-suave)] !border-[var(--marca)]', apagada(l) && 'opacity-75')}>
               <div className="flex items-start gap-2 px-4 py-3">
                 {selecao && <span className="flex h-6 shrink-0 items-center">{caixa(l)}</span>}
+                {celular.midia && <span className="shrink-0">{celular.midia(l)}</span>}
                 <button type="button" aria-expanded={aberta} onClick={() => alternar(id)} className="flex min-w-0 flex-1 items-start gap-3 text-left">
                   {(() => {
                     const av = celular.avatar?.(l)
@@ -179,7 +184,7 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
                   <span className="min-w-0 flex-1">
                     {/* 1. quem · valor */}
                     <span className="flex min-w-0 items-baseline gap-3">
-                      <b className="min-w-0 flex-1 truncate text-[15px] leading-snug">{celular.titulo(l)}</b>
+                      <b className={cx('min-w-0 flex-1 text-[15px] leading-snug', larga ? 'line-clamp-2' : 'truncate')}>{celular.titulo(l)}</b>
                       {celular.valor && <b className={cx('num shrink-0 whitespace-nowrap text-[15px]', apagada(l) && 'line-through')}>{celular.valor(l)}</b>}
                     </span>
                     {/* 2. o que aconteceu · quando/quanto */}

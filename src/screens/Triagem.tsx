@@ -8,6 +8,7 @@ import { type DragEvent, type KeyboardEvent, type ReactNode, useState } from 're
 import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { TabelaDados, SeloCodigo } from '../ui/tabelaDados'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
+import { GrupoVisao, useVisaoLista } from '../ui/visaoLista'
 import { PainelSelecao } from '../ui/painelSelecao'
 import { Paginada } from '../ui/paginacao'
 import { AcaoIcone } from '../ui/acoesPagina'
@@ -28,7 +29,7 @@ import { LinkTirarFoto, MiniaturaLote, marcadorLote, useTirarFoto } from '../ui/
 import { ImprimirEtiquetas, SeloEtiqueta } from '../ui/etiquetas'
 import { Unificar } from './triagem/Unificar'
 import { DesfazerMistura } from './triagem/DesfazerMistura'
-import { DepoisDeSeparar, PainelTriagem, type RegraJuntar } from './triagem/guia'
+import { DepoisDeSeparar, PainelTriagem, TriagemVazia, type RegraJuntar } from './triagem/guia'
 import { LeitorCodigo } from '../ui/estoqueUi'
 import { usePistola } from '../ui/leitorPistola'
 import { useLembrado } from '../ui/filtros'
@@ -81,6 +82,8 @@ export function Triagem() {
   const { executar, ocupado } = useComando()
   const [sel, setSel] = useState<Set<Id>>(new Set())
   const [selecionando, setSelecionando] = useState(false)
+  // VER COMO (padrão das listagens): tabela ou cartões, no ⚙ Filtros
+  const vis = useVisaoLista('triagem')
   const [janela, setJanela] = useState<'unificar' | 'triado' | 'regras'>()
   // sair de uma coluna de lavagem ("pedir peso depois"): pergunta o peso depois, opcional
   const [pesar, setPesar] = useState<{ ids: Id[]; fase: string }>()
@@ -245,18 +248,17 @@ export function Triagem() {
     (!fp('sc') || l.compras.some((c) => (c.codigo ?? '').toLowerCase().includes(fp('sc').toLowerCase()))) &&
     (!fp('sd') || l.dias >= Number(fp('sd'))) &&
     (!fp('set') || (fp('set') === 'sem' ? !l.etiqueta.impressaEm : !!l.etiqueta.impressaEm)) &&
-    (!fp('sj') || (fp('sj') === 'sim' ? juntado(l) : !juntado(l))) &&
+    (!fp('sit') || (fp('sit') === 'parados' ? l.atrasado : fp('sit') === 'juntados' ? juntado(l) : !juntado(l))) &&
     passaViagem(fp('sv'), l.compras.map((c) => c.viagem))
   const ativosFila = [
     ...(fp('sf') ? [{ k: 'sf', rotulo: `👤 ${fp('sf')}` }] : []),
     ...(fp('sc') ? [{ k: 'sc', rotulo: `🛒 ${fp('sc')}` }] : []),
     ...(fp('sd') ? [{ k: 'sd', rotulo: t('parado há {n}+ dias', { n: fp('sd') }) }] : []),
     ...(fp('set') ? [{ k: 'set', rotulo: t(fp('set') === 'sem' ? 'Sem etiqueta' : 'Com etiqueta') }] : []),
-    ...(fp('sj') ? [{ k: 'sj', rotulo: fp('sj') === 'sim' ? `🔗 ${t('Só juntados')}` : t('Só sem juntar') }] : []),
   ]
   const viagensFila = viagensDasLinhas(daAba.flatMap((l) => l.compras.map((c) => c.viagem)))
   if (fp('sv')) ativosFila.push({ k: 'sv', rotulo: `✈️ ${((id: string, vs: { id: string; codigo: string; nome: string }[]) => (id === 'sem' ? 'Sem viagem' : vs.find((v) => v.id === id)?.codigo ?? id))(fp('sv'), viagensFila)}` })
-  const limparFila = () => ajustarParams({ sf: undefined, sc: undefined, sd: undefined, set: undefined, sj: undefined, sv: undefined, busca: undefined })
+  const limparFila = () => ajustarParams({ sf: undefined, sc: undefined, sd: undefined, set: undefined, sit: undefined, sv: undefined, busca: undefined })
   const paraSeparar = daAba.filter((l) => passaBusca(l) && passaFiltroPadrao(l) && (filtro === 'depois' || filtroDePronto || passaFiltro(l))).sort((a, b) => b.dias - a.dias)
   const prontos = dados.lotes.filter((l) => ehPronto(l) && passaBusca(l) && (!filtroDePronto || passaFiltro(l)))
   const nomeFiltro = (f: string) => colDe(f)?.nome ?? { atrasados: 'Esperando há mais tempo', depois: 'Para depois', semana: 'Triado nesta semana', mes: 'Triado neste mês', pronto: 'Pronto para vender' }[f] ?? f
@@ -406,6 +408,13 @@ export function Triagem() {
         {visao !== 'quadro' && daAba.length > 0 && (
           <FiltroLista
             className="mb-3"
+            // SITUAÇÃO da fila à vista (o mesmo trilho do Vender e do Estoque): todos · parados · juntados · sem juntar
+            situacao={{ valor: fp('sit'), onChange: (id) => ajustarParams({ sit: id || undefined }), opcoes: [
+              { id: '', nome: 'Todos', n: daAba.length },
+              { id: 'parados', nome: '⏰ Parados', n: daAba.filter((l) => l.atrasado).length, tom: daAba.some((l) => l.atrasado) ? 'alerta' as const : undefined },
+              { id: 'juntados', nome: '🔗 Juntados', n: daAba.filter(juntado).length },
+              { id: 'simples', nome: 'Sem juntar', n: daAba.filter((l) => !juntado(l)).length },
+            ] }}
             busca={busca} onBusca={setBusca} placeholder="Código, compra ou fornecedor" onKeyDown={pistola.onKeyDown}
             extra={<FiltroViagem nasLinhas={daAba.map((l) => l.compras.map((c) => c.viagem))} valor={fp('sv')} onChange={(v) => ajustarParams({ sv: v || undefined })} />}
             ativos={ativosFila} onTirar={(k) => ajustarParams({ [k]: undefined })} onLimpar={limparFila}
@@ -418,8 +427,8 @@ export function Triagem() {
                 <GrupoFiltro titulo="Situação" icone="⏳">
                   <Campo rotulo="Parado há"><Selecao valor={fp('sd')} onChange={(v) => ajustarParams({ sd: v || undefined })} vazio="Qualquer tempo" opcoes={[{ id: '3', nome: t('3 dias ou mais') }, { id: '7', nome: t('7 dias ou mais') }, { id: '15', nome: t('15 dias ou mais') }]} /></Campo>
                   <Campo rotulo="Etiqueta"><Selecao valor={fp('set')} onChange={(v) => ajustarParams({ set: v || undefined })} vazio="Todas" opcoes={[{ id: 'sem', nome: t('Sem etiqueta') }, { id: 'com', nome: t('Com etiqueta') }]} /></Campo>
-                  <Campo rotulo="Juntado" ajuda="Juntado: pacote misturado (2 ou mais viraram um) ou com cabelo de mais de uma compra."><Selecao valor={fp('sj')} onChange={(v) => ajustarParams({ sj: v || undefined })} vazio="Todos" opcoes={[{ id: 'sim', nome: t('Só juntados') }, { id: 'nao', nome: t('Só sem juntar') }]} /></Campo>
                 </GrupoFiltro>
+                <GrupoVisao visao={vis.visao} onVisao={vis.setVisao} />
             </>}
           />
         )}
@@ -434,25 +443,25 @@ export function Triagem() {
           </div>
         ) : !aguardando.length ? (
           // VAZIO que explica o que vem depois: de onde chega cabelo bruto (compra) e onde estão os pacotes prontos
-          <div>
-            {prontosSemEtiqueta.length > 0 ? (
-              <PainelTriagem agora="etiqueta" rotulo="Nada para separar 🎉 · Próximo passo" titulo={t(prontosSemEtiqueta.length === 1 ? 'Gerar 1 etiqueta' : 'Gerar {n} etiquetas', { n: prontosSemEtiqueta.length })}
-                texto={t('Já separados, mas ainda sem etiqueta: com a etiqueta ficam prontos para vender.')}
-                acoes={<Botao onClick={() => setImprimirProntos(prontosSemEtiqueta.map((l) => l.id))}>🏷 {t('Gerar as etiquetas')}</Botao>} />
-            ) : (
-              <PainelTriagem agora="pronto" tom="bom" rotulo="Nada para separar 🎉" titulo={t('Tudo pronto ✓ — os pacotes estão no estoque para vender')}
-                texto={t('Cabelo bruto novo chega por uma compra: registre a compra e ele aparece aqui para separar.')}
-                acoes={<>
-                  {prontos.length > 0 && <Botao onClick={verPronto}>✅ {t('Ver os prontos')}</Botao>}
-                  <Botao variante="secundario" onClick={() => ir('estoque', { modulo: 'cabelo' })}>📦 {t('Estoque')}</Botao>
-                  {admin && <Botao variante="secundario" onClick={() => ir('novaCompra')}>🛒 {t('Nova compra')}</Botao>}
-                </>} />
-            )}
-          </div>
+          prontosSemEtiqueta.length > 0 ? (
+            <TriagemVazia agora="etiqueta" tom="marca" icone="🏷" titulo={t('Nada para separar — falta só a etiqueta')}
+              texto={t(prontosSemEtiqueta.length === 1 ? '1 pacote já separado está sem etiqueta. Com a etiqueta, ele fica pronto para vender.' : '{n} pacotes já separados estão sem etiqueta. Com a etiqueta, ficam prontos para vender.', { n: prontosSemEtiqueta.length })}
+              fatos={[t('{n} sem etiqueta', { n: prontosSemEtiqueta.length }), gramasTexto(prontosSemEtiqueta.reduce((x, l) => x + l.saldo, 0))]}
+              acoes={<Botao onClick={() => setImprimirProntos(prontosSemEtiqueta.map((l) => l.id))}>🏷 {t(prontosSemEtiqueta.length === 1 ? 'Gerar a etiqueta' : 'Gerar as {n} etiquetas', { n: prontosSemEtiqueta.length })}</Botao>} />
+          ) : (
+            <TriagemVazia agora="pronto" icone="✅" titulo={t('Nada para separar')}
+              texto={t('Tudo o que chegou já foi separado e está no estoque para vender. Cabelo bruto novo entra por uma compra e aparece aqui.')}
+              fatos={prontos.length ? [t('{n} pacote(s) pronto(s)', { n: prontos.length }), gramasTexto(tt.pronto), ...(tt.prontoValor ? [formatar(tt.prontoValor, moedaPadrao())] : [])] : []}
+              acoes={<>
+                {prontos.length > 0 && <Botao onClick={verPronto}>✅ {t('Ver os prontos')}</Botao>}
+                <Botao variante="secundario" onClick={() => ir('estoque', { modulo: 'cabelo' })}>📦 {t('Estoque')}</Botao>
+                {admin && <Botao variante="secundario" onClick={() => ir('novaCompra')}>🛒 {t('Nova compra')}</Botao>}
+              </>} />
+          )
         ) : !paraSeparar.length ? (
           <p className="rounded-2xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nada encontrado.')}</p>
         ) : (
-          <Paginada itens={paraSeparar} unidade="pacote(s)" reiniciar={JSON.stringify([abaReal, busca, fp('sf'), fp('sc'), fp('sd'), fp('set'), fp('sj'), filtro, medida])}>{(pagina) => (
+          <Paginada itens={paraSeparar} unidade="pacote(s)" reiniciar={JSON.stringify([abaReal, busca, fp('sf'), fp('sc'), fp('sd'), fp('set'), fp('sit'), filtro, medida])}>{(pagina) => (
             <div className="space-y-3">{etapasDaPagina(pagina).map((grupo) => (
             <section key={grupo.fase} aria-label={grupo.nome}>
               {/* a ETAPA: nome · quantos e quanto pesa · selecionar todos desta etapa (só quando há mais de uma etapa) */}
@@ -465,6 +474,7 @@ export function Triagem() {
               )}
             {/* LISTAGEM PADRÃO (TabelaDados, como Compras): colunas no computador, a linha padrão no celular */}
             <TabelaDados
+              cartoes={vis.cartoes}
               linhas={grupo.ls}
               chave={(l) => l.id}
               onAbrir={(l) => ir('lote', { id: l.id })}
@@ -509,7 +519,8 @@ export function Triagem() {
                 codigo: (l) => l.codigo,
                 situacao: (l) => { const col = colDe(l.fase); return col && !col.entrada ? { texto: col.nome, tom: 'marca' } : undefined },
                 alerta: (l) => (l.atrasado ? { texto: t('parado'), tom: 'ruim' } : sobraPequena(l) ? { texto: t('só {g}', { g: gramasTexto(l.saldo) }), tom: 'alerta' } : l.campos.estado === NAO_ID ? { texto: t('para depois'), tom: 'alerta' } : undefined),
-                marca: (l) => <><SelosViagem vs={viagensDasLinhas(l.compras.map((c) => c.viagem))} curto soLeitura /><SeloEtiqueta soLeitura id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} /></>,
+                // bruto ainda não tem etiqueta (sai na separação): o selo só aparece depois de separado; 🔗 = juntado
+                marca: (l) => <>{juntado(l) && <span className="font-semibold text-[var(--marca)]">🔗 {l.unificado > 0 ? t('{n} lotes', { n: l.unificado }) : t('juntado')}</span>}<SelosViagem vs={viagensDasLinhas(l.compras.map((c) => c.viagem))} curto soLeitura />{!precisaSeparar(l) && <SeloEtiqueta soLeitura id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} />}</>,
                 fatos: (l) => [...l.compras.map((c) => `🛒 ${c.codigo ?? ''}`), l.pai && `🧬 ${t('separado de')} ${l.pai.codigo ?? '?'}`],
                 aberto: (l) => !(comSelecao && foraDaEtapa(l)) ? <div className="space-y-2">{seloMistura(l)}<p className="text-xs font-semibold text-[var(--marca)]">👉 {proximoDoLote(l)}</p></div> : <button type="button" onClick={() => setSel(new Set([l.id]))} className="min-h-10 rounded-full border border-dashed border-[var(--borda)] px-3 text-xs font-semibold text-[var(--suave)]">🔒 {t('outra etapa')} · {t('começar com este')}</button>,
               }}

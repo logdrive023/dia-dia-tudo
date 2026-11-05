@@ -4,6 +4,7 @@
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
+import { GrupoVisao, useVisaoLista } from '../ui/visaoLista'
 import { PainelSelecao } from '../ui/painelSelecao'
 import { Paginacao, usePaginacao } from '../ui/paginacao'
 import { TabelaDados } from '../ui/tabelaDados'
@@ -15,7 +16,6 @@ import type { CampoDef } from '../core/modulos'
 import type { ResultadoConsulta } from '../core/services'
 import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Escolha, GramasInput, Info, Janela, Selecao, Titulo, Vazio, cx, dataBR, fmt, ErroTela, moedaPadrao, TituloSecao, diaMes } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela, useFiltrosTela } from '../ui/contexto'
-import { clicavel } from '../ui/compartilhados'
 import { AbaAnexos } from '../ui/anexos'
 import { CamposDinamicos, resumoCampos } from '../ui/camposDinamicos'
 import { BarraFluxo, LeitorCodigo, STATUS_LOTE, StatusBadge, useTelaLarga } from '../ui/estoqueUi'
@@ -166,7 +166,8 @@ export function Estoque() {
   const status = p('status') || (nav.params.bruto ? 'bruto' : '')
   const repor = !!nav.params.repor
   const { dados } = useConsulta('estoque', { moduloId: modulo })
-  const [visao, setVisao] = useLembrado<'tabela' | 'cartoes'>('estoque.visao', 'tabela')
+  // VER COMO (padrão das listagens): tabela ou cartões — os cartões são a mesma linha padrão do celular
+  const vis = useVisaoLista('estoque')
   const [colunasSalvas, setColunasSalvas] = useLembrado<Record<string, string[]>>('estoque.colunas.v2', {})
   const [favoritos, setFavoritos] = useLembrado<Favorito[]>('estoque.favoritos', [])
   const [sel, setSel] = useState<Set<Id>>(new Set())
@@ -247,7 +248,6 @@ export function Estoque() {
   }
   const visiveis = colunas.filter((c) => escolhidas.includes(c.id))
   const pag = usePaginacao(lista, { padrao: 50, reiniciar: JSON.stringify([modulo, ...chavesFiltro.map((k) => [k, nav.params[k]])]) })
-  const modo = larga ? visao : 'cartoes'
 
   // ---------- seleção e ações em massa ----------
   const selecionados = lista.filter((i) => sel.has(i.id))
@@ -276,12 +276,6 @@ export function Estoque() {
       ...(ehBruto(i.status) && i.saldo > 0 ? [{ rotulo: 'Abrir na triagem', icone: '🧺', onClick: () => ir('triagem'), separar: true }] : []),
     ] },
   )
-  const acoes = (i: Linha) => (
-    <div className="flex flex-nowrap justify-end gap-0.5" onClick={parar} onKeyDown={parar}>
-      {rapida(i)}
-      <MenuAcoes acoes={menuDe(i)} />
-    </div>
-  )
   /** nome numa linha só (inteiro no "title"); chips só para medida/categoria/cor que o nome não mostra */
   const nomeLote = (i: Linha, quebrar?: boolean) => {
     const chips = chipsDe(i)
@@ -293,7 +287,6 @@ export function Estoque() {
       </div>
     )
   }
-  const caixa = (i: Linha) => <input type="checkbox" className="h-5 w-5 cursor-pointer" aria-label={`${t('Selecionar')} ${i.codigo ?? i.nome}`} checked={sel.has(i.id)} onChange={() => alternar(i.id)} onClick={parar} onKeyDown={parar} />
 
   return (
     <div>
@@ -313,19 +306,21 @@ export function Estoque() {
           de onde veio) → "N de M lote(s)" + chips ✕; Colunas, Ver como e CSV ficam à direita do resultado */}
       <FiltroLista
         className="mb-2"
+        // SITUAÇÃO à vista (o mesmo trilho do Vender): um toque troca a lista; o número é de lotes
+        situacao={{ valor: ['', 'separado', 'parcial', 'bruto', 'esgotado', 'todos'].includes(status) ? status : '', onChange: (id) => setP('status', id), opcoes: [
+          { id: '', nome: 'Com saldo', n: dados ? comSaldo.length : undefined },
+          { id: 'separado', nome: 'Disponível', n: dados ? disponiveis.length : undefined },
+          { id: 'parcial', nome: 'Parcial', n: dados ? base.filter((i) => i.status === 'parcial').length : undefined },
+          { id: 'bruto', nome: 'Para separar', n: dados ? brutos.length : undefined, tom: brutos.length ? 'alerta' as const : undefined },
+          { id: 'esgotado', nome: 'Esgotado', n: dados ? base.length - comSaldo.length : undefined },
+          { id: 'todos', nome: 'Todos', n: dados ? base.length : undefined },
+        ] }}
         busca={busca} onBusca={(v) => setP('busca', v)} placeholder="Buscar por código, nome ou atributo" onKeyDown={pistola.onKeyDown}
         extra={<><FiltroViagem nasLinhas={(dados ?? []).map((i) => i.compras.map((c) => c.viagem))} valor={p('vg')} onChange={(v) => setP('vg', v)} /><Botao variante="secundario" className="shrink-0 whitespace-nowrap px-3" aria-label={t('Ler código')} onClick={() => setJanela('camera')}>📷<span className="hidden sm:inline"> {t('Ler código')}</span></Botao></>}
         ativos={ativosEstoque} onTirar={tirarFiltro} onLimpar={limpar} temAtivos={chavesFiltro.length > 0}
         resultados={dados ? lista.length : undefined} total={dados?.length} unidade="lote(s)"
         exportar={{ onExportar: () => exportar(selecionados.length ? selecionados : lista), quantos: selecionados.length || lista.length, unidade: selecionados.length ? 'selecionado(s)' : 'lote(s)' }}
-        ferramentas={<>
-          <Botao variante="leve" className="whitespace-nowrap px-3" title={t('Escolher as colunas da tabela')} onClick={() => setJanela('colunas')}>▦ {t('Colunas')}</Botao>
-          {larga && <div className="shrink-0 [&_button]:whitespace-nowrap"><Escolha rotulo="Ver como" valor={visao} onChange={setVisao} opcoes={[{ id: 'tabela', nome: 'Tabela' }, { id: 'cartoes', nome: 'Cartões' }]} /></div>}
-        </>}
         painel={<>
-            <GrupoFiltro titulo="Situação" icone="📦">
-              <Campo rotulo="Status"><Selecao valor={status} onChange={(v) => setP('status', v)} opcoes={STATUS_FILTRO.slice(1)} vazio={STATUS_FILTRO[0].nome} /></Campo>
-            </GrupoFiltro>
             {campos.some((c) => c.tipo === 'numero') && (
               <GrupoFiltro titulo="Medidas" icone="📏">
                 {campos.filter((c) => c.tipo === 'numero').map((c) => (
@@ -345,6 +340,19 @@ export function Estoque() {
                 ))}
               </GrupoFiltro>
             )}
+            {/* COMO MOSTRAR (dentro dos filtros): o que aparece em cada lote e no CSV; no computador, também tabela × cartões */}
+            <GrupoVisao visao={vis.visao} onVisao={vis.setVisao}>
+              <p className="col-span-full text-xs font-semibold text-[var(--suave)]">{t('Colunas')} · <span className="font-normal">{t(larga && !vis.cartoes ? 'o que aparece na tabela e no CSV (fica guardado neste aparelho).' : 'aparecem ao abrir o lote e no CSV (fica guardado neste aparelho).')}</span></p>
+              <div className="col-span-full flex flex-wrap gap-1.5">
+                {colunas.map((c) => {
+                  const on = escolhidas.includes(c.id)
+                  return <button key={c.id} type="button" aria-pressed={on} onClick={() => setColunasSalvas({ ...colunasSalvas, [modulo]: on ? escolhidas.filter((x) => x !== c.id) : colunas.map((x) => x.id).filter((x) => x === c.id || escolhidas.includes(x)) })} className={cx('min-h-9 rounded-full px-3 text-xs font-semibold ring-1 transition', on ? 'bg-[var(--marca)] text-white ring-[var(--marca)]' : 'bg-[var(--cartao)] text-[var(--suave)] ring-[var(--borda)] hover:text-[var(--texto)]')}>{on ? '✓ ' : ''}{t(c.nome)}</button>
+                })}
+              </div>
+              <div className="col-span-full flex flex-wrap items-center gap-2">
+                {escolhidas.join() !== padrao.join() && <Botao variante="leve" onClick={() => setColunasSalvas({ ...colunasSalvas, [modulo]: padrao })}>{t('Voltar ao padrão')}</Botao>}
+              </div>
+            </GrupoVisao>
             <GrupoFiltro titulo="De onde veio" icone="🛒">
               <Campo rotulo="Lote de origem / compra"><Entrada placeholder="P-0003 / L-0001" value={p('compra')} onChange={(e) => setP('compra', e.target.value)} /></Campo>
               <CampoFaixa rotulo="Entrada (período)">
@@ -371,10 +379,11 @@ export function Estoque() {
         <Carregando />
       ) : !lista.length ? (
         <VazioFiltro texto="Nada no estoque com esse filtro." filtrando={chavesFiltro.length > 0} onLimpar={limpar} />
-      ) : modo === 'tabela' ? (
+      ) : (
         // LISTAGEM PADRÃO (TabelaDados): seleção em massa, linhas compactas (foto pequena) e as colunas que a pessoa escolheu
         <div id="lista-estoque">
           <TabelaDados
+            cartoes={vis.cartoes}
             linhas={pag.itens}
             chave={(i) => i.id}
             compacta
@@ -383,6 +392,18 @@ export function Estoque() {
             acoes={menuDe}
             acaoRapida={rapida}
             realce={(i) => (i.saldo <= 0 ? 'apagada' : undefined)}
+            // CELULAR: a linha padrão (TabelaDados) — ao abrir: as colunas escolhidas em "Colunas da lista" viram os fatos
+            celular={{
+              midia: (i) => <MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} tamanho="sm" iconeSemFoto />,
+              titulo: (i) => i.nome,
+              valor: (i) => qtd(i, i.saldo),
+              valorSub: (i) => (i.quantidadeInicial && i.quantidadeInicial !== i.saldo ? t('de {q}', { q: qtd(i, i.quantidadeInicial) }) : undefined),
+              resumo: (i) => [[...new Set(i.compras.map((c) => c.fornecedor).filter(Boolean))].join(', '), i.pai ? `✂ ${t('de')} ${i.pai.codigo ?? i.pai.nome}` : '', i.unificadoDe?.length ? `🔗 ${t('juntado de')} ${i.unificadoDe.join(' + ')}` : ''].filter(Boolean).join(' · ') || t('cadastro'),
+              codigo: (i) => i.codigo,
+              situacao: (i) => { const s = STATUS_LOTE[i.status]; return { texto: t(s.nome), tom: s.tom === 'neutro' ? 'suave' : s.tom } },
+              marca: (i) => <>{i.saldo > 0 && <SeloEtiqueta soLeitura id={i.id} impressaEm={i.etiquetaImpressaEm} por={i.etiquetaImpressaPor} via={i.etiquetaVia} />}<SeloReserva i={i} /><SelosViagem vs={viagensDasLinhas(i.compras.map((c) => c.viagem))} curto soLeitura /></>,
+              fatos: (i) => [...i.compras.map((c) => `🛒 ${c.codigo ?? t('Compra')}`), ...visiveis.filter((c) => !['origem', 'peso', 'status'].includes(c.id)).map((c) => { const v = c.texto(i); return v ? `${t(c.nome)}: ${v}` : '' })],
+            }}
             selecao={{ marcados: sel, onAlternar: alternar, onTodos: () => setSel(todos ? new Set() : new Set(lista.map((i) => i.id))), rotulo: (id) => `${t('Selecionar')} ${lista.find((i) => i.id === id)?.codigo ?? ''}` }}
             colunas={[
               { id: 'foto', titulo: '', classe: 'w-12', celula: (i) => <MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} tamanho="sm" iconeSemFoto /> },
@@ -394,30 +415,6 @@ export function Estoque() {
             ]}
           />
         </div>
-      ) : (
-        <ul id="lista-estoque" className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {pag.itens.map((i) => {
-            const extras = visiveis.filter((c) => !['origem', 'peso', 'status'].includes(c.id)).map((c) => [c, c.texto(i)] as const).filter(([, v]) => v)
-            return (
-              // cartão: [☐ foto | nome (linha toda) | ⋯] · embaixo código + status à esquerda e o peso à direita · de onde veio, pequeno
-              <li key={i.id} {...clicavel(() => ir('lote', { id: i.id }))} className={cx('min-w-0 cursor-pointer rounded-2xl border bg-[var(--cartao)] p-2.5 shadow-sm outline-none transition hover:border-[var(--marca)] focus-visible:border-[var(--marca)]', sel.has(i.id) ? 'border-[var(--marca)] bg-[var(--marca-suave)]' : 'border-[var(--borda)]', i.saldo <= 0 && 'text-[var(--suave)]')}>
-                {/* em cima: seleção · foto · nome · ⋯ ; embaixo, com a largura TODA do cartão: código · situação · peso e de onde veio */}
-                <div className="flex items-center gap-2">
-                  <div className="flex h-10 shrink-0 items-center">{caixa(i)}</div>
-                  <MiniaturaLote itemId={i.id} foto={i.foto} marcador={marcadorLote(i.campos, i.nome)} tamanho="sm" iconeSemFoto />
-                  <div className="flex min-h-10 min-w-0 flex-1 items-center">{nomeLote(i, true)}</div>
-                  <div className="-mr-1 shrink-0">{acoes(i)}</div>
-                </div>
-                <div className="mt-2 flex items-start gap-2 border-t border-[var(--borda)] pt-2">
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1"><CodigoSelo codigo={i.codigo} anteriores={i.codigosAnteriores} /><StatusPonto status={i.status} />{i.saldo > 0 && <SeloEtiqueta id={i.id} impressaEm={i.etiquetaImpressaEm} por={i.etiquetaImpressaPor} via={i.etiquetaVia} />}</div>
-                  <Peso i={i} />
-                </div>
-                <div className="mt-1"><VeioDe i={i} /></div>
-                {extras.length > 0 && <p className="mt-1 text-xs text-[var(--suave)] break-words">{extras.map(([c, v]) => `${t(c.nome)}: ${v}`).join(' · ')}</p>}
-              </li>
-            )
-          })}
-        </ul>
       )}
       {dados && lista.length > 0 && <Paginacao {...pag} unidade="lote(s)" />}
 
@@ -447,19 +444,6 @@ export function Estoque() {
       {trocar && <TrocarCodigo tipo="lote" id={trocar.id} atual={trocar.codigo} onFechar={() => setTrocar(undefined)} />}
       {reservar && <ReservarLote id={reservar.id} codigo={reservar.codigo} atual={reservar.reserva} onFechar={() => setReservar(undefined)} />}
       {janela === 'camera' && <LeitorCodigo onLer={lerCodigo} onFechar={() => setJanela(undefined)} />}
-      {janela === 'colunas' && (
-        <Janela aberta titulo={t('Colunas')} onFechar={() => setJanela(undefined)} rodape={<Botao variante="leve" className="w-full" onClick={() => setColunasSalvas({ ...colunasSalvas, [modulo]: padrao })}>{t('Voltar ao padrão')}</Botao>}>
-          <p className="mb-2 text-sm text-[var(--suave)]">{t('Escolha o que aparece na lista e no CSV. Fica guardado neste aparelho.')}</p>
-          <div className="grid gap-1 sm:grid-cols-2">
-            {colunas.map((c) => (
-              <label key={c.id} className="flex min-h-10 items-center gap-2 text-sm">
-                <input type="checkbox" className="h-5 w-5" checked={escolhidas.includes(c.id)} onChange={(e) => setColunasSalvas({ ...colunasSalvas, [modulo]: e.target.checked ? colunas.map((x) => x.id).filter((x) => x === c.id || escolhidas.includes(x)) : escolhidas.filter((x) => x !== c.id) })} />
-                {t(c.nome)}
-              </label>
-            ))}
-          </div>
-        </Janela>
-      )}
       {janela === 'favorito' && <SalvarFavorito onFechar={() => setJanela(undefined)} onSalvar={(nome) => setFavoritos([...favoritos.filter((f) => f.nome !== nome), { nome, params: Object.fromEntries(Object.entries(nav.params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])) }])} />}
       {janela === 'marcar' && <MarcarLotes ids={selecionados.map((i) => i.id)} campos={campos} onFechar={() => setJanela(undefined)} onFeito={() => setSel(new Set())} />}
     </div>
