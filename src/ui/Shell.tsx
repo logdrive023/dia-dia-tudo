@@ -15,6 +15,7 @@ import { useLembrado } from './filtros'
 import { useT } from './i18n'
 import { Icone } from './icones'
 import { abrirConversor } from './compartilhados'
+import { TELAS_LIBERAVEIS, type TelaLiberavel, useLiberado } from './liberado'
 import { PAI } from '../app/rotas'
 import { GRUPOS_CONFIG, SECOES_CONFIG } from '../screens/configSecoes'
 
@@ -53,7 +54,8 @@ export const MENU: ItemMenu[] = [
   // adiantamentos a parceiros (dinheiro para comprar cabelo): admin sempre; funcionária só quando tem um dela em andamento
   { tela: 'adiantamentos', nome: 'Adiantamentos', grupo: 'Pessoas', precisa: 'compra' },
   { tela: 'relatorios', nome: 'Relatórios', grupo: 'Gestão', admin: true },
-  { tela: 'config', nome: 'Configurações', curto: 'Ajustes', grupo: 'Gestão', admin: true },
+  // Configurações: todos (a funcionária vê tema, idioma, a própria senha e as seções que o admin liberou)
+  { tela: 'config', nome: 'Configurações', curto: 'Ajustes', grupo: 'Gestão' },
   // o que mudou no sistema (changelog), para todos
   { tela: 'auditoria', nome: 'Auditoria', grupo: 'Gestão', admin: true },
   { tela: 'novidades', nome: 'Novidades', grupo: 'Gestão', admin: true },
@@ -79,10 +81,13 @@ export function useMenu() {
   const { sessao } = useApp()
   const { dados } = useConsulta('configuracoes', {})
   const { dados: resumo } = useConsulta('resumoMenu', {})
+  const liberado = useLiberado()
   // "Viagens" para a funcionária só enquanto ela tem viagem aberta
   const semViagem = (m: ItemMenu) =>
     (m.tela !== 'viagens' || sessao.perfil === 'admin' || !!resumo?.viagensAbertas) && (m.tela !== 'adiantamentos' || sessao.perfil === 'admin' || !!resumo?.adiantamentosAbertos)
-  if (!dados) return MENU.filter((m) => (!m.admin || sessao.perfil === 'admin') && semViagem(m))
+  // funcionária: Pessoas, Viagens e Adiantamentos só com a liberação do admin (Configurações › O que a funcionária faz)
+  const telaOk = (m: ItemMenu) => !(TELAS_LIBERAVEIS as string[]).includes(m.tela) || liberado(m.tela as TelaLiberavel)
+  if (!dados) return MENU.filter((m) => (!m.admin || sessao.perfil === 'admin') && semViagem(m) && telaOk(m))
   const ativos = dados.modulos.filter((m) => dados.config.modulosAtivos.includes(m.id))
   const tem = {
     compra: ativos.some((m) => m.temCompra),
@@ -92,7 +97,7 @@ export function useMenu() {
     emprestimos: ativos.some((m) => m.telaPropria === 'emprestimos'),
     cabelo: ativos.some((m) => m.id === 'cabelo' || m.recursos?.tabelaPreco),
   }
-  return MENU.filter((m) => (!m.admin || sessao.perfil === 'admin') && (!m.precisa || tem[m.precisa]) && semViagem(m))
+  return MENU.filter((m) => (!m.admin || sessao.perfil === 'admin') && (!m.precisa || tem[m.precisa]) && semViagem(m) && telaOk(m))
 }
 
 /** Contador de cada item: só o que pede ação. 'urgente' = vermelho; 'atencao' = âmbar; 'info' = neutro. */
@@ -140,6 +145,7 @@ function Selo({ c, pontinho }: { c?: Contador; pontinho?: boolean }) {
 
 export function Shell({ children }: { children: ReactNode }) {
   const { nav: navReal, ir, sessao, backend, trocarSessao, origem } = useApp()
+  const liberado = useLiberado()
   // o menu acende o MESMO lugar que a trilha mostra: numa tela de detalhe/ação (separar, lote, pedido…) aberta a partir
   // de uma lista do menu, acende essa lista (Separar vindo da Triagem → Triagem); aberta por link, a lista "pai" da área
   const daOrigem = origem && !PAI[origem.tela] && MENU.some((m) => m.tela === origem.tela) ? origem.tela : undefined
@@ -296,10 +302,10 @@ export function Shell({ children }: { children: ReactNode }) {
               <Icone nome="sair" />
             </button>
           </div>
-          <button type="button" onClick={abrirConversor} title={t('Conversor de moedas')} className={cx('mt-2 flex h-9 w-full items-center gap-2 rounded-xl text-xs font-semibold text-[var(--suave)] hover:bg-[var(--fundo)]', recolhido ? 'justify-center' : 'px-3')}>
+          {liberado('conversor') && <button type="button" onClick={abrirConversor} title={t('Conversor de moedas')} className={cx('mt-2 flex h-9 w-full items-center gap-2 rounded-xl text-xs font-semibold text-[var(--suave)] hover:bg-[var(--fundo)]', recolhido ? 'justify-center' : 'px-3')}>
             <span aria-hidden>💱</span>
             {!recolhido && t('Conversor de moedas')}
-          </button>
+          </button>}
           <button type="button" onClick={() => setRecolhido(!recolhido)} aria-label={t(recolhido ? 'Expandir menu' : 'Recolher menu')} className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-xl text-xs font-semibold text-[var(--suave)] hover:bg-[var(--fundo)]">
             <Icone nome={recolhido ? 'expandir' : 'recolher'} className="h-4 w-4" />
             {!recolhido && t('Recolher menu')}
@@ -348,7 +354,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 <div className="truncate font-semibold">{sessao.nome}</div>
                 <div className="text-xs text-[var(--suave)]">{t(sessao.perfil === 'admin' ? 'Administrador' : 'Funcionário')}</div>
               </div>
-              <button type="button" onClick={() => (setMais(false), abrirConversor())} aria-label={t('Conversor de moedas')} className="flex min-h-10 min-w-10 items-center justify-center rounded-xl text-lg">💱</button>
+              {liberado('conversor') && <button type="button" onClick={() => (setMais(false), abrirConversor())} aria-label={t('Conversor de moedas')} className="flex min-h-10 min-w-10 items-center justify-center rounded-xl text-lg">💱</button>}
               <button type="button" onClick={sair} className="flex min-h-10 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-[var(--marca)]">
                 <Icone nome="sair" className="h-4 w-4" /> {t('Sair')}
               </button>

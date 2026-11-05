@@ -103,8 +103,8 @@ export function CampoCidade({ valor, onChange, opcoes, permitirNovo = true, rotu
   }
 
   return (
-    <div ref={caixa} className="relative">
-      <div className={cx('flex items-center gap-2 rounded-xl border bg-[var(--cartao)] px-3 focus-within:border-[var(--marca)]', compacto ? 'min-h-9 rounded-full' : 'min-h-11', valor && compacto ? 'border-sky-500/50 bg-sky-500/10' : 'border-[var(--borda)]')}>
+    <div ref={caixa} className="relative scroll-mt-24">
+      <div className={cx('flex items-center gap-2 rounded-xl border bg-[var(--cartao)] px-3 focus-within:border-[var(--marca)] focus-within:ring-2 focus-within:ring-[var(--marca)]/30', compacto ? 'min-h-9 rounded-full' : 'min-h-11', valor && compacto ? 'border-sky-500/50 bg-sky-500/10' : 'border-[var(--borda)]')}>
         <span aria-hidden className="text-[var(--suave)]">📍</span>
         <input
           ref={campo}
@@ -119,10 +119,11 @@ export function CampoCidade({ valor, onChange, opcoes, permitirNovo = true, rotu
           autoFocus={autoFocus}
           placeholder={valor || t(placeholder)}
           value={aberta ? busca : valor}
-          onFocus={() => setAberta(true)}
+          // celular: o teclado sobe e a lista ficava atrás da barra de baixo → leva o campo para o alto da tela
+          onFocus={() => (setAberta(true), setTimeout(() => caixa.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }), 300))}
           onChange={(e) => (setBusca(e.target.value), setAberta(true))}
           onKeyDown={teclar}
-          className={cx('min-w-0 flex-1 bg-transparent outline-none', aberta && valor ? 'placeholder:text-[var(--texto)] placeholder:opacity-60' : 'placeholder:text-[var(--suave)] placeholder:opacity-70', compacto ? 'text-sm font-semibold' : 'text-base')}
+          className={cx('min-w-0 flex-1 bg-transparent outline-none focus-visible:outline-none', aberta && valor ? 'placeholder:text-[var(--texto)] placeholder:opacity-60' : 'placeholder:text-[var(--suave)] placeholder:opacity-70', compacto ? 'text-sm font-semibold' : 'text-base')}
         />
         {valor && !aberta && (
           <button type="button" aria-label={t('Limpar cidade')} onClick={() => onChange('')} className="-mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--suave)] hover:text-[var(--ruim)]">✕</button>
@@ -130,7 +131,7 @@ export function CampoCidade({ valor, onChange, opcoes, permitirNovo = true, rotu
       </div>
 
       {aberta && (
-        <div className="mt-1 overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+        <div className="relative z-30 mt-1 overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-lg">
           {/* os departamentos: um toque mostra só as cidades dele (achar sem saber escrever) */}
           {muitas && deptos.length > 1 && (
             <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-b border-[var(--borda)] bg-[var(--fundo)] px-2 py-2" aria-label={t('Departamento')}>

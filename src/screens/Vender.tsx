@@ -55,7 +55,9 @@ export function Vender() {
   const [carrinho, setCarrinho] = useState<Carrinho>()
   const [trocar, setTrocar] = useState<string>()
   const [concluida, setConcluida] = useState<{ id: Id; texto: string; telefone?: string }>()
-  const ativos = (cfg?.modulos ?? []).filter((m) => cfg?.config.modulosAtivos.includes(m.id) && m.temVenda)
+  // funcionária: só os caminhos que o admin liberou (Configurações › O que a funcionária faz)
+  const nao = new Set(sessao.perfil === 'admin' ? [] : cfg?.config.funcionariaNaoVende ?? [])
+  const ativos = (cfg?.modulos ?? []).filter((m) => cfg?.config.modulosAtivos.includes(m.id) && m.temVenda && (m.id === 'cabelo' ? !(nao.has('caixa') && nao.has('medida')) : !nao.has(m.id)))
   const temItens = !!carrinho?.linhas.length
   useAvisoSaida(temItens && !concluida)
 
@@ -100,8 +102,8 @@ export function Vender() {
     // "+ Nova venda ▾": os mesmos caminhos de antes (cabelo pela pistola/QR primeiro, o mais usado)
     const caminhos: Acao[] = [
       ...(temCabelo ? [
-        { rotulo: 'Vender cabelo (pistola ou QR)', icone: '⚡', onClick: () => ir('vendaRapida') },
-        { rotulo: 'Cabelo sem etiqueta (por medida)', icone: '📏', onClick: () => escolher('cabelo') },
+        ...(nao.has('caixa') ? [] : [{ rotulo: 'Vender cabelo (pistola ou QR)', icone: '⚡', onClick: () => ir('vendaRapida') }]),
+        ...(nao.has('medida') ? [] : [{ rotulo: 'Cabelo sem etiqueta (por medida)', icone: '📏', onClick: () => escolher('cabelo') }]),
       ] : []),
       ...outros.map((m, k) => ({ rotulo: rotuloCurto(m.id, m.nome, t), icone: m.icone, separar: temCabelo && k === 0, onClick: () => escolher(m.id) })),
     ]

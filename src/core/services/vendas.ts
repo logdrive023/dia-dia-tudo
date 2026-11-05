@@ -267,6 +267,12 @@ export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
   const comDesconto = repartirDesconto(d.linhas ?? [], d.desconto, d.cobranca)
   const linhas = await montarLinhas(ctx, comDesconto.linhas, d.profissionalId)
   const primeiro = await ctx.repos.itens.obter(linhas[0].itemId!)
+  // funcionária: só vende o que o admin liberou (cabelo conta como liberado se a pistola OU a medida estiver)
+  if (ctx.sessao.perfil === 'funcionario') {
+    const nao = new Set(cfg.funcionariaNaoVende)
+    const bloqueado = primeiro!.moduloId === 'cabelo' ? nao.has('caixa') && nao.has('medida') : nao.has(primeiro!.moduloId)
+    exigir(!bloqueado, 'Esta venda não está liberada para funcionária. Peça a um administrador.')
+  }
   let v = novo<Transacao>(ctx, {
     id: d.id,
     codigo: await proximoCodigo(ctx, 'V'),

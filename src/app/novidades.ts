@@ -57,6 +57,28 @@ export const naLingua = (x: Texto2, idioma: 'pt' | 'es') => (idioma === 'es' ? x
 export const NOVIDADES: Novidade[] = [
   {
     data: '2026-11-05',
+    titulo: { pt: 'O admin decide o que a funcionária faz', es: 'El admin decide lo que hace la funcionaria' },
+    resumo: {
+      pt: 'Funcionária entra em espanhol e vê o básico (Vender, Agenda, Equipe, Configurações); o resto o admin liga em Configurações › O que a funcionária faz.',
+      es: 'La funcionaria entra en español y ve lo básico (Vender, Agenda, Equipo, Configuración); el resto lo enciende el admin en Configuración › Lo que hace la funcionaria.',
+    },
+    itens: [
+      { area: 'Acesso', tipo: 'novo', tela: 'config', params: { aba: 'funcionaria' }, texto: {
+        pt: 'Interruptores para o que ela pode vender, o que vê na agenda (viagem e empréstimo desligados no padrão), Pessoas, Viagens, Adiantamentos, Conversor e as seções de Configurações.',
+        es: 'Interruptores para lo que puede vender, lo que ve en la agenda (viaje y préstamo apagados por defecto), Personas, Viajes, Anticipos, Conversor y las secciones de Configuración.' } },
+      { area: 'Sistema', tipo: 'melhoria', texto: {
+        pt: 'Tema e idioma num seletor só no cabeçalho de Configurações, para todos; a funcionária troca só no aparelho dela.',
+        es: 'Tema e idioma en un solo selector en el encabezado de Configuración, para todos; la funcionaria cambia solo en su dispositivo.' } },
+      { area: 'Etiquetas', tipo: 'correcao', texto: {
+        pt: 'Uma etiqueta não sai mais em 3 páginas: só a janela em que tocou Imprimir vai para o papel.',
+        es: 'Una etiqueta ya no sale en 3 páginas: solo la ventana donde tocó Imprimir va al papel.' } },
+      { area: 'Sistema', tipo: 'novo', tela: 'config', params: { aba: 'dados' }, texto: {
+        pt: 'Carregamento animado padrão e “Simular internet” para ver as telas como vão ser com o servidor.',
+        es: 'Carga animada estándar y “Simular internet” para ver las pantallas como serán con el servidor.' } },
+    ],
+  },
+  {
+    data: '2026-11-05',
     titulo: { pt: 'Configurações mais simples e uma tela de entrar nova', es: 'Configuración más simple y una nueva pantalla para entrar' },
     resumo: {
       pt: 'Formas de pagamento que ligam e desligam, senha com regra e olho, cadastros no mesmo formato e o relatório que compara as viagens.',

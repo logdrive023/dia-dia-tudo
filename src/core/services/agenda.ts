@@ -119,6 +119,8 @@ export async function agendaFiltros(ctx: Ctx, _p: object = {}) {
   const podeVer = vis ? equipe.filter((p) => vis.has(p.id)) : equipe
   return {
     admin: admin(ctx),
+    /** os tipos de evento que a sessão vê (legenda e "Marcar" mostram só estes) */
+    tipos: admin(ctx) ? (['atendimento', 'viagem', 'compromisso', 'emprestimo'] as TipoCalendario[]) : ((await lerConfig(ctx)).funcionariaAgenda as TipoCalendario[]),
     /** a funcionária vê a equipe? (sem isso, a agenda é só dela e não há filtro de pessoa) */
     equipe: !vis || vis.size > 1,
     pessoas: podeVer.map((p) => ({ id: p.id, nome: p.nome, localId: p.localId })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
@@ -130,6 +132,8 @@ export async function calendario(ctx: Ctx, f: FiltroCalendario): Promise<ItemCal
   exigir(f.de && f.ate && f.de <= f.ate, 'Período inválido.')
   const func = !admin(ctx)
   const tipos = new Set<TipoCalendario>(f.tipos?.length ? f.tipos : ['atendimento', 'viagem', 'compromisso', 'emprestimo'])
+  // funcionária: só o que o admin liberou (Configurações › O que a funcionária faz)
+  if (func) { const ok = new Set<string>((await lerConfig(ctx)).funcionariaAgenda); for (const x of [...tipos]) if (!ok.has(x)) tipos.delete(x) }
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x]))
   const vis = await visiveis(ctx, pessoas)
   // de quem mostrar: a pessoa do filtro (se a sessão pode ver) · admin sem filtro = todos · funcionária = as que pode ver

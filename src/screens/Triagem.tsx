@@ -975,12 +975,13 @@ function ListaTriagens({ aberta }: { aberta?: string }) {
     <div className="space-y-3">
       {imprimir && <ImprimirEtiquetas ids={imprimir} onFechar={() => setImprimir(undefined)} />}
       {/* resumo do que está filtrado */}
-      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+      {/* celular: 2 × 2 (cada número inteiro, sem "41,…"); computador: os 4 numa linha */}
+      <GrupoNumeros colunas={4} className="mb-0">
         <NumeroGrande rotulo="Triagens" valor={String(lista.length)} />
         <NumeroGrande rotulo="Entrou" valor={gramasTexto(entrou)} />
         <NumeroGrande rotulo="Saiu" valor={gramasTexto(saiu)} />
         <NumeroGrande rotulo="Perda" ajuda={AJUDA_PERDA} valor={fmt(perdaBp, 'percentual')} sub={gramasTexto(entrou - saiu)} tom={perdaBp > 500 ? 'ruim' : undefined} />
-      </div>
+      </GrupoNumeros>
 
       {/* FILTRO PADRÃO: período em atalhos (no topo) · busca · ⚙ Filtros (quem, compra, perda, ordem) → resultado + chips ✕ */}
       <FiltroLista

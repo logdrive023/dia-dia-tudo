@@ -49,7 +49,9 @@ describe('agenda em calendário', () => {
     Object.assign(sessao, await b.entrar('sofia', 'senha123'))
     await b.comando('salvarEvento', { id: 'meu', titulo: 'Dentista', data: '2026-11-07', hora: '08:00', pessoaId: 'p-o' })
     const cal = await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30', pessoaId: 'p-o' })
-    expect(cal.map((i) => i.id).sort()).toEqual(['a1', 'meu', 'pra-sofia', 'v1'])
+    // viagem é do admin: no padrão a funcionária NÃO vê a viagem dela na agenda (Configurações › O que a funcionária faz)
+    expect(cal.map((i) => i.id).sort()).toEqual(['a1', 'meu', 'pra-sofia'])
+    expect((await b.consulta('agendaFiltros', {})).tipos).toEqual(['atendimento', 'compromisso'])
     expect(cal.find((i) => i.id === 'meu')!.pessoaId).toBe('p-s') // não marca para outra pessoa
     // o que o admin marcou para ela: ela conclui, mas não edita nem exclui
     expect(cal.find((i) => i.id === 'pra-sofia')!.meu).toBe(false)
@@ -114,17 +116,17 @@ describe('agenda: equipe e empréstimos', () => {
     // sem permissão: só a dela
     const antes = sessao.perfil
     Object.assign(sessao, await b.entrar('sofia', 'senha123'))
-    expect((await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30' })).map((i) => i.id).sort()).toEqual(['a1', 'v1'])
+    expect((await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30' })).map((i) => i.id).sort()).toEqual(['a1'])
     expect((await b.consulta('agendaFiltros', {})).equipe).toBe(false)
     // o admin dá a permissão
     Object.assign(sessao, { perfil: antes, usuarioId: 'admin', pessoaId: undefined })
     await b.comando('salvarPessoa', { id: 'p-s', nome: 'Sofia', papeis: ['profissional'], verAgendaEquipe: true })
     Object.assign(sessao, await b.entrar('sofia', 'senha123'))
     const cal = await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30' })
-    expect(cal.map((i) => i.id).sort()).toEqual(['a1', 'a2', 'pra-outra', 'v1', 'v2'])
+    expect(cal.map((i) => i.id).sort()).toEqual(['a1', 'a2', 'pra-outra'])
     expect((await b.consulta('agendaFiltros', {})).pessoas.map((p) => p.id).sort()).toEqual(['p-o', 'p-s'])
     // filtra uma colega: só o dela
-    expect((await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30', pessoaId: 'p-o' })).map((i) => i.id).sort()).toEqual(['a2', 'pra-outra', 'v2'])
+    expect((await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30', pessoaId: 'p-o' })).map((i) => i.id).sort()).toEqual(['a2', 'pra-outra'])
   })
 
   it('parcelas de empréstimo entram na agenda no dia do vencimento (receber/pagar)', async () => {

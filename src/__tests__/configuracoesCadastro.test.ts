@@ -47,3 +47,25 @@ describe('cabeçalho do relatório formatado', () => {
     expect(rel.empresa.nit).toBe('1234567019')
   })
 })
+
+describe('o que a funcionária faz (o admin decide)', () => {
+  it('agenda: viagem só aparece quando o admin libera; venda bloqueada é recusada no servidor', async () => {
+    const { b, sessao } = await novoBackend('2026-11-01')
+    await b.comando('salvarPessoa', { id: 'p-s', nome: 'Sofia', papeis: ['funcionario'] } as any)
+    await b.comando('salvarUsuario', { id: 'u-s', login: 'sofia', nome: 'Sofia', perfil: 'funcionario', pessoaId: 'p-s', senha: 'senha123' } as any)
+    await b.comando('salvarViagem', { id: 'v1', nome: 'Feira', destino: 'Oruro', viajantes: ['p-s'], inicio: '2026-11-02' } as any)
+    const admin = { ...sessao }
+    const comoSofia = async () => Object.assign(sessao, await b.entrar('sofia', 'senha123'))
+    const comoAdmin = () => Object.assign(sessao, admin)
+    const cal = async () => (await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30' })).map((i: any) => i.id)
+    await comoSofia()
+    expect(await cal()).not.toContain('v1')
+    comoAdmin()
+    const c = (await b.consulta('configuracoes', {})).config
+    expect(c.funcionariaIdioma).toBe('es')
+    expect(c.funcionariaTelas).toEqual([])
+    await b.comando('salvarConfig', { funcionariaAgenda: [...c.funcionariaAgenda, 'viagem'], antes: { funcionariaAgenda: c.funcionariaAgenda } } as never)
+    await comoSofia()
+    expect(await cal()).toContain('v1')
+  })
+})

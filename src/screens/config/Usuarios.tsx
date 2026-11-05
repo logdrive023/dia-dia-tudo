@@ -22,12 +22,12 @@ export function Usuarios() {
   const { executar, ocupado } = useComando()
   // versao = a do usuário quando o formulário abriu (outro administrador mudou no meio → recusa, não reativa ninguém)
   const [ed, setEd] = useState<{ id: string; login: string; nome: string; perfil: 'admin' | 'funcionario'; pessoaId?: string; localId?: string; senha?: string; ativo: boolean; novo: boolean; versao?: number }>()
-  const [minha, setMinha] = useState<{ atual: string; nova: string }>()
+  const [minha, setMinha] = useState(false)
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         <Botao onClick={() => setEd({ id: novoId(), login: '', nome: '', perfil: 'funcionario', ativo: true, novo: true })}>+ {t('Usuário')}</Botao>
-        <Botao variante="secundario" onClick={() => setMinha({ atual: '', nova: '' })}>{t('Trocar minha senha')}</Botao>
+        <Botao variante="secundario" onClick={() => setMinha(true)}>{t('Trocar minha senha')}</Botao>
       </div>
       <p className="flex items-center text-sm text-[var(--suave)]">{t('Cada ação do sistema fica registrada no nome do usuário que entrou.')}<Info texto="Administrador vê e faz tudo. Funcionário só vende/atende, vê a própria agenda, a unidade e as próprias comissões. Ex.: Sofia entra e vê só os horários dela." /></p>
       {!dados ? <Carregando /> : (
@@ -60,15 +60,23 @@ export function Usuarios() {
           </GrupoCampos>
         </JanelaCadastro>
       )}
-      {minha && (
-        <JanelaCadastro titulo="Trocar minha senha" onFechar={() => setMinha(undefined)} ocupado={ocupado} podeSalvar={!!minha.atual && senhaBoa(minha.nova)}
-          onSalvar={async () => (await executar('trocarMinhaSenha', minha, t('Senha trocada.'))) && setMinha(undefined)}>
-          <GrupoCampos colunas={1}>
-            <Campo comoDiv rotulo="Senha atual"><SenhaInput rotulo="Senha atual" valor={minha.atual} onChange={(atual) => setMinha({ ...minha, atual })} /></Campo>
-            <Campo comoDiv rotulo="Nova senha"><SenhaInput rotulo="Nova senha" nova valor={minha.nova} onChange={(nova) => setMinha({ ...minha, nova })} /></Campo>
-          </GrupoCampos>
-        </JanelaCadastro>
-      )}
+      {minha && <TrocarMinhaSenha onFechar={() => setMinha(false)} />}
     </div>
+  )
+}
+
+/** TROCAR MINHA SENHA: a mesma janela para o admin (Usuários) e para a funcionária (Configurações) */
+export function TrocarMinhaSenha({ onFechar }: { onFechar(): void }) {
+  const t = useT()
+  const { executar, ocupado } = useComando()
+  const [minha, setMinha] = useState({ atual: '', nova: '' })
+  return (
+    <JanelaCadastro titulo="Trocar minha senha" onFechar={onFechar} ocupado={ocupado} podeSalvar={!!minha.atual && senhaBoa(minha.nova)}
+      onSalvar={async () => (await executar('trocarMinhaSenha', minha, t('Senha trocada.'))) && onFechar()}>
+      <GrupoCampos colunas={1}>
+        <Campo comoDiv rotulo="Senha atual"><SenhaInput rotulo="Senha atual" valor={minha.atual} onChange={(atual) => setMinha({ ...minha, atual })} /></Campo>
+        <Campo comoDiv rotulo="Nova senha"><SenhaInput rotulo="Nova senha" nova valor={minha.nova} onChange={(nova) => setMinha({ ...minha, nova })} /></Campo>
+      </GrupoCampos>
+    </JanelaCadastro>
   )
 }

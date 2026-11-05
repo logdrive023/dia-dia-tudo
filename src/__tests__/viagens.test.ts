@@ -18,6 +18,8 @@ async function cenario() {
   const { b } = ctx
   await b.comando('lancarCaixa', { id: 'ini', tipo: 'saldoInicial', moeda: 'BOB', forma: 'dinheiro', valor: bs(30000), descricao: 'Saldo inicial' })
   await b.comando('lancarCaixa', { id: 'ini-usd', tipo: 'saldoInicial', moeda: 'USD', forma: 'dinheiro', valor: 50000, descricao: 'Saldo inicial USD' })
+  // a funcionária viajante precisa da tela Viagens liberada pelo admin (no padrão é só do admin)
+  await b.comando('salvarConfig', { funcionariaTelas: ['viagens'] } as never)
   await b.comando('salvarPessoa', { id: 'p-ana', nome: 'Ana', papeis: ['funcionario'] })
   await b.comando('salvarPessoa', { id: 'p-bia', nome: 'Bia', papeis: ['funcionario', 'socio'] })
   await b.comando('salvarPessoa', { id: 'f1', nome: 'Fornecedor 1', papeis: ['fornecedor'] })

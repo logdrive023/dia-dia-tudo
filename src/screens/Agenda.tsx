@@ -157,7 +157,7 @@ export function Agenda() {
           <VistaDia data={data} itens={itens} onAbrir={(i) => setAberto(i.id)} onHora={(h) => setMarcar({ data, hora: h, tipo: 'atendimento' })} feriados={fer} />
         )}
         {/* a LEGENDA: o que cada bolinha (eventos) e cada quadradinho (feriados) quer dizer */}
-        {dados && modo === 'mes' && <LegendaCalendario tipos={TIPOS_CAL.filter((x) => !tipo || x.id === tipo)} categorias={categorias} />}
+        {dados && modo === 'mes' && <LegendaCalendario tipos={TIPOS_CAL.filter((x) => (!tipo || x.id === tipo) && (!filtros?.tipos || filtros.tipos.includes(x.id)))} categorias={categorias} />}
       </div>
 
       {aberto && <Detalhe i={aberto} onFechar={() => setAberto(undefined)} onEditar={() => (setAberto(undefined), setMarcar({ data: aberto.data, editar: aberto.ref.id }))} />}

@@ -18,7 +18,7 @@ import { type Cotacao, type TabelaCotacoes, formatar, moeda as moedaDe, multipli
 import { novoId } from '../core/domain/ids'
 import type { Id, TabelaPreco } from '../core/domain/tipos'
 import { fatorDaTabela } from '../core/services/precos'
-import { Botao, Confirmar, Info, cx, gramasTexto, loc, moedaPadrao, Titulo } from '../ui/base'
+import { Botao, Confirmar, Info, cx, gramasTexto, loc, moedaPadrao, Titulo, Vazio } from '../ui/base'
 import { BuscaPacote } from '../ui/buscaPacote'
 import { reservado } from '../ui/reserva'
 import { useApp, useComando, useConsulta } from '../ui/contexto'
@@ -32,7 +32,17 @@ import { ItensDaVenda } from './caixa/ItensDaVenda'
 import { CobrarEm, OpcoesVenda, TotalVenda } from './caixa/Cobranca'
 import { AvisoLeitura, JaSaiu } from './caixa/Avisos'
 
+/** Modo caixa: a funcionária só entra se o admin liberou "Cabelo pela pistola ou QR" */
 export function VendaRapida() {
+  const t = useT()
+  const { sessao, ir } = useApp()
+  const { dados: cfg } = useConsulta('configuracoes', {})
+  if (sessao.perfil !== 'admin' && cfg?.config.funcionariaNaoVende.includes('caixa'))
+    return <Vazio texto={t('O Modo caixa não está liberado para você. Peça a um administrador.')}><Botao onClick={() => ir('vender')}>{t('Voltar para Vender')}</Botao></Vazio>
+  return <ModoCaixa />
+}
+
+function ModoCaixa() {
   const t = useT()
   const { ir, sessao, nav, ajustarParams } = useApp()
   const { executar, ocupado } = useComando()

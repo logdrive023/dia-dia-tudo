@@ -12,7 +12,7 @@
 import type { Id, Pessoa, Transacao } from '../domain/tipos'
 import { visiveis } from './agenda'
 import { exigir } from '../domain/erros'
-import type { Ctx } from './contexto'
+import { type Ctx, lerConfig } from './contexto'
 
 /** campos que a funcionária nunca recebe (em qualquer nível da resposta) */
 const SENSIVEIS = new Set([
@@ -83,8 +83,25 @@ async function donoVisivel(ctx: Ctx, donoId: Id) {
 }
 
 /** ANTES da consulta: confere de quem é e pode trocar o pedido (ex.: conflitos só da própria agenda) */
+/**
+ * TELAS QUE O ADMIN LIBERA (Configurações › O que a funcionária faz → config.funcionariaTelas): as consultas e os
+ * comandos de cada tela só respondem à funcionária com a tela ligada — a tela esconder não basta (a API recusa também).
+ * 'pessoas' protege a FICHA; a lista de pessoas continua (é o seletor de cliente da venda, já filtrado acima).
+ */
+const DA_TELA: Record<string, string> = {
+  viagens: 'viagens', painelViajante: 'viagens', categoriasViagem: 'viagens', registrarDespesaViagem: 'viagens', anularDespesaViagem: 'viagens',
+  financiamentos: 'adiantamentos', financiamento: 'adiantamentos',
+  fichaPessoa: 'pessoas',
+}
+async function exigirTelaLiberada(ctx: Ctx, nome: string) {
+  const tela = DA_TELA[nome]
+  if (!tela) return
+  exigir((await lerConfig(ctx)).funcionariaTelas.includes(tela), SEM)
+}
+
 export async function antesDaConsulta(ctx: Ctx, nome: string, p: Record<string, unknown>): Promise<Record<string, unknown> | 'vazio'> {
   if (ehAdmin(ctx)) return p
+  await exigirTelaLiberada(ctx, nome)
   switch (nome) {
     case 'venda':
       exigir(await vendaVisivel(ctx, await ctx.repos.transacoes.obter(p.id as Id)), SEM)
@@ -178,6 +195,7 @@ export async function depoisDaConsulta(ctx: Ctx, nome: string, _p: Record<string
 /** ANTES de um comando: o que ela pode mudar (a lista de comandos já diz QUAIS; aqui é EM QUÊ) */
 export async function antesDoComando(ctx: Ctx, nome: string, d: Record<string, unknown>) {
   if (ehAdmin(ctx)) return
+  await exigirTelaLiberada(ctx, nome)
   switch (nome) {
     case 'salvarPessoa': {
       // funcionária cadastra e edita CLIENTES (e os dados dela); fornecedora, sócia, colega: só o administrador

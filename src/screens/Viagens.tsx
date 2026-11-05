@@ -412,12 +412,12 @@ export function FichaViagem() {
         acoes={<>
         {aberta ? (
           <>
-            <Botao className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => setFolha(true)}>⛽ {t('Gasto')}</Botao>
-            <Botao variante="secundario" className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => setAdiantar(true)}>💵 {t('Adiantamento')}</Botao>
+            <Botao className="flex-1 whitespace-nowrap px-3 sm:flex-none sm:px-6" onClick={() => setFolha(true)}>⛽ {t('Gasto')}</Botao>
+            <Botao variante="secundario" className="flex-1 whitespace-nowrap px-3 sm:flex-none sm:px-6" onClick={() => setAdiantar(true)}>💵 {t('Adiantamento')}</Botao>
             {/* voltou da viagem: a prestação de contas em um toque (antes ficava escondida no fim da aba Contas) */}
-            <Botao variante="secundario" className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => { setAba('contas'); setTimeout(() => document.getElementById('prestacao')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250) }}>🏁 {t('Encerrar')}</Botao>
+            <Botao variante="secundario" className="flex-1 whitespace-nowrap px-3 sm:flex-none sm:px-6" onClick={() => { setAba('contas'); setTimeout(() => document.getElementById('prestacao')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250) }}>🏁 {t('Encerrar')}</Botao>
           </>
-        ) : <Botao variante="secundario" className="min-w-0 flex-1 sm:flex-none sm:px-6" onClick={() => ir('novaViagem', { editar: v.id })}>✎ {t('Editar')}</Botao>}
+        ) : <Botao variante="secundario" className="flex-1 whitespace-nowrap px-3 sm:flex-none sm:px-6" onClick={() => ir('novaViagem', { editar: v.id })}>✎ {t('Editar')}</Botao>}
         <MenuAcoes comRotulo className="shrink-0" acoes={[
           ...(aberta ? [{ rotulo: 'Editar viagem', icone: '✎', onClick: () => ir('novaViagem', { editar: v.id }) }] : []),
           { rotulo: 'Apagar viagem', icone: '🗑', perigo: true, separar: aberta, descricao: impedeApagar ? t(impedeApagar) : t('Ex.: criada repetida por engano. Some das listas e dos filtros.'), onClick: () => setApagar(true) },

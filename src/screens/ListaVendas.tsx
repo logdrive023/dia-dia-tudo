@@ -7,6 +7,8 @@
 import { type ReactNode, useState } from 'react'
 import { dataLocal } from '../core/domain/datas'
 import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
+import { useLiberado } from '../ui/liberado'
+import { formasEmUso } from '../core/domain/formas'
 import { GrupoVisao, useVisaoLista } from '../ui/visaoLista'
 import { TabelaDados, SeloCodigo, corDoNome, iniciais } from '../ui/tabelaDados'
 import { formatar } from '../core/domain/dinheiro'
@@ -43,7 +45,9 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
   const admin = sessao.perfil === 'admin'
   const { dados: conf } = useConsulta('configuracoes', {})
   const { dados: pessoas } = useConsulta('pessoas', {})
-  const { dados: locais } = useConsulta('locais', {})
+  const { dados: locais } = useConsulta('locais', {}, admin)
+  const { dados: filtrosEquipe } = useConsulta('agendaFiltros', {}, !admin)
+  const liberado = useLiberado()
   const cfg = conf?.config
   // a mesma consulta do Painel; as canceladas vêm da mesma consulta pedindo a etapa "cancelado"
   const base = { de: p('de') || undefined, ate: p('ate') || undefined, moduloId: p('moduloId') || undefined, forma: p('forma') || undefined, moeda: p('moeda') || undefined, localId: p('localId') || undefined, profissionalId: p('profissionalId') || undefined, pessoaId: p('pessoaId') || undefined, usuarioId: p('usuarioId') || undefined }
@@ -97,9 +101,13 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
   const filtrando = ativos.length > 0 || !!termo
   const limpar = () => ajustarParams({ ...Object.fromEntries(CHAVES.map((k) => [k, undefined])), pagina: undefined })
   const mudar = (k: string, v: string) => ajustarParams({ [k]: v || undefined, pagina: undefined })
-  const funcionarios = (pessoas ?? []).filter((u) => u.papeis.includes('funcionario'))
+  // FILTROS NA BOLHA DE QUEM VÊ: admin = todos · gerente (agenda da equipe) = as colegas que ela pode ver ·
+  // funcionária = só ela (sem "Quem vendeu" nem "Unidade"); viagem só com a tela Viagens liberada
+  const verEquipe = admin || !!filtrosEquipe?.equipe
+  const funcionarios = admin ? (pessoas ?? []).filter((u) => u.papeis.includes('funcionario')) : (filtrosEquipe?.pessoas ?? [])
   const clientes = (pessoas ?? []).filter((u) => u.papeis.includes('cliente'))
-  const modulosVenda = (conf?.modulos ?? []).filter((m) => cfg?.modulosAtivos.includes(m.id) && m.temVenda)
+  const nao = new Set(admin ? [] : cfg?.funcionariaNaoVende ?? [])
+  const modulosVenda = (conf?.modulos ?? []).filter((m) => cfg?.modulosAtivos.includes(m.id) && m.temVenda && (m.id === 'cabelo' ? !(nao.has('caixa') && nao.has('medida')) : !nao.has(m.id)))
 
   const situacao = (v: V) => (v.etapa === 'cancelado' ? <Pilula tom="neutro">✕ {t('Cancelada')}</Pilula> : <SeloPendencias compacto pendencias={v.pendencias} moeda={v.moedaPrincipal} />)
   const acoes = (v: V): Acao[] => [
@@ -130,7 +138,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
           n: a.id === 'abertas' ? abertas?.length : carregando ? undefined : a.id === 'canceladas' ? canc.length : a.id === 'todas' ? conc.length + canc.length : a.id === 'pendencia' ? comPend.length : conc.length,
         })) }}
         periodo={{ de: p('de'), ate: p('ate'), onChange: (de, ate) => ajustarParams({ de, ate, pagina: undefined }) }}
-        extra={<FiltroViagem nasLinhas={[...(concluidas ?? []), ...(canceladas ?? [])].map((v) => v.viagens)} valor={p('viagem')} onChange={(v) => mudar('viagem', v)} />}
+        extra={liberado('viagens') && <FiltroViagem nasLinhas={[...(concluidas ?? []), ...(canceladas ?? [])].map((v) => v.viagens)} valor={p('viagem')} onChange={(v) => mudar('viagem', v)} />}
         busca={p('busca')} onBusca={(v) => mudar('busca', v)} placeholder="Buscar cliente, código (V-0001), item ou quem vendeu"
         ativos={ativos} onTirar={(k) => (tirar(k), setP('pagina', ''))} onLimpar={limpar}
         resultados={carregando ? undefined : lista.length} total={carregando ? undefined : (aba === 'canceladas' ? canceladas!.length : aba === 'todas' ? concluidas!.length + canceladas!.length : concluidas!.length)} unidade="venda(s)"
@@ -142,13 +150,13 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
             <Campo rotulo="Pendência"><Selecao valor={pendencia} onChange={(v) => mudar('pendencia', v)} vazio="Qualquer" opcoes={PENDENCIAS} /></Campo>
           </GrupoFiltro>
           <GrupoFiltro titulo="Pagamento" icone="💳">
-            <Campo rotulo="Forma de pagamento"><Selecao valor={p('forma')} onChange={(v) => mudar('forma', v)} vazio="Todas" opcoes={(cfg?.formas ?? []).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
+            <Campo rotulo="Forma de pagamento"><Selecao valor={p('forma')} onChange={(v) => mudar('forma', v)} vazio="Todas" opcoes={(admin ? cfg?.formas ?? [] : formasEmUso(cfg?.formas)).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
             {(cfg?.moedasAtivas.length ?? 0) > 1 && <Campo rotulo="Moeda recebida"><Selecao valor={p('moeda')} onChange={(v) => mudar('moeda', v)} vazio="Todas" opcoes={(cfg?.moedasAtivas ?? []).map((m) => ({ id: m, nome: m }))} /></Campo>}
           </GrupoFiltro>
           <GrupoFiltro titulo="Quem e onde" icone="👤">
-            <Campo rotulo="Quem vendeu"><Selecao valor={p('usuarioId')} onChange={(v) => mudar('usuarioId', v)} vazio="Qualquer pessoa" opcoes={funcionarios.map((u) => ({ id: u.id, nome: u.nome }))} /></Campo>
+            {verEquipe && funcionarios.length > 1 && <Campo rotulo="Quem vendeu"><Selecao valor={p('usuarioId')} onChange={(v) => mudar('usuarioId', v)} vazio="Qualquer pessoa" opcoes={funcionarios.map((u) => ({ id: u.id, nome: u.nome }))} /></Campo>}
             {clientes.length > 0 && <Campo rotulo="Cliente"><Selecao valor={p('pessoaId')} onChange={(v) => mudar('pessoaId', v)} vazio="Todos" opcoes={clientes.map((u) => ({ id: u.id, nome: u.nome }))} /></Campo>}
-            {(locais ?? []).length > 0 && <Campo rotulo="Unidade"><Selecao valor={p('localId')} onChange={(v) => mudar('localId', v)} vazio="Todas" opcoes={(locais ?? []).map((l) => ({ id: l.id, nome: l.nome }))} /></Campo>}
+            {admin && (locais ?? []).length > 0 && <Campo rotulo="Unidade"><Selecao valor={p('localId')} onChange={(v) => mudar('localId', v)} vazio="Todas" opcoes={(locais ?? []).map((l) => ({ id: l.id, nome: l.nome }))} /></Campo>}
           </GrupoFiltro>
           <GrupoVisao visao={vis.visao} onVisao={vis.setVisao} />
         </>}

@@ -168,7 +168,12 @@ describe('adiantamento a parceiros (financiamento pago com cabelo)', () => {
     await b.comando('registrarEntregaFinanciamento', { id: 'c1', financiamentoId: 'ad-ana', linhas: [linha('c1-l', 500, bs(1000))] })
     expect((await b.consulta('compra', { id: 'c1' })).compra.viagemId).toBe('vg')
     expect((await b.consulta('financiamentos', { viagemId: 'vg' })).linhas.map((x) => x.id)).toEqual(['ad-ana'])
-    // funcionária: lê só o dela; não cria nem acerta
+    // funcionária: sem a tela Adiantamentos liberada, nem lê
+    Object.assign(sessao, { usuarioId: 'u-ana', nome: 'Ana', perfil: 'funcionario', pessoaId: 'p-ana' })
+    await expect(b.consulta('financiamentos', {})).rejects.toThrow(/permissão/)
+    Object.assign(sessao, { usuarioId: 'admin', nome: 'Administrador', perfil: 'admin', pessoaId: undefined })
+    await b.comando('salvarConfig', { funcionariaTelas: ['adiantamentos'] } as never)
+    // liberada: lê só o dela; não cria nem acerta
     Object.assign(sessao, { usuarioId: 'u-ana', nome: 'Ana', perfil: 'funcionario', pessoaId: 'p-ana' })
     expect((await b.consulta('financiamentos', {})).linhas.map((x) => x.id)).toEqual(['ad-ana'])
     expect((await b.consulta('financiamento', { id: 'ad-ana' })).comissaoAPagar).toBe(0)

@@ -137,6 +137,23 @@ export interface Configuracoes {
   impostosNaNota: boolean
   /** FERIADOS: os ajustes do decreto de cada ano (mover · extra · tirar) — atualiza a agenda sem mudar o código */
   feriadosAjustes: AjusteFeriado[]
+  /**
+   * O QUE A FUNCIONÁRIA FAZ (o admin decide em Configurações › O que a funcionária faz):
+   * naoVende = os caminhos de venda que ela NÃO vê ('caixa' = cabelo pela pistola/QR · 'medida' = cabelo sem etiqueta ·
+   * id de módulo = serviço, produto…). Lista de exclusão: módulo novo já nasce liberado.
+   * agenda = o que ela vê na agenda (viagem e empréstimo são do admin: desligados no padrão).
+   */
+  funcionariaNaoVende: string[]
+  funcionariaAgenda: ('atendimento' | 'compromisso' | 'viagem' | 'emprestimo')[]
+  /**
+   * telas e atalhos que a funcionária vê ALÉM do básico (Vender · Agenda · Equipe · Configurações básicas):
+   * 'pessoas' · 'viagens' (minha viagem) · 'adiantamentos' · 'conversor' (de moedas). Nenhum no padrão.
+   */
+  funcionariaTelas: string[]
+  /** o idioma de quem entra como funcionária (a maioria é boliviana): espanhol no padrão; cada aparelho pode trocar */
+  funcionariaIdioma: 'pt' | 'es'
+  /** as seções de Configurações que a funcionária vê (além de tema, idioma e a própria senha) */
+  funcionariaConfig: string[]
   /** RELATÓRIOS CONTÁBEIS: país do padrão (Bolívia é o motor), regime, NIT, faturas e taxas — CONTABILIDADE.md */
   fiscal: ConfigFiscal
 }
@@ -164,6 +181,11 @@ export const CONFIG_PADRAO: Configuracoes = {
   modeloNota: 'carta',
   impostosNaNota: true,
   feriadosAjustes: AJUSTES_PADRAO,
+  funcionariaNaoVende: [],
+  funcionariaAgenda: ['atendimento', 'compromisso'],
+  funcionariaTelas: [],
+  funcionariaIdioma: 'es',
+  funcionariaConfig: [],
   fiscal: FISCAL_PADRAO,
 }
 

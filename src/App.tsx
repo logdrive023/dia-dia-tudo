@@ -2,6 +2,8 @@
 // atualiza o câmbio, oferece os dados de exemplo no primeiro uso e avisa quando há versão nova.
 
 import { Component, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { TELAS_LIBERAVEIS, type TelaLiberavel, useLiberado } from './ui/liberado'
+import { useIdiomaAparelho } from './ui/idiomaAparelho'
 import { NovoFuncionarioTela } from './screens/cadastros/CadastroFuncionario'
 import { NovaPessoaTela } from './screens/cadastros/CadastroPessoa'
 import { Auditoria } from './screens/Auditoria'
@@ -82,7 +84,7 @@ const TELAS: Record<string, () => JSX.Element> = {
   novoFuncionario: NovoFuncionarioTela,
   novaViagem: NovaViagemTela,
 }
-const SO_ADMIN = new Set([...MENU.filter((m) => m.admin).map((m) => m.tela), 'rastreio', 'emprestimo', 'vendas', 'pedido', 'novaCompra', 'tabelaPreco', 'novoEmprestimo', 'separar', 'novoFuncionario', 'configSecao', 'viagem', 'novaViagem', 'novoFinanciamento'])
+const SO_ADMIN = new Set([...MENU.filter((m) => m.admin).map((m) => m.tela), 'rastreio', 'emprestimo', 'vendas', 'pedido', 'novaCompra', 'tabelaPreco', 'novoEmprestimo', 'separar', 'novoFuncionario', 'viagem', 'novaViagem', 'novoFinanciamento'])
 
 function lerSessao(padrao: Sessao): Sessao {
   try {
@@ -258,7 +260,12 @@ function Traduz({ texto }: { texto: string }) {
 
 function ComIdioma({ children }: { children: ReactNode }) {
   const { dados } = useConsulta('configuracoes', {})
-  const idioma = (dados?.config.idioma ?? 'pt') as Idioma
+  // a escolha deste aparelho (funcionária) vale por cima do idioma do sistema
+  const doAparelho = useIdiomaAparelho()
+  const { sessao } = useApp()
+  // funcionária: o idioma da equipe (espanhol no padrão — Configurações › O que a funcionária faz); admin: o do sistema
+  const doPerfil = sessao.usuarioId && sessao.perfil === 'funcionario' ? dados?.config.funcionariaIdioma : dados?.config.idioma
+  const idioma = (doAparelho ?? doPerfil ?? 'pt') as Idioma
   // antes de desenhar as telas: números/datas no formato do idioma e a moeda principal como padrão
   definirPadroes({ locale: localeDe(idioma), moeda: dados?.config.moedaPrincipal ?? 'BOB' })
   useEffect(() => {
@@ -269,7 +276,11 @@ function ComIdioma({ children }: { children: ReactNode }) {
 
 function Tela() {
   const { nav, sessao } = useApp()
-  const proibida = sessao.perfil !== 'admin' && SO_ADMIN.has(nav.tela)
+  const { dados: cfg } = useConsulta('configuracoes', {})
+  const liberado = useLiberado()
+  // Pessoas, Viagens, Adiantamentos: só com a liberação do admin — Configurações › O que a funcionária faz
+  const naoLiberada = !!cfg && (TELAS_LIBERAVEIS as string[]).includes(nav.tela) && !liberado(nav.tela as TelaLiberavel)
+  const proibida = sessao.perfil !== 'admin' && (SO_ADMIN.has(nav.tela) || naoLiberada)
   const nome = proibida ? 'agenda' : nav.tela
   // endereço e tela sempre juntos: se a tela não é permitida, o endereço também vira a agenda
   useEffect(() => {

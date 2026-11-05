@@ -6,16 +6,53 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { Trilha } from '../ui/trilha'
 import { Titulo, Vazio, cx } from '../ui/base'
-import { useApp, useComando, useConsulta } from '../ui/contexto'
+import { useApp, useConsulta } from '../ui/contexto'
+import { CONFIG_SO_ADMIN } from './config/Funcionaria'
+import { TrocarMinhaSenha } from './config/Usuarios'
 import { useT } from '../ui/i18n'
-import { type Tema, TEMAS, lerTema, salvarTema } from '../ui/tema'
-import { GRUPOS_CONFIG, type SecaoConfig, buscarSecoes, grupoConfig, secaoConfig } from './configSecoes'
+import { PreferenciasCabecalho } from '../ui/preferencias'
+import { GRUPOS_CONFIG, SECOES_CONFIG, type SecaoConfig, buscarSecoes, grupoConfig, secaoConfig } from './configSecoes'
 
 export function Config() {
-  const { nav } = useApp()
+  const { nav, sessao } = useApp()
   // endereço antigo (?aba=x) também abre a seção
   const s = secaoConfig(String(nav.tela === 'configSecao' ? nav.params.id ?? '' : nav.params.aba ?? ''))
+  // POR PERFIL: admin vê tudo; funcionária (e gerente) vê tema, idioma, a própria senha e o que o admin liberou
+  if (sessao.perfil !== 'admin') return <ConfigFuncionaria s={s} />
   return s ? <Secao s={s} /> : <Indice />
+}
+
+/** Configurações de quem não é admin: o básico (tema, idioma, senha) e as seções liberadas em "O que a funcionária faz" */
+function ConfigFuncionaria({ s }: { s?: SecaoConfig }) {
+  const t = useT()
+  const { ir } = useApp()
+  const { dados } = useConsulta('configuracoes', {})
+  const [senha, setSenha] = useState(false)
+  const liberadas = SECOES_CONFIG.filter((x) => !CONFIG_SO_ADMIN.has(x.id) && (dados?.config.funcionariaConfig ?? []).includes(x.id))
+  if (s && liberadas.includes(s)) {
+    const C = s.componente
+    return (
+      <div className="mx-auto max-w-5xl">
+        <Trilha niveis={[]} atual={t(s.nome)} />
+        <Titulo subtitulo={t(s.descricao)}>{t(s.nome)}</Titulo>
+        <C key={s.id} />
+      </div>
+    )
+  }
+  return (
+    <div className="mx-auto max-w-3xl space-y-4">
+      <Titulo acao={<PreferenciasCabecalho />} subtitulo={t('Tema e idioma valem para este aparelho.')}>{t('Configurações')}</Titulo>
+      <section className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+        <button type="button" onClick={() => setSenha(true)} className="flex min-h-16 w-full items-center gap-3 px-4 py-2 text-left hover:bg-[var(--fundo)]">
+          <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--marca-suave)] text-xl">🔑</span>
+          <span className="min-w-0 flex-1"><span className="block font-semibold">{t('Trocar minha senha')}</span><span className="block text-sm text-[var(--suave)]">{t('Só a sua: ninguém mais vê.')}</span></span>
+          <span aria-hidden className="text-xl text-[var(--suave)]">›</span>
+        </button>
+        {liberadas.map((x) => <div key={x.id} className="border-t border-[var(--borda)]"><LinhaSecao s={x} grupo onClick={() => ir('configSecao', { id: x.id })} /></div>)}
+      </section>
+      {senha && <TrocarMinhaSenha onFechar={() => setSenha(false)} />}
+    </div>
+  )
 }
 
 /** "/" em qualquer lugar (fora de campo) foca a busca; Esc limpa; Enter abre a primeira encontrada. */
@@ -96,7 +133,7 @@ function Indice() {
   const abrir = (s?: SecaoConfig) => s && ir('configSecao', { id: s.id })
   return (
     <div className="mx-auto max-w-5xl">
-      <Titulo acao={<div className="flex flex-wrap justify-end gap-2"><TemaEscolha /><Idioma /></div>}>{t('Configurações')}</Titulo>
+      <Titulo acao={<PreferenciasCabecalho />}>{t('Configurações')}</Titulo>
       <div className="mb-5 lg:max-w-xl">
         <CaixaBusca busca={busca} onEnter={() => abrir(achadas[0])} />
       </div>
@@ -160,37 +197,7 @@ function Indice() {
   )
 }
 
-/** Tema claro / escuro / automático, ao lado do idioma (vale para este aparelho). */
-function TemaEscolha() {
-  const t = useT()
-  const [atual, setAtual] = useState<Tema>(lerTema)
-  return (
-    <div role="radiogroup" aria-label={t('Tema')} title={t('Vale para este aparelho')} className="flex gap-1 rounded-xl bg-[var(--marca-suave)] p-1">
-      {TEMAS.map((x) => (
-        <button key={x.id} type="button" role="radio" aria-checked={atual === x.id} aria-label={t(x.nome)} title={t(x.nome)} onClick={() => (salvarTema(x.id), setAtual(x.id))} className={cx('min-h-11 rounded-lg px-3 text-sm font-semibold', atual === x.id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
-          <span aria-hidden>{x.icone}</span><span className="hidden sm:inline"> {t(x.nome)}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
 
-/** Idioma à mão logo no topo (quem não entende a língua da tela acha sem procurar). */
-function Idioma() {
-  const t = useT()
-  const { dados } = useConsulta('configuracoes', {})
-  const { executar } = useComando()
-  const atual = dados?.config.idioma ?? 'pt'
-  return (
-    <div role="radiogroup" aria-label={t('Idioma')} className="flex flex-wrap gap-1 rounded-xl bg-[var(--marca-suave)] p-1">
-      {(['pt', 'es'] as const).map((i) => (
-        <button key={i} type="button" role="radio" aria-checked={atual === i} onClick={() => atual !== i && executar('salvarConfig', { idioma: i })} className={cx('min-h-11 min-w-max flex-1 rounded-lg px-3 text-sm font-semibold', atual === i ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
-          {i === 'pt' ? '🇧🇷 Português' : '🇧🇴 Español'}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 function Secao({ s }: { s: SecaoConfig }) {
   const t = useT()
@@ -202,10 +209,11 @@ function Secao({ s }: { s: SecaoConfig }) {
       <div className="min-w-0">
         {/* celular: a trilha (← Configurações › grupo › seção); no computador a lista ao lado já mostra onde está */}
         <div className="lg:hidden"><Trilha niveis={[{ rotulo: <><span aria-hidden>{g.icone} </span>{t(g.nome)}</> }]} atual={t(s.nome)} /></div>
-        <p className="hidden text-xs font-medium text-[var(--suave)] lg:block">
-          <span aria-hidden>{g.icone} </span>{t(g.nome)} <span aria-hidden>›</span> {t(s.nome)}
-        </p>
-        <Titulo subtitulo={t(s.descricao)}>{t(s.nome)}</Titulo>
+        {/* computador: a área vira um selo com a cor dela dentro do cabeçalho (a lista ao lado já mostra a seção) */}
+        <Titulo subtitulo={<span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="hidden items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold lg:inline-flex" style={{ color: g.cor, background: `color-mix(in srgb, ${g.cor} 12%, transparent)` }}><span aria-hidden>{g.icone}</span>{t(g.nome)}</span>
+          <span>{t(s.descricao)}</span>
+        </span>}>{t(s.nome)}</Titulo>
         <C key={s.id} />
       </div>
     </div>
