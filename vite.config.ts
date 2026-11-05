@@ -69,7 +69,8 @@ export default defineConfig(({ command, mode }) => {
           display: 'standalone',
           icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
         },
-        workbox: { globPatterns: ['**/*.{js,css,html,svg,png}'] },
+        // o app é um arquivo só (~2,2 MB): o limite padrão do cache offline (2 MiB) deixava ele de fora e quebrava o build
+        workbox: { globPatterns: ['**/*.{js,css,html,svg,png}'], maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 },
       }),
     ],
     // produção: sem mapa do código-fonte, sem console/debugger e sem comentários de licença no pacote
