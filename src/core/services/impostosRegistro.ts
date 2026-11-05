@@ -3,12 +3,13 @@
 // Vale mesmo com a exibição desligada (Configurações › Fiscal): mostrar é escolha; guardar o registro é sempre.
 import { formatar } from '../domain/dinheiro'
 import type { Transacao } from '../domain/tipos'
-import { impostosDaOperacao } from '../dados/impostos'
+import { impostosDaOperacao, impostosDoRegime } from '../dados/impostos'
 import { auditar, type Ctx, lerConfig } from './contexto'
 
 export async function registrarImpostosEstimados(ctx: Ctx, t: Transacao) {
   const cfg = await lerConfig(ctx)
-  const lista = cfg.fiscal.impostos ?? []
+  // a mesma regra da tela: só o que vale por venda no regime escolhido
+  const lista = impostosDoRegime(cfg.fiscal).lista
   if (!lista.some((i) => i.ligado)) return
   let op: { produto?: number; servico?: number; compra?: number }
   if (t.tipo === 'compra') op = { compra: t.totalPrincipal }

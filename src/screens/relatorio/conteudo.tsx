@@ -34,7 +34,24 @@ export function ConteudoSecao({ id, rel, impressao, onAnexo }: { id: IdSecao; re
     case 'impostos':
       return (
         <div className="space-y-3">
+          <p role="note" className="rounded-xl border border-[var(--alerta)]/40 bg-[var(--alerta)]/10 px-3 py-2 text-xs font-semibold text-[var(--alerta)] print:border-black print:bg-transparent print:text-black">⚠️ {x.estimativa}</p>
           <p className="text-xs text-[var(--suave)]">{x.regime}: <b className="text-[var(--texto)]">{rel.regimeNome}</b></p>
+          {rel.resumoImpostos.itens.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 print:grid-cols-4">
+              {rel.resumoImpostos.itens.map((i) => (
+                <div key={i.sigla} className="rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-2.5 print:border-black/40">
+                  <b className="block text-xs">{i.sigla}</b>
+                  <span className="num block text-base font-bold">{v(i.valor)}</span>
+                  <span className="num block text-[11px] text-[var(--suave)]">{(i.pctBp / 100).toLocaleString(p === 'BO' ? 'es-BO' : 'pt-BR')}% {x.sobreVentas}</span>
+                </div>
+              ))}
+              <div className="rounded-xl bg-[var(--alerta)]/12 p-2.5 print:border print:border-black print:bg-transparent">
+                <b className="block text-xs">{x.carga}</b>
+                <span className="num block text-base font-black">{v(rel.resumoImpostos.total)}</span>
+                <span className="num block text-[11px]">{(rel.resumoImpostos.pctBp / 100).toLocaleString(p === 'BO' ? 'es-BO' : 'pt-BR')}% {x.sobreVentas}</span>
+              </div>
+            </div>
+          )}
           <TabelaResultado linhas={rel.impostos} pais={p} impressao={impressao} />
           {rel.notas.length > 0 && (
             <div className="rounded-xl bg-[var(--fundo)] p-3 text-xs print:bg-transparent print:p-0">

@@ -7,7 +7,6 @@ import { Trilha } from '../ui/trilha'
 import { corDoNome, iniciais } from '../ui/tabelaDados'
 import { GrupoNumeros, NumeroGrande } from '../ui/numeroGrande'
 import { CabecalhoFicha } from '../ui/cabecalhoFicha'
-import { CadastroPessoa } from './cadastros/CadastroPessoa'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id, Papel } from '../core/domain/tipos'
@@ -34,7 +33,6 @@ export function Pessoas() {
   const [busca, setBusca] = useParamTela('busca', '')
   const [papel, setPapel] = useParamTela('papel', '')
   const [lado, setLado] = useParamTela<'' | 'receber' | 'pagar'>('lado', '')
-  const [nova, setNova] = useState(false)
   const { dados: pessoas } = useConsulta('pessoas', {})
   const { dados: contas } = useConsulta('contas', { somenteAbertas: true }, admin)
   const { cfg } = useCotacoes()
@@ -50,7 +48,7 @@ export function Pessoas() {
   const limpar = () => (setBusca(''), setPapel(''), setLado(''))
   return (
     <div>
-      <Titulo acao={<Botao onClick={() => setNova(true)}>+ {t('Pessoa')}</Botao>} subtitulo={t('Clientes, fornecedoras e equipe — e quem deve a quem.')}>{t('Pessoas e contas')}</Titulo>
+      <Titulo acao={<Botao onClick={() => ir('novaPessoa')}>+ {t('Pessoa')}</Botao>} subtitulo={t('Clientes, fornecedoras e equipe — e quem deve a quem.')}>{t('Pessoas e contas')}</Titulo>
       {admin && (
         <GrupoNumeros colunas={3} celular={3}>
           <NumeroGrande rotulo="Me devem" valor={formatar(contas?.aReceber ?? 0, m)} icone="⬇" tom="bom" carregando={!contas} ativo={emContas && lado === 'receber'} onClick={() => (setAba('contas'), setLado(lado === 'receber' ? '' : 'receber'))} ajuda="Soma do que as pessoas me devem. Toque para ver quem." />
@@ -94,7 +92,7 @@ export function Pessoas() {
         )
       ) : !pessoas ? <Carregando /> : !lista.length ? (
         busca || papel ? <VazioFiltro filtrando onLimpar={limpar} /> : (
-          <Vazio texto="Nenhuma pessoa cadastrada ainda."><Botao variante="secundario" onClick={() => setNova(true)}>+ {t('Pessoa')}</Botao></Vazio>
+          <Vazio texto="Nenhuma pessoa cadastrada ainda."><Botao variante="secundario" onClick={() => ir('novaPessoa')}>+ {t('Pessoa')}</Botao></Vazio>
         )
       ) : (
         <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -113,7 +111,6 @@ export function Pessoas() {
           ))}
         </ul>
       )}
-      {nova && <CadastroPessoa onFechar={() => setNova(false)} />}
     </div>
   )
 }
@@ -144,7 +141,6 @@ export function FichaPessoa() {
   const { dados, erro } = useConsulta('fichaPessoa', { id })
   const { dados: conta } = useConsulta('contaPessoa', { pessoaId: id }, admin)
   const [acerto, setAcerto] = useState<'recebi' | 'paguei'>()
-  const [editar, setEditar] = useState(false)
   const { dados: conf } = useConsulta('configuracoes', {})
   const cfg = conf?.config
   const m = cfg?.moedaPrincipal ?? moedaPadrao()
@@ -179,7 +175,7 @@ export function FichaPessoa() {
         valor={conta ? <span className={saldo > 0 ? 'text-[var(--bom)]' : saldo < 0 ? 'text-[var(--ruim)]' : ''}>{saldo ? formatar(Math.abs(saldo), mc) : '✓'}</span> : undefined}
         valorDetalhe={conta ? t(saldo > 0 ? 'me deve' : saldo < 0 ? 'eu devo' : 'conta em dia') : undefined}
         acoes={<div className="flex flex-wrap gap-2">
-          <Botao variante="secundario" onClick={() => setEditar(true)}>✎ {t('Editar')}</Botao>
+          <Botao variante="secundario" onClick={() => ir('novaPessoa', { editar: p.id })}>✎ {t('Editar')}</Botao>
           {conta && admin && <Botao onClick={() => setAcerto('recebi')}>⬇ {t('Recebi')}</Botao>}
           {conta && admin && <Botao variante="secundario" onClick={() => setAcerto('paguei')}>⬆ {t('Paguei / adiantei')}</Botao>}
           {saldo > 0 && p.telefone && <a className="inline-flex min-h-11 items-center rounded-xl bg-[#25d366] px-4 text-sm font-semibold text-white" target="_blank" rel="noreferrer" href={linkWhatsApp(`${t('Olá')} ${p.nome}! ${t('Seu saldo em aberto é')} ${formatar(saldo, mc)}.`, p.telefone)}>💬 {t('Cobrar')}</a>}
@@ -288,7 +284,6 @@ export function FichaPessoa() {
       </Cartao>
       {admin && <Cartao titulo={`📜 ${t('Linha do tempo (log)')}`}><LinhaDoTempo id={p.id} /></Cartao>}
       {acerto && <Acerto pessoaId={p.id} direcao={acerto} onFechar={() => setAcerto(undefined)} />}
-      {editar && <CadastroPessoa id={p.id} onFechar={() => setEditar(false)} />}
     </div>
   )
 }

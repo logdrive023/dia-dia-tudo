@@ -60,6 +60,10 @@ describe('impostos nas operações (lista configurável)', () => {
     const v = await b.consulta('impostosOperacao', { produto: bs(1000) })
     expect(v).toMatchObject({ ligado: true, venda: bs(160) })
     expect(v.linhas.map((l) => [l.sigla, l.valor])).toEqual([['IVA', bs(130)], ['IT', bs(30)]])
+    // compra SEM fatura (o normal ao comprar cabelo de pessoas): não dá crédito de IVA
+    expect((await b.consulta('impostosOperacao', { compra: bs(1000) })).linhas).toEqual([])
+    // compra COM fatura: o IVA dela é crédito fiscal
+    await b.comando('salvarConfig', { fiscal: { comprasComFatura: true } as never })
     const c = await b.consulta('impostosOperacao', { compra: bs(1000) })
     expect(c.linhas).toEqual([expect.objectContaining({ sigla: 'IVA', valor: bs(130), credito: true, lado: 'compra' })])
     // serviço também paga (os dois estão marcados para serviço)

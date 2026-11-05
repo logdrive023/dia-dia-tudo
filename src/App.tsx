@@ -2,6 +2,8 @@
 // atualiza o câmbio, oferece os dados de exemplo no primeiro uso e avisa quando há versão nova.
 
 import { Component, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { NovoFuncionarioTela } from './screens/cadastros/CadastroFuncionario'
+import { NovaPessoaTela } from './screens/cadastros/CadastroPessoa'
 import { Auditoria } from './screens/Auditoria'
 import type { BackendNoAparelho } from './adapters/noAparelho'
 import { atualizarCambio } from './app/cambio'
@@ -76,9 +78,11 @@ const TELAS: Record<string, () => JSX.Element> = {
   adiantamentos: Financiamentos,
   financiamento: FichaFinanciamento,
   novoFinanciamento: CadastroAdiantamento,
+  novaPessoa: NovaPessoaTela,
+  novoFuncionario: NovoFuncionarioTela,
   novaViagem: NovaViagemTela,
 }
-const SO_ADMIN = new Set([...MENU.filter((m) => m.admin).map((m) => m.tela), 'rastreio', 'emprestimo', 'vendas', 'pedido', 'novaCompra', 'tabelaPreco', 'novoEmprestimo', 'separar', 'configSecao', 'viagem', 'novaViagem', 'novoFinanciamento'])
+const SO_ADMIN = new Set([...MENU.filter((m) => m.admin).map((m) => m.tela), 'rastreio', 'emprestimo', 'vendas', 'pedido', 'novaCompra', 'tabelaPreco', 'novoEmprestimo', 'separar', 'novoFuncionario', 'configSecao', 'viagem', 'novaViagem', 'novoFinanciamento'])
 
 function lerSessao(padrao: Sessao): Sessao {
   try {

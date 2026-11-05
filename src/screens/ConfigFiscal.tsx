@@ -82,6 +82,7 @@ export function ConfigFiscal() {
                   { id: 'general', icone: '🧾', nome: NOMES_REGIME.general.nome, descricao: NOMES_REGIME.general.explica },
                   { id: 'rts', icone: '🏪', nome: NOMES_REGIME.rts.nome, descricao: NOMES_REGIME.rts.explica },
                 ]} />
+                <ComoFuncionaRegime r={NOMES_REGIME[v.regimeBO]} />
                 {v.regimeBO === 'general' ? (
                   <>
                     <EscolhaCartoes<'sim' | 'nao'> rotulo="¿Las ventas salen con factura?" valor={v.vendasComFatura ? 'sim' : 'nao'} onChange={(x) => mudar({ vendasComFatura: x === 'sim' })} opcoes={[
@@ -109,6 +110,7 @@ export function ConfigFiscal() {
                   { id: 'simples', icone: '📗', nome: NOMES_REGIME.simples.nome, descricao: NOMES_REGIME.simples.explica },
                   { id: 'presumido', icone: '📘', nome: NOMES_REGIME.presumido.nome, descricao: NOMES_REGIME.presumido.explica },
                 ]} />
+                <ComoFuncionaRegime r={NOMES_REGIME[v.regimeBR]} />
                 <div className="flex flex-wrap gap-4 rounded-xl bg-[var(--fundo)] p-3">
                   {v.regimeBR === 'simples' ? <CampoTaxa rotulo="DAS (alíquota efetiva)" valor={v.simplesBp} onChange={(simplesBp) => mudar({ simplesBp })} /> : (
                     <>
@@ -199,6 +201,17 @@ function ImpostosOperacoes({ v, mudar }: { v: ConfigFiscal; mudar(p: Partial<Con
                         <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', i.ligado ? 'left-[22px]' : 'left-0.5')} />
                       </button>
                     </div>
+                    {(i.porQue || i.naPratica || i.explica) && (
+                      <details className="border-t border-[var(--borda)] px-3 py-2 text-xs">
+                        <summary className="cursor-pointer font-semibold text-[var(--marca)]">💡 {t('O que é, de onde vem e por que existe')}</summary>
+                        <dl className="mt-1.5 space-y-1.5">
+                          {i.porQue && <div><dt className="font-semibold">{t('Por que existe')}</dt><dd className="text-[var(--suave)]">{t(i.porQue)}</dd></div>}
+                          {i.fonte && <div><dt className="font-semibold">{t('De onde vem')}</dt><dd className="text-[var(--suave)]">{i.fonte}{i.vigenteDesde ? ` · ${t('desde')} ${dataBR(i.vigenteDesde)}` : ''}</dd></div>}
+                          {i.explica && <div><dt className="font-semibold">{t('Como a conta é feita')}</dt><dd className="text-[var(--suave)]">{i.explica}</dd></div>}
+                          {i.naPratica && <div><dt className="font-semibold">{t('Na prática (o que se paga de verdade)')}</dt><dd className="text-[var(--suave)]">{t(i.naPratica)}</dd></div>}
+                        </dl>
+                      </details>
+                    )}
                     <div className="flex flex-wrap items-center gap-2 border-t border-[var(--borda)] px-3 py-1.5">
                       {i.fonte && <span className="linha-texto truncate text-xs text-[var(--suave)]">📜 {i.fonte}</span>}
                       <button type="button" aria-expanded={aberto} onClick={() => setEditando(aberto ? undefined : i.id)} className="ml-auto min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{aberto ? t('Fechar') : `✎ ${t('Editar')}`}</button>
@@ -247,6 +260,19 @@ function ImpostosOperacoes({ v, mudar }: { v: ConfigFiscal; mudar(p: Partial<Con
           </section>
         </>
       )}
+    </div>
+  )
+}
+
+/** o regime escolhido em palavras simples: quem está nele, como funciona e o aviso de que é estimativa */
+function ComoFuncionaRegime({ r }: { r: { nome: string; quem: string; comoFunciona: string } }) {
+  const t = useT()
+  return (
+    <div className="space-y-1.5 rounded-xl border border-[var(--marca)]/30 bg-[var(--marca-suave)]/40 p-3 text-sm">
+      <p className="font-bold">💡 {t('Como funciona: {r}', { r: t(r.nome) })}</p>
+      <p><b>{t('Quem está nele')}:</b> <span className="text-[var(--suave)]">{t(r.quem)}</span></p>
+      <p><b>{t('Como paga')}:</b> <span className="text-[var(--suave)]">{t(r.comoFunciona)}</span></p>
+      <p className="text-xs text-[var(--suave)]">{t('Os valores do sistema são estimativas para acompanhar o negócio — não substituem o contador. Confirme com ele o regime e as taxas.')}</p>
     </div>
   )
 }

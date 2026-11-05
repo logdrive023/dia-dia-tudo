@@ -9,7 +9,6 @@ import { GrupoNumeros, NumeroGrande } from '../ui/numeroGrande'
 import { FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 import { corDoNome, iniciais } from '../ui/tabelaDados'
 import { FolhaItem } from '../ui/folhaItem'
-import { CadastroFuncionario } from './cadastros/CadastroFuncionario'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id, Pessoa } from '../core/domain/tipos'
@@ -24,12 +23,11 @@ const PERIODOS = { mes: 'por mês', semana: 'por semana', dia: 'por dia' } as co
 
 export function Equipe() {
   const t = useT()
-  const { sessao, ajustarParams } = useApp()
+  const { sessao, ajustarParams, ir } = useApp()
   const [aba, setAba] = useParamTela<'organograma' | 'unidades' | 'comissoes'>('aba', 'organograma')
   const [periodo, setPeriodo] = usePeriodo('equipe.periodo', 'mes')
   const [localId, setLocalId] = useLembrado<string>('equipe.local', '')
   const [resumo, setResumo] = useState<Id>()
-  const [editar, setEditar] = useState<Pessoa | 'novo'>()
   const { dados: locais } = useConsulta('locais', {})
   const { dados: org } = useConsulta('organograma', { localId: localId || undefined, de: periodo.de, ate: periodo.ate })
   const [busca, setBusca] = useState('')
@@ -43,7 +41,7 @@ export function Equipe() {
   const ativos = localId ? [{ k: 'local', rotulo: `🏢 ${nomeLocal.get(localId) ?? ''}` }] : []
   return (
     <div>
-      <Titulo subtitulo={t('Quem é quem, quanto cada uma atendeu e as comissões do período.')} acao={admin && <Botao onClick={() => setEditar('novo')}>+ {t('Funcionário')}</Botao>}>{t('Equipe e unidades')}</Titulo>
+      <Titulo subtitulo={t('Quem é quem, quanto cada uma atendeu e as comissões do período.')} acao={admin && <Botao onClick={() => ir('novoFuncionario', { local: localId || undefined })}>+ {t('Funcionário')}</Botao>}>{t('Equipe e unidades')}</Titulo>
       <Abas atual={aba} onChange={(v) => setAba(v as typeof aba)} abas={[{ id: 'organograma', nome: 'Organograma' }, { id: 'comissoes', nome: 'Comissões' }, ...(admin ? [{ id: 'unidades', nome: 'Entradas × saídas' }] : [])]} />
       <FiltroLista
         className="mb-4 mt-3"
@@ -76,8 +74,7 @@ export function Equipe() {
       ) : !admin ? null : (
         <Unidades de={periodo.de} ate={periodo.ate} busca={busca} onComissoes={() => setAba('comissoes')} />
       )}
-      {resumo && <Resumo id={resumo} de={periodo.de} ate={periodo.ate} onFechar={() => setResumo(undefined)} onEditar={(p) => (setResumo(undefined), setEditar(p))} onComissoes={(id) => (setResumo(undefined), ajustarParams({ aba: 'comissoes', pessoaId: id }))} />}
-      {editar && <CadastroFuncionario pessoa={editar === 'novo' ? undefined : editar} localPadrao={localId} onFechar={() => setEditar(undefined)} />}
+      {resumo && <Resumo id={resumo} de={periodo.de} ate={periodo.ate} onFechar={() => setResumo(undefined)} onEditar={(p) => (setResumo(undefined), ir('novoFuncionario', { id: p.id }))} onComissoes={(id) => (setResumo(undefined), ajustarParams({ aba: 'comissoes', pessoaId: id }))} />}
     </div>
   )
 }

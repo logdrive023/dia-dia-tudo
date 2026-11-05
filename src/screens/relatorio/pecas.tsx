@@ -18,7 +18,7 @@ export function valorContabil(v: number, pais: 'BO' | 'BR') {
 export const TEXTO = {
   BO: {
     expresado: (m: string) => `Expresado en ${m === 'BOB' ? 'Bolivianos (Bs)' : m}`, periodo: 'Del {de} al {ate}', nit: 'NIT', regime: 'Régimen',
-    impostos: 'Determinación de impuestos', conferencia: 'Conferencia de saldos', notas: 'Notas', anexos: 'Anexos', activo: 'ACTIVO', pasivo: 'PASIVO', patrimonio: 'PATRIMONIO',
+    impostos: 'Determinación de impuestos (estimada)', estimativa: 'ESTIMACIÓN para planificar y acompañar el negocio: los importes reales salen de la declaración del período (con todos los créditos, compensaciones y ajustes). No reemplaza al contador.', carga: 'Carga tributaria estimada', sobreVentas: 'de las ventas', conferencia: 'Conferencia de saldos', notas: 'Notas', anexos: 'Anexos', activo: 'ACTIVO', pasivo: 'PASIVO', patrimonio: 'PATRIMONIO',
     totalActivo: 'Total activo', totalPasivo: 'Total pasivo', patrimonioTotal: 'Total patrimonio (activo − pasivo)', diario: 'Libro Diario de Caja', vendas: 'Ventas línea por línea', compras: 'Compras línea por línea',
     inventario: 'Libro de Inventarios (a costo)', gastos: 'Gastos por categoría', cuentas: 'Cuentas por cobrar y por pagar', cobrar: 'Por cobrar', pagar: 'Por pagar',
     contador: 'Contador(a)', representante: 'Representante legal', gerado: 'Generado el {d} por {q}', saldoInicial: 'Saldo inicial', saldoFinal: 'Saldo final', total: 'Total', ok: 'cuadra', dif: 'diferencia',
@@ -26,7 +26,7 @@ export const TEXTO = {
   },
   BR: {
     expresado: (m: string) => `Valores em ${m === 'BRL' ? 'reais (R$)' : m}`, periodo: 'De {de} a {ate}', nit: 'CNPJ/NIT', regime: 'Regime',
-    impostos: 'Apuração dos impostos', conferencia: 'Conferência dos saldos', notas: 'Notas explicativas', anexos: 'Anexos', activo: 'ATIVO', pasivo: 'PASSIVO', patrimonio: 'PATRIMÔNIO LÍQUIDO',
+    impostos: 'Apuração dos impostos (estimada)', estimativa: 'ESTIMATIVA para planejar e acompanhar o negócio: os valores reais saem da apuração do período (com todos os créditos, compensações e ajustes). Não substitui o contador.', carga: 'Carga tributária estimada', sobreVentas: 'das vendas', conferencia: 'Conferência dos saldos', notas: 'Notas explicativas', anexos: 'Anexos', activo: 'ATIVO', pasivo: 'PASSIVO', patrimonio: 'PATRIMÔNIO LÍQUIDO',
     totalActivo: 'Total do ativo', totalPasivo: 'Total do passivo', patrimonioTotal: 'Patrimônio líquido (ativo − passivo)', diario: 'Livro Caixa', vendas: 'Vendas linha a linha', compras: 'Compras linha a linha',
     inventario: 'Inventário de estoques (a custo)', gastos: 'Despesas por categoria', cuentas: 'Contas a receber e a pagar', cobrar: 'A receber', pagar: 'A pagar',
     contador: 'Contador(a)', representante: 'Representante legal', gerado: 'Gerado em {d} por {q}', saldoInicial: 'Saldo inicial', saldoFinal: 'Saldo final', total: 'Total', ok: 'confere', dif: 'diferença',

@@ -7,8 +7,8 @@ import { useState } from 'react'
 import { CampoTelefone } from '../../ui/campoTelefone'
 import { novoId } from '../../core/domain/ids'
 import type { Id, Papel } from '../../core/domain/tipos'
-import { Botao, Campo, Entrada, Janela, Selecao } from '../../ui/base'
-import { useComando, useConsulta } from '../../ui/contexto'
+import { Botao, Campo, Entrada, Pagina, Selecao } from '../../ui/base'
+import { useApp, useComando, useConsulta } from '../../ui/contexto'
 import { type OpcaoCartao, EscolhaCartoesVarias } from '../../ui/escolhaCartoes'
 import { useT } from '../../ui/i18n'
 import { Passo, Passos, useAssistente } from '../../ui/passoAPasso'
@@ -44,7 +44,7 @@ export function CadastroPessoa({ id, onFechar }: { id?: Id; onFechar(): void }) 
   const detalhes = [d.documento && `🪪 ${d.documento}`, d.localId && `📍 ${locais?.find((l) => l.id === d.localId)?.nome ?? ''}`, d.obs && `📝 ${d.obs}`].filter(Boolean)
   const salvar = async () => (await executar('salvarPessoa', { ...p, id: id ?? novoId(), ...d, nome: d.nome.trim(), localId: d.localId || undefined, versaoBase: id ? versaoBase : undefined }, t(id ? 'Salvo.' : 'Pessoa cadastrada.'))) && onFechar()
   return (
-    <Janela aberta larga titulo={t(id ? 'Editar pessoa' : 'Nova pessoa')} onFechar={fechar} rodape={
+    <Pagina titulo={t(id ? 'Editar pessoa' : 'Nova pessoa')} subtitulo={t('Cliente, fornecedora, devedor… quem ela é para o negócio e o contato.')} voltarRotulo="Pessoas" onVoltar={fechar} rodape={
       <Botao grande className="w-full" disabled={ocupado || !!falta} onClick={salvar}>{falta ? t('Falta: {x}', { x: falta }) : t(id ? 'Salvar' : 'Cadastrar')}</Botao>
     }>
       <Passos rotulo="Passos do cadastro">
@@ -70,6 +70,13 @@ export function CadastroPessoa({ id, onFechar }: { id?: Id; onFechar(): void }) 
           <Campo rotulo="Observação"><Entrada value={d.obs} onChange={(e) => setD({ ...d, obs: e.target.value })} /></Campo>
         </Passo>
       </Passos>
-    </Janela>
+    </Pagina>
   )
+}
+
+/** a página (#/pessoas/novo · ?editar=<id> para editar): o "voltar" leva para onde a pessoa estava */
+export function NovaPessoaTela() {
+  const { nav, voltar } = useApp()
+  const id = typeof nav.params.editar === 'string' ? nav.params.editar : undefined
+  return <CadastroPessoa key={id ?? 'nova'} id={id} onFechar={voltar} />
 }

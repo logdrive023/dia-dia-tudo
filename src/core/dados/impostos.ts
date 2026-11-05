@@ -87,16 +87,50 @@ export const FISCAL_PADRAO: ConfigFiscal = {
   mostrarNoTotal: true,
   mostrarQuadro: true,
   impostos: [
-    { id: 'iva', sigla: 'IVA', nome: 'Impuesto al Valor Agregado', taxaBp: 1300, ligado: true, vendaProduto: true, vendaServico: true, compra: 'credito', fonte: 'Ley 843, arts. 1 y 15 (texto ordenado vigente)', vigenteDesde: '1986-05-20', conferidoEm: '2026-11-04', explica: 'Va incluido en el precio ("por dentro"): el 13% del total facturado es del fisco. En la compra con factura es crédito fiscal.' },
-    { id: 'it', sigla: 'IT', nome: 'Impuesto a las Transacciones', taxaBp: 300, ligado: true, vendaProduto: true, vendaServico: true, compra: 'nao', fonte: 'Ley 843, arts. 72 a 77 (alícuota 3% por Ley 1606)', vigenteDesde: '1995-01-01', conferidoEm: '2026-11-04', explica: '3% sobre el ingreso bruto, sin descontar costos. El IUE pagado se compensa con el IT siguiente.' },
+    { id: 'iva', sigla: 'IVA', nome: 'Impuesto al Valor Agregado', taxaBp: 1300, ligado: true, vendaProduto: true, vendaServico: true, compra: 'credito', fonte: 'Ley 843, arts. 1 y 15 (texto ordenado vigente)', vigenteDesde: '1986-05-20', conferidoEm: '2026-11-04', explica: 'Va incluido en el precio ("por dentro"): el 13% del total facturado es del fisco. En la compra con factura es crédito fiscal.',
+    porQue: 'É o imposto sobre o consumo da Bolívia: quem compra paga, e a loja só repassa ao fisco. Por isso vem DENTRO do preço — dos Bs 100 cobrados, Bs 13 são do governo.',
+    naPratica: 'Todo mês se paga o IVA das vendas MENOS o IVA das compras feitas com fatura (crédito fiscal). Cabelo comprado sem fatura não dá crédito. Venda sem fatura (ou regime RTS) não tem IVA por venda.' },
+    { id: 'it', sigla: 'IT', nome: 'Impuesto a las Transacciones', taxaBp: 300, ligado: true, vendaProduto: true, vendaServico: true, compra: 'nao', fonte: 'Ley 843, arts. 72 a 77 (alícuota 3% por Ley 1606)', vigenteDesde: '1995-01-01', conferidoEm: '2026-11-04', explica: '3% sobre el ingreso bruto, sin descontar costos. El IUE pagado se compensa con el IT siguiente.',
+    porQue: 'É um imposto sobre o faturamento bruto: incide sobre tudo o que entra, dê lucro ou não. Existe para o Estado arrecadar sobre cada transação.',
+    naPratica: 'O IUE (25% sobre o lucro, pago uma vez por ano) já pago se desconta do IT dos meses seguintes. Quem está no RTS não paga IT por venda.' },
   ],
 }
 
-export const NOMES_REGIME: Record<RegimeFiscal, { nome: string; explica: string }> = {
-  general: { nome: 'Régimen General', explica: 'Factura con IVA 13%, paga IT 3% sobre los ingresos e IUE 25% sobre la utilidad.' },
-  rts: { nome: 'Régimen Tributario Simplificado (RTS)', explica: 'Cuota fija bimestral; sin IVA, IT ni IUE por separado y sin factura con crédito fiscal.' },
-  simples: { nome: 'Simples Nacional', explica: 'DAS: uma alíquota única sobre a receita bruta (já inclui IRPJ, CSLL, PIS, COFINS e ICMS/ISS).' },
-  presumido: { nome: 'Lucro Presumido', explica: 'PIS 0,65% e COFINS 3% sobre a receita; IRPJ e CSLL sobre um lucro presumido.' },
+export const NOMES_REGIME: Record<RegimeFiscal, { nome: string; explica: string; quem: string; comoFunciona: string }> = {
+  general: { nome: 'Régimen General', explica: 'Factura con IVA 13%, paga IT 3% sobre los ingresos e IUE 25% sobre la utilidad.',
+    quem: 'Empresas e comércios que emitem fatura (NIT no Régimen General). É o padrão.',
+    comoFunciona: 'Cada venda com fatura tem IVA 13% (dentro do preço) e IT 3%. Todo mês: IVA das vendas − IVA das compras com fatura, mais o IT. No fim do ano, IUE 25% sobre o lucro — e esse IUE se desconta do IT depois.' },
+  rts: { nome: 'Régimen Tributario Simplificado (RTS)', explica: 'Cuota fija bimestral; sin IVA, IT ni IUE por separado y sin factura con crédito fiscal.',
+    quem: 'Pequenos comerciantes e artesãos com capital e vendas pequenos (dentro dos limites do RTS).',
+    comoFunciona: 'Paga uma cota FIXA a cada dois meses, conforme a categoria. Não há IVA nem IT por venda e não se emite fatura com crédito fiscal — por isso a venda não mostra imposto.' },
+  simples: { nome: 'Simples Nacional', explica: 'DAS: uma alíquota única sobre a receita bruta (já inclui IRPJ, CSLL, PIS, COFINS e ICMS/ISS).',
+    quem: 'Micro e pequenas empresas no Brasil (faturamento até o limite do Simples).',
+    comoFunciona: 'Uma guia só por mês (DAS) com uma alíquota efetiva sobre a receita bruta, que sobe conforme o faturamento dos últimos 12 meses.' },
+  presumido: { nome: 'Lucro Presumido', explica: 'PIS 0,65% e COFINS 3% sobre a receita; IRPJ e CSLL sobre um lucro presumido.',
+    quem: 'Empresas no Brasil acima do Simples (ou que preferem este regime).',
+    comoFunciona: 'PIS e COFINS sobre a receita todo mês; IRPJ e CSLL a cada trimestre sobre um lucro "presumido" (uma porcentagem fixa da receita), não sobre o lucro real.' },
+}
+
+/**
+ * OS IMPOSTOS DA VENDA NO REGIME ESCOLHIDO (a mesma regra na tela e no registro):
+ *   🇧🇴 RTS → nenhum imposto por venda (cota fixa bimestral) · Régimen General sem fatura → sem IVA na venda (o IT
+ *   continua) · compras sem fatura → sem crédito de IVA · o DAS (Brasil) não entra na Bolívia
+ *   🇧🇷 Simples → só o DAS · Presumido → sem DAS · IVA e IT (Bolívia) não entram no Brasil
+ * Impostos criados pelo usuário (outros ids) passam como estão. `aviso` explica quando o regime tira tudo.
+ */
+export function impostosDoRegime(f: Pick<ConfigFiscal, 'pais' | 'regimeBO' | 'regimeBR' | 'vendasComFatura' | 'comprasComFatura' | 'impostos'>): { lista: ImpostoOperacao[]; aviso?: string } {
+  const lista = f.impostos ?? []
+  if (f.pais === 'BO') {
+    if (f.regimeBO === 'rts') return { lista: [], aviso: 'RTS: paga uma cota fixa a cada dois meses — não há IVA nem IT por venda.' }
+    return {
+      lista: lista
+        .filter((i) => i.id !== 'das')
+        .map((i) => (i.id !== 'iva' ? i : { ...i, ...(f.vendasComFatura ? {} : { vendaProduto: false, vendaServico: false }), ...(f.comprasComFatura ? {} : { compra: 'nao' as const }) })),
+      aviso: f.vendasComFatura ? undefined : 'Vendas sem fatura: não há IVA na venda (o IT continua).',
+    }
+  }
+  if (f.regimeBR === 'presumido') return { lista: lista.filter((i) => i.id !== 'das' && i.id !== 'iva' && i.id !== 'it') }
+  return { lista: lista.filter((i) => i.id !== 'iva' && i.id !== 'it') }
 }
 
 /** valor × taxa (pontos-base), arredondado ao centavo */
@@ -129,23 +163,33 @@ export interface ImpostoOperacao {
   conferidoEm?: string
   /** como a conta é feita, em uma frase (aparece no detalhe da venda) */
   explica?: string
+  /** O QUE É e POR QUE EXISTE, em palavras simples */
+  porQue?: string
+  /** NA PRÁTICA: por que o valor da venda não é exatamente o que se paga (créditos, compensações, regime) */
+  naPratica?: string
 }
 
 export const IMPOSTOS_PADRAO_BO: ImpostoOperacao[] = [
-  { id: 'iva', sigla: 'IVA', nome: 'Impuesto al Valor Agregado', taxaBp: 1300, ligado: true, vendaProduto: true, vendaServico: true, compra: 'credito', fonte: 'Ley 843, arts. 1 y 15 (texto ordenado vigente)', vigenteDesde: '1986-05-20', conferidoEm: '2026-11-04', explica: 'Va incluido en el precio ("por dentro"): el 13% del total facturado es del fisco. En la compra con factura es crédito fiscal.' },
-  { id: 'it', sigla: 'IT', nome: 'Impuesto a las Transacciones', taxaBp: 300, ligado: true, vendaProduto: true, vendaServico: true, compra: 'nao', fonte: 'Ley 843, arts. 72 a 77 (alícuota 3% por Ley 1606)', vigenteDesde: '1995-01-01', conferidoEm: '2026-11-04', explica: '3% sobre el ingreso bruto, sin descontar costos. El IUE pagado se compensa con el IT siguiente.' },
+  { id: 'iva', sigla: 'IVA', nome: 'Impuesto al Valor Agregado', taxaBp: 1300, ligado: true, vendaProduto: true, vendaServico: true, compra: 'credito', fonte: 'Ley 843, arts. 1 y 15 (texto ordenado vigente)', vigenteDesde: '1986-05-20', conferidoEm: '2026-11-04', explica: 'Va incluido en el precio ("por dentro"): el 13% del total facturado es del fisco. En la compra con factura es crédito fiscal.',
+    porQue: 'É o imposto sobre o consumo da Bolívia: quem compra paga, e a loja só repassa ao fisco. Por isso vem DENTRO do preço — dos Bs 100 cobrados, Bs 13 são do governo.',
+    naPratica: 'Todo mês se paga o IVA das vendas MENOS o IVA das compras feitas com fatura (crédito fiscal). Cabelo comprado sem fatura não dá crédito. Venda sem fatura (ou regime RTS) não tem IVA por venda.' },
+  { id: 'it', sigla: 'IT', nome: 'Impuesto a las Transacciones', taxaBp: 300, ligado: true, vendaProduto: true, vendaServico: true, compra: 'nao', fonte: 'Ley 843, arts. 72 a 77 (alícuota 3% por Ley 1606)', vigenteDesde: '1995-01-01', conferidoEm: '2026-11-04', explica: '3% sobre el ingreso bruto, sin descontar costos. El IUE pagado se compensa con el IT siguiente.',
+    porQue: 'É um imposto sobre o faturamento bruto: incide sobre tudo o que entra, dê lucro ou não. Existe para o Estado arrecadar sobre cada transação.',
+    naPratica: 'O IUE (25% sobre o lucro, pago uma vez por ano) já pago se desconta do IT dos meses seguintes. Quem está no RTS não paga IT por venda.' },
 ]
 export const IMPOSTOS_PADRAO_BR: ImpostoOperacao[] = [
-  { id: 'das', sigla: 'DAS', nome: 'Simples Nacional (alíquota efetiva)', taxaBp: 600, ligado: true, vendaProduto: true, vendaServico: true, compra: 'nao', fonte: 'Lei Complementar 123/2006 (Anexos I e III)', vigenteDesde: '2018-01-01', conferidoEm: '2026-11-04', explica: 'Uma alíquota efetiva sobre a receita bruta, que depende da faixa de faturamento dos últimos 12 meses.' },
+  { id: 'das', sigla: 'DAS', nome: 'Simples Nacional (alíquota efetiva)', taxaBp: 600, ligado: true, vendaProduto: true, vendaServico: true, compra: 'nao', fonte: 'Lei Complementar 123/2006 (Anexos I e III)', vigenteDesde: '2018-01-01', conferidoEm: '2026-11-04', explica: 'Uma alíquota efetiva sobre a receita bruta, que depende da faixa de faturamento dos últimos 12 meses.',
+    porQue: 'É o regime simplificado do Brasil para pequenas empresas: junta vários impostos (IRPJ, CSLL, PIS, COFINS, ICMS/ISS) numa guia só, o DAS.',
+    naPratica: 'A alíquota efetiva muda com o faturamento dos últimos 12 meses: o valor aqui é uma estimativa com a taxa configurada.' },
 ]
 
-export interface LinhaImposto { id: string; sigla: string; nome: string; taxaBp: number; base: number; valor: number; lado: 'venda' | 'compra'; credito?: boolean; fonte?: string; vigenteDesde?: string; conferidoEm?: string; explica?: string }
+export interface LinhaImposto { id: string; sigla: string; nome: string; taxaBp: number; base: number; valor: number; lado: 'venda' | 'compra'; credito?: boolean; fonte?: string; vigenteDesde?: string; conferidoEm?: string; explica?: string; porQue?: string; naPratica?: string }
 
 /** quanto de imposto tem nesta operação (centavos): venda (produto/serviço) e/ou compra */
 export function impostosDaOperacao(lista: ImpostoOperacao[], op: { produto?: number; servico?: number; compra?: number }, modoPreco: 'dentro' | 'fora' = 'dentro'): { linhas: LinhaImposto[]; venda: number; compra: number; base: number; precoFinal: number; modoPreco: 'dentro' | 'fora' } {
   const linhas: LinhaImposto[] = []
   for (const i of lista.filter((x) => x.ligado && (x.taxaBp > 0 || (x.taxaServicoBp ?? 0) > 0))) {
-    const sobre = { fonte: i.fonte, vigenteDesde: i.vigenteDesde, conferidoEm: i.conferidoEm, explica: i.explica }
+    const sobre = { fonte: i.fonte, vigenteDesde: i.vigenteDesde, conferidoEm: i.conferidoEm, explica: i.explica, porQue: i.porQue, naPratica: i.naPratica }
     const bp = i.taxaBp
     const bpServ = i.taxaServicoBp ?? i.taxaBp
     if (i.vendaProduto && bpServ === bp) {

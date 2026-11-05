@@ -23,7 +23,10 @@ export function QuadroImpostos({ calculo, moeda, ehCompra }: { calculo: Calculo;
   const f = (v: number) => formatar(v, moeda)
   return (
       <div className="space-y-3">
-        <p className="rounded-xl bg-[var(--fundo)] px-3 py-2 text-xs text-[var(--suave)]">ℹ️ {t('Só informativo: não muda o valor cobrado. É a estimativa do que vai para o fisco, pela alíquota vigente salva no sistema.')}</p>
+        <div className="rounded-xl bg-[var(--alerta)]/10 px-3 py-2 text-xs">
+          <p className="font-semibold text-[var(--alerta)]">⚠️ {t('Estimativa desta venda — não é exatamente o que você vai pagar.')}</p>
+          <p className="mt-0.5 text-[var(--suave)]">{t('O imposto de verdade é calculado no período, com créditos e compensações (na Bolívia: o IVA das compras com fatura abate o das vendas e o IUE pago abate o IT). Só informativo: não muda o valor cobrado.')}</p>
+        </div>
         <ul className="space-y-2">
           {calculo.linhas.map((l) => (
             <li key={l.id} className="rounded-2xl border border-[var(--borda)] p-3">
@@ -39,6 +42,13 @@ export function QuadroImpostos({ calculo, moeda, ehCompra }: { calculo: Calculo;
                 {l.conferidoEm && <><dt className="text-[var(--suave)]">{t('Conferido em')}</dt><dd>{dataBR(l.conferidoEm)}</dd></>}
               </dl>
               {l.explica && <p className="mt-1.5 text-xs text-[var(--suave)]">{l.explica}</p>}
+              {(l.porQue || l.naPratica) && (
+                <details className="mt-1.5 rounded-lg bg-[var(--fundo)] px-2 py-1 text-xs">
+                  <summary className="cursor-pointer font-semibold text-[var(--marca)]">{t('O que é e por que existe')}</summary>
+                  {l.porQue && <p className="mt-1"><b>{t('Por que existe')}:</b> {t(l.porQue)}</p>}
+                  {l.naPratica && <p className="mt-1"><b>{t('Na prática')}:</b> {t(l.naPratica)}</p>}
+                </details>
+              )}
             </li>
           ))}
         </ul>
@@ -70,7 +80,8 @@ export function QuadroImpostosOperacao({ produto, servico, compra, moeda, classN
   const [aberto, setAberto] = useState(false)
   const tem = (produto ?? 0) + (servico ?? 0) + (compra ?? 0) > 0
   const { dados } = useConsulta('impostosOperacao', { produto: produto || undefined, servico: servico || undefined, compra: compra || undefined }, tem)
-  if (!tem || !dados?.ligado || !dados.quadro || !dados.linhas.length) return null
+  if (!tem || !dados?.ligado || !dados.quadro) return null
+  if (!dados.linhas.length) return dados.aviso ? <p className={cx('rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-4 py-3 text-sm text-[var(--suave)] shadow-sm', className)}>🧾 {t(dados.aviso)}</p> : null
   const ehCompra = (compra ?? 0) > 0 && !produto && !servico
   const total = ehCompra ? dados.compra : dados.venda
   return (
@@ -133,7 +144,7 @@ export function ImpostosDaOperacao({ produto, servico, compra, moeda, compacto, 
       </ul>
       {fora && <p className="num mt-1 text-sm font-semibold">{t('Custo final com impostos (informativo)')}: {formatar(dados.precoFinal, moeda)}</p>}
       <div className="mt-0.5 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] text-[var(--suave)]">{t('Só informativo: não muda o valor cobrado.')}</p>
+        <p className="text-[11px] text-[var(--suave)]">{t('Estimativa — não é exatamente o que você vai pagar.')}</p>
         <button type="button" onClick={() => setDetalhe(true)} className="min-h-9 rounded-lg px-2 text-xs font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t('Ver de onde vem o valor')} ›</button>
       </div>
       {detalhe && abrir}

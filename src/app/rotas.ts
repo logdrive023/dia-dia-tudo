@@ -28,6 +28,8 @@ export const PAI: Record<string, string> = {
   novaViagem: 'viagens',
   financiamento: 'adiantamentos',
   novoFinanciamento: 'adiantamentos',
+  novaPessoa: 'pessoas',
+  novoFuncionario: 'equipe',
 }
 
 /** Nome curto de cada tela para a TRILHA de navegação ("Compras › Pedido P-0007"); telas fora daqui mostram "Voltar". */
@@ -40,7 +42,7 @@ export const NOME_TELA: Record<string, string> = {
 }
 
 /** Formulários: depois de salvar, o "voltar" não cai de novo neles (pula para a lista da área). */
-const FORMULARIOS = new Set(['novaCompra', 'novoEmprestimo', 'novaViagem', 'novoFinanciamento', 'separar'])
+const FORMULARIOS = new Set(['novaCompra', 'novoEmprestimo', 'novaViagem', 'novoFinanciamento', 'separar', 'novaPessoa', 'novoFuncionario'])
 
 /**
  * PARA ONDE O "VOLTAR" LEVA (regra única, usada pelo voltar do App e pela trilha de navegação, que mostra o destino):
@@ -62,7 +64,7 @@ export function destinoVoltar(pl: Navegacao[]): DestinoVoltar {
 const COLECOES: Record<string, { lista: string; item: string; novo?: string }> = {
   pedidos: { lista: 'comprar', item: 'pedido', novo: 'novaCompra' },
   vendas: { lista: 'vendas', item: 'venda' },
-  pessoas: { lista: 'pessoas', item: 'pessoa' },
+  pessoas: { lista: 'pessoas', item: 'pessoa', novo: 'novaPessoa' },
   lotes: { lista: 'estoque', item: 'lote' },
   emprestimos: { lista: 'emprestimos', item: 'emprestimo', novo: 'novoEmprestimo' },
   precos: { lista: 'precos', item: 'tabelaPreco' },

@@ -8,7 +8,7 @@
 //              gastos por categoría — cada centavo
 // Os números base vêm dos relatórios que já existem (dre, balanco, livroCaixa…): o motor só organiza e calcula impostos.
 
-import { NOMES_REGIME, aplicar, impostosDaOperacao } from '../dados/impostos'
+import { NOMES_REGIME, aplicar, impostosDaOperacao, impostosDoRegime } from '../dados/impostos'
 import type { Ctx } from './contexto'
 import { lerConfig } from './contexto'
 import { balanco, comprasDetalhadas, dre, inventario, livroCaixa, vendasDetalhadas } from './relatorios'
@@ -97,15 +97,15 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
       impostos.push(
         { id: 'ivaD', rotulo: 'IVA débito fiscal (ventas facturadas)', valor: ivaDebito, tipo: 'conta', conta: fis.vendasComFatura ? `${fmtPct(ivaBp)} × ${r.receita / 100}` : 'ventas sin factura' },
         { id: 'ivaC', rotulo: '(−) IVA crédito fiscal (compras con factura)', valor: -ivaCredito, tipo: 'conta', conta: fis.comprasComFatura ? `${fmtPct(ivaBp)} × ${comprasPeriodo / 100}` : 'compras sin factura' },
-        { id: 'ivaP', rotulo: ivaDebito >= ivaCredito ? 'IVA a pagar' : 'Saldo a favor (crédito fiscal)', valor: ivaDebito - ivaCredito, tipo: 'subtotal' },
-        { id: 'itP', rotulo: `IT a pagar (${fmtPct(itBp)} × ingresos brutos)`, valor: it, tipo: 'subtotal' },
+        { id: 'ivaP', rotulo: ivaDebito >= ivaCredito ? 'IVA a pagar (estimado)' : 'Saldo a favor (crédito fiscal)', valor: ivaDebito - ivaCredito, tipo: 'subtotal' },
+        { id: 'itP', rotulo: `IT a pagar estimado (${fmtPct(itBp)} × ingresos brutos)`, valor: it, tipo: 'subtotal' },
         { id: 'iueP', rotulo: `IUE estimado (${fmtPct(fis.iueBp)} × utilidad)`, valor: iue, tipo: 'subtotal' },
-        { id: 'totalImp', rotulo: 'Total de impuestos del período', valor: ivaPagar + it + iue, tipo: 'total' },
+        { id: 'totalImp', rotulo: 'Total estimado de impuestos del período', valor: ivaPagar + it + iue, tipo: 'total' },
       )
       notas.push('El IUE es anual: aquí se muestra la provisión del período. El IUE pagado se compensa con el IT de los períodos siguientes.')
       if (!fis.comprasComFatura) notas.push('Compras sin factura: no generan crédito fiscal (lo normal al comprar cabello a personas).')
     } else {
-      impostos.push({ id: 'rtsP', rotulo: `Cuota RTS (${meses(p.de, p.ate)} mes(es) · ${fis.rtsCuotaBimestral / 100} por bimestre)`, valor: rts, tipo: 'total' })
+      impostos.push({ id: 'rtsP', rotulo: `Cuota RTS estimada (${meses(p.de, p.ate)} mes(es) · ${fis.rtsCuotaBimestral / 100} por bimestre)`, valor: rts, tipo: 'total' })
       notas.push('Régimen Tributario Simplificado: sin IVA, IT ni IUE por separado.')
     }
     notas.push('Sin reexpresión por inflación (UFV): suspendida por Res. CTNAC 03/2020. Valores del período.')
@@ -147,7 +147,7 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
           ...(icms ? [{ id: 'icmsP', rotulo: `ICMS / ISS (${fmtPct(fis.icmsIssBp)})`, valor: icms, tipo: 'conta' as const }] : []),
           { id: 'irP', rotulo: `IRPJ + CSLL (${fmtPct(fis.irpjCsllBp)} da receita)`, valor: irpj, tipo: 'conta' as const },
         ]),
-      { id: 'totalImp', rotulo: 'Total de impostos do período', valor: das + pis + cofins + icms + irpj, tipo: 'total' },
+      { id: 'totalImp', rotulo: 'Total estimado de impostos do período', valor: das + pis + cofins + icms + irpj, tipo: 'total' },
     )
     notas.push(simples ? 'Simples Nacional: o DAS já inclui IRPJ, CSLL, PIS, COFINS e ICMS/ISS (alíquota efetiva configurada).' : 'Lucro Presumido: IRPJ e CSLL calculados sobre a receita presumida (comércio), conforme as taxas configuradas.')
   }
@@ -190,6 +190,8 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
     numeros: { receita: r.receita, lucroBruto: resultados.find((l) => l.id === 'bruta' || l.id === 'lb')?.valor ?? 0, impostos: impostos.find((l) => l.id === 'totalImp' || l.id === 'rtsP')?.valor ?? 0, resultado: resultadoFinal, vendas: r.vendas },
     resultados,
     impostos,
+    /** cada imposto estimado do período com o peso nas vendas (o total é a carga tributária estimada) */
+    resumoImpostos: resumoDosImpostos(impostos, r.receita),
     notas,
     balanco: { ativo, passivo, totalAtivo, totalPassivo, patrimonio: totalAtivo - totalPassivo },
     conferencia,
@@ -218,11 +220,22 @@ function rotuloBalanco(conta: string, BO: boolean) {
   return mapa[conta]?.[BO ? 0 : 1] ?? conta
 }
 
+/** o resumo estimado: os impostos a pagar do período (os "a pagar" e a cota), cada um com a % das vendas */
+function resumoDosImpostos(linhas: LinhaRelatorio[], receita: number) {
+  const PAGAR: Record<string, string> = { ivaP: 'IVA', itP: 'IT', iueP: 'IUE', rtsP: 'RTS', dasP: 'DAS', pisP: 'PIS', cofP: 'COFINS', icmsP: 'ICMS/ISS', irP: 'IRPJ + CSLL' }
+  const pct = (v: number) => (receita > 0 ? Math.round((v * 10000) / receita) : 0)
+  const itens = linhas.filter((l) => PAGAR[l.id]).map((l) => ({ sigla: PAGAR[l.id], rotulo: l.rotulo, valor: Math.max(0, l.valor), pctBp: pct(Math.max(0, l.valor)) }))
+  const total = itens.reduce((x, i) => x + i.valor, 0)
+  return { itens, total, pctBp: pct(total), receita }
+}
+
 /** QUANTO DE IMPOSTO tem numa operação (a compra ou a venda que a pessoa está fazendo): só informa, não cobra.
  *  ligado = false quando a pessoa desligou "Mostrar impostos nas compras e vendas" (a tela não mostra nada). */
 export async function impostosOperacao(ctx: Ctx, p: { produto?: number; servico?: number; compra?: number }) {
   const cfg = await lerConfig(ctx)
   const fis = cfg.fiscal
-  const r = impostosDaOperacao(fis.impostos ?? [], p, fis.modoPreco ?? 'dentro')
-  return { ligado: !!fis.mostrarNasOperacoes, noTotal: fis.mostrarNoTotal !== false, quadro: fis.mostrarQuadro !== false, pais: fis.pais, moeda: cfg.moedaPrincipal, ...r }
+  // só os impostos que valem POR VENDA no regime escolhido (RTS: nenhum; venda sem fatura: sem IVA…)
+  const reg = impostosDoRegime(fis)
+  const r = impostosDaOperacao(reg.lista, p, fis.modoPreco ?? 'dentro')
+  return { ligado: !!fis.mostrarNasOperacoes, noTotal: fis.mostrarNoTotal !== false, quadro: fis.mostrarQuadro !== false, pais: fis.pais, moeda: cfg.moedaPrincipal, aviso: reg.aviso, regime: fis.pais === 'BO' ? fis.regimeBO : fis.regimeBR, ...r }
 }

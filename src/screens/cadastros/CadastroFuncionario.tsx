@@ -9,8 +9,8 @@ import { CampoTelefone } from '../../ui/campoTelefone'
 import { formatar } from '../../core/domain/dinheiro'
 import { novoId } from '../../core/domain/ids'
 import type { Pessoa } from '../../core/domain/tipos'
-import { Botao, Campo, Entrada, Janela, Selecao, ValorInput, moedaPadrao, Confirmar } from '../../ui/base'
-import { useComando, useConsulta } from '../../ui/contexto'
+import { Botao, Campo, Carregando, Entrada, Pagina, Selecao, ValorInput, moedaPadrao, Confirmar } from '../../ui/base'
+import { useApp, useComando, useConsulta } from '../../ui/contexto'
 import { useCotacoes } from '../../ui/compartilhados'
 import { EscolhaCartoes } from '../../ui/escolhaCartoes'
 import { useT } from '../../ui/i18n'
@@ -68,7 +68,7 @@ export function CadastroFuncionario({ pessoa, localPadrao, onFechar }: { pessoa?
     if (r) onFechar()
   }
   return (
-    <Janela aberta larga titulo={t(pessoa ? 'Editar funcionário' : 'Novo funcionário')} onFechar={fechar} rodape={
+    <Pagina titulo={t(pessoa ? 'Editar funcionário' : 'Novo funcionário')} subtitulo={t('Quem é, onde trabalha, quanto ganha e o que pode ver no sistema.')} voltarRotulo="Equipe" onVoltar={fechar} rodape={
       <Botao grande className="w-full" disabled={ocupado || !!falta} onClick={salvar}>{falta ? t('Falta: {x}', { x: falta }) : t(pessoa ? 'Salvar' : 'Cadastrar')}</Botao>
     }>
       <Passos rotulo="Passos do cadastro">
@@ -121,6 +121,16 @@ export function CadastroFuncionario({ pessoa, localPadrao, onFechar }: { pessoa?
           {confirmarAdmin && <Confirmar perigo titulo={t('Dar acesso de administrador?')} texto={t('{n} vai ver e mudar TUDO: compras, caixa, preços, relatórios, a agenda de todos e o cadastro da equipe. Só dê para quem cuida do negócio com você.', { n: d.nome.trim() || t('Esta pessoa') })} rotulo="Sim, dar acesso de administrador" onFechar={() => setConfirmarAdmin(false)} onConfirmar={() => setD({ ...d, acesso: 'admin' })} />}
         </Passo>
       </Passos>
-    </Janela>
+    </Pagina>
   )
+}
+
+/** a página (#/novoFuncionario · ?id=<pessoa> para editar · &local=<unidade> já escolhida) */
+export function NovoFuncionarioTela() {
+  const { nav, voltar } = useApp()
+  const id = typeof nav.params.id === 'string' ? nav.params.id : undefined
+  const { dados: pessoas } = useConsulta('pessoas', {}, !!id)
+  if (id && !pessoas) return <Carregando />
+  const pessoa = id ? pessoas?.find((x) => x.id === id) : undefined
+  return <CadastroFuncionario key={id ?? 'novo'} pessoa={pessoa} localPadrao={typeof nav.params.local === 'string' ? nav.params.local : undefined} onFechar={voltar} />
 }
