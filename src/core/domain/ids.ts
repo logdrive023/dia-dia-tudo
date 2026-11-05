@@ -43,3 +43,13 @@ function incrementar(s: string): string {
   }
   return c.join('')
 }
+
+/**
+ * CÓDIGO DO QR da etiqueta: aleatório, sem sentido e impossível de adivinhar (≈95 bits). Não carrega id, data, medida
+ * nem cor — o QR só leva isso (…#/q/<código>). Ex.: "k7Pq2xR9mT4wZb3n". Reimprimir a etiqueta gera outro.
+ */
+export function novoCodigoQr(): string {
+  const letras = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return [...bytes].map((b) => letras[b % letras.length]).join('')
+}

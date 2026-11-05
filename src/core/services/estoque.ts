@@ -1,6 +1,7 @@
 // ESTOQUE: todo movimento é registrado com saldo antes/depois. Regra: saldo = soma dos movimentos.
 
 import { fatorValido, multiplicarFator, proporcao } from '../domain/dinheiro'
+import { novoCodigoQr } from '../domain/ids'
 import { mapaViagens } from './viagemCurta'
 import { exigir } from '../domain/erros'
 import type { Campos, Id, InsumoServico, Item, MotivoEstoque, MovEstoque, Transacao, Unidade } from '../domain/tipos'
@@ -842,6 +843,32 @@ export async function editarAtributosLote(ctx: Ctx, d: { id: Id; campos: Campos;
  * Etiquetas impressas (chamado quando a pessoa manda imprimir): guarda quando e quem em cada lote, para a tela
  * Etiquetas separar "Sem etiqueta" de "Já impressa". Reimprimir atualiza a data. Uma linha no log por lote.
  */
+/**
+ * PREPARAR O QR das etiquetas (antes de imprimir): cada pacote sem código de QR ganha um (aleatório). Quem já tem
+ * fica com o seu — imprimir de novo não invalida a etiqueta que já está no pacote. Só o administrador imprime.
+ */
+export async function prepararQrEtiquetas(ctx: Ctx, d: { ids: Id[] }) {
+  exigir(ctx.sessao.perfil === 'admin', 'Só o administrador prepara etiquetas.')
+  exigir(d.ids?.length && d.ids.length <= 500, 'Escolha de 1 a 500 lotes.')
+  let novos = 0
+  for (const id of new Set(d.ids)) {
+    const item = await ctx.repos.itens.obter(id)
+    if (!item || !item.controlaEstoque || item.qr) continue
+    await ctx.repos.itens.salvar(tocar(ctx, { ...item, qr: novoCodigoQr() }))
+    novos++
+  }
+  return { novos }
+}
+
+/** O pacote de um código de QR (…#/q/<código>): só para quem entrou; código de etiqueta cancelada não abre nada. */
+export async function pacoteDoQr(ctx: Ctx, p: { codigo: string }) {
+  const c = (p.codigo ?? '').trim()
+  exigir(c.length >= 10, 'Etiqueta inválida.')
+  const item = (await ctx.repos.itens.listar()).find((i) => i.qr === c && !i.apagadoEm)
+  exigir(item, 'Etiqueta antiga ou inválida: este QR não abre mais nenhum pacote. Use a etiqueta nova ou busque pelo código impresso.')
+  return { id: item.id }
+}
+
 export async function marcarEtiquetasImpressas(ctx: Ctx, d: { ids: Id[] }) {
   exigir(ctx.sessao.perfil === 'admin', 'Só o administrador marca etiquetas.')
   exigir(d.ids?.length, 'Escolha pelo menos um lote.')
@@ -900,6 +927,8 @@ export async function refazerEtiqueta(ctx: Ctx, d: { id: Id; motivo: string }) {
   await ctx.repos.itens.salvar(tocar(ctx, {
     ...item,
     etiquetaVia: via,
+    // o QR da etiqueta cancelada deixa de abrir o pacote: a nova via ganha outro código
+    qr: novoCodigoQr(),
     etiquetaCancelada: { motivo, em, porNome: ctx.sessao.nome || undefined, via: antiga },
     etiquetaImpressaEm: undefined,
     etiquetaImpressaPor: undefined,

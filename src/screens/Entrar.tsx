@@ -13,7 +13,8 @@ import { SenhaInput } from '../ui/senhaInput'
 
 type UsuarioDemo = { login: string; nome: string; perfil: 'admin' | 'funcionario' }
 
-export function Entrar({ onEntrou }: { onEntrou(s: Sessao): void }) {
+/** semTeste: chegou pelo QR de uma etiqueta — a lista de usuários de teste não aparece (quem leu pode ser de fora) */
+export function Entrar({ onEntrou, semTeste }: { onEntrou(s: Sessao): void; semTeste?: boolean }) {
   const t = useT()
   const { backend, avisar } = useApp()
   const [login, setLogin] = useState('')
@@ -21,7 +22,8 @@ export function Entrar({ onEntrou }: { onEntrou(s: Sessao): void }) {
   const [ocupado, setOcupado] = useState(false)
   const [esqueceu, setEsqueceu] = useState(false)
   const teste = backend.tipo !== 'api'
-  const { dados: demo } = useConsulta('usuariosDemo', {}, teste)
+  const mostrarTeste = teste && !semTeste
+  const { dados: demo } = useConsulta('usuariosDemo', {}, mostrarTeste)
   // demonstração aberta na internet: pede a senha de acesso antes (nos testes automáticos não)
   const pedeAcesso = teste && !import.meta.env.VITEST
   const [pedindo, setPedindo] = useState<{ l: string; s: string; demo?: boolean }>()
@@ -68,7 +70,7 @@ export function Entrar({ onEntrou }: { onEntrou(s: Sessao): void }) {
           </div>
         </section>
 
-        {teste && (
+        {mostrarTeste && (
           <section className="rounded-3xl border-2 border-dashed border-[var(--alerta)]/60 bg-[var(--alerta)]/5 p-5" aria-labelledby="modo-teste">
             <div className="flex flex-wrap items-center gap-2">
               <h2 id="modo-teste" className="text-base font-black">🧪 {t('Modo de teste')}</h2>

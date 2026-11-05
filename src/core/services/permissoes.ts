@@ -56,6 +56,8 @@ export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
   'custoDaVenda',
   // as metas DELA e da unidade dela (se o admin liberou; sem o valor, se ele escolheu só a %)
   'metas',
+  // abrir o pacote pelo QR da etiqueta (…#/q/<código>): só logada
+  'pacoteDoQr',
   'turnos',
   'viagensParaFiltro',
   'cidades',

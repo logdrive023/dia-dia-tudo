@@ -10,10 +10,15 @@ import type { Ctx } from './contexto'
 import { genealogia } from './triagem'
 
 const norm = (s?: string) => (s ?? '').trim().toLowerCase().replace(/\s+/g, '')
-/** endereço do QR (…#/lotes/<id>) → id */
+/** endereço do QR antigo (…#/lotes/<id>) → id — etiquetas impressas antes do código de QR continuam valendo */
 const idDoQR = (texto: string) => {
   const m = /#\/lotes\/([^?#/\s]+)/.exec(texto.trim())
   return m ? decodeURIComponent(m[1]) : undefined
+}
+/** endereço do QR novo (…#/q/<código>) → o código aleatório da etiqueta (Item.qr) */
+const codigoDoQR = (texto: string) => {
+  const m = /#\/q\/([A-Za-z0-9]{10,40})/.exec(texto.trim())
+  return m ? m[1] : undefined
 }
 
 export type SituacaoLeitura = 'naoExiste' | 'disponivel' | 'vendido' | 'separado' | 'zerado'
@@ -72,7 +77,9 @@ export function pacotesFinais(g: Genealogia, itemId: Id) {
 
 export async function lerCodigoPacote(ctx: Ctx, p: { texto: string }): Promise<LeituraPacote> {
   const itens = (await ctx.repos.itens.listar()).filter((i) => i.controlaEstoque)
-  const q = idDoQR(p.texto)
+  // QR novo: o código aleatório (etiqueta cancelada → '—', não acha nada); QR antigo: o id
+  const cq = codigoDoQR(p.texto)
+  const q = cq ? itens.find((i) => i.qr === cq)?.id ?? '—' : idDoQR(p.texto)
   const c = norm(p.texto)
   const item = q
     ? itens.find((i) => i.id === q)

@@ -4940,4 +4940,11 @@ export const ES: Record<string, string> = {
   '{n} resultado(s)': '{n} resultado(s)',
   'Preço por grama · peso conferido na balança · envio a combinar': 'Precio por gramo · peso revisado en la balanza · envío a coordinar',
   'passou por {c}': 'pasó por {c}',
+  'Etiqueta de uso interno': 'Etiqueta de uso interno',
+  'Este código é para a equipe. Para ver o pacote, entre com o seu usuário.': 'Este código es para el equipo. Para ver el paquete, entre con su usuario.',
+  'Abrindo o pacote…': 'Abriendo el paquete…',
+  'Etiqueta inválida.': 'Etiqueta inválida.',
+  'Etiqueta antiga ou inválida: este QR não abre mais nenhum pacote. Use a etiqueta nova ou busque pelo código impresso.': 'Etiqueta vieja o inválida: este QR ya no abre ningún paquete. Use la etiqueta nueva o busque por el código impreso.',
+  'Só o administrador prepara etiquetas.': 'Solo el administrador prepara etiquetas.',
+  'Escolha de 1 a 500 lotes.': 'Elija de 1 a 500 lotes.',
 }

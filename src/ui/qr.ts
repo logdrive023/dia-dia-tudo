@@ -1,6 +1,7 @@
 // QR CODE sem dependência: modo byte (UTF-8), correção L/M/Q/H, versões 1 a 40, escolhe a menor versão que cabe e a
 // máscara de menor penalidade (ISO/IEC 18004). Devolve a matriz (true = módulo escuro), sem a margem.
-// Usado nas etiquetas dos lotes: o QR leva o endereço do lote (…#/lotes/<id>) e o leitor da câmera abre o lote.
+// Usado nas etiquetas dos lotes: o QR leva só um código aleatório (…#/q/<código>, ver domain/ids.ts novoCodigoQr); o leitor
+// da câmera abre o pacote para quem entrou. Etiquetas antigas (…#/lotes/<id>) continuam sendo lidas.
 
 export type NivelQR = 'L' | 'M' | 'Q' | 'H'
 

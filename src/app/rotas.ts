@@ -98,6 +98,7 @@ export function navParaHash(n: Navegacao): string {
   }
   // modo caixa (venda rápida): #/venda-rapida (também aceita #/vender/caixa)
   if (n.tela === 'vendaRapida') return `#/venda-rapida${query(n.params)}`
+  if (n.tela === 'qr' && n.params.id) return `#/q/${encodeURIComponent(String(n.params.id))}`
   if (n.tela === 'comprar' && n.params.id) return `#/pedidos/${encodeURIComponent(String(n.params.id))}`
   return `#/${n.tela}${query(n.params)}`
 }
@@ -110,6 +111,8 @@ export function hashParaNav(hash: string): Navegacao | undefined {
   for (const [k, v] of new URLSearchParams(q)) params[k] = v === 'true' ? true : v
   const [a, b] = caminho.split('/').map(decodeURIComponent)
   if (a === 'venda-rapida' || (a === 'vender' && b === 'caixa')) return { tela: 'vendaRapida', params }
+  // QR da etiqueta: #/q/<código aleatório> (abre o pacote só para quem entrou)
+  if (a === 'q' && b) return { tela: 'qr', params: { ...params, id: b } }
   const col = COLECOES[a]
   if (col) {
     if (!b) return normalizarNav({ tela: col.lista, params })

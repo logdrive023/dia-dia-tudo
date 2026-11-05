@@ -2,6 +2,7 @@
 // atualiza o câmbio, oferece os dados de exemplo no primeiro uso e avisa quando há versão nova.
 
 import { Component, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AbrirQr, EtiquetaInterna } from './screens/AbrirQr'
 import { Loja } from './screens/Loja'
 import { MinhaVitrine } from './screens/Vitrine'
 import { NaoEncontrada } from './screens/NaoEncontrada'
@@ -80,6 +81,7 @@ const TELAS: Record<string, () => JSX.Element> = {
   venda: DetalheVenda,
   viagens: Viagens,
   vitrine: MinhaVitrine,
+  qr: AbrirQr,
   viagem: FichaViagem,
   adiantamentos: Financiamentos,
   financiamento: FichaFinanciamento,
@@ -151,6 +153,8 @@ export default function App() {
   // dado não salvo: menu, voltar e voltar do celular pedem confirmação antes de sair
   const sujoRef = useRef(false)
   const [saida, setSaida] = useState<() => void>()
+  // chegou pelo QR sem ter entrado: primeiro a página neutra; "Entrar" mostra o login
+  const [entrarPeloQr, setEntrarPeloQr] = useState(false)
   const marcarSujo = useCallback((s: boolean) => {
     sujoRef.current = s
   }, [])
@@ -230,8 +234,8 @@ export default function App() {
       <ComIdioma>
         <Preparar>
           {/* a VITRINE do comprador (#/loja): página de loja, sem menu e sem login */}
-          {nav.tela === 'loja' ? <Loja /> : !sessao.usuarioId ? (
-            <Entrar onEntrou={(s) => (trocarSessao(s), setPilha([hashParaNav(window.location.hash) ?? { tela: s.perfil === 'admin' ? 'painel' : 'agenda', params: {} }]))} />
+          {nav.tela === 'loja' ? <Loja /> : !sessao.usuarioId && nav.tela === 'qr' && !entrarPeloQr ? <EtiquetaInterna onEntrar={() => setEntrarPeloQr(true)} /> : !sessao.usuarioId ? (
+            <Entrar semTeste={nav.tela === 'qr'} onEntrou={(s) => (trocarSessao(s), setPilha([hashParaNav(window.location.hash) ?? { tela: s.perfil === 'admin' ? 'painel' : 'agenda', params: {} }]))} />
           ) : (
             <>
               <Shell>
@@ -303,19 +307,21 @@ function Tela() {
  */
 function Preparar({ children }: { children: ReactNode }) {
   const t = useT()
-  const { backend, avisar } = useApp()
-  const { dados } = useConsulta('usuariosDemo', {}, backend.tipo !== 'api')
+  const { backend, avisar, nav } = useApp()
+  // QR de etiqueta ou vitrine aberta num aparelho de fora: não monta dados de exemplo (nada do negócio aparece)
+  const publico = nav.tela === 'qr' || nav.tela === 'loja'
+  const { dados } = useConsulta('usuariosDemo', {}, backend.tipo !== 'api' && !publico)
   const [montando, setMontando] = useState(false)
   const montou = useRef(false)
   useEffect(() => {
-    if (backend.tipo === 'api' || !dados || dados.length || montando || montou.current) return
+    if (publico || backend.tipo === 'api' || !dados || dados.length || montando || montou.current) return
     montou.current = true
     setMontando(true)
     carregarDemo(backend as BackendNoAparelho)
       .catch((e) => avisar(e instanceof Error ? e.message : String(e), 'erro'))
       .finally(() => setMontando(false))
-  }, [backend, dados, montando, avisar])
-  if (backend.tipo !== 'api' && (!dados || !dados.length))
+  }, [backend, dados, montando, avisar, publico])
+  if (!publico && backend.tipo !== 'api' && (!dados || !dados.length))
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center">
         <div className="text-5xl">💇‍♀️✂️🤝</div>

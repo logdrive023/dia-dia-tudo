@@ -153,6 +153,7 @@ components:
         - salvarVendaAberta
         - descartarVendaAberta
         - fecharTurno
+        - prepararQrEtiquetas
         - tirarDaVendaAberta
         - salvarCidade
         - pagarCompra
@@ -245,6 +246,7 @@ components:
         - reposicao
         - metas
         - vitrine
+        - pacoteDoQr
         - turnos
         - viagensParaFiltro
         - cidades

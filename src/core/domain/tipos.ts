@@ -105,6 +105,11 @@ export interface Item extends Base {
   etiquetaPeso?: number
   /** via da etiqueta (1, 2, 3…): sobe quando a antiga é cancelada ("Errou? Gerar nova"); o código do lote não muda */
   etiquetaVia?: number
+  /**
+   * CÓDIGO DO QR (aleatório, ver domain/ids.ts novoCodigoQr): o QR da etiqueta leva só ele (…#/q/<código>), nunca o id.
+   * Nasce ao preparar a impressão; reimprimir (nova via) troca o código e o antigo deixa de abrir o pacote.
+   */
+  qr?: string
   /** a última etiqueta cancelada: por quê, quando e quem */
   etiquetaCancelada?: { motivo: string; em: string; porNome?: string; via: number }
   campos: Campos

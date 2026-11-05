@@ -461,6 +461,12 @@ async function montar(b: BackendNoAparelho) {
     },
   })
 
+  // ---------- QR seguro: os pacotes com etiqueta já usam o código aleatório (…#/q/<código>) ----------
+  {
+    const comEtiqueta = (await b.consulta('estoque', { moduloId: 'cabelo' })).filter((i) => i.etiquetaImpressaEm).map((i) => i.id)
+    if (comEtiqueta.length) await c(0, 'prepararQrEtiquetas', { ids: comEtiqueta })
+  }
+
   // ---------- usuários (senha demo1234) ----------
   const U = (login: string, nome: string, perfil: 'admin' | 'funcionario', pessoaId?: string, localId?: string) =>
     c(0, 'salvarUsuario', { id: `u-${login}`, login, nome, perfil, pessoaId, localId, senha: SENHA_DEMO })

@@ -8,7 +8,7 @@ import type { StatusLote } from '../core/services/estoque'
 import { Botao, Janela, Pilula, cx, gramasTexto } from './base'
 import { useT } from './i18n'
 import { useApp } from './contexto'
-import { loteDoCodigoLido } from './etiquetas'
+import { lerEnderecoQr } from './etiquetas'
 
 export const STATUS_LOTE: Record<StatusLote, { nome: string; tom: 'bom' | 'alerta' | 'neutro' | 'marca' }> = {
   disponivel: { nome: 'Disponível', tom: 'bom' },
@@ -126,8 +126,8 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
     if (r.continuo && r.ultimo?.c === texto && agora - r.ultimo.em < 3000) return false
     r.ultimo = { c: texto, em: agora }
     try { navigator.vibrate?.(40) } catch { /* sem vibração */ }
-    const lote = loteDoCodigoLido(texto)
-    if (lote && r.abrirLote && !r.continuo) return (r.onFechar(), r.ir('lote', { id: lote }), true)
+    const lido = lerEnderecoQr(texto)
+    if (lido && r.abrirLote && !r.continuo) return (r.onFechar(), lido.qr ? r.ir('qr', { id: lido.qr }) : r.ir('lote', { id: lido.id! }), true)
     const resp = r.onLerTexto(texto)
     if (r.continuo && resp) setLidos((ls) => [{ ...resp, id: ++r.n, codigo: texto }, ...ls].slice(0, 30))
     return true

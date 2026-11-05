@@ -6,13 +6,15 @@
 import { useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import type { Id } from '../core/domain/tipos'
-import { loteDoCodigoLido } from './etiquetas'
+import { lerEnderecoQr } from './etiquetas'
 
 export interface PacoteComCodigo {
   id: Id
   codigo?: string
   codigosAnteriores?: string[]
   nome?: string
+  /** o código aleatório do QR da etiqueta */
+  qr?: string
 }
 
 const norm = (s?: string) => (s ?? '').trim().toUpperCase()
@@ -20,8 +22,9 @@ const norm = (s?: string) => (s ?? '').trim().toUpperCase()
 /** Pacote cujo código (atual ou antigo) é exatamente o texto; também aceita o endereço do QR e o id. */
 export function acharPorCodigo<P extends PacoteComCodigo>(pacotes: readonly P[] | undefined, texto: string): P | undefined {
   const lista = pacotes ?? []
-  const doQR = loteDoCodigoLido(texto)
-  if (doQR) return lista.find((p) => p.id === doQR)
+  const doQR = lerEnderecoQr(texto)
+  if (doQR?.qr) return lista.find((p) => p.qr === doQR.qr)
+  if (doQR?.id) return lista.find((p) => p.id === doQR.id)
   const c = norm(texto)
   if (!c) return undefined
   return lista.find((p) => norm(p.codigo) === c) ?? lista.find((p) => p.codigosAnteriores?.some((x) => norm(x) === c)) ?? lista.find((p) => norm(p.id) === c)

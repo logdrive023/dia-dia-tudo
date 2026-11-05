@@ -123,11 +123,13 @@ export interface Etiqueta {
   /** compras de origem ("P-0003 + P-0007") */
   compras?: string
   foto?: FotoResumo
+  /** o código aleatório do QR (…#/q/<código>); sem ele, a etiqueta usa o endereço antigo do lote */
+  qr?: string
   /** via da etiqueta (2 = "2ª via", depois de cancelar a antiga); sem = 1ª */
   via?: number
 }
 
-/** Dados das ETIQUETAS dos lotes (na ordem pedida): o QR leva o endereço do lote (#/lotes/<id>), montado na tela. */
+/** Dados das ETIQUETAS dos lotes (na ordem pedida): o QR leva o código aleatório do pacote (#/q/<código>), montado na tela. */
 export async function etiquetas(ctx: Ctx, p: { ids: Id[] }): Promise<Etiqueta[]> {
   exigir(p.ids?.length, 'Escolha pelo menos um lote.')
   exigir(p.ids.length <= 500, 'No máximo 500 etiquetas de uma vez.')
@@ -153,6 +155,7 @@ export async function etiquetas(ctx: Ctx, p: { ids: Id[] }): Promise<Etiqueta[]>
       data: i.criadoEm.slice(0, 10),
       compras: comprasDe(i).map((c) => compras.get(c)?.codigo).filter(Boolean).join(' + ') || undefined,
       foto: F.principal(i.id),
+      qr: i.qr,
       via: i.etiquetaVia && i.etiquetaVia > 1 ? i.etiquetaVia : undefined,
     }
   })

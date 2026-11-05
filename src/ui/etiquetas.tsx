@@ -20,6 +20,21 @@ import { useLembrado } from './filtros'
 export type TamanhoEtiqueta = 'pequena' | 'a4' | 'livre'
 
 /** O que vai no QR: o endereço do lote neste app (o leitor da câmera abre o lote; outro celular abre o app nele). */
+/** endereço do QR NOVO: só o código aleatório da etiqueta (sem id, data, medida ou cor) */
+export function enderecoDoQr(codigo: string) {
+  const base = typeof location === 'undefined' ? '' : `${location.origin}${location.pathname}`
+  return `${base}#/q/${encodeURIComponent(codigo)}`
+}
+
+/** o que um texto lido aponta: o código do QR novo (…#/q/<código>) ou o id do QR antigo (…#/lotes/<id>) */
+export function lerEnderecoQr(texto: string): { qr?: string; id?: Id } | undefined {
+  const novo = /#\/q\/([A-Za-z0-9]{10,40})/.exec(texto.trim())
+  if (novo) return { qr: novo[1] }
+  const id = loteDoCodigoLido(texto)
+  return id ? { id } : undefined
+}
+
+/** endereço do QR ANTIGO (…#/lotes/<id>): só para etiqueta impressa antes do código de QR */
 export function enderecoDoLote(id: Id) {
   const base = typeof location === 'undefined' ? '' : `${location.origin}${location.pathname}`
   return `${base}#/lotes/${encodeURIComponent(id)}`
@@ -84,7 +99,7 @@ function UmaEtiqueta({ e, s, barras }: { e: Etiqueta; s: MedidasEtiqueta; barras
   const tamCodigo = Math.min(s.codigo, largura / (0.62 * Math.max(1, e.codigo.length)))
   return (
     <div className="etiqueta flex overflow-hidden bg-white text-black" style={{ width: `${s.w}mm`, height: `${s.h}mm`, padding: '1.5mm', gap: '1.5mm', border: '0.2mm dashed #bbb', boxSizing: 'border-box', breakInside: 'avoid' }}>
-      <QR texto={enderecoDoLote(e.id)} className="shrink-0" />
+      <QR texto={e.qr ? enderecoDoQr(e.qr) : enderecoDoLote(e.id)} className="shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col justify-between" style={{ fontSize: `${s.texto}mm`, lineHeight: 1.15 }}>
         <b className="font-mono" style={{ fontSize: `${tamCodigo}mm`, lineHeight: 1, whiteSpace: 'nowrap' }}>{e.codigo}</b>
         {barras && <Barras texto={e.codigo} className="barras block w-full" style={{ height: `${s.barras}mm` }} />}
@@ -171,6 +186,13 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   const [altLivre, setAltLivre] = useLembrado('etiquetas.altura', 30)
   const medRolo = tamanho === 'livre' ? medidasEtiqueta(largLivre, altLivre) : TAM.pequena
   const { dados, erro } = useConsulta('etiquetas', { ids })
+  // QR SEGURO: antes de imprimir, cada pacote sem código de QR ganha um (aleatório) — o QR não leva mais o id
+  const semQr = (dados ?? []).filter((e) => !e.qr).map((e) => e.id)
+  const chaveSemQr = semQr.join(',')
+  useEffect(() => {
+    if (sessao.perfil === 'admin' && chaveSemQr) void executar('prepararQrEtiquetas', { ids: chaveSemQr.split(',') })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveSemQr, sessao.perfil])
   const { dados: modoPadrao } = useConsulta('modoEtiqueta', {}, !modoInicial)
   const [escolhido, setModo] = useState<ModoEtiqueta>()
   const [impresso, setImpresso] = useState(false)
