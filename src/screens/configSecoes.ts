@@ -8,13 +8,16 @@ import { ConfigCodigos } from './ConfigCodigos'
 import { ConfigFormCompra } from './ConfigFormCompra'
 import { Atributos, Catalogo, Dados, EtapasCompra, FormasPagamento, Geral, Modulos, Moedas, Socias, Unidades, Usuarios } from './Config'
 
-export type GrupoConfigId = 'negocio' | 'dinheiro' | 'cabelo' | 'sistema'
+export type GrupoConfigId = 'negocio' | 'pessoas' | 'dinheiro' | 'compras' | 'estoque' | 'sistema'
 
-export const GRUPOS_CONFIG: { id: GrupoConfigId; nome: string; icone: string }[] = [
-  { id: 'negocio', nome: 'Negócio', icone: '🏢' },
-  { id: 'dinheiro', nome: 'Dinheiro', icone: '💱' },
-  { id: 'cabelo', nome: 'Cabelo e estoque', icone: '💇‍♀️' },
-  { id: 'sistema', nome: 'Sistema', icone: '⚙️' },
+/** as ÁREAS das configurações (cada uma com cor e uma linha do que tem): o índice mostra uma faixa por área */
+export const GRUPOS_CONFIG: { id: GrupoConfigId; nome: string; icone: string; cor: string; descricao: string }[] = [
+  { id: 'negocio', nome: 'Negócio', icone: '🏢', cor: '#7c3aed', descricao: 'Nome, unidades e sócias' },
+  { id: 'pessoas', nome: 'Pessoas e acesso', icone: '👥', cor: '#0ea5e9', descricao: 'Quem entra no sistema e o que pode ver' },
+  { id: 'dinheiro', nome: 'Dinheiro e impostos', icone: '💰', cor: '#16a34a', descricao: 'Moedas, formas de pagamento, impostos e relatórios' },
+  { id: 'compras', nome: 'Compras', icone: '🛒', cor: '#ea580c', descricao: 'O caminho do pedido, o formulário e os códigos' },
+  { id: 'estoque', nome: 'Estoque e triagem', icone: '📦', cor: '#db2777', descricao: 'A triagem, os atributos do cabelo e o catálogo' },
+  { id: 'sistema', nome: 'Sistema', icone: '⚙️', cor: '#64748b', descricao: 'Módulos, backup e dados' },
 ]
 
 export interface SecaoConfig {
@@ -31,17 +34,17 @@ export interface SecaoConfig {
 export const SECOES_CONFIG: SecaoConfig[] = [
   { id: 'geral', grupo: 'negocio', nome: 'Geral', icone: '🏪', descricao: 'Nome do negócio e idioma', palavras: 'nome negócio idioma língua português espanhol español', componente: Geral },
   { id: 'socias', grupo: 'negocio', nome: 'Sócias', icone: '🤝', descricao: 'Como o lucro é dividido', palavras: 'sócia sócio lucro divisão parte porcentagem resultado', componente: Socias },
-  { id: 'pagamentos', grupo: 'negocio', nome: 'Formas de pagamento', icone: '💳', descricao: 'Pix, cartão, dinheiro e moedas', palavras: 'pagamento forma pix cartão dinheiro transferência qr', componente: FormasPagamento },
+  { id: 'pagamentos', grupo: 'dinheiro', nome: 'Formas de pagamento', icone: '💳', descricao: 'Pix, cartão, dinheiro e moedas', palavras: 'pagamento forma pix cartão dinheiro transferência qr', componente: FormasPagamento },
   { id: 'unidades', grupo: 'negocio', nome: 'Unidades', icone: '📍', descricao: 'Salões, pontos e endereços', palavras: 'unidade endereço salão loja ponto depósito local filial', componente: Unidades },
-  { id: 'usuarios', grupo: 'negocio', nome: 'Usuários', icone: '👤', descricao: 'Quem entra, perfil e senha', palavras: 'usuário senha login acesso perfil funcionária administrador entrar', componente: Usuarios },
+  { id: 'usuarios', grupo: 'pessoas', nome: 'Usuários', icone: '👤', descricao: 'Quem entra, perfil e senha', palavras: 'usuário senha login acesso perfil funcionária administrador entrar', componente: Usuarios },
   { id: 'fiscal', grupo: 'dinheiro', nome: 'Fiscal e relatórios', icone: '🧾', descricao: 'Padrão (Bolívia/Brasil), regime, impostos e NIT', palavras: 'fiscal imposto impuesto iva it iue rts nit relatório contabilidade contador regime simples dre estado resultados', componente: ConfigFiscal },
   { id: 'moedas', grupo: 'dinheiro', nome: 'Moedas e câmbio', icone: '💵', descricao: 'Moeda principal e câmbio do dia', palavras: 'moeda câmbio cotação dólar real boliviano taxa conversão', componente: Moedas },
-  { id: 'etapas', grupo: 'cabelo', nome: 'Etapas da compra', icone: '🛒', descricao: 'O caminho do pedido de compra', palavras: 'compra pedido etapa pagamento fotos comprovante fluxo parada', componente: EtapasCompra },
-  { id: 'formCompra', grupo: 'cabelo', nome: 'Formulário de compra', icone: '📝', descricao: 'O que a nova compra pede e em que ordem', palavras: 'formulário compra nova campos ordem obrigatório padrão medidas estado chegada passo simples', componente: ConfigFormCompra },
-  { id: 'triagem', grupo: 'cabelo', nome: 'Etapas da triagem', icone: '🧺', descricao: 'As colunas do quadro e as cores', palavras: 'triagem coluna quadro cor pronto separar lote kanban', componente: EtapasTriagem },
-  { id: 'atributos', grupo: 'cabelo', nome: 'Atributos', icone: '🔖', descricao: 'Química, espessura, região…', palavras: 'atributo campo química espessura região lista filtro cor textura', componente: Atributos },
-  { id: 'codigos', grupo: 'cabelo', nome: 'Códigos', icone: '🔢', descricao: 'Como identificar compras e lotes', palavras: 'código número identificação sequência lote compra etiqueta prefixo', componente: ConfigCodigos },
-  { id: 'catalogo', grupo: 'cabelo', nome: 'Catálogo', icone: '📒', descricao: 'Serviços e produtos com preço', palavras: 'catálogo serviço produto preço duração retorno item', componente: Catalogo },
+  { id: 'etapas', grupo: 'compras', nome: 'Etapas da compra', icone: '🛒', descricao: 'O caminho do pedido de compra', palavras: 'compra pedido etapa pagamento fotos comprovante fluxo parada', componente: EtapasCompra },
+  { id: 'formCompra', grupo: 'compras', nome: 'Formulário de compra', icone: '📝', descricao: 'O que a nova compra pede e em que ordem', palavras: 'formulário compra nova campos ordem obrigatório padrão medidas estado chegada passo simples', componente: ConfigFormCompra },
+  { id: 'triagem', grupo: 'estoque', nome: 'Etapas da triagem', icone: '🧺', descricao: 'As colunas do quadro e as cores', palavras: 'triagem coluna quadro cor pronto separar lote kanban', componente: EtapasTriagem },
+  { id: 'atributos', grupo: 'estoque', nome: 'Atributos', icone: '🔖', descricao: 'Química, espessura, região…', palavras: 'atributo campo química espessura região lista filtro cor textura', componente: Atributos },
+  { id: 'codigos', grupo: 'compras', nome: 'Códigos', icone: '🔢', descricao: 'Como identificar compras e lotes', palavras: 'código número identificação sequência lote compra etiqueta prefixo', componente: ConfigCodigos },
+  { id: 'catalogo', grupo: 'estoque', nome: 'Catálogo', icone: '📒', descricao: 'Serviços e produtos com preço', palavras: 'catálogo serviço produto preço duração retorno item', componente: Catalogo },
   { id: 'modulos', grupo: 'sistema', nome: 'Módulos', icone: '🧩', descricao: 'Ligar recursos e criar modalidades', palavras: 'módulo modalidade ligar desligar recurso salão empréstimo', componente: Modulos },
   { id: 'dados', grupo: 'sistema', nome: 'Dados', icone: '💾', descricao: 'Backup e demonstração', palavras: 'backup dados exportar restaurar zerar demonstração armazenamento conferência', componente: Dados },
 ]

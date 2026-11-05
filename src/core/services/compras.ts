@@ -4,6 +4,7 @@
 // Item de catálogo (produto) continua entrando no estoque só na última etapa, como antes.
 
 import { formatar, multiplicarFator, proporcao, type CodigoMoeda } from '../domain/dinheiro'
+import { registrarImpostosEstimados } from './impostosRegistro'
 import { redividirGasto } from './viagens'
 import { mapaViagens } from './viagemCurta'
 import { ErroNegocio, exigir } from '../domain/erros'
@@ -215,6 +216,7 @@ async function criarCompraSemPagar(ctx: Ctx, d: Parameters<typeof criarCompra>[1
   // mesma linha de log do "ligar compras" da viagem (uma viagem por compra: compra nova não está em outra)
   if (viagem) await auditar(ctx, 'vincularCompras', viagem.id, `${viagem.codigo} ← ${t.codigo ?? t.id}`, [t.id])
   if (viagem?.incorporacao) await redividirGasto(ctx, viagem.id)
+  await registrarImpostosEstimados(ctx, t)
   await auditar(ctx, 'criarCompra', t.id, `${t.codigo} · ${linhas.length} item(ns): ${linhas.map((l) => `${l.descricao} ${l.quantidade}`).join(', ')}`, [t.pessoaId!])
   return { id: t.id }
 }

@@ -2,6 +2,7 @@
 // Agendado não mexe em estoque nem caixa; só ao concluir.
 
 import { converter, formatar, moeda as moedaDe, multiplicarFator, proporcao, type CodigoMoeda, type Cotacao } from '../domain/dinheiro'
+import { registrarImpostosEstimados } from './impostosRegistro'
 import { mapaViagens } from './viagemCurta'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { aoConcluirVenda } from './vendasAbertas'
@@ -292,6 +293,7 @@ export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
   await ctx.repos.transacoes.salvar(v)
   await auditar(ctx, d.agendadoPara ? 'agendar' : 'concluirVenda', v.id, linhas.map((l) => l.descricao).join(', '), [v.pessoaId!, v.profissionalId!, ...linhas.map((l) => l.itemId!)])
   await auditarAjustes(ctx, v)
+  if (!d.agendadoPara) await registrarImpostosEstimados(ctx, v)
   if (!d.agendadoPara) await aoConcluirVenda(ctx, v.id, linhas.map((l) => l.itemId).filter((x): x is Id => !!x), v.codigo)
   // RESERVA: vendeu um pacote reservado (para a própria pessoa ou para outra — a reserva pode ter caído e ninguém
   // atualizou): nada trava, a reserva acaba aqui e o porquê fica no histórico do pacote
@@ -325,6 +327,7 @@ export async function atenderAgendamento(ctx: Ctx, d: { id: Id; linhas?: LinhaVe
   v = await concluir(ctx, v, d.pagamentos)
   await ctx.repos.transacoes.salvar(tocar(ctx, v))
   await auditar(ctx, 'atenderAgendamento', v.id, '')
+  await registrarImpostosEstimados(ctx, v)
   if (d.linhas) await auditarAjustes(ctx, v)
   return { id: v.id }
 }

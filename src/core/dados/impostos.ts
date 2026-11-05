@@ -56,6 +56,10 @@ export interface ConfigFiscal {
    *  'dentro' = o imposto já está dentro do preço (Bolívia: IVA "por dentro") → "deste preço, Bs X é imposto"
    *  'fora'   = somado ao preço → "custo final com impostos: 60 + 9,60 = Bs 69,60" */
   modoPreco: 'dentro' | 'fora'
+  /** a linha "🧾 impostos Bs X ›" embaixo do total (um toque abre o detalhe) */
+  mostrarNoTotal: boolean
+  /** o quadro com o detalhe às claras embaixo de "Nesta venda" / dos itens da compra */
+  mostrarQuadro: boolean
   /** os impostos vigentes nas operações (a lista que a pessoa edita) — IVA/IT do relatório saem daqui */
   impostos: ImpostoOperacao[]
 }
@@ -78,6 +82,8 @@ export const FISCAL_PADRAO: ConfigFiscal = {
   irpjCsllBp: 228,
   mostrarNasOperacoes: true,
   modoPreco: 'dentro',
+  mostrarNoTotal: true,
+  mostrarQuadro: true,
   impostos: [
     { id: 'iva', sigla: 'IVA', nome: 'Impuesto al Valor Agregado', taxaBp: 1300, ligado: true, vendaProduto: true, vendaServico: true, compra: 'credito', fonte: 'Ley 843, arts. 1 y 15 (texto ordenado vigente)', vigenteDesde: '1986-05-20', conferidoEm: '2026-11-04', explica: 'Va incluido en el precio ("por dentro"): el 13% del total facturado es del fisco. En la compra con factura es crédito fiscal.' },
     { id: 'it', sigla: 'IT', nome: 'Impuesto a las Transacciones', taxaBp: 300, ligado: true, vendaProduto: true, vendaServico: true, compra: 'nao', fonte: 'Ley 843, arts. 72 a 77 (alícuota 3% por Ley 1606)', vigenteDesde: '1995-01-01', conferidoEm: '2026-11-04', explica: '3% sobre el ingreso bruto, sin descontar costos. El IUE pagado se compensa con el IT siguiente.' },

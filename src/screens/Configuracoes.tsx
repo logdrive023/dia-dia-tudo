@@ -110,19 +110,51 @@ function Indice() {
           <Vazio texto={t('Nada encontrado para “{q}”. Tente outra palavra, ex.: câmbio, senha, coluna.', { q: busca.q.trim() })} />
         )
       ) : (
-        <div className="grid items-start gap-4 lg:grid-cols-2">
-          {GRUPOS_CONFIG.map((g) => (
-            <section key={g.id} aria-labelledby={`cfg-${g.id}`} className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-              <h2 id={`cfg-${g.id}`} className="flex items-center gap-2 border-b border-[var(--borda)] px-4 py-3 text-base font-bold">
-                <span aria-hidden className="text-xl">{g.icone}</span>
-                {t(g.nome)}
-              </h2>
-              <ul className="divide-y divide-[var(--borda)]">
-                {achadas.filter((s) => s.grupo === g.id).map((s) => <li key={s.id}><LinhaSecao s={s} onClick={() => abrir(s)} /></li>)}
-              </ul>
-            </section>
-          ))}
-        </div>
+        <>
+          {/* as áreas num toque (vai direto para a faixa da área) */}
+          <nav aria-label={t('Áreas das configurações')} className="sem-barra -mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1">
+            {GRUPOS_CONFIG.map((g) => (
+              <a key={g.id} href={`#cfg-${g.id}`} onClick={(e) => (e.preventDefault(), document.getElementById(`cfg-${g.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))}
+                className="inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold ring-1" style={{ background: `color-mix(in srgb, ${g.cor} 12%, transparent)`, color: g.cor, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${g.cor} 35%, transparent)` }}>
+                <span aria-hidden>{g.icone}</span>{t(g.nome)}
+              </a>
+            ))}
+          </nav>
+          <div className="space-y-6">
+            {GRUPOS_CONFIG.map((g) => {
+              const secoes = achadas.filter((x) => x.grupo === g.id)
+              if (!secoes.length) return null
+              return (
+                <section key={g.id} id={`cfg-${g.id}`} aria-labelledby={`cfg-t-${g.id}`} className="scroll-mt-4">
+                  {/* a faixa da área: ícone na cor da área, nome e o que tem */}
+                  <div className="mb-3 flex items-center gap-3 rounded-2xl p-3" style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${g.cor} 16%, transparent), transparent)` }}>
+                    <span aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl text-white shadow-sm" style={{ background: g.cor }}>{g.icone}</span>
+                    <span className="linha-texto">
+                      <h2 id={`cfg-t-${g.id}`} className="text-lg font-bold leading-tight">{t(g.nome)}</h2>
+                      <span className="text-sm text-[var(--suave)]">{t(g.descricao)}</span>
+                    </span>
+                    <span className="num shrink-0 rounded-full bg-[var(--cartao)] px-2.5 py-0.5 text-xs font-semibold text-[var(--suave)] ring-1 ring-[var(--borda)]">{secoes.length}</span>
+                  </div>
+                  {/* as seções em blocos (dá para ver tudo de uma vez) */}
+                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(15rem,100%),1fr))] gap-2">
+                    {secoes.map((x) => (
+                      <li key={x.id}>
+                        <button type="button" onClick={() => abrir(x)} className="group flex h-full min-h-[5.5rem] w-full items-start gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" style={{ borderLeft: `4px solid ${g.cor}` }}>
+                          <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-2xl" style={{ background: `color-mix(in srgb, ${g.cor} 14%, transparent)` }}>{x.icone}</span>
+                          <span className="min-w-0 flex-1">
+                            <b className="block leading-tight">{t(x.nome)}</b>
+                            <span className="mt-0.5 block text-sm leading-snug text-[var(--suave)]">{t(x.descricao)}</span>
+                          </span>
+                          <span aria-hidden className="self-center text-xl text-[var(--suave)] transition group-hover:translate-x-0.5">›</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )
+            })}
+          </div>
+        </>
       )}
     </div>
   )
@@ -205,7 +237,7 @@ function ListaLateral({ atual }: { atual: string }) {
             if (!itens.length) return null
             return (
               <div key={g.id} className="mt-3 first:mt-0">
-                <div className="px-2 pb-1 text-xs font-medium text-[var(--suave)]"><span aria-hidden>{g.icone} </span>{t(g.nome)}</div>
+                <div className="flex items-center gap-1.5 px-2 pb-1 text-xs font-bold uppercase tracking-wide" style={{ color: g.cor }}><span aria-hidden>{g.icone}</span>{t(g.nome)}</div>
                 <ul className="space-y-0.5">
                   {itens.map((s) => {
                     const ativo = s.id === atual
@@ -217,7 +249,7 @@ function ListaLateral({ atual }: { atual: string }) {
                           aria-current={ativo ? 'page' : undefined}
                           className={cx('relative flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-sm', ativo ? 'bg-[var(--marca-suave)] font-semibold text-[var(--marca)]' : 'hover:bg-[var(--fundo)]')}
                         >
-                          {ativo && <span aria-hidden className="absolute left-0 top-2 h-6 w-1 rounded-r-full bg-[var(--marca)]" />}
+                          {ativo && <span aria-hidden className="absolute left-0 top-2 h-6 w-1 rounded-r-full" style={{ background: g.cor }} />}
                           <span aria-hidden className="w-5 text-center">{s.icone}</span>
                           <span className="min-w-0 flex-1 truncate">{t(s.nome)}</span>
                         </button>

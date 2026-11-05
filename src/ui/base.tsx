@@ -543,9 +543,11 @@ export function Janela({ aberta, titulo, onFechar, children, rodape, larga }: { 
     return () => window.removeEventListener('keydown', esc)
   }, [aberta, onFechar])
   if (!aberta) return null
-  return (
+  // PORTAL: a janela vai direto para o <body> — nenhuma barra fixa/rolagem de quem abriu corta ela (ex.: aberta de dentro
+  // da barra do caixa, ficava atrás do menu de baixo)
+  return createPortal(
     // tocar fora NÃO fecha: o formulário não perde o que foi digitado (fecha pelo × ou Esc)
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 md:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-center">
       <div
         role="dialog"
         aria-modal="true"
@@ -561,10 +563,11 @@ export function Janela({ aberta, titulo, onFechar, children, rodape, larga }: { 
             ×
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
-        {rodape && <div className="border-t border-[var(--borda)] p-3">{rodape}</div>}
+        <div className={cx('min-h-0 flex-1 overflow-y-auto p-4', !rodape && 'pb-[max(1rem,env(safe-area-inset-bottom))]')}>{children}</div>
+        {rodape && <div className="border-t border-[var(--borda)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{rodape}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

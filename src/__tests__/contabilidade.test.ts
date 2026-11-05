@@ -96,3 +96,15 @@ describe('impostos: só informativo, configurável', () => {
     expect(serv.linhas.find((l) => l.sigla === 'IT')).toMatchObject({ taxaBp: 500, valor: bs(5) })
   })
 })
+
+describe('impostos no histórico (só registro)', () => {
+  it('a venda guarda os impostos estimados (alíquota e fonte do dia) e o histórico tem a conta — mesmo com a exibição desligada', async () => {
+    const { b } = await montar()
+    await b.comando('salvarConfig', { fiscal: { mostrarNasOperacoes: false } as never })
+    await b.comando('concluirVenda', { id: 'v2', linhas: [{ id: 'l2', itemId: 'corte', quantidade: 1, moeda: 'BOB', total: bs(100) }], pagamentos: [{ id: 'p2', forma: 'dinheiro', moeda: 'BOB', valor: bs(100) }] })
+    const log = (await b.consulta('logDetalhado', { acao: 'impostosEstimados' })).linhas
+    const r = log.map((l: { resumo?: string }) => l.resumo ?? '').find((x: string) => x.includes('100,00'))
+    expect(r).toMatch(/IVA 13% × Bs\s?100,00 = Bs\s?13,00/)
+    expect(r).toContain('(estimado, não cobrado)')
+  })
+})

@@ -6,9 +6,14 @@
 
 import type { ReactNode } from 'react'
 import type { Id } from '../../core/domain/tipos'
+import { MOEDAS } from '../../core/domain/dinheiro'
 import { Campo, Entrada, Escolha, Info, Selecao, ValorInput, cx } from '../../ui/base'
+import { Bandeira } from '../../ui/bandeira'
 import { SeletorPessoa } from '../../ui/compartilhados'
 import { useT } from '../../ui/i18n'
+
+/** bandeira de cada moeda (BOB → Bolívia…) */
+const PAIS_MOEDA: Record<string, string> = { BOB: 'BO', USD: 'US', BRL: 'BR', PYG: 'PY', EUR: 'ES', ARS: 'AR', CLP: 'CL', PEN: 'PE' }
 
 export function CobrarEm({ moedas, valor, onChange, simbolo, simboloPrincipal, cotacao, onCotacao, cotacaoValida }: {
   moedas: { id: string; nome: string }[]
@@ -22,22 +27,42 @@ export function CobrarEm({ moedas, valor, onChange, simbolo, simboloPrincipal, c
   cotacaoValida: boolean
 }) {
   const t = useT()
+  const nomeDe = (id: string) => MOEDAS.find((m) => m.codigo === id)?.nome
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <span className="shrink-0 text-sm font-semibold text-[var(--suave)]">{t('Cobrar em')}</span>
-        <div className="min-w-0 flex-1"><Escolha rotulo="Cobrar em" valor={valor} onChange={onChange} opcoes={moedas} /></div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold text-[var(--suave)]">{t('Cobrar em')}</span>
         <Info texto="Escolha a moeda de quem está comprando. Ex.: brasileira paga em R$ com cotação 1 R$ = 1,28 Bs." />
       </div>
+      {/* as moedas em cartões: bandeira + símbolo grande + nome */}
+      <div role="radiogroup" aria-label={t('Cobrar em')} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(moedas.length, 4)}, minmax(0, 1fr))` }}>
+        {moedas.map((m) => {
+          const sel = m.id === valor
+          return (
+            <button key={m.id} type="button" role="radio" aria-checked={sel} aria-label={m.nome} onClick={() => onChange(m.id)}
+              className={cx('flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-1 py-1.5 transition', sel ? 'border-[var(--marca)] bg-[var(--marca-suave)] shadow-sm' : 'border-[var(--borda)] bg-[var(--cartao)] hover:border-[var(--marca)]/50')}>
+              <span className="flex items-center gap-1.5">
+                <Bandeira pais={PAIS_MOEDA[m.id] ?? m.id.slice(0, 2)} />
+                <b className={cx('num text-base leading-none', sel ? 'text-[var(--marca)]' : 'text-[var(--texto)]')}>{m.nome}</b>
+              </span>
+              {nomeDe(m.id) && <span className="block max-w-full truncate text-[11px] leading-tight text-[var(--suave)]">{t(nomeDe(m.id)!)}</span>}
+            </button>
+          )
+        })}
+      </div>
+      {/* a cotação do dia (só quando não é a moeda principal): a conta escrita "1 R$ = [ ] Bs" */}
       {cotacao !== undefined && (
-        <label className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-          <span className="shrink-0">{t('Cotação')}: 1 {simbolo} =</span>
-          <input inputMode="decimal" aria-label={t('Cotação de {m}', { m: simbolo })} value={cotacao} onChange={(e) => onCotacao(e.target.value)}
-            className={cx('num min-h-10 w-24 rounded-xl border bg-[var(--cartao)] px-2 text-base outline-none focus:border-[var(--marca)]', cotacaoValida ? 'border-[var(--borda)]' : 'border-[var(--ruim)]')} />
-          <span className="shrink-0">{simboloPrincipal}</span>
-        </label>
+        <div className={cx('rounded-xl border p-2.5', cotacaoValida ? 'border-[var(--borda)] bg-[var(--fundo)]' : 'border-[var(--alerta)]/60 bg-[var(--alerta)]/10')}>
+          <label className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="w-full text-xs font-semibold text-[var(--suave)]">💱 {t('Cotação de hoje')}</span>
+            <span className="num shrink-0 text-base font-bold">1 {simbolo} =</span>
+            <input inputMode="decimal" aria-label={t('Cotação de {m}', { m: simbolo })} placeholder="1,28" value={cotacao} onChange={(e) => onCotacao(e.target.value)}
+              className={cx('num min-h-11 w-28 rounded-xl border-2 bg-[var(--cartao)] px-3 text-center text-lg font-bold outline-none focus:border-[var(--marca)]', cotacaoValida ? 'border-[var(--borda)]' : 'border-[var(--alerta)]')} />
+            <span className="num shrink-0 text-base font-bold">{simboloPrincipal}</span>
+          </label>
+          {!cotacaoValida && <p className="mt-1.5 text-sm font-semibold text-[var(--alerta)]">{t('Quanto vale 1 {m} em {p} hoje? Digite para fechar a venda.', { m: simbolo, p: simboloPrincipal })}</p>}
+        </div>
       )}
-      {!cotacaoValida && <p className="text-sm font-semibold text-[var(--ruim)]">{t('Digite a cotação de {m}.', { m: simbolo })}</p>}
     </div>
   )
 }

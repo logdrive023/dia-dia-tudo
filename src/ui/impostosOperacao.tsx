@@ -15,13 +15,13 @@ const pct = (bp: number) => `${(bp / 100).toLocaleString('pt-BR')}%`
 
 interface Calculo { linhas: LinhaImposto[]; venda: number; compra: number; base: number; precoFinal: number; modoPreco: 'dentro' | 'fora' }
 
-/** O DETALHE dos impostos (componente único): cada imposto com a alíquota vigente, a fonte legal, a conta e a soma */
-export function DetalheImpostos({ calculo, moeda, ehCompra, onFechar }: { calculo: Calculo; moeda: string; ehCompra: boolean; onFechar(): void }) {
+/** O DETALHE dos impostos às claras (peça única): cada imposto com a alíquota vigente, a fonte, a conta e a soma.
+ *  Usado na janela (DetalheImpostos) e no quadro da venda/compra (QuadroImpostosOperacao). */
+export function QuadroImpostos({ calculo, moeda, ehCompra }: { calculo: Calculo; moeda: string; ehCompra: boolean }) {
   const t = useT()
   const total = ehCompra ? calculo.compra : calculo.venda
   const f = (v: number) => formatar(v, moeda)
   return (
-    <Janela aberta titulo={`🧾 ${t(ehCompra ? 'Impostos desta compra' : 'Impostos desta venda')}`} onFechar={onFechar}>
       <div className="space-y-3">
         <p className="rounded-xl bg-[var(--fundo)] px-3 py-2 text-xs text-[var(--suave)]">ℹ️ {t('Só informativo: não muda o valor cobrado. É a estimativa do que vai para o fisco, pela alíquota vigente salva no sistema.')}</p>
         <ul className="space-y-2">
@@ -50,7 +50,45 @@ export function DetalheImpostos({ calculo, moeda, ehCompra, onFechar }: { calcul
             : <p className="border-t border-[var(--borda)] pt-1 text-xs text-[var(--suave)]">{t('Embutido no preço: dos {p} cobrados, {i} é imposto.', { p: f(calculo.base), i: f(total) })}</p>}
         </div>
       </div>
+  )
+}
+
+/** a janela com o detalhe (aberta pela linha embaixo do total) */
+export function DetalheImpostos({ calculo, moeda, ehCompra, onFechar }: { calculo: Calculo; moeda: string; ehCompra: boolean; onFechar(): void }) {
+  const t = useT()
+  return (
+    <Janela aberta titulo={`🧾 ${t(ehCompra ? 'Impostos desta compra' : 'Impostos desta venda')}`} onFechar={onFechar}>
+      <QuadroImpostos calculo={calculo} moeda={moeda} ehCompra={ehCompra} />
     </Janela>
+  )
+}
+
+/** o QUADRO às claras embaixo de "Nesta venda" (ou dos itens da compra) — aparece se ligado em Configurações › Fiscal */
+export function QuadroImpostosOperacao({ produto, servico, compra, moeda, className }: { produto?: number; servico?: number; compra?: number; moeda: string; className?: string }) {
+  const t = useT()
+  // começa FECHADO (não ocupa o caixa), mas deixa claro que abre: "ver detalhe ▾"
+  const [aberto, setAberto] = useState(false)
+  const tem = (produto ?? 0) + (servico ?? 0) + (compra ?? 0) > 0
+  const { dados } = useConsulta('impostosOperacao', { produto: produto || undefined, servico: servico || undefined, compra: compra || undefined }, tem)
+  if (!tem || !dados?.ligado || !dados.quadro || !dados.linhas.length) return null
+  const ehCompra = (compra ?? 0) > 0 && !produto && !servico
+  const total = ehCompra ? dados.compra : dados.venda
+  return (
+    <section aria-label={t('Impostos')} className={cx('overflow-hidden rounded-2xl border border-[var(--alerta)]/40 bg-[var(--cartao)] shadow-sm', className)}>
+      <button type="button" aria-expanded={aberto} onClick={() => setAberto(!aberto)} className="flex min-h-12 w-full items-center gap-2 bg-[var(--alerta)]/10 px-4 py-2 text-left">
+        <span aria-hidden>🧾</span>
+        <span className="linha-texto flex-1">
+          <b className="block">{t(ehCompra ? 'Impostos desta compra (estimado)' : 'Impostos desta venda (estimado)')}</b>
+          <span className="block text-xs text-[var(--suave)]">{dados.linhas.map((l) => `${l.sigla} ${pct(l.taxaBp)}`).join(' · ')}</span>
+        </span>
+        <b className="num shrink-0 text-[var(--alerta)]">{formatar(total, moeda)}</b>
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--cartao)] px-2.5 py-1 text-xs font-semibold text-[var(--marca)] ring-1 ring-[var(--borda)]">
+          {t(aberto ? 'fechar' : 'ver detalhe')}
+          <span aria-hidden className={cx('transition-transform', aberto && 'rotate-180')}>▾</span>
+        </span>
+      </button>
+      {aberto && <div className="border-t border-[var(--borda)] p-3"><QuadroImpostos calculo={dados} moeda={moeda} ehCompra={ehCompra} /></div>}
+    </section>
   )
 }
 
@@ -69,6 +107,7 @@ export function ImpostosDaOperacao({ produto, servico, compra, moeda, compacto, 
   const tem = (produto ?? 0) + (servico ?? 0) + (compra ?? 0) > 0
   const { dados } = useConsulta('impostosOperacao', { produto: produto || undefined, servico: servico || undefined, compra: compra || undefined }, tem)
   if (!tem || !dados?.ligado || !dados.linhas.length) return null
+  if (compacto && !dados.noTotal) return null
   const ehCompra = (compra ?? 0) > 0 && !produto && !servico
   const credito = dados.linhas.some((l) => l.lado === 'compra' && l.credito)
   const total = ehCompra ? dados.compra : dados.venda

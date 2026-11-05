@@ -10,7 +10,7 @@
 // Celular: tudo em coluna e a barra "Total · FECHAR" presa embaixo; com espaço: venda | cobrança fixa ao lado.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ImpostosDaOperacao } from '../ui/impostosOperacao'
+import { ImpostosDaOperacao, QuadroImpostosOperacao } from '../ui/impostosOperacao'
 import { Trilha } from '../ui/trilha'
 import { type Cotacao, type TabelaCotacoes, formatar, moeda as moedaDe, multiplicarFator, valorDeUm } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
@@ -546,6 +546,8 @@ export function VendaRapida() {
               onPreco={(id, v) => setLinhas((ls) => ls.map((x) => (x.id === id ? { ...x, precoManual: v } : x)))}
             />
           </section>
+          {/* os IMPOSTOS às claras (o mesmo detalhe da janela), se ligado em Configurações › Fiscal */}
+          <QuadroImpostosOperacao produto={total} moeda={principal} />
           {!tablet && <section className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm">{cobrar}</section>}
           {!tablet && <section className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm">{opcoes}</section>}
         </div>

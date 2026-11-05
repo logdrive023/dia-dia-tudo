@@ -183,11 +183,12 @@ export function Shell({ children }: { children: ReactNode }) {
     </button>
   )
   const subConfig = (celular?: boolean) => (
-    <ul id={celular ? 'submenu-config-celular' : 'submenu-config'} className={cx('mb-1 mt-0.5 border-l-2 border-[var(--borda)]', celular ? 'ml-5 pl-2' : 'ml-[1.6rem] pl-2')}>
+    <ul id={celular ? 'submenu-config-celular' : 'submenu-config'} className={cx('mb-1 mt-1 space-y-2', celular ? 'ml-3' : 'ml-[1.1rem]')}>
+      {/* cada ÁREA é um bloco separado: faixa na cor da área + as seções com a mesma cor na lateral */}
       {GRUPOS_CONFIG.map((g) => (
-        <li key={g.id} className="mt-1 first:mt-0">
-          <div className="px-2 pb-0.5 pt-1 text-[11px] font-medium text-[var(--suave)]"><span aria-hidden>{g.icone} </span>{t(g.nome)}</div>
-          <ul>
+        <li key={g.id} className="overflow-hidden rounded-xl" style={{ background: `color-mix(in srgb, ${g.cor} 7%, transparent)`, borderLeft: `3px solid ${g.cor}` }}>
+          <div className="flex items-center gap-1.5 px-2.5 pb-0.5 pt-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: g.cor }}><span aria-hidden>{g.icone}</span>{t(g.nome)}</div>
+          <ul className="px-1 pb-1">
             {SECOES_CONFIG.filter((x) => x.grupo === g.id).map((x) => {
               const ativa = secaoAtual === x.id
               return (
@@ -267,15 +268,15 @@ export function Shell({ children }: { children: ReactNode }) {
             const fechado = !recolhido && g !== SEMPRE_ABERTO && !gruposAbertos.includes(g) && !itens.some((m) => m.tela === nav.tela)
             const alerta = itens.map((m) => contadores[m.tela]).find((c) => c?.tom === 'urgente') ?? itens.map((m) => contadores[m.tela]).find(Boolean)
             return (
-              <div key={g} className={cx(i > 0 && (recolhido ? 'mt-3 border-t border-[var(--borda)] pt-3' : 'mt-3 border-t border-[var(--borda)] pt-3'))}>
+              <div key={g} className={cx(i > 0 && 'mt-2.5', 'rounded-xl', recolhido ? 'py-1' : 'pb-1')} style={{ background: `color-mix(in srgb, ${COR_GRUPO[g]} 7%, transparent)`, borderLeft: `3px solid ${COR_GRUPO[g]}` }}>
                 {!recolhido && (
-                  <button type="button" disabled={g === SEMPRE_ABERTO} onClick={() => setGruposAbertos(fechado ? [...gruposAbertos, g] : gruposAbertos.filter((x) => x !== g))} aria-expanded={!fechado} className="mb-1 flex min-h-9 w-full items-center gap-1.5 rounded-lg px-3 py-1 text-left text-xs font-bold uppercase tracking-wide text-[var(--suave)] hover:bg-[var(--fundo)] hover:text-[var(--texto)] disabled:cursor-default disabled:hover:bg-transparent">
-                    {g !== SEMPRE_ABERTO && <span className={cx('inline-block transition-transform', fechado ? '' : 'rotate-90')} aria-hidden>›</span>}<span aria-hidden className="h-2 w-2 rounded-full" style={{ background: COR_GRUPO[g] }} />
+                  <button type="button" disabled={g === SEMPRE_ABERTO} onClick={() => setGruposAbertos(fechado ? [...gruposAbertos, g] : gruposAbertos.filter((x) => x !== g))} aria-expanded={!fechado} className="flex min-h-9 w-full items-center gap-1.5 rounded-lg px-3 py-1 text-left text-xs font-bold uppercase tracking-wide hover:bg-[var(--fundo)] disabled:cursor-default disabled:hover:bg-transparent" style={{ color: COR_GRUPO[g] }}>
+                    {g !== SEMPRE_ABERTO && <span className={cx('inline-block transition-transform', fechado ? '' : 'rotate-90')} aria-hidden>›</span>}
                     <span className="flex-1">{t(g)}</span>
                     {fechado && alerta && <Selo c={{ ...alerta, n: itens.reduce((s, m) => s + (contadores[m.tela]?.n ?? 0), 0) }} />}
                   </button>
                 )}
-                {!fechado && <ul className="space-y-0.5">{itens.map(itemLateral)}</ul>}
+                {!fechado && <ul className={cx('space-y-0.5', !recolhido && 'px-1')}>{itens.map(itemLateral)}</ul>}
               </div>
             )
           })}
@@ -352,9 +353,9 @@ export function Shell({ children }: { children: ReactNode }) {
               </button>
             </div>
             {grupos.map(({ g, itens }) => (
-              <section key={g} className="mb-4">
-                <h2 className="mb-1 px-3 text-xs font-medium text-[var(--suave)]">{t(g)}</h2>
-                <ul>
+              <section key={g} className="mb-3 rounded-xl pb-1" style={{ background: `color-mix(in srgb, ${COR_GRUPO[g]} 7%, transparent)`, borderLeft: `3px solid ${COR_GRUPO[g]}` }}>
+                <h2 className="px-3 pb-0.5 pt-2 text-xs font-bold uppercase tracking-wide" style={{ color: COR_GRUPO[g] }}>{t(g)}</h2>
+                <ul className="px-1">
                   {itens.map((m) => {
                     const ativo = nav.tela === m.tela
                     const c = contadores[m.tela]

@@ -224,5 +224,5 @@ export async function impostosOperacao(ctx: Ctx, p: { produto?: number; servico?
   const cfg = await lerConfig(ctx)
   const fis = cfg.fiscal
   const r = impostosDaOperacao(fis.impostos ?? [], p, fis.modoPreco ?? 'dentro')
-  return { ligado: !!fis.mostrarNasOperacoes, pais: fis.pais, moeda: cfg.moedaPrincipal, ...r }
+  return { ligado: !!fis.mostrarNasOperacoes, noTotal: fis.mostrarNoTotal !== false, quadro: fis.mostrarQuadro !== false, pais: fis.pais, moeda: cfg.moedaPrincipal, ...r }
 }

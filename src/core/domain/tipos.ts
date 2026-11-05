@@ -214,6 +214,8 @@ export interface Transacao extends Base {
   viagemId?: Id
   /** compra: entrega de cabelo que abate um ADIANTAMENTO a parceiro (AD-0001); não sai do caixa, abate da dívida */
   financiamentoId?: Id
+  /** SÓ REGISTRO: os impostos estimados na hora (alíquota vigente e fonte daquele dia) — nunca cobrados */
+  impostosEstimados?: { em: string; modoPreco: 'dentro' | 'fora'; total: number; linhas: { sigla: string; nome: string; taxaBp: number; base: number; valor: number; lado: 'venda' | 'compra'; credito?: boolean; fonte?: string; vigenteDesde?: string }[] }
 }
 
 export type MotivoEstoque = 'compra' | 'venda' | 'uso' | 'ajuste' | 'perda' | 'cancelamento' | 'transformacao' | 'correcao' | 'unificacao'

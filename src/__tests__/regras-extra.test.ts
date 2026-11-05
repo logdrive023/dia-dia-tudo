@@ -37,7 +37,8 @@ describe('toda ação com o usuário', () => {
     await b.comando('concluirVenda', { id: 'v', linhas: [{ id: 'l', itemId: 'corte', quantidade: 1, moeda: 'BOB', total: bs(80) }], pagamentos: [{ id: 'p', forma: 'dinheiro', moeda: 'BOB', valor: bs(80) }] })
     Object.assign(sessao, { usuarioId: 'admin', nome: 'Administrador', perfil: 'admin' })
     const log = await b.consulta('logDetalhado', { usuarioId: 'f1', de: '2026-11-01', ate: '2026-11-01' })
-    expect(log.linhas.map((l) => l.acao)).toEqual(['concluirVenda'])
+    // a venda e o registro dos impostos estimados (só log) — os dois em nome dela
+    expect(log.linhas.map((l) => l.acao)).toEqual(['impostosEstimados', 'concluirVenda'])
     expect(log.linhas[0].usuarioNome).toBe('Funcionária 1')
     const tempo = await b.consulta('linhaDoTempo', { id: 'v' })
     expect(tempo.some((e) => e.por === 'Funcionária 1')).toBe(true)
