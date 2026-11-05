@@ -3813,4 +3813,11 @@ export const ES: Record<string, string> = {
   'Na viagem {v}: quem comprou mais barato.': 'En el viaje {v}: quién compró más barato.',
   'Quem compra mais barato, somando todas as viagens.': 'Quién compra más barato, sumando todos los viajes.',
   'por kg (real)': 'por kg (real)',
+  'Lembrar no WhatsApp': 'Recordar por WhatsApp',
+  'Receber o que falta': 'Cobrar lo que falta',
+  'Horário ocupado: tem outro atendimento da mesma pessoa perto deste horário.': 'Horario ocupado: hay otra atención de la misma persona cerca de este horario.',
+  'Parcela atrasada: {d}.': 'Cuota atrasada: {d}.',
+  'Pagar a parcela': 'Pagar la cuota',
+  'Receber a parcela': 'Cobrar la cuota',
+  'Atrasada': 'Atrasada',
 }

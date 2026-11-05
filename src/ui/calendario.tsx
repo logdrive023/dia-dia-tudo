@@ -68,7 +68,9 @@ export function PilulasStatus({ i, curto }: { i: ItemCalendario; curto?: boolean
   return (
     <>
       {i.conflito && <Pilula tom="alerta">⚠️ {t('horário ocupado')}</Pilula>}
-      {i.tipo === 'viagem' ? (
+      {i.tipo === 'emprestimo' ? (
+        <Pilula tom={i.pago ? 'bom' : i.atrasada ? 'ruim' : 'marca'}>{i.pago ? `✓ ${t('Paga')}` : i.atrasada ? t('Atrasada') : t(i.sentido === 'pagar' ? 'A pagar' : 'A receber')}</Pilula>
+      ) : i.tipo === 'viagem' ? (
         <Pilula tom={i.status === 'feito' ? 'neutro' : 'marca'}>{t(i.status === 'feito' ? 'Encerrada' : 'Aberta')}</Pilula>
       ) : i.status === 'feito' ? (
         <Pilula tom="bom">✓ {t('Feito')}</Pilula>

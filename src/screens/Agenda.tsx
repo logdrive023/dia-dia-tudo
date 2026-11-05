@@ -5,6 +5,7 @@
 // Atender = lançar o que foi feito e o pagamento (a venda nasce do agendamento).
 
 import { useRef, useState } from 'react'
+import { FolhaItem, type AcaoFolha, type FatoFolha } from '../ui/folhaItem'
 import { FiltroLista, GrupoFiltro } from '../ui/filtroPadrao'
 import { MarcarAgenda, type TipoMarcar } from './agenda/MarcarAgenda'
 import { formatar } from '../core/domain/dinheiro'
@@ -12,7 +13,7 @@ import { dataLocal, diaDaSemana, somarDias, somarMeses } from '../core/domain/da
 import { novoId } from '../core/domain/ids'
 import type { Id, Linha } from '../core/domain/tipos'
 import type { ItemCalendario, TipoCalendario } from '../core/services/agenda'
-import { Botao, Campo, Carregando, Confirmar, Erro, Escolha, Janela, Selecao, Titulo, cx, dataBR, loc } from '../ui/base'
+import { Botao, Campo, Carregando, Confirmar, Erro, Escolha, Janela, Selecao, Titulo, dataBR, loc } from '../ui/base'
 import { TIPOS_CAL, PilulasStatus, VistaDia, VistaMes, VistaSemana, gradeMes, inicioSemana, tipoCal, useLargo } from '../ui/calendario'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { EditorPagamentos, type PagamentoTela, conv, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
@@ -157,54 +158,56 @@ function Detalhe({ i, onFechar, onEditar }: { i: ItemCalendario; onFechar(): voi
       ? `${dataBR(i.data)} – ${dataBR(i.ateData)}`
       : `${t(diaDaSemana(i.data))} ${dataBR(i.data)} · ${t('Dia todo')}`
     : `${t(diaDaSemana(i.data))} ${dataBR(i.data)} · ${i.hora}${i.horaFim ? `–${i.horaFim}` : ''}`
-  const linhas: [string, string | undefined][] = [
-    ['Quando', quando + (i.semanal ? ` · ${t('toda semana')}` : '')],
-    ['Cliente', i.cliente],
-    [i.tipo === 'atendimento' ? 'Serviço' : i.tipo === 'viagem' ? 'Destino' : 'Nota', i.tipo === 'atendimento' && i.cliente ? i.detalhe : i.tipo !== 'atendimento' ? i.detalhe : undefined],
-    [i.tipo === 'atendimento' ? 'Quem atende' : i.tipo === 'viagem' ? 'Quem viaja' : i.tipo === 'emprestimo' ? 'Com quem' : 'Para quem', i.pessoa],
-    ['Unidade', i.local],
-    ['Valor', i.valor !== undefined && i.moeda ? formatar(i.valor, i.moeda) : undefined],
-  ]
   const lembrar = `${t('Olá')} ${i.cliente ?? ''}! ${t('Lembrete do seu horário')}: ${dataBR(i.data)} ${i.hora ?? ''}${i.local ? ` · ${i.local}` : ''}`
   const tel = venda?.cliente?.telefone
   const concluir = (desfazer?: boolean) => executar('concluirEvento', { id: i.ref.id, data: i.data, desfazer }, t(desfazer ? 'Voltou para agendado.' : 'Feito.'))
+  const valor = i.valor !== undefined && i.moeda ? formatar(i.valor, i.moeda) : undefined
+  const fechar = (fn: () => void) => () => (onFechar(), fn())
+
+  // O QUE MOSTRAR E O QUE DÁ PARA FAZER, por tipo (o desenho é sempre o da FolhaItem)
+  let fatos: FatoFolha[] = [{ icone: '📅', rotulo: 'Quando', valor: quando + (i.semanal ? ` · ${t('toda semana')}` : '') }]
+  let principal: AcaoFolha | undefined
+  let secundarias: AcaoFolha[] = []
+  let abrir: AcaoFolha | undefined
+  let perigo: AcaoFolha | undefined
+  let destaque: { rotulo: string; valor: string; tom?: 'bom' | 'ruim' | 'alerta' } | undefined
+  let aviso: { texto: string; tom: 'alerta' | 'ruim' } | undefined
+  if (i.tipo === 'atendimento') {
+    fatos = [...fatos, { icone: '👤', rotulo: 'Cliente', valor: i.cliente }, { icone: '✂️', rotulo: 'Serviço', valor: i.detalhe }, { icone: '💇‍♀️', rotulo: 'Quem atende', valor: i.pessoa }, { icone: '📍', rotulo: 'Unidade', valor: i.local }]
+    destaque = valor ? { rotulo: i.status === 'feito' && !i.pago ? 'Falta receber' : 'Valor', valor: i.status === 'feito' && !i.pago && i.falta && i.moeda ? formatar(i.falta, i.moeda) : valor, tom: i.status === 'feito' ? (i.pago ? 'bom' : 'alerta') : undefined } : undefined
+    if (i.conflito) aviso = { texto: t('Horário ocupado: tem outro atendimento da mesma pessoa perto deste horário.'), tom: 'alerta' }
+    if (i.status === 'agendado') {
+      principal = { rotulo: 'Feito e pago', icone: '✓', onClick: () => setAcao('atender') }
+      secundarias = [
+        { rotulo: 'Feito, pagar depois', icone: '🕗', onClick: () => setAcao('depois') },
+        { rotulo: 'Lembrar no WhatsApp', icone: '💬', onClick: () => undefined, href: linkWhatsApp(lembrar, tel) },
+      ]
+      perigo = { rotulo: 'Desmarcar', onClick: () => setAcao('desmarcar') }
+    } else if (i.status === 'feito' && !i.pago) principal = { rotulo: 'Receber o que falta', icone: '💵', onClick: () => setAcao('receber') }
+    abrir = { rotulo: 'Abrir venda', onClick: fechar(() => ir('venda', { id: i.ref.id })) }
+  } else if (i.tipo === 'compromisso') {
+    fatos = [...fatos, { icone: '📝', rotulo: 'Nota', valor: i.detalhe }, { icone: '👤', rotulo: 'Para quem', valor: i.pessoa }, { icone: '📍', rotulo: 'Unidade', valor: i.local }]
+    if (i.status === 'agendado') principal = { rotulo: 'Feito', icone: '✓', disabled: ocupado, onClick: () => void concluir() }
+    else secundarias = [{ rotulo: 'Desfazer feito', icone: '↩', disabled: ocupado, onClick: () => void concluir(true) }]
+    if (i.meu) {
+      secundarias = [...secundarias, { rotulo: 'Editar', icone: '✎', onClick: onEditar }]
+      perigo = { rotulo: 'Excluir', onClick: () => setAcao('excluir') }
+    }
+  } else if (i.tipo === 'viagem') {
+    fatos = [...fatos, { icone: '📍', rotulo: 'Destino', valor: i.detalhe }, { icone: '👥', rotulo: 'Quem viaja', valor: i.pessoa }]
+    principal = { rotulo: 'Abrir viagem', icone: '✈️', onClick: fechar(() => (admin ? ir('viagem', { id: i.ref.id }) : ir('viagens'))) }
+  } else if (i.tipo === 'emprestimo') {
+    fatos = [...fatos, { icone: '🤝', rotulo: 'Com quem', valor: i.pessoa }]
+    destaque = valor ? { rotulo: i.pago ? 'Paga' : i.sentido === 'pagar' ? 'A pagar' : 'A receber', valor, tom: i.pago ? 'bom' : i.atrasada ? 'ruim' : undefined } : undefined
+    if (i.atrasada) aviso = { texto: t('Parcela atrasada: {d}.', { d: i.detalhe ?? '' }), tom: 'ruim' }
+    if (!i.pago) principal = { rotulo: i.sentido === 'pagar' ? 'Pagar a parcela' : 'Receber a parcela', icone: '💵', onClick: fechar(() => ir('emprestimo', { id: i.ref.id })) }
+    abrir = { rotulo: 'Abrir empréstimo', onClick: fechar(() => ir('emprestimo', { id: i.ref.id })) }
+  }
   return (
     <>
-      <Janela aberta={!acao || acao === 'depois' || acao === 'desmarcar' || acao === 'excluir'} titulo={<span><span aria-hidden>{tp.icone}</span> {t(tp.nome)}</span>} onFechar={onFechar}>
-        <div className="mb-3 rounded-xl p-3" style={{ background: `${tp.cor}14`, borderLeft: `4px solid ${tp.cor}` }}>
-          <p className={cx('break-words text-lg font-bold', i.tipo === 'compromisso' && i.status === 'feito' && 'line-through')}>{i.titulo}</p>
-          <div className="mt-1 flex flex-wrap gap-1"><PilulasStatus i={i} /></div>
-        </div>
-        <dl className="mb-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-          {linhas.filter(([, v]) => v).map(([k, v]) => (
-            <div key={k} className="contents">
-              <dt className="text-[var(--suave)]">{t(k)}</dt>
-              <dd className="min-w-0 break-words font-semibold">{v}</dd>
-            </div>
-          ))}
-        </dl>
-        <div className="flex flex-wrap gap-2">
-          {i.tipo === 'atendimento' && i.status === 'agendado' && (
-            <>
-              <Botao onClick={() => setAcao('atender')}>✓ {t('Feito e pago')}</Botao>
-              <Botao variante="secundario" onClick={() => setAcao('depois')}>{t('Feito, pagar depois')}</Botao>
-              <a className="inline-flex min-h-10 items-center rounded-xl bg-[var(--marca-suave)] px-3 py-2 text-sm font-semibold text-[var(--marca)]" target="_blank" rel="noreferrer" href={linkWhatsApp(lembrar, tel)}>{t('Lembrar')}</a>
-              <Botao variante="leve" onClick={() => setAcao('desmarcar')}>{t('Desmarcar')}</Botao>
-            </>
-          )}
-          {i.tipo === 'atendimento' && i.status === 'feito' && !i.pago && <Botao onClick={() => setAcao('receber')}>{t('Pago')}</Botao>}
-          {i.tipo === 'atendimento' && <Botao variante="leve" onClick={() => (onFechar(), ir('venda', { id: i.ref.id }))}>{t('Abrir venda')}</Botao>}
-          {i.tipo === 'emprestimo' && <Botao variante="secundario" onClick={() => (onFechar(), ir('emprestimo', { id: i.ref.id }))}>💵 {t(i.pago ? 'Abrir empréstimo' : i.sentido === 'receber' ? 'Abrir e receber' : 'Abrir e pagar')}</Botao>}
-          {i.tipo === 'viagem' && <Botao variante="secundario" onClick={() => (onFechar(), admin ? ir('viagem', { id: i.ref.id }) : ir('viagens'))}>{t('Abrir viagem')}</Botao>}
-          {i.tipo === 'compromisso' && (
-            <>
-              {i.status === 'agendado' ? <Botao disabled={ocupado} onClick={() => concluir()}>✓ {t('Feito')}</Botao> : <Botao variante="secundario" disabled={ocupado} onClick={() => concluir(true)}>{t('Desfazer feito')}</Botao>}
-              {i.meu && <Botao variante="secundario" onClick={onEditar}>{t('Editar')}</Botao>}
-              {i.meu && <Botao variante="leve" onClick={() => setAcao('excluir')}>{t('Excluir')}</Botao>}
-            </>
-          )}
-        </div>
-      </Janela>
+      <FolhaItem aberta={!acao || acao === 'depois' || acao === 'desmarcar' || acao === 'excluir'} onFechar={onFechar}
+        icone={tp.icone} cor={tp.cor} tipo={tp.nome} titulo={i.titulo} riscado={i.status === 'feito' && i.tipo === 'compromisso'}
+        selos={<PilulasStatus i={i} />} fatos={fatos} destaque={destaque} aviso={aviso} principal={principal} secundarias={secundarias} abrir={abrir} perigo={perigo} />
       {acao === 'atender' && <Atender id={i.ref.id} onFechar={() => setAcao(undefined)} onPronto={onFechar} />}
       {acao === 'receber' && !!i.falta && !!i.moeda && <Receber vendaId={i.ref.id} falta={i.falta!} moeda={i.moeda!} onFechar={() => setAcao(undefined)} onPronto={onFechar} />}
       {acao === 'depois' && (
