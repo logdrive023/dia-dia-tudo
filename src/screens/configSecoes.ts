@@ -3,6 +3,7 @@
 // Nova seção = uma linha aqui (id, grupo, nome, ícone, descrição curta, palavras para a busca, componente).
 
 import { EtapasTriagem } from './ConfigTriagem'
+import { ConfigFiscal } from './ConfigFiscal'
 import { ConfigCodigos } from './ConfigCodigos'
 import { ConfigFormCompra } from './ConfigFormCompra'
 import { Atributos, Catalogo, Dados, EtapasCompra, FormasPagamento, Geral, Modulos, Moedas, Socias, Unidades, Usuarios } from './Config'
@@ -33,6 +34,7 @@ export const SECOES_CONFIG: SecaoConfig[] = [
   { id: 'pagamentos', grupo: 'negocio', nome: 'Formas de pagamento', icone: '💳', descricao: 'Pix, cartão, dinheiro e moedas', palavras: 'pagamento forma pix cartão dinheiro transferência qr', componente: FormasPagamento },
   { id: 'unidades', grupo: 'negocio', nome: 'Unidades', icone: '📍', descricao: 'Salões, pontos e endereços', palavras: 'unidade endereço salão loja ponto depósito local filial', componente: Unidades },
   { id: 'usuarios', grupo: 'negocio', nome: 'Usuários', icone: '👤', descricao: 'Quem entra, perfil e senha', palavras: 'usuário senha login acesso perfil funcionária administrador entrar', componente: Usuarios },
+  { id: 'fiscal', grupo: 'dinheiro', nome: 'Fiscal e relatórios', icone: '🧾', descricao: 'Padrão (Bolívia/Brasil), regime, impostos e NIT', palavras: 'fiscal imposto impuesto iva it iue rts nit relatório contabilidade contador regime simples dre estado resultados', componente: ConfigFiscal },
   { id: 'moedas', grupo: 'dinheiro', nome: 'Moedas e câmbio', icone: '💵', descricao: 'Moeda principal e câmbio do dia', palavras: 'moeda câmbio cotação dólar real boliviano taxa conversão', componente: Moedas },
   { id: 'etapas', grupo: 'cabelo', nome: 'Etapas da compra', icone: '🛒', descricao: 'O caminho do pedido de compra', palavras: 'compra pedido etapa pagamento fotos comprovante fluxo parada', componente: EtapasCompra },
   { id: 'formCompra', grupo: 'cabelo', nome: 'Formulário de compra', icone: '📝', descricao: 'O que a nova compra pede e em que ordem', palavras: 'formulário compra nova campos ordem obrigatório padrão medidas estado chegada passo simples', componente: ConfigFormCompra },

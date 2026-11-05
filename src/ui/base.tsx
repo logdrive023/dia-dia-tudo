@@ -393,7 +393,7 @@ export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { i
     )
   }
   return (
-    <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto rounded-xl bg-[var(--marca-suave)] p-1">
+    <div role="tablist" className="sem-barra mb-4 flex gap-1 overflow-x-auto rounded-xl bg-[var(--marca-suave)] p-1">
       {abas.map((a) => (
         <button
           key={a.id}

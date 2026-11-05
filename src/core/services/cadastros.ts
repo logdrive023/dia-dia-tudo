@@ -188,6 +188,13 @@ export async function salvarConfig(ctx: Ctx, d: Partial<Configuracoes>) {
   if (valor.moedaPrincipal !== atual.moedaPrincipal && (await ctx.repos.transacoes.listar()).length)
     exigir(false, 'Já existem vendas/compras na moeda principal atual: trocar agora misturaria moedas nos totais. Faça um backup e comece de novo para trocar.')
   exigir(Number.isInteger(valor.saldoPequenoG) && valor.saldoPequenoG >= 0, 'Sobra pequena: use um número de gramas (0 desliga o aviso).')
+  if (d.fiscal) {
+    valor.fiscal = { ...atual.fiscal, ...d.fiscal }
+    const f = valor.fiscal
+    for (const k of ['ivaBp', 'itBp', 'iueBp', 'simplesBp', 'pisBp', 'cofinsBp', 'icmsIssBp', 'irpjCsllBp'] as const) exigir(Number.isInteger(f[k]) && f[k] >= 0 && f[k] <= 10000, 'Taxa de imposto entre 0% e 100%.')
+    exigir(Number.isInteger(f.rtsCuotaBimestral) && f.rtsCuotaBimestral >= 0, 'Cuota RTS inválida.')
+    exigir(f.pais === 'BO' || f.pais === 'BR', 'País inválido.')
+  }
   if (valor.socios.length) {
     exigir(valor.socios.every((x) => x.nome.trim() && Number.isInteger(x.parteBp) && x.parteBp > 0), 'Cada sócio precisa de nome e parte.')
     exigir(valor.socios.reduce((s, x) => s + x.parteBp, 0) === 10000, 'As partes dos sócios precisam somar 100%.')

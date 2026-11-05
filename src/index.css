@@ -101,3 +101,36 @@ body {
    (ou a linha toda, se a tela for menor); sem espaço, a peça do lado (botão, número) desce para a linha de baixo.
    Use numa linha `flex flex-wrap`. Evita a palavra partida no meio ("Entr / ada"). */
 .linha-texto { flex: 1 1 12rem; min-width: min(12rem, 100%); }
+
+/* IMPRESSÃO DO RELATÓRIO (src/screens/relatorio/Impressao.tsx): folha A4 na tela e no papel, páginas numeradas */
+.folha-a4 {
+  width: 210mm;
+  min-height: 297mm;
+  max-width: 100%;
+  padding: 16mm 15mm;
+  background: #fff;
+  color: #111;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+}
+/* dentro do papel: cores de papel (claro), mesmo com o app no escuro */
+.folha-a4 { --texto: #111; --suave: #555; --borda: #d4d4d8; --fundo: #f4f4f5; --cartao: #fff; --marca: #111; --ruim: #111; --bom: #111; }
+body.imprimindo-relatorio { overflow: hidden; }
+@page {
+  size: A4;
+  margin: 12mm 10mm 14mm;
+  @bottom-right { content: "Página " counter(page) " de " counter(pages); font-size: 9px; color: #555; }
+}
+@media print {
+  body.imprimindo-relatorio > #root > *:not(:has(.impressao-relatorio)) { display: none !important; }
+  body.imprimindo-relatorio { overflow: visible; background: #fff; }
+  body.imprimindo-relatorio * { visibility: hidden; }
+  body.imprimindo-relatorio .impressao-relatorio, body.imprimindo-relatorio .impressao-relatorio * { visibility: visible; }
+  body.imprimindo-relatorio .impressao-relatorio { position: absolute; inset: 0 auto auto 0; width: 100%; }
+  .folha-a4 { width: auto; min-height: 0; padding: 0; box-shadow: none; break-after: page; }
+  .folha-a4:last-child { break-after: auto; }
+  .relatorio-papel tr { break-inside: avoid; }
+}
+@media (max-width: 860px) {
+  .folha-a4 { padding: 8mm 5mm; min-height: 0; }
+}

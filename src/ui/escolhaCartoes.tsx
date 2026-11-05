@@ -2,10 +2,11 @@
 // linha do que quer dizer (ninguém precisa adivinhar o que é "credor" ou "juros composto"). Uma ou várias (`varias`).
 //   [💸 Eu emprestei      ] [🤝 Eu peguei emprestado]
 //    o dinheiro sai do caixa   o dinheiro entra no caixa
+import type { ReactNode } from 'react'
 import { cx } from './base'
 import { useT } from './i18n'
 
-export interface OpcaoCartao<T extends string> { id: T; icone: string; nome: string; descricao?: string }
+export interface OpcaoCartao<T extends string> { id: T; icone: ReactNode; nome: string; descricao?: string }
 
 export function EscolhaCartoes<T extends string>({ rotulo, opcoes, valor, onChange, colunas = 2 }: {
   rotulo: string

@@ -1,6 +1,7 @@
 // O que toda regra recebe: as portas (repos, relógio, sessão) e o registro de módulos. Nada de banco aqui.
 
 import { MOEDAS, type CodigoMoeda, type Cotacao, type TabelaCotacoes, type UsoCambio, ajustarCotacao, converter } from '../domain/dinheiro'
+import { FISCAL_PADRAO, type ConfigFiscal } from '../dados/impostos'
 import { exigir } from '../domain/erros'
 import { novoId } from '../domain/ids'
 import type { Base, Dia, Id } from '../domain/tipos'
@@ -107,6 +108,8 @@ export interface Configuracoes {
   compraPagaNoAto: boolean
   /** TRIAGEM: abaixo disso (gramas) o pacote é "sobra pequena" — só avisa, não bloqueia */
   saldoPequenoG: number
+  /** RELATÓRIOS CONTÁBEIS: país do padrão (Bolívia é o motor), regime, NIT, faturas e taxas — CONTABILIDADE.md */
+  fiscal: ConfigFiscal
 }
 
 export const CONFIG_PADRAO: Configuracoes = {
@@ -129,11 +132,13 @@ export const CONFIG_PADRAO: Configuracoes = {
   avisarVendaBruto: true,
   compraPagaNoAto: true,
   saldoPequenoG: 50,
+  fiscal: FISCAL_PADRAO,
 }
 
 export async function lerConfig(ctx: Ctx): Promise<Configuracoes> {
   const r = await ctx.repos.config.obter('geral')
-  return { ...CONFIG_PADRAO, ...((r?.valor as Partial<Configuracoes>) ?? {}) }
+  const v = (r?.valor as Partial<Configuracoes>) ?? {}
+  return { ...CONFIG_PADRAO, ...v, fiscal: { ...FISCAL_PADRAO, ...(v.fiscal ?? {}) } }
 }
 
 export async function formaPagamento(ctx: Ctx, id: string): Promise<FormaPagamento> {

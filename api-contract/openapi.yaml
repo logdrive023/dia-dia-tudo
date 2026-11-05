@@ -270,6 +270,7 @@ components:
         - agenda
         - conflitosAgenda
         - calendario
+        - relatorioContabil
         - agendaFiltros
         - evento
         - comissoes
