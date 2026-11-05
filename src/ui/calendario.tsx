@@ -12,6 +12,7 @@ export const TIPOS_CAL: { id: TipoCalendario; nome: string; icone: string; cor: 
   { id: 'atendimento', nome: 'Atendimento', icone: '✂️', cor: '#8b5cf6' },
   { id: 'viagem', nome: 'Viagem', icone: '✈️', cor: '#0ea5e9' },
   { id: 'compromisso', nome: 'Compromisso', icone: '📌', cor: '#f59e0b' },
+  { id: 'emprestimo', nome: 'Empréstimo', icone: '💵', cor: '#16a34a' },
 ]
 export const tipoCal = (id: TipoCalendario) => TIPOS_CAL.find((x) => x.id === id)!
 

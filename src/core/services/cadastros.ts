@@ -25,6 +25,7 @@ export async function salvarPessoa(
     salario?: { moeda: string; valor: number; periodo?: 'mes' | 'semana' | 'dia' }
     superiorId?: Id
     acesso?: 'admin' | 'funcionario'
+    verAgendaEquipe?: boolean
   },
 ) {
   exigir(d.nome?.trim(), 'Diga o nome.', 'nome')
@@ -54,12 +55,13 @@ export async function salvarPessoa(
     salario: d.salario,
     superiorId: d.superiorId || undefined,
     acesso: d.acesso,
+    verAgendaEquipe: d.verAgendaEquipe,
   }
   // só muda o que a tela mandou (editar pela Equipe não apaga documento nem observação)
   const dados = Object.fromEntries(Object.entries(novos).filter(([k]) => k === 'nome' || k === 'papeis' || k in d)) as Partial<Pessoa> & { nome: string; papeis: Papel[] }
   if (ctx.sessao.perfil !== 'admin') {
     // funcionária cadastra e edita clientes, mas não comissão, salário, acesso, chefe, cargo nem unidade
-    for (const k of ['comissaoBp', 'salario', 'acesso', 'superiorId', 'cargo'] as const) delete dados[k]
+    for (const k of ['comissaoBp', 'salario', 'acesso', 'superiorId', 'cargo', 'verAgendaEquipe'] as const) delete dados[k]
     if (existente) delete dados.localId
     exigir(!d.papeis.some((p) => p === 'funcionario' || p === 'socio') || existente?.papeis.some((p) => p === 'funcionario' || p === 'socio'), 'Só o administrador cadastra funcionários.')
   }

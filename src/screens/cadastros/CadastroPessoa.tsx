@@ -4,6 +4,7 @@
 //   3 Detalhes (opcional)     documento, unidade onde costuma ser atendida, observação
 // Salva com o mesmo comando de sempre (salvarPessoa). Sair com algo escrito pergunta antes.
 import { useState } from 'react'
+import { CampoTelefone } from '../../ui/campoTelefone'
 import { novoId } from '../../core/domain/ids'
 import type { Id, Papel } from '../../core/domain/tipos'
 import { Botao, Campo, Entrada, Janela, Selecao } from '../../ui/base'
@@ -16,7 +17,7 @@ import { Passo, Passos, useAssistente } from '../../ui/passoAPasso'
 export const PAPEIS_PESSOA: OpcaoCartao<Papel>[] = [
   { id: 'cliente', icone: '🛍️', nome: 'Cliente', descricao: 'Compra cabelo ou faz serviço com você' },
   { id: 'fornecedor', icone: '🚚', nome: 'Fornecedor(a)', descricao: 'Vende cabelo ou produto para você' },
-  { id: 'funcionario', icone: '🪪', nome: 'Funcionário(a)', descricao: 'Trabalha com você (equipe)' },
+  { id: 'funcionario', icone: '👩‍💼', nome: 'Funcionário(a)', descricao: 'Trabalha com você (equipe)' },
   { id: 'profissional', icone: '✂️', nome: 'Atende na agenda', descricao: 'Faz serviços e aparece na agenda' },
   { id: 'devedor', icone: '📥', nome: 'Me deve', descricao: 'Pegou dinheiro emprestado de você' },
   { id: 'credor', icone: '📤', nome: 'Eu devo', descricao: 'Emprestou dinheiro para você' },
@@ -29,7 +30,7 @@ export function CadastroPessoa({ id, onFechar }: { id?: Id; onFechar(): void }) 
   const { dados: pessoas } = useConsulta('pessoas', {})
   const { dados: locais } = useConsulta('locais', {})
   const p = pessoas?.find((x) => x.id === id)
-  const comeco = { nome: p?.nome ?? '', telefone: p?.telefone ?? '', documento: p?.documento ?? '', obs: p?.obs ?? '', papeis: p?.papeis ?? (['cliente'] as Papel[]), localId: p?.localId ?? '' }
+  const comeco = { nome: p?.nome ?? '', telefone: p?.telefone ?? '', documento: p?.documento ?? '', obs: p?.obs ?? '', papeis: p?.papeis ?? ([] as Papel[]), localId: p?.localId ?? '' }
   const [inicial] = useState(() => JSON.stringify(comeco))
   const [d, setD] = useState(comeco)
   const w = useAssistente()
@@ -49,7 +50,7 @@ export function CadastroPessoa({ id, onFechar }: { id?: Id; onFechar(): void }) 
           resumo={[d.nome.trim(), d.telefone && `📱 ${d.telefone}`].filter(Boolean).join(' · ') || t('falta o nome')}
           ajuda="O nome como você chama a pessoa e o WhatsApp para falar com ela." exemplo="Ex.: Ana Paula · +591 70000000">
           <Campo rotulo="Nome *"><Entrada value={d.nome} onChange={(e) => setD({ ...d, nome: e.target.value })} placeholder={t('Ex.: Ana Paula')} autoFocus={!id} /></Campo>
-          <Campo rotulo="WhatsApp (opcional)"><Entrada inputMode="tel" value={d.telefone} onChange={(e) => setD({ ...d, telefone: e.target.value })} placeholder="+591 70000000" /></Campo>
+          <Campo rotulo="WhatsApp (opcional)" comoDiv><CampoTelefone valor={d.telefone} onChange={(telefone) => setD({ ...d, telefone })} /></Campo>
           {w.proximo(1, 'O que ela é para você', !!d.nome.trim())}
         </Passo>
         <Passo n={2} de={3} titulo="O que ela é para você" feito={d.papeis.length > 0} aberto={w.aberto(2)} onAlternar={() => w.alternar(2)}

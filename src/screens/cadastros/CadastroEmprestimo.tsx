@@ -19,7 +19,7 @@ import { Passo, Passos, useAssistente } from '../../ui/passoAPasso'
 
 const JUROS: { id: TipoJuros; icone: string; nome: string; descricao: string }[] = [
   { id: 'nenhum', icone: '🤝', nome: 'Sem juros', descricao: 'Devolve só o que pegou' },
-  { id: 'simples', icone: '📈', nome: 'Juros simples', descricao: '% ao mês sobre o valor emprestado' },
+  { id: 'simples', icone: '➕', nome: 'Juros simples', descricao: '% ao mês sobre o valor emprestado' },
   { id: 'composto', icone: '🧮', nome: 'Parcelas iguais', descricao: '% ao mês, juros sobre o saldo (tabela Price)' },
   { id: 'fixo', icone: '💰', nome: 'Valor fixo', descricao: 'Um valor de juros combinado, de uma vez' },
 ]
@@ -36,7 +36,7 @@ export function CadastroEmprestimo() {
   const [moedaEscolhida, setMoeda] = useState<string>()
   const moeda = moedaEscolhida ?? cfg?.moedaPrincipal ?? moedaPadrao()
   const [principal, setPrincipal] = useState<number>()
-  const [tipo, setTipo] = useState<TipoJuros>('simples')
+  const [tipo, setTipo] = useState<TipoJuros>()
   const [taxa, setTaxa] = useState('5')
   const [fixo, setFixo] = useState<number>()
   const [n, setN] = useState(4)
@@ -47,16 +47,16 @@ export function CadastroEmprestimo() {
   const taxaBp = Math.round(Number(taxa.replace(',', '.')) * 100)
   let previa: ReturnType<typeof calcularParcelas> | undefined
   try {
-    if (principal) previa = calcularParcelas(principal, { tipo, taxaMensalBp: taxaBp, valorFixo: fixo }, n, primeiro)
+    if (principal && tipo) previa = calcularParcelas(principal, { tipo, taxaMensalBp: taxaBp, valorFixo: fixo }, n, primeiro)
   } catch {
     previa = undefined
   }
   const nome = pessoas?.find((p) => p.id === pessoaId)?.nome
   const formas = (cfg?.formas ?? []).filter((f) => f.moedas.includes(moeda))
-  const falta = !pessoaId ? t('quem') : !principal ? t('o valor') : !previa ? t('as parcelas') : ''
-  const nomeJuros = JUROS.find((j) => j.id === tipo)!
+  const falta = !pessoaId ? t('quem') : !principal ? t('o valor') : !tipo ? t('os juros') : !previa ? t('as parcelas') : ''
+  const nomeJuros = JUROS.find((j) => j.id === tipo)
   const registrar = async () => {
-    const r = await executar('criarEmprestimo', { id, direcao, pessoaId: pessoaId!, moeda, principal: principal!, juros: { tipo, taxaMensalBp: taxaBp, valorFixo: fixo }, parcelas: n, primeiroVencimento: primeiro, forma }, t('Empréstimo registrado.'))
+    const r = await executar('criarEmprestimo', { id, direcao, pessoaId: pessoaId!, moeda, principal: principal!, juros: { tipo: tipo!, taxaMensalBp: taxaBp, valorFixo: fixo }, parcelas: n, primeiroVencimento: primeiro, forma }, t('Empréstimo registrado.'))
     if (r) {
       marcarSujo(false)
       ir('emprestimo', { id })
@@ -89,13 +89,13 @@ export function CadastroEmprestimo() {
           <Campo rotulo={direcao === 'dado' ? 'Saiu do caixa como' : 'Entrou no caixa como'}><Selecao valor={forma} onChange={setForma} opcoes={formas.map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
           {w.proximo(2, 'Juros', !!principal)}
         </Passo>
-        <Passo n={3} de={4} titulo="Juros" feito aberto={w.aberto(3)} onAlternar={() => w.alternar(3)}
-          resumo={[t(nomeJuros.nome), (tipo === 'simples' || tipo === 'composto') && `${taxa}% ${t('ao mês')}`, tipo === 'fixo' && fixo !== undefined && formatar(fixo, moeda)].filter(Boolean).join(' · ')}
+        <Passo n={3} de={4} titulo="Juros" feito={!!tipo} aberto={w.aberto(3)} onAlternar={() => w.alternar(3)}
+          resumo={[nomeJuros ? t(nomeJuros.nome) : t('escolha como foram os juros'), (tipo === 'simples' || tipo === 'composto') && `${taxa}% ${t('ao mês')}`, tipo === 'fixo' && fixo !== undefined && formatar(fixo, moeda)].filter(Boolean).join(' · ')}
           ajuda="Como os juros foram combinados. Escolha e veja a conta pronta no próximo passo." exemplo="Ex.: 5% ao mês, juros simples">
           <EscolhaCartoes<TipoJuros> rotulo="Juros" valor={tipo} onChange={setTipo} opcoes={JUROS} />
           {(tipo === 'simples' || tipo === 'composto') && <Campo rotulo="% ao mês"><Entrada inputMode="decimal" value={taxa} onChange={(e) => setTaxa(e.target.value)} /></Campo>}
           {tipo === 'fixo' && <Campo rotulo="Juros combinados (valor)"><ValorInput moeda={moeda} valor={fixo} onChange={setFixo} /></Campo>}
-          {w.proximo(3, 'Parcelas')}
+          {w.proximo(3, 'Parcelas', !!tipo)}
         </Passo>
         <Passo n={4} de={4} titulo="Parcelas" feito={!!previa} aberto={w.aberto(4)} onAlternar={() => w.alternar(4)}
           resumo={previa ? `${t('{n}x', { n })} · ${t('total')} ${formatar(previa.total, moeda)} · 1ª ${dataBR(primeiro)}` : t('falta o valor')}

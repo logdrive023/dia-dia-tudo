@@ -53,6 +53,7 @@ export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
   'agenda',
   'conflitosAgenda',
   'calendario',
+  'agendaFiltros',
   'evento',
   'venda',
   'origemDoPacote',

@@ -2,6 +2,7 @@
 // moedas, fotos/comprovantes, conversor de moedas e recibo no WhatsApp.
 
 import { useEffect, useState } from 'react'
+import { CampoTelefone } from './campoTelefone'
 import { MOEDAS, type Cotacao, converter, formatar, moeda as moedaDe, type TabelaCotacoes, valorDeUm } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { CategoriaAnexo, Id, Pagamento, Papel } from '../core/domain/tipos'
@@ -45,7 +46,7 @@ export function SeletorPessoa({ valor, onChange, papel, localId, rotulo = 'Pesso
       <Janela aberta={novo} titulo={t('Cadastro rápido')} onFechar={() => setNovo(false)} rodape={<Botao grande className="w-full" disabled={ocupado || !nome.trim()} onClick={salvar}>{t('Salvar')}</Botao>}>
         <div className="space-y-3">
           <Campo rotulo="Nome"><Entrada autoFocus value={nome} onChange={(e) => setNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && nome.trim() && !ocupado && salvar()} /></Campo>
-          <Campo rotulo="WhatsApp (opcional)"><Entrada inputMode="tel" value={tel} onChange={(e) => setTel(e.target.value)} placeholder="+591 7…" /></Campo>
+          <Campo rotulo="WhatsApp (opcional)" comoDiv><CampoTelefone valor={tel} onChange={setTel} /></Campo>
         </div>
       </Janela>
     </div>

@@ -106,3 +106,36 @@ describe('agenda em calendário', () => {
     expect(podeConsulta(undefined, 'calendario')).toBe(false)
   })
 })
+
+describe('agenda: equipe e empréstimos', () => {
+  it('funcionária com "agenda da equipe" vê as colegas da unidade (e filtra por colega); sem ela, só a dela', async () => {
+    const { b, sessao } = await montar()
+    await b.comando('salvarEvento', { id: 'pra-outra', titulo: 'Folga', data: '2026-11-06', pessoaId: 'p-o' })
+    // sem permissão: só a dela
+    const antes = sessao.perfil
+    Object.assign(sessao, await b.entrar('sofia', '1234'))
+    expect((await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30' })).map((i) => i.id).sort()).toEqual(['a1', 'v1'])
+    expect((await b.consulta('agendaFiltros', {})).equipe).toBe(false)
+    // o admin dá a permissão
+    Object.assign(sessao, { perfil: antes, usuarioId: 'admin', pessoaId: undefined })
+    await b.comando('salvarPessoa', { id: 'p-s', nome: 'Sofia', papeis: ['profissional'], verAgendaEquipe: true })
+    Object.assign(sessao, await b.entrar('sofia', '1234'))
+    const cal = await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30' })
+    expect(cal.map((i) => i.id).sort()).toEqual(['a1', 'a2', 'pra-outra', 'v1', 'v2'])
+    expect((await b.consulta('agendaFiltros', {})).pessoas.map((p) => p.id).sort()).toEqual(['p-o', 'p-s'])
+    // filtra uma colega: só o dela
+    expect((await b.consulta('calendario', { de: '2026-11-01', ate: '2026-11-30', pessoaId: 'p-o' })).map((i) => i.id).sort()).toEqual(['a2', 'pra-outra', 'v2'])
+  })
+
+  it('parcelas de empréstimo entram na agenda no dia do vencimento (receber/pagar)', async () => {
+    const { b } = await montar()
+    await b.comando('salvarPessoa', { id: 'w', nome: 'Wagner', papeis: ['devedor'] })
+    await b.comando('criarEmprestimo', { id: 'emp', direcao: 'dado', pessoaId: 'w', moeda: 'BOB', principal: bs(1000), juros: { tipo: 'nenhum' }, parcelas: 2, primeiroVencimento: '2026-11-15', forma: 'dinheiro' })
+    const cal = (await b.consulta('calendario', { de: '2026-11-01', ate: '2026-12-31', tipos: ['emprestimo'] }))
+    expect(cal.map((i) => [i.data, i.titulo, i.sentido])).toEqual([
+      ['2026-11-15', 'Receber parcela 1/2 · Wagner', 'receber'],
+      ['2026-12-15', 'Receber parcela 2/2 · Wagner', 'receber'],
+    ])
+    expect(cal[0]).toMatchObject({ tipo: 'emprestimo', valor: bs(500), status: 'agendado', ref: { tela: 'emprestimo', id: 'emp' } })
+  })
+})

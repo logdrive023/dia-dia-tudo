@@ -77,11 +77,13 @@ export default defineConfig(({ command, mode }) => {
     esbuild: build ? { drop: ['console', 'debugger'], legalComments: 'none' } : undefined,
     test: {
       environment: 'jsdom',
+      // testes de regra (.test.ts) rodam em Node puro (sem simular navegador): sobem bem mais rápido
+      environmentMatchGlobs: [['src/__tests__/**/*.test.ts', 'node']],
       setupFiles: ['src/__tests__/setup.ts'],
       testTimeout: 60000,
       // arquivos em paralelo (cada um no seu processo, com o próprio banco): ~4x mais rápido que um por vez
       pool: 'forks',
-      poolOptions: { forks: { maxForks: 4, minForks: 1 } },
+      poolOptions: { forks: { maxForks: 6, minForks: 2 } },
     },
   }
 })

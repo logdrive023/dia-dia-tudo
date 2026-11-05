@@ -36,6 +36,8 @@ export interface Pessoa extends Base {
   superiorId?: Id
   /** acesso ao sistema: admin vê tudo; funcionário só a própria unidade e agenda */
   acesso?: 'admin' | 'funcionario'
+  /** funcionária: vê também a agenda das colegas da unidade dela (sem isso, só o que é dela) */
+  verAgendaEquipe?: boolean
 }
 
 export interface Local extends Base {

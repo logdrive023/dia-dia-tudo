@@ -1,18 +1,21 @@
-// AGENDA em CALENDÁRIO (Mês, Semana, Dia): atendimentos do salão ✂️, viagens ✈️ e compromissos/lembretes 📌.
-// Administrador vê tudo (filtra por profissional, unidade e tipo) e marca compromisso para quem quiser; funcionária vê
-// só o que é dela, marca o próprio trabalho e diz "Feito" e "Pago" em dois toques.
+// AGENDA em CALENDÁRIO (Mês, Semana, Dia): atendimentos ✂️, viagens ✈️, compromissos 📌 e parcelas de empréstimo 💵.
+// Filtro padrão (FiltroLista): tipo em abas, busca e ⚙ (unidade e pessoa — só para quem pode ver a equipe).
+// QUEM VÊ (o servidor decide): administrador tudo; funcionária o que é dela, e a equipe da unidade se tiver permissão.
+// "+ Marcar" é o assistente (MarcarAgenda): o que vai marcar → os passos daquele tipo.
 // Atender = lançar o que foi feito e o pagamento (a venda nasce do agendamento).
 
 import { useRef, useState } from 'react'
+import { FiltroLista, GrupoFiltro } from '../ui/filtroPadrao'
+import { MarcarAgenda, type TipoMarcar } from './agenda/MarcarAgenda'
 import { formatar } from '../core/domain/dinheiro'
 import { dataLocal, diaDaSemana, somarDias, somarMeses } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { Id, Linha } from '../core/domain/tipos'
 import type { ItemCalendario, TipoCalendario } from '../core/services/agenda'
-import { Botao, Campo, Carregando, Confirmar, Entrada, Erro, Escolha, Info, Janela, Selecao, Titulo, cx, dataBR, loc } from '../ui/base'
+import { Botao, Campo, Carregando, Confirmar, Erro, Escolha, Janela, Selecao, Titulo, cx, dataBR, loc } from '../ui/base'
 import { TIPOS_CAL, PilulasStatus, VistaDia, VistaMes, VistaSemana, gradeMes, inicioSemana, tipoCal, useLargo } from '../ui/calendario'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
-import { EditorPagamentos, SeletorPessoa, type PagamentoTela, conv, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
+import { EditorPagamentos, type PagamentoTela, conv, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { type AjusteServico, EditorServico, SeletorServicos, ajusteParaEntrada, faltaNoAjuste } from '../ui/linhaServico'
 import { useT } from '../ui/i18n'
 
@@ -20,26 +23,28 @@ type Modo = 'mes' | 'semana' | 'dia'
 
 export function Agenda() {
   const t = useT()
-  const { sessao, ir } = useApp()
+  const { sessao } = useApp()
   const largo = useLargo()
   const admin = sessao.perfil === 'admin'
   const [modo, setModo] = useParamTela<Modo>('modo', largo ? 'mes' : 'semana')
   const [data, setData] = useParamTela('data', dataLocal())
   const [localId, setLocalId] = useParamTela('localId', '')
   const [profissionalId, setProfissionalId] = useParamTela('profissionalId', '')
-  const [tiposTxt, setTipos] = useParamTela('tipos', '')
-  const tipos = tiposTxt ? (tiposTxt.split(',') as TipoCalendario[]) : []
+  const [tipo, setTipo] = useParamTela<TipoCalendario | ''>('tipo', '')
+  const [busca, setBusca] = useParamTela('busca', '')
   const [abertoId, setAberto] = useState<string>()
-  const [mais, setMais] = useState(false)
-  const [novo, setNovo] = useState<{ tipo: 'trabalho' | 'compromisso'; data: string; hora?: string; editar?: Id }>()
+  const [marcar, setMarcar] = useState<{ data: string; hora?: string; tipo?: TipoMarcar; editar?: Id }>()
   const grade = modo === 'mes' ? gradeMes(data) : undefined
   const de = grade ? grade[0] : modo === 'semana' ? inicioSemana(data) : data
   const ate = grade ? grade[grade.length - 1] : modo === 'semana' ? somarDias(de, 6) : data
-  const { dados, erro } = useConsulta('calendario', { de, ate, localId: localId || undefined, pessoaId: admin ? profissionalId || undefined : undefined, tipos: tipos.length ? tipos : undefined })
-  const { dados: locais } = useConsulta('locais', {}, admin)
-  const { dados: pessoas } = useConsulta('pessoas', {}, admin)
+  // o servidor decide quem a sessão pode ver (admin: todos; funcionária: ela, ou a equipe se tiver permissão)
+  const { dados: filtros } = useConsulta('agendaFiltros', {})
+  const { dados, erro } = useConsulta('calendario', { de, ate, localId: localId || undefined, pessoaId: profissionalId || undefined })
   const aberto = dados?.find((i) => i.id === abertoId)
   const hoje = dataLocal()
+  const b = busca.trim().toLowerCase()
+  const porBusca = (dados ?? []).filter((i) => !b || [i.titulo, i.cliente, i.pessoa, i.detalhe, i.local].filter(Boolean).join(' ').toLowerCase().includes(b))
+  const itens = porBusca.filter((i) => !tipo || i.tipo === tipo)
 
   const passo = (n: number) => setData(modo === 'mes' ? somarMeses(data, n) : somarDias(data, modo === 'semana' ? 7 * n : n))
   const abrirDia = (d: string) => (setData(d), setModo('dia'))
@@ -53,39 +58,33 @@ export function Agenda() {
   const toque = useRef<{ x: number; y: number }>()
   const fimToque = (e: React.TouchEvent) => {
     const a = toque.current
-    const b = e.changedTouches[0]
+    const bt = e.changedTouches[0]
     toque.current = undefined
-    if (!a || !b) return
-    const dx = b.clientX - a.x
-    if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(b.clientY - a.y)) passo(dx < 0 ? 1 : -1)
+    if (!a || !bt) return
+    const dx = bt.clientX - a.x
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(bt.clientY - a.y)) passo(dx < 0 ? 1 : -1)
   }
-  const alternarTipo = (id: TipoCalendario) => setTipos(tipos.includes(id) ? tipos.filter((x) => x !== id).join(',') : [...tipos, id].join(','))
-  const unidades = (locais ?? []).filter((l) => l.tipo === 'salao')
-  const equipe = (pessoas ?? []).filter((p) => p.papeis.some((x) => x === 'profissional' || x === 'funcionario' || x === 'socio')).filter((p) => !localId || !p.localId || p.localId === localId)
-  const marcar = (tipo: 'trabalho' | 'compromisso', hora?: string) => (setMais(false), setNovo({ tipo, data, hora }))
+  const unidades = filtros?.unidades ?? []
+  const pessoasFiltro = (filtros?.pessoas ?? []).filter((p) => !localId || !p.localId || p.localId === localId)
+  const nomeLocal = unidades.find((u) => u.id === localId)?.nome
+  const nomePessoa = filtros?.pessoas.find((p) => p.id === profissionalId)?.nome
+  const ativos = [
+    ...(localId ? [{ k: 'localId', rotulo: `📍 ${nomeLocal ?? localId}` }] : []),
+    ...(profissionalId ? [{ k: 'profissionalId', rotulo: `👤 ${nomePessoa ?? profissionalId}` }] : []),
+  ]
+  const limpar = () => (setLocalId(''), setProfissionalId(''), setBusca(''))
+  const temPainel = unidades.length > 1 || (!!filtros?.equipe && pessoasFiltro.length > 1)
 
   return (
     <div>
       <Titulo
-        subtitulo={admin ? t('Todas as agendas, em tempo real.') : t('Seus atendimentos.')}
-        acao={
-          <div className="relative flex items-center">
-            <Botao onClick={() => setMais(!mais)} aria-expanded={mais} aria-haspopup="menu">+ {t('Marcar')}</Botao>
-            <Info texto="Marque um trabalho ou um lembrete. Ex.: Corte da Ana · 04/11 15:00." />
-            {mais && <div aria-hidden className="fixed inset-0 z-20" onClick={() => setMais(false)} />}
-            {mais && (
-              <div role="menu" onKeyDown={(e) => e.key === 'Escape' && setMais(false)} className="absolute right-0 top-12 z-30 w-60 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-1 shadow-xl">
-                <ItemMenu icone="✂️" texto={admin ? 'Atendimento' : 'Trabalho'} onClick={() => marcar('trabalho')} />
-                <ItemMenu icone="📌" texto="Compromisso / lembrete" onClick={() => marcar('compromisso')} />
-                {admin && <ItemMenu icone="✈️" texto="Viagem" onClick={() => (setMais(false), ir('novaViagem'))} />}
-              </div>
-            )}
-          </div>
-        }
+        subtitulo={admin ? t('Atendimentos, compromissos, viagens e parcelas, de toda a equipe.') : filtros?.equipe ? t('A sua agenda e a da equipe.') : t('A sua agenda.')}
+        acao={<Botao onClick={() => setMarcar({ data })}>+ {t('Marcar')}</Botao>}
       >
-        {admin ? t('Agenda') : t('Minha agenda')}
+        {admin || filtros?.equipe ? t('Agenda') : t('Minha agenda')}
       </Titulo>
 
+      {/* o período: Mês · Semana · Dia e ‹ hoje › */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="w-full sm:w-auto">
           <Escolha<Modo> rotulo="Ver por" valor={modo} onChange={setModo} opcoes={[{ id: 'mes', nome: 'Mês' }, { id: 'semana', nome: 'Semana' }, { id: 'dia', nome: 'Dia' }]} />
@@ -101,24 +100,27 @@ export function Agenda() {
         </div>
       </div>
 
-      {admin && (
-        <div className="mb-3 space-y-2">
-          <div className="flex gap-1 overflow-x-auto pb-1">
-            {TIPOS_CAL.map((x) => (
-              <Ficha key={x.id} ativo={!tipos.length || tipos.includes(x.id)} cor={x.cor} onClick={() => alternarTipo(x.id)}>{x.icone} {t(x.nome)}</Ficha>
-            ))}
-            {unidades.length > 1 && <span className="mx-1 w-px shrink-0 bg-[var(--borda)]" />}
-            {unidades.length > 1 && <Ficha ativo={!localId} onClick={() => setLocalId('')}>{t('Todas as unidades')}</Ficha>}
-            {unidades.length > 1 && unidades.map((u) => <Ficha key={u.id} ativo={localId === u.id} onClick={() => setLocalId(localId === u.id ? '' : u.id)}>{u.nome}</Ficha>)}
-          </div>
-          {equipe.length > 0 && (
-            <div className="flex gap-1 overflow-x-auto pb-1">
-              <Ficha ativo={!profissionalId} onClick={() => setProfissionalId('')}>{t('Todas as pessoas')}</Ficha>
-              {equipe.map((p) => <Ficha key={p.id} ativo={profissionalId === p.id} onClick={() => setProfissionalId(profissionalId === p.id ? '' : p.id)}>{p.nome}</Ficha>)}
-            </div>
-          )}
-        </div>
-      )}
+      {/* FILTRO PADRÃO: tipo em abas (com quantos) · busca · ⚙ unidade e pessoa (só quem pode ver a equipe) */}
+      <FiltroLista
+        className="mb-3"
+        situacao={{
+          valor: tipo,
+          onChange: (v) => setTipo(v as TipoCalendario | ''),
+          opcoes: [
+            { id: '', nome: 'Tudo', n: porBusca.length },
+            ...TIPOS_CAL.map((x) => ({ id: x.id, nome: `${x.icone} ${t(x.nome)}`, n: porBusca.filter((i) => i.tipo === x.id).length })).filter((x) => x.n > 0 || x.id === tipo),
+          ],
+        }}
+        busca={busca} onBusca={setBusca} placeholder="Buscar cliente, serviço ou pessoa"
+        ativos={ativos} onTirar={(k) => (k === 'localId' ? setLocalId('') : setProfissionalId(''))} onLimpar={limpar}
+        resultados={dados ? itens.length : undefined} total={dados?.length} unidade="item(ns)"
+        painel={temPainel ? <>
+          <GrupoFiltro titulo="Quem e onde" icone="👤">
+            {filtros?.equipe && pessoasFiltro.length > 1 && <Campo rotulo="Pessoa"><Selecao valor={profissionalId} onChange={setProfissionalId} vazio={admin ? 'Todas as pessoas' : 'Eu e a equipe'} opcoes={pessoasFiltro.map((p) => ({ id: p.id, nome: p.nome }))} /></Campo>}
+            {unidades.length > 1 && <Campo rotulo="Unidade"><Selecao valor={localId} onChange={setLocalId} vazio="Todas as unidades" opcoes={unidades.map((u) => ({ id: u.id, nome: u.nome }))} /></Campo>}
+          </GrupoFiltro>
+        </> : undefined}
+      />
 
       <div onTouchStart={(e) => (toque.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })} onTouchEnd={fimToque}>
         {erro ? (
@@ -126,42 +128,17 @@ export function Agenda() {
         ) : !dados ? (
           <Carregando />
         ) : modo === 'mes' ? (
-          <VistaMes data={data} itens={dados} largo={largo} onDia={abrirDia} onAbrir={(i) => setAberto(i.id)} />
+          <VistaMes data={data} itens={itens} largo={largo} onDia={abrirDia} onAbrir={(i) => setAberto(i.id)} />
         ) : modo === 'semana' ? (
-          <VistaSemana de={de} itens={dados} largo={largo} onDia={abrirDia} onAbrir={(i) => setAberto(i.id)} />
+          <VistaSemana de={de} itens={itens} largo={largo} onDia={abrirDia} onAbrir={(i) => setAberto(i.id)} />
         ) : (
-          <VistaDia data={data} itens={dados} onAbrir={(i) => setAberto(i.id)} onHora={(h) => marcar('trabalho', h)} />
+          <VistaDia data={data} itens={itens} onAbrir={(i) => setAberto(i.id)} onHora={(h) => setMarcar({ data, hora: h, tipo: 'atendimento' })} />
         )}
       </div>
 
-      {aberto && <Detalhe i={aberto} onFechar={() => setAberto(undefined)} onEditar={() => (setAberto(undefined), setNovo({ tipo: 'compromisso', data: aberto.data, editar: aberto.ref.id }))} />}
-      {novo?.tipo === 'trabalho' && <NovoTrabalho dataInicial={novo.data} horaInicial={novo.hora} localPadrao={localId || undefined} profissionalPadrao={profissionalId || undefined} onFechar={() => setNovo(undefined)} />}
-      {novo?.tipo === 'compromisso' && <FormCompromisso dataInicial={novo.data} editar={novo.editar} onFechar={() => setNovo(undefined)} />}
+      {aberto && <Detalhe i={aberto} onFechar={() => setAberto(undefined)} onEditar={() => (setAberto(undefined), setMarcar({ data: aberto.data, editar: aberto.ref.id }))} />}
+      {marcar && <MarcarAgenda dataInicial={marcar.data} horaInicial={marcar.hora} tipoInicial={marcar.tipo} editar={marcar.editar} localPadrao={localId || undefined} profissionalPadrao={profissionalId || undefined} onFechar={() => setMarcar(undefined)} />}
     </div>
-  )
-}
-
-function ItemMenu({ icone, texto, onClick }: { icone: string; texto: string; onClick(): void }) {
-  const t = useT()
-  return (
-    <button type="button" role="menuitem" onClick={onClick} className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold hover:bg-[var(--marca-suave)]">
-      <span aria-hidden>{icone}</span> {t(texto)}
-    </button>
-  )
-}
-
-/** Filtro em ficha (chip): liga/desliga. */
-function Ficha({ ativo, cor, onClick, children }: { ativo: boolean; cor?: string; onClick(): void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={ativo}
-      onClick={onClick}
-      className={cx('min-h-9 shrink-0 rounded-full border px-3 text-sm font-semibold', ativo ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] text-[var(--suave)]')}
-      style={ativo && cor ? { borderColor: cor, background: `${cor}1f`, color: 'var(--texto)' } : undefined}
-    >
-      {children}
-    </button>
   )
 }
 
@@ -184,7 +161,7 @@ function Detalhe({ i, onFechar, onEditar }: { i: ItemCalendario; onFechar(): voi
     ['Quando', quando + (i.semanal ? ` · ${t('toda semana')}` : '')],
     ['Cliente', i.cliente],
     [i.tipo === 'atendimento' ? 'Serviço' : i.tipo === 'viagem' ? 'Destino' : 'Nota', i.tipo === 'atendimento' && i.cliente ? i.detalhe : i.tipo !== 'atendimento' ? i.detalhe : undefined],
-    [i.tipo === 'atendimento' ? 'Quem atende' : i.tipo === 'viagem' ? 'Quem viaja' : 'Para quem', i.pessoa],
+    [i.tipo === 'atendimento' ? 'Quem atende' : i.tipo === 'viagem' ? 'Quem viaja' : i.tipo === 'emprestimo' ? 'Com quem' : 'Para quem', i.pessoa],
     ['Unidade', i.local],
     ['Valor', i.valor !== undefined && i.moeda ? formatar(i.valor, i.moeda) : undefined],
   ]
@@ -217,6 +194,7 @@ function Detalhe({ i, onFechar, onEditar }: { i: ItemCalendario; onFechar(): voi
           )}
           {i.tipo === 'atendimento' && i.status === 'feito' && !i.pago && <Botao onClick={() => setAcao('receber')}>{t('Pago')}</Botao>}
           {i.tipo === 'atendimento' && <Botao variante="leve" onClick={() => (onFechar(), ir('venda', { id: i.ref.id }))}>{t('Abrir venda')}</Botao>}
+          {i.tipo === 'emprestimo' && <Botao variante="secundario" onClick={() => (onFechar(), ir('emprestimo', { id: i.ref.id }))}>💵 {t(i.pago ? 'Abrir empréstimo' : i.sentido === 'receber' ? 'Abrir e receber' : 'Abrir e pagar')}</Botao>}
           {i.tipo === 'viagem' && <Botao variante="secundario" onClick={() => (onFechar(), admin ? ir('viagem', { id: i.ref.id }) : ir('viagens'))}>{t('Abrir viagem')}</Botao>}
           {i.tipo === 'compromisso' && (
             <>
@@ -269,162 +247,6 @@ function Receber({ vendaId, falta, moeda, onFechar, onPronto }: { vendaId: Id; f
 }
 
 // ---------- marcar trabalho (atendimento) ----------
-
-interface LinhaNova {
-  id: Id
-  itemId: Id
-  nome: string
-  moeda: string
-  total: number
-}
-
-/** Trabalho/atendimento agendado: cliente, serviço, dia e hora (o mesmo concluirVenda com agendadoPara do Vender). */
-function NovoTrabalho({ dataInicial, horaInicial, localPadrao, profissionalPadrao, onFechar }: { dataInicial: string; horaInicial?: string; localPadrao?: Id; profissionalPadrao?: Id; onFechar(): void }) {
-  const t = useT()
-  const { sessao } = useApp()
-  const admin = sessao.perfil === 'admin'
-  const { executar, ocupado } = useComando()
-  const { cfg } = useCotacoes('venda')
-  const { dados: locais } = useConsulta('locais', {})
-  const { dados: profissionais } = useConsulta('pessoas', { papel: 'profissional' }, admin)
-  const [id] = useState(() => novoId())
-  const [cliente, setCliente] = useState<Id>()
-  const [linhas, setLinhas] = useState<LinhaNova[]>([])
-  const [escolher, setEscolher] = useState(true)
-  const [dia, setDia] = useState(dataInicial)
-  const [hora, setHora] = useState(horaInicial ?? '10:00')
-  const [prof, setProf] = useState<Id | undefined>(admin ? profissionalPadrao : sessao.pessoaId ?? sessao.usuarioId)
-  const unidades = (locais ?? []).filter((l) => l.tipo === 'salao')
-  const profP = profissionais?.find((p) => p.id === prof)
-  const [localEscolhido, setLocal] = useState<Id>()
-  const localId = localEscolhido ?? localPadrao ?? profP?.localId ?? sessao.localId ?? (unidades.length === 1 ? unidades[0].id : undefined)
-  const quando = dia && hora ? new Date(`${dia}T${hora}`).toISOString() : ''
-  const conflitoParams = prof && quando && linhas.length ? { profissionalId: prof, inicio: quando, itens: linhas.map((l) => l.itemId) } : undefined
-  const { dados: conflitos } = useConsulta('conflitosAgenda', conflitoParams ?? { profissionalId: '', inicio: '' }, !!conflitoParams)
-  const temConflito = !!conflitoParams && !!conflitos?.length
-  const principal = cfg?.moedaPrincipal ?? 'BOB'
-  const salvar = async () => {
-    const r = await executar(
-      'concluirVenda',
-      { id, pessoaId: cliente, localId, profissionalId: prof, agendadoPara: quando, linhas: linhas.map((l) => ({ id: l.id, itemId: l.itemId, quantidade: 1, moeda: l.moeda as never, total: l.total, profissionalId: prof })), pagamentos: [], ignorarConflito: temConflito },
-      t('Agendado.'),
-    )
-    if (r) onFechar()
-  }
-  const pronto = !!cliente && linhas.length > 0 && !!quando && (!admin || !!prof)
-  return (
-    <Janela
-      aberta
-      titulo={`✂️ ${t(admin ? 'Atendimento' : 'Trabalho')}`}
-      onFechar={() => (!(cliente || linhas.length) || window.confirm(t('Sair sem salvar?'))) && onFechar()}
-      rodape={
-        <>
-          {temConflito && <p className="mb-2 text-sm font-semibold text-[var(--alerta)]">⚠️ {t('Horário ocupado')}: {conflitos!.map((c) => `${c.cliente ?? ''} ${c.inicio.slice(11)}–${c.fim.slice(11)}`).join(', ')}. {t('Dá para agendar mesmo assim.')}</p>}
-          <Botao grande className="w-full" disabled={ocupado || !pronto} onClick={salvar}>{temConflito ? t('Agendar mesmo assim') : t('Agendar')}</Botao>
-        </>
-      }
-    >
-      <div className="space-y-3">
-        <SeletorPessoa rotulo="Cliente" papel="cliente" valor={cliente} onChange={setCliente} localId={localId} />
-        <div className="grid grid-cols-2 gap-2">
-          <Campo rotulo="Dia"><Entrada type="date" value={dia} onChange={(e) => setDia(e.target.value)} /></Campo>
-          <Campo rotulo="Hora"><Entrada type="time" step={300} value={hora} onChange={(e) => setHora(e.target.value)} /></Campo>
-        </div>
-        {admin && <Campo rotulo="Quem atende"><Selecao valor={prof} onChange={(v) => setProf(v || undefined)} vazio="Escolha…" opcoes={(profissionais ?? []).filter((p) => !localEscolhido || !p.localId || p.localId === localEscolhido).map((p) => ({ id: p.id, nome: p.nome }))} /></Campo>}
-        {unidades.length > 1 && <Campo rotulo="Unidade"><Selecao valor={localId} onChange={(v) => setLocal(v || undefined)} vazio="—" opcoes={unidades.map((u) => ({ id: u.id, nome: u.nome }))} /></Campo>}
-        {linhas.length > 0 && (
-          <ul className="space-y-1 text-sm">
-            {linhas.map((l) => (
-              <li key={l.id} className="flex items-center justify-between gap-2 border-b border-[var(--borda)] pb-1">
-                <span className="min-w-0 break-words font-semibold">{l.nome}</span>
-                <span className="flex items-center gap-1">
-                  <b className="num">{formatar(l.total, l.moeda)}</b>
-                  <button type="button" aria-label={t('Tirar')} className="min-h-10 min-w-10 rounded-full text-lg hover:bg-[var(--marca-suave)]" onClick={() => setLinhas(linhas.filter((x) => x.id !== l.id))}>×</button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {escolher || !linhas.length ? (
-          <SeletorServicos moeda={principal} rotulo={linhas.length ? 'Mais um serviço' : 'O que vai fazer?'} onAdd={(i, preco) => (setLinhas([...linhas, { id: novoId(), itemId: i.id, nome: i.nome, moeda: i.precoSugerido?.moeda ?? principal, total: preco }]), setEscolher(false))} />
-        ) : (
-          <Botao variante="secundario" onClick={() => setEscolher(true)}>+ {t('Mais um serviço')}</Botao>
-        )}
-      </div>
-    </Janela>
-  )
-}
-
-// ---------- compromisso / lembrete ----------
-
-const DURACOES = [15, 30, 45, 60, 90, 120, 180]
-
-function FormCompromisso({ dataInicial, editar, onFechar }: { dataInicial: string; editar?: Id; onFechar(): void }) {
-  const t = useT()
-  const { sessao } = useApp()
-  const admin = sessao.perfil === 'admin'
-  const { executar, ocupado } = useComando()
-  const { dados: existente } = useConsulta('evento', { id: editar ?? '' }, !!editar)
-  const { dados: pessoas } = useConsulta('pessoas', {}, admin)
-  const { dados: locais } = useConsulta('locais', {}, admin)
-  const [id] = useState(() => editar ?? novoId())
-  const [f, setF] = useState<{ titulo: string; data: string; diaTodo: boolean; hora: string; duracaoMin: string; nota: string; pessoaId: string; localId: string; semanal: boolean; repetirAte: string }>()
-  const [mexeu, setMexeu] = useState(false)
-  if (!f && (!editar || existente))
-    setF(
-      existente
-        ? { titulo: existente.titulo, data: existente.data, diaTodo: !existente.hora, hora: existente.hora ?? '09:00', duracaoMin: existente.duracaoMin ? String(existente.duracaoMin) : '', nota: existente.nota ?? '', pessoaId: existente.pessoaId ?? '', localId: existente.localId ?? '', semanal: !!existente.semanal, repetirAte: existente.repetirAte ?? '' }
-        : { titulo: '', data: dataInicial, diaTodo: false, hora: '09:00', duracaoMin: '', nota: '', pessoaId: '', localId: '', semanal: false, repetirAte: '' },
-    )
-  if (!f) return <Janela aberta titulo={`📌 ${t('Compromisso')}`} onFechar={onFechar}><Carregando /></Janela>
-  const mudar = (p: Partial<typeof f>) => (setF({ ...f, ...p }), setMexeu(true))
-  const salvar = async () => {
-    const r = await executar(
-      'salvarEvento',
-      {
-        id,
-        titulo: f.titulo,
-        data: f.data,
-        hora: f.diaTodo ? undefined : f.hora,
-        duracaoMin: !f.diaTodo && f.duracaoMin ? Number(f.duracaoMin) : undefined,
-        nota: f.nota,
-        pessoaId: f.pessoaId || undefined,
-        localId: f.localId || undefined,
-        semanal: f.semanal,
-        repetirAte: f.semanal ? f.repetirAte || undefined : undefined,
-      },
-      t('Salvo.'),
-    )
-    if (r) onFechar()
-  }
-  return (
-    <Janela
-      aberta
-      titulo={`📌 ${t(editar ? 'Editar compromisso' : 'Compromisso')}`}
-      onFechar={() => (!mexeu || window.confirm(t('Sair sem salvar?'))) && onFechar()}
-      rodape={<Botao grande className="w-full" disabled={ocupado || !f.titulo.trim() || !f.data} onClick={salvar}>{t('Salvar')}</Botao>}
-    >
-      <div className="space-y-3">
-        <Campo rotulo="O quê?"><Entrada autoFocus value={f.titulo} placeholder={t('Ex.: Buscar mechas no correio')} onChange={(e) => mudar({ titulo: e.target.value })} /></Campo>
-        <div className="grid grid-cols-2 gap-2">
-          <Campo rotulo="Dia"><Entrada type="date" value={f.data} onChange={(e) => mudar({ data: e.target.value })} /></Campo>
-          {!f.diaTodo && <Campo rotulo="Hora"><Entrada type="time" step={300} value={f.hora} onChange={(e) => mudar({ hora: e.target.value })} /></Campo>}
-        </div>
-        <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={f.diaTodo} onChange={(e) => mudar({ diaTodo: e.target.checked })} /> {t('Dia todo')}</label>
-        {!f.diaTodo && <Campo rotulo="Duração"><Selecao valor={f.duracaoMin} onChange={(v) => mudar({ duracaoMin: v })} vazio="—" opcoes={DURACOES.map((m) => ({ id: String(m), nome: m < 60 ? `${m} min` : `${m / 60} h`.replace('.5', ',5') }))} /></Campo>}
-        {admin && (
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Campo rotulo="Para quem"><Selecao valor={f.pessoaId} onChange={(v) => mudar({ pessoaId: v })} vazio="Eu" opcoes={(pessoas ?? []).filter((p) => p.papeis.some((x) => x === 'profissional' || x === 'funcionario' || x === 'socio')).map((p) => ({ id: p.id, nome: p.nome }))} /></Campo>
-            <Campo rotulo="Unidade"><Selecao valor={f.localId} onChange={(v) => mudar({ localId: v })} vazio="—" opcoes={(locais ?? []).map((l) => ({ id: l.id, nome: l.nome }))} /></Campo>
-          </div>
-        )}
-        <Campo rotulo="Nota (opcional)"><Entrada value={f.nota} onChange={(e) => mudar({ nota: e.target.value })} /></Campo>
-        <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={f.semanal} onChange={(e) => mudar({ semanal: e.target.checked })} /> {t('Repetir toda semana')}</label>
-        {f.semanal && <Campo rotulo="Repetir até (opcional)"><Entrada type="date" min={f.data} value={f.repetirAte} onChange={(e) => mudar({ repetirAte: e.target.value })} /></Campo>}
-      </div>
-    </Janela>
-  )
-}
 
 // ---------- atender (feito + pagamento) ----------
 

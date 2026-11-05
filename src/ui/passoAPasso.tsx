@@ -37,7 +37,7 @@ export function Passo({ n, de, titulo, resumo, ajuda, exemplo, aberto, feito, op
         <button type="button" aria-expanded={aberto} onClick={onAlternar} className="flex min-h-14 min-w-0 flex-1 items-center gap-2 py-2 pl-2 text-left xs:gap-3 xs:pl-3">
           <span aria-hidden className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black', feito ? 'bg-[var(--bom)] text-white' : aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--fundo)] text-[var(--suave)]')}>{feito ? '✓' : n}</span>
           <span className="min-w-0 flex-1">
-            <span className="block font-bold leading-snug">{t(titulo)}{opcional && <span className="ml-1 whitespace-nowrap text-xs font-normal text-[var(--suave)]">({t('opcional')})</span>}</span>
+            <span className="block font-bold leading-snug">{t(titulo)}{opcional && !feito && <span className="ml-1 whitespace-nowrap text-xs font-normal text-[var(--suave)]">({t('opcional')})</span>}</span>
             {!aberto && <span className="num block truncate text-xs text-[var(--suave)]">{resumo}</span>}
           </span>
         </button>

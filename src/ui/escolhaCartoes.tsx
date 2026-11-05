@@ -10,7 +10,8 @@ export interface OpcaoCartao<T extends string> { id: T; icone: string; nome: str
 export function EscolhaCartoes<T extends string>({ rotulo, opcoes, valor, onChange, colunas = 2 }: {
   rotulo: string
   opcoes: OpcaoCartao<T>[]
-  valor: T
+  /** vazio = nada escolhido ainda (nenhum cartão marcado) */
+  valor: T | undefined
   onChange(v: T): void
   colunas?: 1 | 2 | 3
 }) {

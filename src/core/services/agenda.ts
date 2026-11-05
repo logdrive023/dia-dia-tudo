@@ -1,6 +1,10 @@
-// AGENDA EM CALENDÁRIO: junta numa lista só os atendimentos do salão (vendas agendadas), as viagens de compra e os
-// compromissos/lembretes (coleção "eventos"). Administrador vê tudo e filtra; funcionária vê só o que é dela:
-// os atendimentos em que ela atende, os compromissos dela (criados por ela ou marcados para ela) e as viagens em que está.
+// AGENDA EM CALENDÁRIO: junta numa lista só os atendimentos do salão (vendas agendadas), as viagens de compra, os
+// compromissos/lembretes (coleção "eventos") e as PARCELAS DE EMPRÉSTIMO (receber/pagar no dia do vencimento).
+// QUEM VÊ O QUÊ (regra do servidor):
+//   · administrador: tudo (e filtra por pessoa, unidade e tipo)
+//   · funcionária: o que é dela — atendimentos em que ela atende, compromissos dela (criados por ela ou para ela),
+//     viagens em que está e os empréstimos que ela registrou
+//   · funcionária com "agenda da equipe" (verAgendaEquipe): também o das colegas da unidade dela (e filtra por colega)
 // Atendimento continua sendo venda: agendar = concluirVenda com agendadoPara; Feito = atenderAgendamento (vendas.ts).
 
 import { converter, type CodigoMoeda } from '../domain/dinheiro'
@@ -10,8 +14,9 @@ import type { Evento, Id, Transacao } from '../domain/tipos'
 import { auditar, type Ctx, cotacoesAtuais, lerConfig, novo, tocar } from './contexto'
 import { registrarAcerto } from './contas'
 import { pendenciasVenda } from './pendencias'
+import { situacaoDe } from './emprestimos'
 
-export type TipoCalendario = 'atendimento' | 'viagem' | 'compromisso'
+export type TipoCalendario = 'atendimento' | 'viagem' | 'compromisso' | 'emprestimo'
 
 export interface ItemCalendario {
   /** id da ocorrência (compromisso semanal: "id@AAAA-MM-DD") */
@@ -48,7 +53,10 @@ export interface ItemCalendario {
   meu?: boolean
   semanal?: boolean
   /** registro de origem */
-  ref: { tela: 'venda' | 'viagem' | 'evento'; id: Id }
+  ref: { tela: 'venda' | 'viagem' | 'evento' | 'emprestimo'; id: Id }
+  /** empréstimo: receber (eu emprestei) ou pagar (eu peguei) · parcela atrasada */
+  sentido?: 'receber' | 'pagar'
+  atrasada?: boolean
 }
 
 export interface FiltroCalendario {
@@ -87,12 +95,47 @@ function ocorrencias(e: Evento, de: string, ate: string): string[] {
   return dias
 }
 
+/**
+ * As pessoas cuja agenda a sessão pode ver: admin = todas (undefined); funcionária = ela e, com "agenda da equipe",
+ * as colegas da unidade (funcionárias/profissionais; sem unidade = a equipe toda).
+ */
+async function visiveis(ctx: Ctx, pessoas: Map<Id, import('../domain/tipos').Pessoa>): Promise<Set<Id> | undefined> {
+  if (admin(ctx)) return undefined
+  const euId = eu(ctx)
+  const euP = pessoas.get(euId)
+  const s = new Set<Id>([euId])
+  if (euP?.verAgendaEquipe)
+    for (const p of pessoas.values())
+      if (p.papeis.some((x) => x === 'funcionario' || x === 'profissional') && (!euP.localId || !p.localId || p.localId === euP.localId)) s.add(p.id)
+  return s
+}
+
+/** os filtros que a sessão pode usar (o servidor decide): pessoas e unidades */
+export async function agendaFiltros(ctx: Ctx, _p: object = {}) {
+  const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x]))
+  const vis = await visiveis(ctx, pessoas)
+  const equipe = [...pessoas.values()].filter((p) => p.papeis.some((x) => x === 'profissional' || x === 'funcionario' || x === 'socio'))
+  const podeVer = vis ? equipe.filter((p) => vis.has(p.id)) : equipe
+  return {
+    admin: admin(ctx),
+    /** a funcionária vê a equipe? (sem isso, a agenda é só dela e não há filtro de pessoa) */
+    equipe: !vis || vis.size > 1,
+    pessoas: podeVer.map((p) => ({ id: p.id, nome: p.nome, localId: p.localId })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+    unidades: admin(ctx) ? (await ctx.repos.locais.listar()).filter((l) => l.tipo === 'salao').map((l) => ({ id: l.id, nome: l.nome })) : [],
+  }
+}
+
 export async function calendario(ctx: Ctx, f: FiltroCalendario): Promise<ItemCalendario[]> {
   exigir(f.de && f.ate && f.de <= f.ate, 'Período inválido.')
   const func = !admin(ctx)
-  const pessoaId = func ? eu(ctx) : f.pessoaId || undefined
-  const tipos = new Set<TipoCalendario>(f.tipos?.length ? f.tipos : ['atendimento', 'viagem', 'compromisso'])
+  const tipos = new Set<TipoCalendario>(f.tipos?.length ? f.tipos : ['atendimento', 'viagem', 'compromisso', 'emprestimo'])
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x]))
+  const vis = await visiveis(ctx, pessoas)
+  // de quem mostrar: a pessoa do filtro (se a sessão pode ver) · admin sem filtro = todos · funcionária = as que pode ver
+  const alvo: Set<Id> | undefined = f.pessoaId && (!vis || vis.has(f.pessoaId)) ? new Set([f.pessoaId]) : vis
+  const pessoaId = alvo?.size === 1 ? [...alvo][0] : undefined
+  /** o filtro de pessoa só vale se a sessão pode ver essa pessoa (senão é ignorado) */
+  const filtroOk = f.pessoaId && (!vis || vis.has(f.pessoaId)) ? f.pessoaId : undefined
   const locais = new Map((await ctx.repos.locais.listar()).map((x) => [x.id, x]))
   const itens: ItemCalendario[] = []
 
@@ -110,7 +153,7 @@ export async function calendario(ctx: Ctx, f: FiltroCalendario): Promise<ItemCal
         const d = dataDeInstante(t.agendadoPara!)
         return d >= f.de && d <= f.ate
       })
-      .filter((t) => !pessoaId || daPessoa(t, pessoaId))
+      .filter((t) => !alvo || [...alvo].some((p) => daPessoa(t, p)))
       .filter((t) => !f.localId || t.localId === f.localId)
     for (const t of ags) {
       const ini = t.agendadoPara!
@@ -152,7 +195,7 @@ export async function calendario(ctx: Ctx, f: FiltroCalendario): Promise<ItemCal
     const hoje = ctx.relogio.hoje()
     for (const v of await ctx.repos.viagens.listar()) {
       const viajantes = v.viajantes ?? []
-      if (pessoaId && !viajantes.includes(pessoaId)) continue
+      if (alvo && !viajantes.some((x) => alvo.has(x))) continue
       // aberta sem fim: vai até hoje (ainda está acontecendo)
       const fim = v.fim || (v.status === 'aberta' && hoje > v.inicio ? hoje : v.inicio)
       if (fim < f.de || v.inicio > f.ate) continue
@@ -175,7 +218,15 @@ export async function calendario(ctx: Ctx, f: FiltroCalendario): Promise<ItemCal
 
   if (tipos.has('compromisso')) {
     for (const e of await ctx.repos.eventos.listar()) {
-      if (func && !ehMeu(ctx, e)) continue
+      // funcionária: o dela (criou ou é para ela) e, com agenda da equipe, o marcado para as colegas
+      if (func) {
+        const dela = ehMeu(ctx, e)
+        const daEquipe = !!e.pessoaId && !!alvo?.has(e.pessoaId)
+        if (!dela && !daEquipe) continue
+        // filtrou uma colega: só o que é para ela (o dela mesma, quando filtrou a si)
+        if (filtroOk && filtroOk !== eu(ctx) && e.pessoaId !== filtroOk) continue
+        if (filtroOk === eu(ctx) && !dela) continue
+      }
       if (!func && pessoaId && e.pessoaId !== pessoaId) continue
       if (f.localId && e.localId !== f.localId) continue
       for (const d of ocorrencias(e, f.de, f.ate)) {
@@ -200,6 +251,40 @@ export async function calendario(ctx: Ctx, f: FiltroCalendario): Promise<ItemCal
           meu: admin(ctx) || e.criadoPor === ctx.sessao.usuarioId,
           semanal: e.semanal,
           ref: { tela: 'evento', id: e.id },
+        })
+      }
+    }
+  }
+
+  // EMPRÉSTIMOS: cada parcela no dia do vencimento ("Receber 2/4 · Wagner · Bs 1.250"). Admin vê todos; funcionária,
+  // os que ela registrou. Com filtro de pessoa/unidade ficam de fora (não são de profissional nem de unidade).
+  if (tipos.has('emprestimo') && !f.localId && (!f.pessoaId || func)) {
+    for (const e of await ctx.repos.emprestimos.listar()) {
+      if (e.situacao === 'cancelado') continue
+      if (func && e.criadoPor !== ctx.sessao.usuarioId) continue
+      const s = await situacaoDe(ctx, e)
+      const quem = pessoas.get(e.pessoaId)?.nome ?? '—'
+      const sentido = e.direcao === 'dado' ? 'receber' : 'pagar'
+      for (const p of s.parcelas) {
+        if (p.vencimento < f.de || p.vencimento > f.ate) continue
+        itens.push({
+          id: `${e.id}#${p.id}`,
+          tipo: 'emprestimo',
+          titulo: `${sentido === 'receber' ? 'Receber' : 'Pagar'} parcela ${p.numero}/${s.parcelas.length} · ${quem}`,
+          detalhe: p.status === 'paga' ? 'paga' : p.status === 'atrasada' ? `atrasada há ${p.diasAtraso} dia(s)` : undefined,
+          data: p.vencimento,
+          ateData: p.vencimento,
+          inicio: p.vencimento,
+          diaTodo: true,
+          pessoa: quem,
+          status: p.status === 'paga' ? 'feito' : 'agendado',
+          valor: p.falta || p.valor,
+          moeda: e.moeda,
+          pago: p.status === 'paga',
+          falta: p.falta,
+          sentido,
+          atrasada: p.status === 'atrasada',
+          ref: { tela: 'emprestimo', id: e.id },
         })
       }
     }

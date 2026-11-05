@@ -5,10 +5,11 @@
 //   4 O que pode ver     cartões: Funcionário (só a unidade e a própria agenda) · Administrador (tudo)
 // Salva com o mesmo comando (salvarPessoa) e mantém os outros papéis que a pessoa já tinha.
 import { useState } from 'react'
+import { CampoTelefone } from '../../ui/campoTelefone'
 import { formatar } from '../../core/domain/dinheiro'
 import { novoId } from '../../core/domain/ids'
 import type { Pessoa } from '../../core/domain/tipos'
-import { Botao, Campo, Entrada, Janela, Selecao, ValorInput, moedaPadrao } from '../../ui/base'
+import { Botao, Campo, Entrada, Janela, Selecao, ValorInput, moedaPadrao, Confirmar } from '../../ui/base'
 import { useComando, useConsulta } from '../../ui/contexto'
 import { useCotacoes } from '../../ui/compartilhados'
 import { EscolhaCartoes } from '../../ui/escolhaCartoes'
@@ -37,7 +38,9 @@ export function CadastroFuncionario({ pessoa, localPadrao, onFechar }: { pessoa?
     comissao: pessoa?.comissaoBp ? String(pessoa.comissaoBp / 100) : '',
     atende: pessoa ? pessoa.papeis.includes('profissional') : true,
     acesso: (pessoa?.acesso ?? 'funcionario') as 'funcionario' | 'admin',
+    verAgendaEquipe: !!pessoa?.verAgendaEquipe,
   })
+  const [confirmarAdmin, setConfirmarAdmin] = useState(false)
   const [inicial] = useState(() => JSON.stringify(d))
   const w = useAssistente()
   const moeda = d.moeda ?? cfg?.moedaPrincipal ?? moedaPadrao()
@@ -57,6 +60,7 @@ export function CadastroFuncionario({ pessoa, localPadrao, onFechar }: { pessoa?
       salario: d.salario !== undefined ? { moeda, valor: d.salario, periodo: d.periodo } : undefined,
       comissaoBp: d.comissao ? Math.round(Number(d.comissao.replace(',', '.')) * 100) : undefined,
       acesso: d.acesso,
+      verAgendaEquipe: d.acesso === 'funcionario' ? d.verAgendaEquipe : undefined,
     }, t(pessoa ? 'Salvo.' : 'Funcionário cadastrado.'))
     if (r) onFechar()
   }
@@ -70,7 +74,7 @@ export function CadastroFuncionario({ pessoa, localPadrao, onFechar }: { pessoa?
           ajuda="O nome, o cargo e o WhatsApp de quem trabalha com você." exemplo="Ex.: Paula · Cabeleireira · +591 70000000">
           <Campo rotulo="Nome *"><Entrada value={d.nome} onChange={(e) => setD({ ...d, nome: e.target.value })} placeholder={t('Ex.: Paula')} autoFocus={!pessoa} /></Campo>
           <Campo rotulo="Cargo (opcional)"><Entrada list="cargos" value={d.cargo} onChange={(e) => setD({ ...d, cargo: e.target.value })} placeholder={t('Ex.: Cabeleireira')} /><datalist id="cargos">{CARGOS.map((c) => <option key={c} value={c} />)}</datalist></Campo>
-          <Campo rotulo="WhatsApp (opcional)"><Entrada inputMode="tel" value={d.telefone} onChange={(e) => setD({ ...d, telefone: e.target.value })} placeholder="+591 70000000" /></Campo>
+          <Campo rotulo="WhatsApp (opcional)" comoDiv><CampoTelefone valor={d.telefone} onChange={(telefone) => setD({ ...d, telefone })} /></Campo>
           {w.proximo(1, 'Onde trabalha', !!d.nome.trim())}
         </Passo>
         <Passo n={2} de={4} titulo="Onde trabalha" feito={!!d.localId || !!d.superiorId} aberto={w.aberto(2)} onAlternar={() => w.alternar(2)}
@@ -99,12 +103,19 @@ export function CadastroFuncionario({ pessoa, localPadrao, onFechar }: { pessoa?
           {w.proximo(3, 'O que pode ver')}
         </Passo>
         <Passo n={4} de={4} titulo="O que pode ver" feito aberto={w.aberto(4)} onAlternar={() => w.alternar(4)}
-          resumo={t(d.acesso === 'admin' ? 'Administrador (tudo)' : 'Funcionário (a unidade e a própria agenda)')}
+          resumo={d.acesso === 'admin' ? t('Administrador (tudo)') : `${t('Funcionário')} · ${t(d.verAgendaEquipe ? 'agenda da equipe' : 'só a agenda dela')}`}
           ajuda="O que ela vê quando entrar no sistema com o usuário dela." exemplo="Ex.: cabeleireira → Funcionário · gerente → Administrador">
-          <EscolhaCartoes<'funcionario' | 'admin'> rotulo="O que pode ver" valor={d.acesso} onChange={(acesso) => setD({ ...d, acesso })} opcoes={[
-            { id: 'funcionario', icone: '🪪', nome: 'Funcionário', descricao: 'Só a unidade dela e a própria agenda' },
+          <EscolhaCartoes<'funcionario' | 'admin'> rotulo="O que pode ver" valor={d.acesso} onChange={(acesso) => (acesso === 'admin' && d.acesso !== 'admin' ? setConfirmarAdmin(true) : setD({ ...d, acesso }))} opcoes={[
+            { id: 'funcionario', icone: '👩‍💼', nome: 'Funcionário', descricao: 'Só a unidade dela e a própria agenda' },
             { id: 'admin', icone: '🔑', nome: 'Administrador', descricao: 'Vê e muda tudo (compras, caixa, relatórios)' },
           ]} />
+          {d.acesso === 'funcionario' && (
+            <EscolhaCartoes<'dela' | 'equipe'> rotulo="Agenda" valor={d.verAgendaEquipe ? 'equipe' : 'dela'} onChange={(v) => setD({ ...d, verAgendaEquipe: v === 'equipe' })} opcoes={[
+              { id: 'dela', icone: '🙋‍♀️', nome: 'Só a agenda dela', descricao: 'Vê só o que ela marcou e o que é para ela' },
+              { id: 'equipe', icone: '👥', nome: 'A agenda da equipe', descricao: 'Vê também o que as colegas da unidade marcaram' },
+            ]} />
+          )}
+          {confirmarAdmin && <Confirmar perigo titulo={t('Dar acesso de administrador?')} texto={t('{n} vai ver e mudar TUDO: compras, caixa, preços, relatórios, a agenda de todos e o cadastro da equipe. Só dê para quem cuida do negócio com você.', { n: d.nome.trim() || t('Esta pessoa') })} rotulo="Sim, dar acesso de administrador" onFechar={() => setConfirmarAdmin(false)} onConfirmar={() => setD({ ...d, acesso: 'admin' })} />}
         </Passo>
       </Passos>
     </Janela>

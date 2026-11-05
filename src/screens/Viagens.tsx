@@ -346,7 +346,7 @@ function FormViagem({ viagem }: { viagem?: Viagem }) {
           </div>
           {proximo(3, 'Como dividir o gasto')}
         </Passo>
-        <Passo n={4} de={4} titulo="Como dividir o gasto" opcional feito aberto={abertos.has(4)} onAlternar={() => alternar(4)}
+        <Passo n={4} de={4} titulo="Como dividir o gasto" opcional feito={rateio !== (viagem?.rateio ?? 'grama') || !!obs.trim()} aberto={abertos.has(4)} onAlternar={() => alternar(4)}
           resumo={`${t(rateio === 'grama' ? 'Por gramas' : 'Por valor')}${obs.trim() ? ` · “${obs.trim()}”` : ''}`}
           ajuda="No fim, o gasto da viagem vai para o custo do cabelo comprado nela. Por gramas: cada grama leva o mesmo. Por valor: o cabelo mais caro leva mais."
           exemplo="Ex.: Bs 800 de gasto em 4 kg = Bs 200 por kg (por gramas)">
