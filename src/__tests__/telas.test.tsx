@@ -120,6 +120,15 @@ describe('telas (com os dados de exemplo)', () => {
     await waitFor(() => expect(screen.getByRole('tab', { name: /Arquivos/ }).textContent).toMatch(/Arquivos\s*1/), { timeout: 10000 })
   }, 120000)
 
+  it('endereço que não existe mostra a tela 404 (e volta ao início)', async () => {
+    await abrirComDemo()
+    window.location.hash = '#/pagina-que-nao-existe'
+    await screen.findByRole('heading', { name: 'Esta página não existe' }, { timeout: 10000 })
+    expect(screen.getByText('/pagina-que-nao-existe')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Ir para o início' }))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Esta página não existe' })).toBeNull())
+  }, 120000)
+
   it('troca para espanhol', async () => {
     expect(Object.keys(ES).length).toBeGreaterThan(200)
     await abrirComDemo()

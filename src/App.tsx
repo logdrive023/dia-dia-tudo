@@ -2,6 +2,7 @@
 // atualiza o câmbio, oferece os dados de exemplo no primeiro uso e avisa quando há versão nova.
 
 import { Component, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { NaoEncontrada } from './screens/NaoEncontrada'
 import { TELAS_LIBERAVEIS, type TelaLiberavel, useLiberado } from './ui/liberado'
 import { useIdiomaAparelho } from './ui/idiomaAparelho'
 import { NovoFuncionarioTela } from './screens/cadastros/CadastroFuncionario'
@@ -287,7 +288,8 @@ function Tela() {
     if (proibida) history.replaceState(null, '', navParaHash({ tela: 'agenda', params: {} }))
   }, [proibida])
   // funcionária abrindo um pacote (QR): a visão enxuta para VENDER (a ficha completa é do administrador)
-  const T = nome === 'lote' && sessao.perfil !== 'admin' ? PacoteVenda : TELAS[nome] ?? (sessao.perfil === 'admin' ? Painel : Agenda)
+  // endereço que não existe → a tela 404 (antes caía no Painel sem avisar); sem tela nenhuma ainda → o início do perfil
+  const T = nome === 'lote' && sessao.perfil !== 'admin' ? PacoteVenda : TELAS[nome] ?? (nome ? NaoEncontrada : sessao.perfil === 'admin' ? Painel : Agenda)
   return <T />
 }
 

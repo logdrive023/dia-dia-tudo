@@ -4782,4 +4782,9 @@ export const ES: Record<string, string> = {
   'Modo caixa: lê a etiqueta e vende.': 'Modo caja: lee la etiqueta y vende.',
   'Escolhe medida e categoria na tabela de preço.': 'Elige medida y categoría en la tabla de precios.',
   'registrou': 'registró',
+  'Esta página não existe': 'Esta página no existe',
+  'O link pode estar antigo ou digitado errado. Nada foi perdido: seus dados continuam iguais.': 'El enlace puede estar viejo o mal escrito. No se perdió nada: sus datos siguen iguales.',
+  'Ir para o início': 'Ir al inicio',
+  'Atalhos': 'Atajos',
+  'Ou vá direto para': 'O vaya directo a',
 }
