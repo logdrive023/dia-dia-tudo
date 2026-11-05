@@ -426,10 +426,8 @@ export function VendaRapida() {
   const listaLocais = (locais ?? []).map((l) => ({ id: l.id, nome: l.nome }))
   const resumoOpcoes = [
     pessoa && `👤 ${pessoa.nome}`,
-    descontoValido > 0 && (modoDesconto === 'pct' && pct !== undefined ? `−${pctTexto(pct)}%` : `−${formatar(descontoCobranca, mc)}`),
     vendedorId && `🧑 ${(pessoas ?? []).find((x) => x.id === vendedorId)?.nome ?? ''}`,
     localId && localId !== sessao.localId && `🏪 ${listaLocais.find((l) => l.id === localId)?.nome ?? ''}`,
-    obs.trim() && '📝',
   ].filter((x): x is string => !!x)
   const opcoes = (
     <OpcoesVenda

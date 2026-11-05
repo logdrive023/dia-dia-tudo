@@ -4336,4 +4336,9 @@ export const ES: Record<string, string> = {
   'nome da cliente': 'nombre de la clienta',
   'NIT/CI da cliente': 'NIT/CI de la clienta',
   'Esta venda não tem imposto estimado.': 'Esta venta no tiene impuesto estimado.',
+  'Cliente, quem vendeu e unidade': 'Cliente, quién vendió y unidad',
+  'Nada aqui é obrigatório: deixe em branco e a venda passa do mesmo jeito.': 'Nada aquí es obligatorio: déjelo en blanco y la venta pasa igual.',
+  'Cliente (opcional)': 'Cliente (opcional)',
+  'Quem e onde (opcional)': 'Quién y dónde (opcional)',
+  'Nenhuma (sem unidade)': 'Ninguna (sin unidad)',
 }

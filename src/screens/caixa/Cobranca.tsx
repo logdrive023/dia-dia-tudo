@@ -1,7 +1,7 @@
 // COBRANÇA DO MODO CAIXA — as peças do lado do dinheiro (a tela junta: ao lado no computador, embaixo no celular):
 //   · CobrarEm: [ Bs | US$ | R$ ] + a cotação quando não é a principal ("1 R$ = [1,28] Bs")
 //   · TotalVenda: quantos itens, o total grande na moeda de cobrança (e o equivalente), o desconto aplicado
-//   · OpcoesVenda: o "+ mais" em GRUPOS (Cliente · Preço · Quem e onde · Observação), com um resumo do que está ligado
+//   · OpcoesVenda: desconto e observação SEMPRE À VISTA; embaixo, fechado, o opcional (Cliente · Quem e onde), com o resumo do que está ligado
 //     quando fechado ("👤 Ana · −5% · 🧑 Paula") — nada fica escondido sem a pessoa saber
 
 import type { ReactNode } from 'react'
@@ -120,45 +120,55 @@ export interface OpcoesVendaProps {
 
 export function OpcoesVenda(p: OpcoesVendaProps) {
   const t = useT()
+  const temQuem = !!p.vendedores?.length || (p.locais?.length ?? 0) > 1
   return (
-    <div>
-      <button type="button" aria-expanded={p.aberto} onClick={p.onAlternar} className="flex min-h-10 w-full flex-wrap items-center gap-x-2 gap-y-1 text-left text-sm font-semibold text-[var(--marca)]">
-        <span>{p.aberto ? '− ' : '+ '}{t('mais (cliente, desconto, quem vendeu, observação)')}</span>
-        {!p.aberto && p.resumo.length > 0 && <span className="flex flex-wrap gap-1">{p.resumo.map((r) => <span key={r} className="rounded-full bg-[var(--marca-suave)] px-2 py-0.5 text-xs">{r}</span>)}</span>}
-      </button>
-      {p.aberto && (
-        <div className="mt-2 space-y-3">
-          <Grupo icone="👤" titulo="Cliente">
-            <SeletorPessoa rotulo="Cliente" valor={p.pessoaId} onChange={p.onPessoa} opcional />
-          </Grupo>
-          <Grupo icone="🏷" titulo="Preço">
-            <Campo comoDiv rotulo="Desconto" ajuda="Em % ou em valor. Ex.: 5% de Bs 35.000 = Bs 1.750 · ou Bs 500 fixo.">
-              <div className="flex gap-2">
-                <div className="w-28 shrink-0"><Escolha rotulo="Desconto" valor={p.desconto.modo} onChange={(m) => p.desconto.onModo(m as 'pct' | 'valor')} opcoes={[{ id: 'pct', nome: '%' }, { id: 'valor', nome: p.desconto.simbolo }]} /></div>
-                <div className="min-w-0 flex-1">
-                  {p.desconto.modo === 'pct' ? (
-                    <div className="relative">
-                      <Entrada inputMode="decimal" aria-label={t('Desconto em %')} placeholder="0" value={p.desconto.pct} onChange={(e) => p.desconto.onPct(e.target.value)} className={cx('num pr-8', p.desconto.erro && 'border-[var(--ruim)]')} />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--suave)]">%</span>
-                    </div>
-                  ) : <ValorInput moeda={p.desconto.moeda} valor={p.desconto.valor} onChange={p.desconto.onValor} />}
-                </div>
+    <div className="space-y-3">
+      {/* EM EVIDÊNCIA (sempre à vista): o desconto e a observação — o que mais se usa na hora de cobrar */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Campo comoDiv rotulo="Desconto" ajuda="Em % ou em valor. Ex.: 5% de Bs 35.000 = Bs 1.750 · ou Bs 500 fixo.">
+            <div className="flex gap-2">
+              <div className="w-28 shrink-0"><Escolha rotulo="Desconto" valor={p.desconto.modo} onChange={(m) => p.desconto.onModo(m as 'pct' | 'valor')} opcoes={[{ id: 'pct', nome: '%' }, { id: 'valor', nome: p.desconto.simbolo }]} /></div>
+              <div className="min-w-0 flex-1">
+                {p.desconto.modo === 'pct' ? (
+                  <div className="relative">
+                    <Entrada inputMode="decimal" aria-label={t('Desconto em %')} placeholder="0" value={p.desconto.pct} onChange={(e) => p.desconto.onPct(e.target.value)} className={cx('num pr-8', p.desconto.erro && 'border-[var(--ruim)]')} />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--suave)]">%</span>
+                  </div>
+                ) : <ValorInput moeda={p.desconto.moeda} valor={p.desconto.valor} onChange={p.desconto.onValor} />}
               </div>
-            </Campo>
-            {p.desconto.aviso && <p className="num text-sm font-semibold text-[var(--bom)]">{p.desconto.aviso}</p>}
-            {p.desconto.erro && <p className="text-sm font-semibold text-[var(--ruim)]">{p.desconto.erro}</p>}
-          </Grupo>
-          {(!!p.vendedores?.length || (p.locais?.length ?? 0) > 1) && (
-            <Grupo icone="🧑" titulo="Quem e onde">
-              {!!p.vendedores?.length && <Campo rotulo="Quem vendeu" ajuda="A comissão e o relatório de vendas vão para esta pessoa. Vazio = a casa."><Selecao valor={p.vendedorId} onChange={(v) => p.onVendedor(v || undefined)} vazio="A casa (ninguém)" opcoes={p.vendedores} /></Campo>}
-              {(p.locais?.length ?? 0) > 1 && <Campo rotulo="Unidade"><Selecao valor={p.localId} onChange={(v) => p.onLocal(v || undefined)} vazio="—" opcoes={p.locais!} /></Campo>}
-            </Grupo>
-          )}
-          <Grupo icone="📝" titulo="Observação">
-            <Entrada aria-label={t('Observação')} placeholder={t('Ex.: cliente volta amanhã para buscar')} value={p.obs} onChange={(e) => p.onObs(e.target.value)} />
-          </Grupo>
+            </div>
+          </Campo>
+          {p.desconto.aviso && <p className="num text-sm font-semibold text-[var(--bom)]">{p.desconto.aviso}</p>}
+          {p.desconto.erro && <p className="text-sm font-semibold text-[var(--ruim)]">{p.desconto.erro}</p>}
         </div>
-      )}
+        <Campo rotulo="Observação">
+          <Entrada aria-label={t('Observação')} placeholder={t('Ex.: cliente volta amanhã para buscar')} value={p.obs} onChange={(e) => p.onObs(e.target.value)} />
+        </Campo>
+      </div>
+
+      {/* EMBAIXO E FECHADO: cliente, quem vendeu e unidade — tudo OPCIONAL (a venda passa sem nada disso) */}
+      <div className="rounded-xl border border-dashed border-[var(--borda)]">
+        <button type="button" aria-expanded={p.aberto} onClick={p.onAlternar} className="flex min-h-11 w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-sm">
+          <span className="font-semibold text-[var(--marca)]">{p.aberto ? '− ' : '+ '}{t(temQuem ? 'Cliente, quem vendeu e unidade' : 'Cliente')}</span>
+          <span className="rounded-full bg-[var(--fundo)] px-2 py-0.5 text-[11px] font-bold text-[var(--suave)]">{t('opcional')}</span>
+          {!p.aberto && p.resumo.length > 0 && <span className="flex flex-wrap gap-1">{p.resumo.map((r) => <span key={r} className="rounded-full bg-[var(--marca-suave)] px-2 py-0.5 text-xs font-semibold text-[var(--marca)]">{r}</span>)}</span>}
+        </button>
+        {p.aberto && (
+          <div className="space-y-3 border-t border-dashed border-[var(--borda)] p-3">
+            <p className="text-xs text-[var(--suave)]">{t('Nada aqui é obrigatório: deixe em branco e a venda passa do mesmo jeito.')}</p>
+            <Grupo icone="👤" titulo="Cliente (opcional)">
+              <SeletorPessoa rotulo="Cliente" valor={p.pessoaId} onChange={p.onPessoa} opcional />
+            </Grupo>
+            {temQuem && (
+              <Grupo icone="🧑" titulo="Quem e onde (opcional)">
+                {!!p.vendedores?.length && <Campo rotulo="Quem vendeu" ajuda="A comissão e o relatório de vendas vão para esta pessoa. Vazio = a casa."><Selecao valor={p.vendedorId} onChange={(v) => p.onVendedor(v || undefined)} vazio="A casa (ninguém)" opcoes={p.vendedores} /></Campo>}
+                {(p.locais?.length ?? 0) > 1 && <Campo rotulo="Unidade"><Selecao valor={p.localId} onChange={(v) => p.onLocal(v || undefined)} vazio="Nenhuma (sem unidade)" opcoes={p.locais!} /></Campo>}
+              </Grupo>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
