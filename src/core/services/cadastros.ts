@@ -6,6 +6,8 @@ import { ErroNegocio, exigir } from '../domain/erros'
 import { diasEntre } from '../domain/datas'
 import { FORMA_FIXA, formasEmUso } from '../domain/formas'
 import { empresaFormatada } from '../domain/textoFormatado'
+import { validarMetas } from './metas'
+import { validarVitrine } from './vitrine'
 import { MODELOS_DOCUMENTO } from '../dados/documentos'
 import type { Anexo, CategoriaAnexo, CotacaoRegistro, Id, Local, Papel, Pessoa } from '../domain/tipos'
 import { auditar, type Configuracoes, type Ctx, cotacoesAtuais, exigirVersao, lerConfig, MSG_ALTERADO_POR_OUTRA, novo, tocar, versaoDoFormulario } from './contexto'
@@ -305,6 +307,9 @@ export async function salvarConfig(
     for (const m of valor.moedasAtivas) exigir(formasEmUso(valor.formas, m).length, `Pelo menos uma forma de pagamento ligada para ${m}.`)
   }
   if (d.fiscal) valor.fiscal = { ...valor.fiscal, ...empresaFormatada(valor.fiscal) }
+  if (d.metas) valor.metas = validarMetas(d.metas)
+  if (d.vitrine) valor.vitrine = validarVitrine(d.vitrine)
+  if (d.reposicao) for (const k of ['janelaDias', 'alertaDias', 'cobrirDias'] as const) exigir(Number.isInteger(d.reposicao[k]) && d.reposicao[k] >= 1 && d.reposicao[k] <= 365, 'Reposição: use de 1 a 365 dias.')
   if (valor.socios.length) {
     exigir(valor.socios.every((x) => x.nome.trim() && Number.isInteger(x.parteBp) && x.parteBp > 0), 'Cada sócio precisa de nome e parte.')
     exigir(valor.socios.reduce((s, x) => s + x.parteBp, 0) === 10000, 'As partes dos sócios precisam somar 100%.')

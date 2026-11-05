@@ -2,6 +2,7 @@
 // várias vezes recalcula a linha e o total na hora; voltar ao padrão; fechar → a venda salva a coluna, o fator e a
 // versão que a tela mostrava (tela = registro).
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { passarAlertaDeCusto } from './custoTeste'
 import { useState } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { carregarDemo } from '../app/demo'
@@ -63,6 +64,7 @@ describe('escolher o preço da tabela na venda', () => {
     const fatorOutra = fatorDaTabela(tabela, 60, outra.id).fator!
     await waitFor(() => expect(fatorNaLinha()).toContain(`× ${fatorOutra.replace('.', ',')}`))
     fireEvent.click(screen.getByRole('button', { name: /FECHAR/ }))
+    await passarAlertaDeCusto()
     fireEvent.click(await screen.findByRole('button', { name: /Dinheiro/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Valor exato ✓' }))
     await screen.findByText(/^Venda V\S* ✓/, {}, { timeout: 10000 })

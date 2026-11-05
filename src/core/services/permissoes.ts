@@ -33,6 +33,8 @@ export const COMANDOS_FUNCIONARIO = new Set<NomeComando>([
   'registrarAnexo',
   'definirMiniatura',
   'trocarMinhaSenha',
+  // fechar o PRÓPRIO turno (conferência cega: ela informa o contado e não vê o esperado)
+  'fecharTurno',
   'registrarBuscaCambio',
   'salvarCotacao',
   'registrarDespesaViagem',
@@ -48,6 +50,13 @@ export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
   'estoque',
   'lerCodigoPacote',
   'vendasAbertas',
+  // o turno dela, sem valores (conferência cega)
+  'turnoAtual',
+  // "esta venda está abaixo do custo?" (ela recebe só sim/não; o custo sai pela visibilidade)
+  'custoDaVenda',
+  // as metas DELA e da unidade dela (se o admin liberou; sem o valor, se ele escolheu só a %)
+  'metas',
+  'turnos',
   'viagensParaFiltro',
   'cidades',
   'tabelasPreco',
@@ -82,7 +91,8 @@ export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
 ])
 
 /** Comandos que funcionam antes de alguém entrar. */
-export const SEM_LOGIN = new Set<string>(['usuariosDemo', 'configuracoes'])
+// a VITRINE é o que um comprador de fora vê (link #/loja): abre sem login e só traz dados públicos (services/vitrine.ts)
+export const SEM_LOGIN = new Set<string>(['usuariosDemo', 'configuracoes', 'vitrine'])
 
 export function podeComando(perfil: string | undefined, nome: NomeComando) {
   return perfil === 'admin' || (perfil === 'funcionario' && COMANDOS_FUNCIONARIO.has(nome))

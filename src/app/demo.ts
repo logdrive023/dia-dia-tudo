@@ -418,6 +418,49 @@ async function montar(b: BackendNoAparelho) {
     })
   }
 
+  // ---------- MINHA VITRINE: mais pacotes prontos (triagem + etiqueta) e a loja configurada ----------
+  // o pacote juntado é separado em 4 medidas e ganha etiqueta; 2 pacotes da Helena também ganham etiqueta
+  if (brutoSucre && brutoParceiro) {
+    await c(8, 'separarLote', {
+      id: id(),
+      loteId: 'lote-juntado',
+      quantidadeUsada: 7200,
+      saidas: [
+        { id: 'vit-45-claro', quantidade: 1800, campos: { estado: 'Separado', comprimento: 45, categoria: 'Normal', cor: 'Castanho claro', origem: 'Bolívia' } },
+        { id: 'vit-65-castanho', quantidade: 2200, campos: { estado: 'Separado', comprimento: 65, categoria: 'Normal', cor: 'Castanho', origem: 'Bolívia' } },
+        { id: 'vit-70-loiro', quantidade: 1300, campos: { estado: 'Separado', comprimento: 70, categoria: 'Normal', cor: 'Loiro', origem: 'Bolívia' } },
+        { id: 'vit-50-ruivo', quantidade: 1700, campos: { estado: 'Separado', comprimento: 50, categoria: 'Tinte', cor: 'Ruivo', origem: 'Bolívia' } },
+      ],
+    })
+    await c(8, 'marcarEtiquetasImpressas', { ids: ['vit-45-claro', 'vit-65-castanho', 'vit-70-loiro', 'vit-50-ruivo'] }, 15)
+  }
+  await c(27, 'marcarEtiquetasImpressas', { ids: [await loteDe(compraElena, 60), await loteDe(compraElena, 80)] }, 17)
+  await c(1, 'salvarConfig', {
+    vitrine: {
+      ativa: true,
+      nome: 'Cabelos da Família · Santa Cruz',
+      descricao: 'Cabelo natural boliviano, separado por medida e pesado na balança. Atacado e varejo.',
+      whatsapp: '+591 70000000',
+      mostrarPreco: true,
+      ocultos: [l40],
+    },
+  })
+
+  // ---------- metas do mês (Painel; a Sofia vê as dela em Vender, só a %) ----------
+  await c(1, 'salvarConfig', {
+    metas: {
+      painel: true,
+      mostrarValor: true,
+      funcionaria: true,
+      funcionariaValor: false,
+      itens: [
+        { id: 'meta-empresa', alvo: 'empresa', indicador: 'faturamento', valor: bs(150000), ativa: true, nome: 'Faturamento da empresa' },
+        { id: 'meta-centro', alvo: 'unidade', alvoId: centro, indicador: 'atendimentos', valor: 40, ativa: true },
+        { id: 'meta-sofia', alvo: 'pessoa', alvoId: vero, indicador: 'faturamento', valor: bs(3000), ativa: true },
+      ],
+    },
+  })
+
   // ---------- usuários (senha demo1234) ----------
   const U = (login: string, nome: string, perfil: 'admin' | 'funcionario', pessoaId?: string, localId?: string) =>
     c(0, 'salvarUsuario', { id: `u-${login}`, login, nome, perfil, pessoaId, localId, senha: SENHA_DEMO })

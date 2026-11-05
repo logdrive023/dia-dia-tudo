@@ -9,6 +9,7 @@
 // Cor só com função: vermelho = urgente/travado, âmbar = atenção, verde = em dia. Nada simulado: sem dado, não aparece.
 
 import { type ReactNode, useState } from 'react'
+import { MetasDoMes } from '../ui/metas'
 import { CodigoTexto } from '../ui/codigos'
 import { BarraLimite } from '../ui/barras'
 import { MOEDAS, formatar } from '../core/domain/dinheiro'
@@ -292,6 +293,7 @@ export function Painel() {
           )}
 
           {/* 2. VISÃO GERAL — o período (vendas, lucro, compras) e AGORA (o caminho do cabelo + o caixa) numa composição só */}
+          <MetasDoMes className="mb-4" />
           <VisaoGeral p={p} comparar={comparar} periodoTexto={periodoTexto} comCabelo={!areaAtual || areaAtual === 'cabelo'} />
 
           {/* 3. ANÁLISES COMPLEMENTARES: o detalhe que não precisa disputar atenção com a visão geral (abre e fecha) */}

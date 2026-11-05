@@ -3,6 +3,10 @@
 
 import * as agenda from './agenda'
 import * as caixa from './caixa'
+import * as turnos from './turnos'
+import * as reposicao from './reposicao'
+import * as metas from './metas'
+import * as vitrine from './vitrine'
 import * as cadastros from './cadastros'
 import * as codigos from './codigos'
 import * as comissoes from './comissoes'
@@ -74,6 +78,7 @@ export const comandos = {
   avancarTriagem: compras.avancarTriagem,
   salvarVendaAberta: vendasAbertas.salvarVendaAberta,
   descartarVendaAberta: vendasAbertas.descartarVendaAberta,
+  fecharTurno: turnos.fecharTurno,
   tirarDaVendaAberta: vendasAbertas.tirarDaVendaAberta,
   salvarCidade: cidades.salvarCidade,
   pagarCompra: compras.pagarCompra,
@@ -173,6 +178,12 @@ export const consultas = {
   origemDoPacote: origem.origemDoPacote,
   lerCodigoPacote: leitura.lerCodigoPacote,
   vendasAbertas: vendasAbertas.vendasAbertas,
+  turnoAtual: turnos.turnoAtual,
+  custoDaVenda: vendas.custoDaVenda,
+  reposicao: reposicao.reposicao,
+  metas: metas.metas,
+  vitrine: vitrine.vitrine,
+  turnos: turnos.turnos,
   viagensParaFiltro: viagemCurta.viagensParaFiltro,
   cidades: cidades.cidades,
   origemDaVenda: origem.origemDaVenda,

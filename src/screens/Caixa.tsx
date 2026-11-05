@@ -5,6 +5,7 @@
 // ("Ver em Bs | US$ | R$"), com a cotação digitada aqui (só para ver: não muda nenhum lançamento).
 
 import { useEffect, useRef, useState } from 'react'
+import { TurnosFechados } from './caixa/Turno'
 import { formasEmUso } from '../core/domain/formas'
 import { BarraPartes } from '../ui/barras'
 import { MOEDAS, formatar, moeda as moedaDe, type TabelaCotacoes, valorDeUm } from '../core/domain/dinheiro'
@@ -285,6 +286,8 @@ export function Caixa() {
       {reabrir && <Confirmar titulo="Reabrir o dia?" texto="O dia volta a aceitar lançamentos. O dinheiro contado no encerramento fica guardado." rotulo="Reabrir o dia" onFechar={() => setReabrir(false)} onConfirmar={() => executar('reabrirDia', { data }, t('Dia reaberto.'))} />}
       {/* só abre com a conta do dia certo (no "Encerrar" do aviso, a tela troca de dia antes) */}
       {encerrar && dados.data === data && <Encerrar data={data} contas={dados.contas} movimentos={dados.movimentos} onFechar={() => setEncerrar(false)} />}
+      {/* os turnos de cada pessoa (conferência cega): quem contou, o esperado e a diferença */}
+      <TurnosFechados />
     </div>
   )
 }

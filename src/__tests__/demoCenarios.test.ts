@@ -43,3 +43,21 @@ describe('dados de exemplo: todos os cenários da demonstração', () => {
     expect(((await b.consulta('diagnostico', {})) as any).problemas).toEqual([])
   }, 120000)
 })
+
+describe('dados de exemplo: a vitrine', () => {
+  it('tem pacotes prontos de várias medidas, um escondido, e a loja configurada', async () => {
+    const { b, sessao } = await novoBackend()
+    await carregarDemo(b)
+    const adm = (await b.consulta('vitrine', {})) as any
+    expect(adm.pacotes.length).toBeGreaterThanOrEqual(8)
+    expect(adm.pacotes.some((x: any) => x.oculto)).toBe(true)
+    expect(adm.loja.whatsapp).toBe('+59170000000')
+    expect(((await b.consulta('diagnostico', {})) as any).problemas).toEqual([])
+    Object.assign(sessao, { usuarioId: '', perfil: undefined, nome: '' })
+    const pub = (await b.consulta('vitrine', { publico: true })) as any
+    expect(pub.pacotes.length).toBe(adm.pacotes.length - 1)
+    expect(new Set(pub.pacotes.map((x: any) => x.medida)).size).toBeGreaterThanOrEqual(6)
+    expect(pub.pacotes.some((x: any) => x.categoria === 'Tinte')).toBe(true)
+    expect(pub.pacotes.filter((x: any) => x.preco).length).toBeGreaterThan(0)
+  }, 120000)
+})

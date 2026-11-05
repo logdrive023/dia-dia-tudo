@@ -306,6 +306,10 @@ export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
   await ctx.repos.transacoes.salvar(v)
   await auditar(ctx, d.agendadoPara ? 'agendar' : 'concluirVenda', v.id, linhas.map((l) => l.descricao).join(', '), [v.pessoaId!, v.profissionalId!, ...linhas.map((l) => l.itemId!)])
   await auditarAjustes(ctx, v)
+  // VENDEU ABAIXO DO CUSTO: a venda passa (pode ser de propósito), mas fica registrado quem, quanto e quanto custou
+  const abaixo = linhas.filter((l) => l.custoPrincipal && l.totalPrincipal < l.custoPrincipal)
+  if (abaixo.length)
+    await auditar(ctx, 'vendaAbaixoDoCusto', v.id, abaixo.map((l) => `${l.descricao}: vendeu ${formatar(l.totalPrincipal, cfg.moedaPrincipal)} · custou ${formatar(l.custoPrincipal!, cfg.moedaPrincipal)}`).join(' · '), abaixo.map((l) => l.itemId!))
   if (!d.agendadoPara) await registrarImpostosEstimados(ctx, v)
   if (!d.agendadoPara) await aoConcluirVenda(ctx, v.id, linhas.map((l) => l.itemId).filter((x): x is Id => !!x), v.codigo)
   // RESERVA: vendeu um pacote reservado (para a própria pessoa ou para outra — a reserva pode ter caído e ninguém
@@ -652,4 +656,22 @@ export async function venda(ctx: Ctx, p: { id: Id }) {
   const compras = new Map((await ctx.repos.transacoes.listar({ tipo: 'compra' })).map((c) => [c.id, c]))
   const viagens = [...new Map(t.linhas.flatMap((l) => comprasDe(l.itemId ? itensV.get(l.itemId) : undefined)).map((c) => compras.get(c)?.viagemId).map((id) => (id ? vmapa.get(id) : undefined)).filter((v): v is NonNullable<typeof v> => !!v).map((v) => [v.id, v])).values()]
   return { venda: t, cliente: t.pessoaId ? pessoas.get(t.pessoaId) : undefined, profissional: t.profissionalId ? pessoas.get(t.profissionalId) : undefined, local, anexos, viagens }
+}
+
+/**
+ * ABAIXO DO CUSTO? (antes de fechar a venda): para cada linha de pacote, o preço cobrado × o custo da quantidade
+ * (custo do lote proporcional às gramas, já com o gasto de viagem quando incorporado). A tela avisa e pede confirmação.
+ * A funcionária recebe só "abaixo: sim/não" — o custo é tirado da resposta pela visibilidade (campo sensível).
+ */
+export async function custoDaVenda(ctx: Ctx, p: { linhas: { itemId: Id; quantidade: number; total: number; moeda: CodigoMoeda }[] }) {
+  const cfg = await lerConfig(ctx)
+  const saida: { itemId: Id; abaixo: boolean; custoPrincipal?: number; vendaPrincipal: number }[] = []
+  for (const l of p.linhas ?? []) {
+    const item = await ctx.repos.itens.obter(l.itemId)
+    if (!item?.controlaEstoque || !l.quantidade) continue
+    const custo = custoDe(item, l.quantidade)
+    const venda = l.moeda === cfg.moedaPrincipal ? l.total : (await paraPrincipal(ctx, l.total, l.moeda, 'venda')).valorPrincipal
+    saida.push({ itemId: l.itemId, abaixo: !!custo && venda < custo, custoPrincipal: custo, vendaPrincipal: venda })
+  }
+  return saida
 }

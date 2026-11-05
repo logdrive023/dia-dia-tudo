@@ -9,12 +9,13 @@
 // "Configurações" abre uma sublista com os grupos e as seções (vêm da mesma lista da tela: configSecoes.ts).
 
 import { type ReactNode, useState } from 'react'
-import { cx } from './base'
+import { Botao, Janela, cx } from './base'
 import { useApp, useConsulta } from './contexto'
 import { useLembrado } from './filtros'
 import { useT } from './i18n'
 import { Icone } from './icones'
 import { abrirConversor } from './compartilhados'
+import { JanelaFecharTurno } from '../screens/caixa/Turno'
 import { TELAS_LIBERAVEIS, type TelaLiberavel, useLiberado } from './liberado'
 import { PAI } from '../app/rotas'
 import { GRUPOS_CONFIG, secoesDoPerfil } from '../screens/configSecoes'
@@ -46,6 +47,8 @@ export const MENU: ItemMenu[] = [
   // viagens de compra: admin sempre; funcionária só quando está numa viagem aberta (painel do viajante)
   { tela: 'viagens', nome: 'Viagens', grupo: 'Cabelo', precisa: 'compra' },
   // livro do cabelo: todos os lançamentos de gramas e o fechamento de cada compra
+  // a vitrine: os pacotes prontos (triagem + etiqueta) como o comprador vê, com o link da loja
+  { tela: 'vitrine', nome: 'Minha vitrine', curto: 'Vitrine', grupo: 'Cabelo', admin: true, precisa: 'estoque' },
   { tela: 'livro', nome: 'Livro do cabelo', curto: 'Livro', grupo: 'Cabelo', admin: true, precisa: 'cabelo' },
   { tela: 'precos', nome: 'Tabelas de preço', curto: 'Preços', grupo: 'Cabelo', admin: true, precisa: 'cabelo' },
   { tela: 'pessoas', nome: 'Pessoas e contas', curto: 'Pessoas', grupo: 'Pessoas' },
@@ -161,10 +164,15 @@ export function Shell({ children }: { children: ReactNode }) {
   const [oculto, setOculto] = useLembrado('menu.oculto', false)
   const [gruposAbertos, setGruposAbertos] = useLembrado<string[]>('menu.gruposAbertos', [])
   const { dados } = useConsulta('configuracoes', {})
-  const sair = async () => {
+  // SAIR com dinheiro do turno sem contar: o sistema pergunta antes (fechar o turno agora ou sair mesmo assim)
+  const { dados: turno } = useConsulta('turnoAtual', {}, !!sessao.usuarioId)
+  const [avisoSair, setAvisoSair] = useState<'perguntar' | 'fechar'>()
+  const sairDeVez = async () => {
+    setAvisoSair(undefined)
     await backend.sair()
     trocarSessao({ ...sessao, usuarioId: '', nome: '', login: undefined, pessoaId: undefined, localId: undefined })
   }
+  const sair = async () => (turno?.pendente ? setAvisoSair('perguntar') : sairDeVez())
   const grupos = GRUPOS.map((g) => ({ g, itens: menu.filter((m) => m.grupo === g) })).filter((x) => x.itens.length)
   const iniciais = (sessao.nome || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
   // celular: 5 destinos nesta ordem (os que o perfil tem) + "Mais"; com 360px não cabem mais que 6 botões legíveis.
@@ -325,7 +333,10 @@ export function Shell({ children }: { children: ReactNode }) {
         {backend.tipo !== 'api' && (
           <div className="nao-imprimir bg-[var(--marca-suave)] px-4 py-1.5 text-center text-xs text-[var(--marca)]">{t('Modo demonstração: os dados ficam só neste aparelho.')}</div>
         )}
-        <main className={cx('mx-auto px-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-3 xs:px-4 xs:pt-4 md:pb-10', oculto ? 'max-w-7xl md:pl-16' : 'max-w-6xl')}>{children}</main>
+        <main className={cx('mx-auto px-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-3 xs:px-4 xs:pt-4 md:pb-10', oculto ? 'max-w-7xl md:pl-16' : 'max-w-6xl')}>
+          {/* cada tela nova entra suave (aparece e sobe um pouco); quem prefere menos movimento vê na hora */}
+          <div key={navReal.tela} className="entrada-tela">{children}</div>
+        </main>
       </div>
 
       {/* celular: 5 destinos, nome sempre visível, contador no canto do ícone, indicador em pílula */}
@@ -393,6 +404,13 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </div>
       )}
+      {avisoSair === 'perguntar' && (
+        <Janela aberta titulo={'🔒 ' + t('Fechar o turno antes de sair?')} onFechar={() => setAvisoSair(undefined)}
+          rodape={<div className="flex flex-col gap-2 sm:flex-row"><Botao variante="leve" grande className="sm:flex-1" onClick={sairDeVez}>{t('Sair sem fechar')}</Botao><Botao grande className="sm:flex-1" onClick={() => setAvisoSair('fechar')}>{t('Fechar o turno agora')}</Botao></div>}>
+          <p className="text-sm">{t('Você tem {n} lançamento(s) em dinheiro neste turno ainda sem a contagem. Conte o dinheiro e registre antes de sair: assim a diferença (se houver) fica clara para todo mundo.', { n: turno?.lancamentos ?? 0 })}</p>
+        </Janela>
+      )}
+      {avisoSair === 'fechar' && <JanelaFecharTurno onFechar={() => setAvisoSair(undefined)} aoFechar={() => setTimeout(sairDeVez, 1500)} />}
     </div>
   )
 }

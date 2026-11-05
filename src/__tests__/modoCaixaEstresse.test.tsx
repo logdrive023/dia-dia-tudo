@@ -3,6 +3,7 @@
 // desconto impossível, clique duplo no FECHAR e no pagamento. Cada caso diz o que a tela TEM de fazer.
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { passarAlertaDeCusto } from './custoTeste'
 import { useState } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { carregarDemo } from '../app/demo'
@@ -93,7 +94,8 @@ describe('modo caixa sob estresse', () => {
 
   it('QR do BRUTO que já foi SEPARADO: mostra os pacotes em que virou e "Adicionar" põe um deles na venda', async () => {
     const { campo, estoque } = await abrir()
-    const triado = estoque.find((i) => i.codigo && i.saldo <= 0 && i.campos.estado === 'Bruto')
+    // o bruto da 1ª compra (virou pacotes direto); o juntado-e-separado dos dados de exemplo tem os pacotes um nível abaixo
+    const triado = estoque.find((i) => i.codigo && i.saldo <= 0 && i.campos.estado === 'Bruto' && i.origem?.id === 'c-bruto')
     expect(triado).toBeTruthy()
     await ler(campo, triado!.codigo!)
     const card = await screen.findByRole('alert', { name: new RegExp(`${triado!.codigo} já foi separado`) }, { timeout: 10000 })
@@ -151,6 +153,7 @@ describe('modo caixa sob estresse', () => {
     await waitFor(() => expect(linhas()).toHaveLength(1))
     const antes = (await b.consulta('vendas', {})).length
     fireEvent.click(screen.getAllByRole('button', { name: 'FECHAR' })[0])
+    await passarAlertaDeCusto()
     const forma = await screen.findByRole('button', { name: /QR/ })
     fireEvent.click(forma)
     fireEvent.click(forma)
@@ -183,6 +186,7 @@ describe('modo caixa sob estresse', () => {
     await b.comando('concluirVenda', { id: 'outra', linhas: [{ id: 'l', itemId: p.id, quantidade: p.saldo, moeda: 'BOB', total: 100 }], pagamentos: [{ id: 'pp', forma: 'dinheiro', moeda: 'BOB', valor: 100 }] })
     expect(await within(linhas()[0]).findByText(/já saiu|só tem/, {}, { timeout: 10000 })).toBeTruthy()
     fireEvent.click(screen.getAllByRole('button', { name: 'FECHAR' })[0])
+    await passarAlertaDeCusto()
     expect(await screen.findByText(/já saiu|só tem/, { selector: '[role=status] *, [role=status]' })).toBeTruthy()
     expect(screen.queryByText('Como pagou?')).toBeNull()
   }, 60000)
@@ -242,6 +246,7 @@ describe('vendas em aberto (sair no meio não perde)', () => {
     }, { aberta: 'va-1' })
     await waitFor(() => expect(linhas()).toHaveLength(1), { timeout: 10000 })
     fireEvent.click(screen.getAllByRole('button', { name: 'FECHAR' })[0])
+    await passarAlertaDeCusto()
     fireEvent.click(await screen.findByRole('button', { name: /QR/ }))
     await screen.findByText('Recibo WhatsApp', {}, { timeout: 10000 })
     expect(await b.consulta('vendasAbertas', {})).toHaveLength(0)

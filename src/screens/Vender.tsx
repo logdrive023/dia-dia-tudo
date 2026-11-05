@@ -3,6 +3,8 @@
 // serviço: unidade, cliente, o que vai fazer, quem atende, agora ou agendar.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { AvisoAbaixoDoCusto, useAbaixoDoCusto } from '../ui/abaixoDoCusto'
+import { BotaoFecharTurno } from './caixa/Turno'
 import { ImpostosDaOperacao } from '../ui/impostosOperacao'
 import { Trilha } from '../ui/trilha'
 import { MenuAcoes, type Acao } from '../ui/menuAcoes'
@@ -111,7 +113,7 @@ export function Vender() {
       <>
         {/* VENDER = o módulo de vendas: o cabeçalho com "+ Nova venda" e a lista de todas as vendas (com filtros) */}
         <ListaVendas
-          novaVenda={<MenuAcoes principal="+ Nova venda" rotulo="Nova venda" acoes={caminhos} />}
+          novaVenda={<div className="flex flex-wrap items-center gap-2"><BotaoFecharTurno /><MenuAcoes principal="+ Nova venda" rotulo="Nova venda" acoes={caminhos} /></div>}
           aviso={emAndamento && (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[var(--marca)] bg-[var(--marca-suave)] p-3">
               <span className="text-sm font-semibold">{emAndamento.icone} {t('Venda em andamento: {n} item(ns).', { n: carrinho!.linhas.length })}</span>
@@ -226,7 +228,11 @@ function AssistenteVenda(p: {
   const conflitoParams = agendar && profissionalId && quando ? { profissionalId, inicio: new Date(quando).toISOString(), itens: linhas.map((l) => l.itemId), ignorarId: undefined } : undefined
   const { dados: conflitos } = useConsulta('conflitosAgenda', conflitoParams ?? { profissionalId: '', inicio: '' }, !!conflitoParams)
   const temConflito = !!conflitoParams && !!conflitos?.length
-  const confirmar = async () => {
+  // ABAIXO DO CUSTO (pacotes de cabelo/produto): aviso antes de cobrar e confirmação ao concluir
+  const custo = useAbaixoDoCusto(linhas.map((l) => ({ itemId: l.itemId, quantidade: l.quantidade, total: l.total, moeda: l.moeda })))
+  const [perguntarCusto, setPerguntarCusto] = useState(false)
+  const confirmar = async (custoOk?: unknown) => {
+    if (custo.abaixo.length && custoOk !== true) return setPerguntarCusto(true)
     const r = await executar('concluirVenda', {
       ignorarConflito: temConflito,
       id: p.vendaId,
@@ -242,6 +248,11 @@ function AssistenteVenda(p: {
 
   return (
     <div className="mx-auto max-w-5xl">
+      {perguntarCusto && (
+        <Confirmar titulo="Vender abaixo do custo?" rotulo="Vender assim mesmo" perigo onFechar={() => setPerguntarCusto(false)}
+          texto={t('{n} pacote(s) com preço abaixo do que custou. Confira a medida, a coluna da tabela e o desconto. Se for de propósito, pode seguir: fica registrado na auditoria.', { n: custo.abaixo.length })}
+          onConfirmar={() => { setPerguntarCusto(false); void confirmar(true) }} />
+      )}
       <Trilha atual={p.titulo} onVoltar={passo === 'pagar' ? () => setPasso('itens') : p.onVoltar} rotuloVoltar={passo === 'pagar' ? 'Itens' : 'Vender'} />
       <Titulo>{p.titulo}</Titulo>
       <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
@@ -291,6 +302,7 @@ function AssistenteVenda(p: {
             </>
           ) : (
             <>
+              <AvisoAbaixoDoCusto abaixo={custo.abaixo} moeda={p.moedaPrincipal} nomeDe={(id) => linhas.find((l) => l.itemId === id)?.nome ?? id} />
               <Cartao titulo={t('Como pagou?')}>
                 <EditorPagamentos total={total} moedaTotal={moedaVenda} pagamentos={pagamentos} onChange={setPagamentos} permiteFiado={!!pessoaId} />
               </Cartao>
@@ -347,12 +359,12 @@ function AssistenteVenda(p: {
             {passo === 'itens' ? (
               <>
                 {pendenciaAjuste && <p className="mb-2 text-sm font-semibold text-[var(--alerta)]">{t(pendenciaAjuste)}</p>}
-                <Botao grande className="w-full" disabled={!linhas.length || !!pendenciaAjuste} onClick={() => (agendar ? confirmar() : setPasso('pagar'))}>
+                <Botao grande className="w-full" disabled={!linhas.length || !!pendenciaAjuste} onClick={() => (agendar ? void confirmar() : setPasso('pagar'))}>
                   {agendar ? (temConflito ? t('Agendar mesmo assim') : t('Agendar')) : t('Continuar para pagamento')}
                 </Botao>
               </>
             ) : (
-              <Botao grande className="w-full" disabled={ocupado} onClick={confirmar}>
+              <Botao grande className="w-full" disabled={ocupado} onClick={() => void confirmar()}>
                 {t('Confirmar venda')}
               </Botao>
             )}

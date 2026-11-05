@@ -2,6 +2,8 @@
 // atualiza o câmbio, oferece os dados de exemplo no primeiro uso e avisa quando há versão nova.
 
 import { Component, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Loja } from './screens/Loja'
+import { MinhaVitrine } from './screens/Vitrine'
 import { NaoEncontrada } from './screens/NaoEncontrada'
 import { TELAS_LIBERAVEIS, type TelaLiberavel, useLiberado } from './ui/liberado'
 import { useIdiomaAparelho } from './ui/idiomaAparelho'
@@ -77,6 +79,7 @@ const TELAS: Record<string, () => JSX.Element> = {
   vendas: Vender,
   venda: DetalheVenda,
   viagens: Viagens,
+  vitrine: MinhaVitrine,
   viagem: FichaViagem,
   adiantamentos: Financiamentos,
   financiamento: FichaFinanciamento,
@@ -226,7 +229,8 @@ export default function App() {
     <Ctx.Provider value={ctx}>
       <ComIdioma>
         <Preparar>
-          {!sessao.usuarioId ? (
+          {/* a VITRINE do comprador (#/loja): página de loja, sem menu e sem login */}
+          {nav.tela === 'loja' ? <Loja /> : !sessao.usuarioId ? (
             <Entrar onEntrou={(s) => (trocarSessao(s), setPilha([hashParaNav(window.location.hash) ?? { tela: s.perfil === 'admin' ? 'painel' : 'agenda', params: {} }]))} />
           ) : (
             <>

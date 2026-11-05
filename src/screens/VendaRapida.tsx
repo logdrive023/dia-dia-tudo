@@ -10,6 +10,7 @@
 // Celular: tudo em coluna e a barra "Total · FECHAR" presa embaixo; com espaço: venda | cobrança fixa ao lado.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AvisoAbaixoDoCusto, useAbaixoDoCusto } from '../ui/abaixoDoCusto'
 import { AvisoGuardado } from '../ui/avisoGuardado'
 import { EscolhaPreco } from '../ui/escolhaPreco'
 import { ImpostosDaOperacao, QuadroImpostosOperacao } from '../ui/impostosOperacao'
@@ -200,6 +201,11 @@ function ModoCaixa() {
   const total = bruto - descontoValido
   /** total na moeda de cobrança (o que a pessoa paga) */
   const totalCobrado = naCobranca(total)
+  // ABAIXO DO CUSTO: o preço de cada linha já com a parte dela do desconto (a venda inteira, não só a lista)
+  const fatorDesconto = bruto > 0 ? total / bruto : 1
+  const custo = useAbaixoDoCusto(vistas.filter((l) => !l.preco.erro).map((l) => ({ itemId: l.item.id, quantidade: l.quantidade, total: Math.round(l.preco.total * fatorDesconto), moeda: l.preco.moeda })))
+  const [custoConfirmado, setCustoConfirmado] = useState('')
+  const [perguntarCusto, setPerguntarCusto] = useState(false)
   const sm = moedaDe(mc).simbolo
   const textoCobranca = mc === principal ? '' : `${t('Cobrado em {m}', { m: sm })} · ${t('cotação')} 1 ${sm} = ${cotValor ?? '?'} ${moedaDe(principal).simbolo}`
 
@@ -260,12 +266,15 @@ function ModoCaixa() {
     setLinhas((ls) => ls.filter((l) => l.id !== id))
     focar()
   }
-  const abrirPagamento = () => {
+  /** custoOk === true: a pessoa já confirmou vender abaixo do custo (não pergunta de novo) */
+  const abrirPagamento = (custoOk?: unknown) => {
     if (!vistas.length) return avisar(t('Passe um pacote primeiro.'), false)
     // o estoque mudou depois que entrou (outro aparelho vendeu): não deixa cobrar o que não há
     const sem = vistas.find((l) => l.quantidade > l.item.saldo)
     if (sem) return avisar(`${sem.item.codigo ?? sem.item.nome}: ${sem.item.saldo <= 0 ? t('já saiu do estoque') : t('só tem {v} agora', { v: sem.item.unidade === 'grama' ? gramasTexto(sem.item.saldo) : sem.item.saldo })}`, false, sem.item.id)
     if (!cotValida) return avisar(t('Digite a cotação de {m}.', { m: moedaDe(mc).simbolo }), false)
+    // abaixo do custo: pergunta uma vez (para esta combinação de pacotes); confirmando, segue para o pagamento
+    if (custo.abaixo.length && custoConfirmado !== custo.chave && custoOk !== true) return setPerguntarCusto(true)
     // o foco sai do campo de leitura: as teclas 1, 2, 3… escolhem a forma de pagamento
     campo.current?.blur()
     setBusca('')
@@ -566,6 +575,7 @@ function ModoCaixa() {
           </section>
           <section aria-label={t('Nesta venda')} className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm">
             <h2 className="mb-1 text-base font-bold">{t('Nesta venda')} {vistas.length > 0 && <span className="text-[var(--suave)]">({vistas.length})</span>}</h2>
+            <AvisoAbaixoDoCusto abaixo={custo.abaixo} moeda={principal} nomeDe={(id) => porId.get(id)?.codigo ?? porId.get(id)?.nome ?? id} />
             <ItensDaVenda
               vistas={vistas}
               onConferir={setConferindo}
@@ -651,6 +661,11 @@ function ModoCaixa() {
         />
       )}
 
+      {perguntarCusto && (
+        <Confirmar titulo="Vender abaixo do custo?" rotulo="Vender assim mesmo" perigo onFechar={() => setPerguntarCusto(false)}
+          texto={t('{n} pacote(s) com preço abaixo do que custou. Confira a medida, a coluna da tabela e o desconto. Se for de propósito, pode seguir: fica registrado na auditoria.', { n: custo.abaixo.length })}
+          onConfirmar={() => { setPerguntarCusto(false); setCustoConfirmado(custo.chave); abrirPagamento(true) }} />
+      )}
       {pagando && (
         <Pagamento total={totalCobrado} moeda={mc} cotacoes={cotSugeridas} comCliente={!!pessoaId} ocupado={ocupado} onPagar={pagar} onFechar={() => (setPagando(false), focar())} />
       )}

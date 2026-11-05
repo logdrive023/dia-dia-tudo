@@ -57,6 +57,47 @@ export const naLingua = (x: Texto2, idioma: 'pt' | 'es') => (idioma === 'es' ? x
 export const NOVIDADES: Novidade[] = [
   {
     data: '2026-11-05',
+    titulo: { pt: 'Minha vitrine: a loja do cabelo para os compradores', es: 'Mi vitrina: la tienda de cabello para los compradores' },
+    resumo: {
+      pt: 'Os pacotes já separados e com etiqueta aparecem numa página de loja, com filtros por medida e cor, preço por grama e o botão “Quero este” no WhatsApp.',
+      es: 'Los paquetes ya separados y con etiqueta aparecen en una página de tienda, con filtros por medida y color, precio por gramo y el botón “Lo quiero” en WhatsApp.',
+    },
+    itens: [
+      { area: 'Estoque', tipo: 'novo', tela: 'vitrine', texto: {
+        pt: 'Minha vitrine (menu Cabelo): liga/desliga a loja, nome, texto, WhatsApp, mostrar o preço (de qual coluna da tabela) e esconder pacotes. “Ver como o cliente vê” abre a página da loja.',
+        es: 'Mi vitrina (menú Cabello): enciende/apaga la tienda, nombre, texto, WhatsApp, mostrar el precio (de qué columna de la tabla) y ocultar paquetes. “Ver como lo ve el cliente” abre la página de la tienda.' } },
+      { area: 'Venda', tipo: 'novo', texto: {
+        pt: 'A página do comprador mostra só o que é público (medida, cor, gramas, foto, preço): nunca custo, fornecedor ou compra. Hoje abre neste aparelho; com a API vira o link público.',
+        es: 'La página del comprador muestra solo lo público (medida, color, gramos, foto, precio): nunca costo, proveedor ni compra. Hoy abre en este dispositivo; con la API se vuelve el enlace público.' } },
+      { area: 'Sistema', tipo: 'melhoria', texto: {
+        pt: 'Telas entram suaves e o carregamento aparece por meio segundo (Configurações › Dados › Simular internet), como vai ser com o servidor.',
+        es: 'Las pantallas entran suaves y la carga aparece medio segundo (Configuración › Datos › Simular internet), como será con el servidor.' } },
+    ],
+  },
+  {
+    data: '2026-11-05',
+    titulo: { pt: 'Turno com conferência cega, alerta de custo, reposição e metas', es: 'Turno con arqueo ciego, alerta de costo, reposición y metas' },
+    resumo: {
+      pt: 'O dinheiro da mão de cada pessoa é conferido às cegas, o caixa avisa quando o preço está abaixo do custo, a reposição diz quando cada medida acaba e as metas do mês aparecem com a barra.',
+      es: 'El dinero en mano de cada persona se revisa a ciegas, la caja avisa cuando el precio está por debajo del costo, la reposición dice cuándo se acaba cada medida y las metas del mes aparecen con la barra.',
+    },
+    itens: [
+      { area: 'Venda', tipo: 'novo', tela: 'vender', texto: {
+        pt: 'Fechar meu turno: cada pessoa conta o efectivo sem ver quanto deveria ter; a diferença fica no nome dela e o administrador vê em Caixa › Turnos. Sair com dinheiro sem contar pede para fechar o turno.',
+        es: 'Cerrar mi turno: cada persona cuenta el efectivo sin ver cuánto debería tener; la diferencia queda a su nombre y el administrador la ve en Caja › Turnos. Salir con dinero sin contar pide cerrar el turno.' } },
+      { area: 'Venda', tipo: 'novo', texto: {
+        pt: 'Alerta de venda abaixo do custo no Modo caixa e em Vender: avisa antes de cobrar, pede confirmação e registra na auditoria. A funcionária vê o aviso, não o custo.',
+        es: 'Alerta de venta por debajo del costo en el Modo caja y en Vender: avisa antes de cobrar, pide confirmación y lo registra en la auditoría. La funcionaria ve el aviso, no el costo.' } },
+      { area: 'Estoque', tipo: 'novo', tela: 'relatorios', params: { relatorio: 'reposicao' }, texto: {
+        pt: 'Relatórios › Reposição: por medida, quanto tem, quanto vende por dia, quando acaba, quanto comprar e quanto custou o último kg (e de qual viagem).',
+        es: 'Informes › Reposición: por medida, cuánto hay, cuánto se vende por día, cuándo se acaba, cuánto comprar y cuánto costó el último kg (y de qué viaje).' } },
+      { area: 'Equipe', tipo: 'novo', tela: 'config', params: { aba: 'metas' }, texto: {
+        pt: 'Metas do mês (empresa, unidade ou pessoa; faturamento, vendas ou atendimentos), totalmente configuráveis: no Painel, com ou sem valor, e a funcionária vê as dela se o admin ligar.',
+        es: 'Metas del mes (empresa, sucursal o persona; facturación, ventas o atenciones), totalmente configurables: en el Panel, con o sin valor, y la funcionaria ve las suyas si el admin lo activa.' } },
+    ],
+  },
+  {
+    data: '2026-11-05',
     titulo: { pt: 'O admin decide o que a funcionária faz', es: 'El admin decide lo que hace la funcionaria' },
     resumo: {
       pt: 'Funcionária entra em espanhol e vê o básico (Vender, Agenda, Equipe, Configurações); o resto o admin liga em Configurações › O que a funcionária faz.',

@@ -152,6 +152,7 @@ components:
         - avancarTriagem
         - salvarVendaAberta
         - descartarVendaAberta
+        - fecharTurno
         - tirarDaVendaAberta
         - salvarCidade
         - pagarCompra
@@ -239,6 +240,12 @@ components:
         - origemDoPacote
         - lerCodigoPacote
         - vendasAbertas
+        - turnoAtual
+        - custoDaVenda
+        - reposicao
+        - metas
+        - vitrine
+        - turnos
         - viagensParaFiltro
         - cidades
         - origemDaVenda

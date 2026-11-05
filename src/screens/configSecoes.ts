@@ -6,7 +6,7 @@ import { EtapasTriagem } from './ConfigTriagem'
 import { ConfigFiscal } from './ConfigFiscal'
 import { ConfigCodigos } from './ConfigCodigos'
 import { ConfigFormCompra } from './ConfigFormCompra'
-import { Atributos, Catalogo, Dados, EtapasCompra, FormasPagamento, Funcionaria, Geral, Modulos, Moedas, Socias, Unidades, Usuarios } from './Config'
+import { Atributos, Catalogo, Dados, EtapasCompra, FormasPagamento, Funcionaria, Geral, Metas, Modulos, Moedas, Socias, Unidades, Usuarios } from './Config'
 
 export type GrupoConfigId = 'negocio' | 'pessoas' | 'dinheiro' | 'compras' | 'estoque' | 'sistema'
 
@@ -35,6 +35,7 @@ export const SECOES_CONFIG: SecaoConfig[] = [
   { id: 'geral', grupo: 'negocio', nome: 'Geral', icone: '🏪', descricao: 'Nome do negócio e idioma', palavras: 'nome negócio idioma língua português espanhol español', componente: Geral },
   { id: 'socias', grupo: 'negocio', nome: 'Sócias', icone: '🤝', descricao: 'Como o lucro é dividido', palavras: 'sócia sócio lucro divisão parte porcentagem resultado', componente: Socias },
   { id: 'pagamentos', grupo: 'dinheiro', nome: 'Formas de pagamento', icone: '💳', descricao: 'Pix, cartão, dinheiro e moedas', palavras: 'pagamento forma pix cartão dinheiro transferência qr', componente: FormasPagamento },
+  { id: 'metas', grupo: 'negocio', nome: 'Metas', icone: '🎯', descricao: 'Meta do mês por empresa, unidade ou pessoa', palavras: 'meta objetivo mês faturamento vendas atendimentos barra painel funcionária equipe', componente: Metas },
   { id: 'unidades', grupo: 'negocio', nome: 'Unidades', icone: '📍', descricao: 'Salões, pontos e endereços', palavras: 'unidade endereço salão loja ponto depósito local filial', componente: Unidades },
   { id: 'funcionaria', grupo: 'pessoas', nome: 'O que a funcionária faz', icone: '🔐', descricao: 'O que vende, vê na agenda e nas configurações', palavras: 'funcionária funcionário gerente permissão pode vender agenda ver pessoas acesso papel perfil role', componente: Funcionaria },
   { id: 'usuarios', grupo: 'pessoas', nome: 'Usuários', icone: '👤', descricao: 'Quem entra, perfil e senha', palavras: 'usuário senha login acesso perfil funcionária administrador entrar', componente: Usuarios },

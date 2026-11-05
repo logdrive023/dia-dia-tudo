@@ -8,6 +8,7 @@ import { type ReactNode, useState } from 'react'
 import { dataLocal } from '../core/domain/datas'
 import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { useLiberado } from '../ui/liberado'
+import { MetasDoMes } from '../ui/metas'
 import { formasEmUso } from '../core/domain/formas'
 import { GrupoVisao, useVisaoLista } from '../ui/visaoLista'
 import { TabelaDados, SeloCodigo, corDoNome, iniciais } from '../ui/tabelaDados'
@@ -122,6 +123,8 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
     <div>
       {/* CABEÇALHO PADRÃO: nome · para que serve · a ação principal (+ Nova venda ▾ com os caminhos de venda) */}
       <Titulo subtitulo={t('Registre vendas e encontre qualquer uma já feita.')} acao={novaVenda}>{t('Vender')}</Titulo>
+      {/* a funcionária vê as metas DELA (se o administrador ligou em Configurações › Metas) */}
+      {!admin && <MetasDoMes className="mb-4" />}
       {aviso}
 
       {/* NÚMEROS GRANDES (fileira padrão) do que está filtrado: tocar abre a aba correspondente */}

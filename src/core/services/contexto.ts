@@ -152,6 +152,12 @@ export interface Configuracoes {
   funcionariaTelas: string[]
   /** o idioma de quem entra como funcionária (a maioria é boliviana): espanhol no padrão; cada aparelho pode trocar */
   funcionariaIdioma: 'pt' | 'es'
+  /** SUGESTÃO DE COMPRA (Relatórios › Reposição): janela de vendas, quando avisar e quantos dias cobrir */
+  reposicao?: { janelaDias: number; alertaDias: number; cobrirDias: number }
+  /** METAS DO MÊS (Configurações › Metas): onde aparecem, com ou sem valor, e a lista (ver services/metas.ts) */
+  metas?: import('./metas').ConfigMetas
+  /** MINHA VITRINE: os pacotes prontos como o comprador vê (ver services/vitrine.ts) */
+  vitrine?: import('./vitrine').ConfigVitrine
   /** as seções de Configurações que a funcionária vê (além de tema, idioma e a própria senha) */
   funcionariaConfig: string[]
   /** RELATÓRIOS CONTÁBEIS: país do padrão (Bolívia é o motor), regime, NIT, faturas e taxas — CONTABILIDADE.md */

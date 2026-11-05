@@ -10,6 +10,7 @@ import { useT } from '../ui/i18n'
 import { EstadosFinanceiros } from './relatorio/EstadosFinanceiros'
 import { ImpostoRenda } from './relatorio/ImpostoRenda'
 import { ComparaViagens } from './relatorio/ComparaViagens'
+import { Reposicao } from './relatorio/Reposicao'
 import { DivisaoSocias, ServicosInsumos } from './relatorio/socios'
 
 export { baixarCSV } from '../ui/csv'
@@ -24,6 +25,8 @@ const RELATORIOS = [
   // o exercício fiscal boliviano (IVA, IT, IUE, retenções), com o documento anual — IMPOSTO-RENDA.md
   // comparar as viagens de compra (custo por kg com a viagem, resultado, A × B)
   { id: 'viagens', nome: 'Viagens' },
+  // sugestão de compra: o que mais vende × o que tem em estoque, por medida (quando acaba, quanto comprar)
+  { id: 'reposicao', nome: 'Reposição' },
   { id: 'ir', nome: 'Imposto de Renda' },
 ]
 
@@ -40,13 +43,14 @@ export function Relatorios() {
       <Titulo subtitulo={t('Estados financeiros no padrão boliviano (ou brasileiro), com cada centavo nos anexos.')}>{t('Relatórios')}</Titulo>
       <div className="nao-imprimir">
         <Abas atual={rel} onChange={setRel} abas={RELATORIOS} />
-        {rel !== 'ir' && rel !== 'viagens' && <div className="mb-3 mt-3 flex"><BotaoPeriodo obrigatorio de={periodo.de} ate={periodo.ate} presets={['mes', 'mesPassado', '30d', 'ano']} onChange={(de, ate) => de && ate && setPeriodo({ preset: 'livre', de, ate })} /></div>}
+        {rel !== 'ir' && rel !== 'viagens' && rel !== 'reposicao' && <div className="mb-3 mt-3 flex"><BotaoPeriodo obrigatorio de={periodo.de} ate={periodo.ate} presets={['mes', 'mesPassado', '30d', 'ano']} onChange={(de, ate) => de && ate && setPeriodo({ preset: 'livre', de, ate })} /></div>}
       </div>
       <p className="mb-2 hidden text-sm print:block">{t(RELATORIOS.find((r) => r.id === rel)!.nome)} · {dataBR(periodo.de)} – {dataBR(periodo.ate)}</p>
       {rel === 'estados' && <EstadosFinanceiros de={periodo.de} ate={periodo.ate} />}
       {rel === 'dre' && <DivisaoSocias de={periodo.de} ate={periodo.ate} />}
       {rel === 'servicos' && <ServicosInsumos de={periodo.de} ate={periodo.ate} />}
       {rel === 'viagens' && <div className="mt-3"><ComparaViagens /></div>}
+      {rel === 'reposicao' && <div className="mt-3"><Reposicao /></div>}
       {rel === 'ir' && <div className="mt-3"><ImpostoRenda /></div>}
     </div>
   )

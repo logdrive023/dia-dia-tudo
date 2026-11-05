@@ -9,6 +9,7 @@ const CAMINHOS: Record<string, string> = {
   comprar: 'M12 3v12m0 0-4-4m4 4 4-4 M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2',
   triagem: 'M3 4h18l-7 8.5V19l-4 2v-8.5z',
   estoque: 'M21 8 12 3 3 8v8l9 5 9-5z M3 8l9 5 9-5 M12 13v8',
+  vitrine: 'M3 9l1.5-5h15L21 9 M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0 M5 12v8h14v-8 M10 20v-5h4v5',
   etiquetas: 'M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z M7.5 8.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
   precos: 'M5 3h14a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z M8 7h8M8 11h2m4 0h2M8 15h2m4 0h2',
   pessoas: 'M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z M5 18a2 2 0 0 1 2-2h12 M9 8h6',

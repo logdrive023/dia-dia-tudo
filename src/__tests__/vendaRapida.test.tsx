@@ -3,6 +3,7 @@
 // baixou 500 g e o movimento guarda saldo antes → depois. Ler o mesmo código de novo não duplica.
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { passarAlertaDeCusto } from './custoTeste'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { multiplicarFator } from '../core/domain/dinheiro'
@@ -88,6 +89,7 @@ describe('modo caixa (venda rápida)', () => {
 
     // FECHAR → Dinheiro → valor exato
     fireEvent.click(screen.getByRole('button', { name: /FECHAR/ }))
+    await passarAlertaDeCusto()
     fireEvent.click(await screen.findByRole('button', { name: /Dinheiro/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Valor exato ✓' }))
     await screen.findByText('Recibo WhatsApp', {}, { timeout: 10000 })
@@ -158,6 +160,7 @@ describe('modo caixa (venda rápida)', () => {
     await screen.findByText(/de desconto · total/)
 
     fireEvent.click(screen.getByRole('button', { name: /FECHAR/ }))
+    await passarAlertaDeCusto()
     fireEvent.click(await screen.findByRole('button', { name: /QR/ }))
     await screen.findByText('Recibo WhatsApp', {}, { timeout: 10000 })
     const v = (await b.consulta('vendas', {})).find((x) => x.linhas.some((l) => l.itemId === lote.id && l.quantidade === 500))!
@@ -210,6 +213,7 @@ describe('modo caixa (venda rápida)', () => {
     await screen.findAllByText(`R$ ${(brl / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)
 
     fireEvent.click(screen.getByRole('button', { name: /FECHAR/ }))
+    await passarAlertaDeCusto()
     fireEvent.click(await screen.findByRole('button', { name: /Dinheiro/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Valor exato ✓' }))
     await screen.findByText('Recibo WhatsApp', {}, { timeout: 10000 })
@@ -254,6 +258,7 @@ describe('modo caixa (venda rápida)', () => {
     fireEvent.change(await screen.findByLabelText('Cotação de R$'), { target: { value: '1,30' } })
 
     fireEvent.click(screen.getByRole('button', { name: /FECHAR/ }))
+    await passarAlertaDeCusto()
     fireEvent.click(await screen.findByText('Dividir pagamento'))
     const dlg = screen.getByRole('dialog')
     // R$ 100 + o resto em US$ a 6,96
