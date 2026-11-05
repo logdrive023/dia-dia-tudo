@@ -252,7 +252,7 @@ function Resumo({ id, de, ate, onFechar, onEditar, onComissoes }: { id: Id; de: 
         principal={admin ? { icone: '💵', rotulo: 'Pagar salário', onClick: () => setPagar(true) } : undefined}
         secundarias={admin ? [
           { icone: '✎', rotulo: 'Editar', onClick: () => onEditar(p) },
-          { icone: '📜', rotulo: 'O que fez (log)', onClick: () => ir('relatorios', { relatorio: 'log', usuarioId: p.id }) },
+          { icone: '📜', rotulo: 'O que fez (log)', onClick: () => ir('auditoria', { usuarioId: p.id }) },
         ] : []}
         abrir={{ rotulo: 'Abrir ficha', onClick: () => ir('pessoa', { id: p.id }) }}
       />

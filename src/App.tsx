@@ -2,6 +2,7 @@
 // atualiza o câmbio, oferece os dados de exemplo no primeiro uso e avisa quando há versão nova.
 
 import { Component, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Auditoria } from './screens/Auditoria'
 import type { BackendNoAparelho } from './adapters/noAparelho'
 import { atualizarCambio } from './app/cambio'
 import { criarBackend } from './app/criarBackend'
@@ -64,6 +65,7 @@ const TELAS: Record<string, () => JSX.Element> = {
   tabelaPreco: Precos,
   relatorios: Relatorios,
   novidades: Novidades,
+  auditoria: Auditoria,
   config: Config,
   configSecao: Config,
   vendas: Vender,

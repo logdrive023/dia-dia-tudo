@@ -27,7 +27,7 @@ const ROTULOS = new Map<string, string>()
 const chave = (n: Navegacao) => `${n.tela}|${String(n.params.id ?? n.params.compraId ?? n.params.itemId ?? n.params.vendaId ?? '')}`
 
 const SEP = <span aria-hidden className="shrink-0 select-none px-0.5 text-[var(--suave)] opacity-60">›</span>
-const ICONES = new Set(['painel', 'vender', 'agenda', 'caixa', 'viagens', 'comprar', 'triagem', 'estoque', 'etiquetas', 'precos', 'pessoas', 'equipe', 'emprestimos', 'adiantamentos', 'relatorios', 'novidades', 'config'])
+const ICONES = new Set(['painel', 'vender', 'agenda', 'caixa', 'viagens', 'comprar', 'triagem', 'estoque', 'etiquetas', 'precos', 'pessoas', 'equipe', 'emprestimos', 'adiantamentos', 'relatorios', 'auditoria', 'novidades', 'config'])
 
 export function Trilha({ atual, niveis = [], onVoltar, rotuloVoltar, className = '' }: {
   /** a página atual (último nível) */

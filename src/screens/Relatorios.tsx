@@ -1,10 +1,11 @@
 // RELATÓRIOS contábeis e gerenciais: resultado (DRE) e divisão entre sócias, livro caixa, inventário, balanço,
-// vendas e compras linha a linha, contas, e o LOG de tudo (filtra por usuário e período). CSV e imprimir/PDF.
+// vendas e compras linha a linha e contas. CSV e imprimir/PDF. (O log de quem fez o quê é a tela Auditoria.)
 
+import { useEffect } from 'react'
 import { formatar } from '../core/domain/dinheiro'
 import { BotaoPeriodo } from '../ui/filtroPadrao'
-import { Abas, Botao, Carregando, Cartao, Entrada, Selecao, Titulo, Vazio, cx, dataBR, loc } from '../ui/base'
-import { useConsulta, useParamTela } from '../ui/contexto'
+import { Abas, Botao, Carregando, Cartao, Titulo, Vazio, cx, dataBR, loc } from '../ui/base'
+import { useApp, useConsulta, useParamTela } from '../ui/contexto'
 import { usePeriodo } from '../ui/filtros'
 import { useT } from '../ui/i18n'
 import { EstadosFinanceiros } from './relatorio/EstadosFinanceiros'
@@ -19,13 +20,15 @@ const RELATORIOS = [
   { id: 'estados', nome: 'Estados financeiros' },
   { id: 'dre', nome: 'Divisão entre sócias' },
   { id: 'servicos', nome: 'Serviços: receita × insumos' },
-  { id: 'log', nome: 'Log (quem fez o quê)' },
 ]
 
 export function Relatorios() {
   const t = useT()
   const [relTxt, setRel] = useParamTela('relatorio', 'estados')
   const rel = RELATORIOS.some((r) => r.id === relTxt) ? relTxt : 'estados'
+  // o log virou a tela Auditoria: endereço antigo (#/relatorios?relatorio=log) vai para lá
+  const { ir, nav } = useApp()
+  useEffect(() => { if (relTxt === 'log') ir('auditoria', { usuarioId: (nav.params.usuarioId as string) || undefined } as never) }, [relTxt]) // eslint-disable-line react-hooks/exhaustive-deps
   const [periodo, setPeriodo] = usePeriodo('rel.periodo', 'mes')
   return (
     <div>
@@ -38,7 +41,6 @@ export function Relatorios() {
       {rel === 'estados' && <EstadosFinanceiros de={periodo.de} ate={periodo.ate} />}
       {rel === 'dre' && <Dre de={periodo.de} ate={periodo.ate} />}
       {rel === 'servicos' && <ServicosInsumos de={periodo.de} ate={periodo.ate} />}
-      {rel === 'log' && <Log de={periodo.de} ate={periodo.ate} />}
     </div>
   )
 }
@@ -133,30 +135,3 @@ function Dre({ de, ate }: { de: string; ate: string }) {
   )
 }
 
-function Log({ de, ate }: { de: string; ate: string }) {
-  const t = useT()
-  const [usuarioId, setUsuarioId] = useParamTela('usuarioId', '')
-  const [acao, setAcao] = useParamTela('acao', '')
-  const [busca, setBusca] = useParamTela('busca', '')
-  const { dados } = useConsulta('logDetalhado', { de, ate, usuarioId: usuarioId || undefined, acao: acao || undefined, busca: busca || undefined })
-  const { dados: todos } = useConsulta('logDetalhado', { limite: 0 })
-  return (
-    <Cartao titulo={`${t('Log')} · ${dados?.total ?? 0} ${t('ações')}`} ajuda="Toda ação fica registrada com quem fez e quando. Filtre por pessoa e período: “o que a funcionária fez do dia X ao Y”." acao={dados && <Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('log', dados.linhas.map((l) => ({ quando: l.criadoEm, quem: l.usuarioNome ?? l.criadoPor, acao: l.nomeAcao, detalhe: l.resumo })))}>📥 {t('Baixar planilha')}</Botao>}>
-      <div className="nao-imprimir mb-3 flex flex-wrap gap-2">
-        <Selecao className="w-auto" valor={usuarioId} onChange={setUsuarioId} vazio="Todos os usuários" opcoes={todos?.usuarios ?? []} />
-        <Selecao className="w-auto" valor={acao} onChange={setAcao} vazio="Todas as ações" opcoes={(todos?.acoes ?? []).map((a) => ({ id: a.id, nome: t(a.nome) }))} />
-        <Entrada className="w-auto flex-1" placeholder={t('Buscar')} value={busca} onChange={(e) => setBusca(e.target.value)} />
-      </div>
-      {!dados ? <Carregando /> : !dados.linhas.length ? <Vazio texto="Nada no log com esse filtro." /> : (
-        <ul className="divide-y divide-[var(--borda)] text-sm">
-          {dados.linhas.map((l) => (
-            <li key={l.id} className="py-2">
-              <div className="text-xs text-[var(--suave)]">{new Date(l.criadoEm).toLocaleString(loc())} · <b>{l.usuarioNome ?? l.criadoPor}</b></div>
-              <div><b>{t(l.nomeAcao)}</b> · {l.resumo}</div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Cartao>
-  )
-}

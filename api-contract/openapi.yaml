@@ -255,6 +255,8 @@ components:
         - ultimoLancamento
         - linhaDoTempo
         - logDetalhado
+        - auditoria
+        - registroAuditoria
         - dre
         - livroCaixa
         - inventario

@@ -15,6 +15,7 @@ import * as financiamentos from './financiamentos'
 import * as formCompra from './formCompra'
 import * as fotos from './fotos'
 import * as historico from './historico'
+import * as auditoria from './auditoria'
 import * as leitura from './leitura'
 import * as livro from './livro'
 import * as origem from './origem'
@@ -184,6 +185,8 @@ export const consultas = {
   ultimoLancamento: equipe.ultimoLancamento,
   linhaDoTempo: historico.linhaDoTempo,
   logDetalhado: historico.logDetalhado,
+  auditoria: auditoria.auditoria,
+  registroAuditoria: auditoria.registroAuditoria,
   dre: relatorios.dre,
   livroCaixa: relatorios.livroCaixa,
   inventario: relatorios.inventario,

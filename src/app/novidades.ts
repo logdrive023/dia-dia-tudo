@@ -90,6 +90,9 @@ export const NOVIDADES: Novidade[] = [
       { area: 'Sistema', tipo: 'melhoria', texto: {
         pt: 'Telas preparadas para qualquer largura (de 240 px à tela grande): nada sai da tela e palavra não parte no meio.',
         es: 'Pantallas preparadas para cualquier ancho (de 240 px a la pantalla grande): nada se sale de la pantalla y ninguna palabra se corta por la mitad.' } },
+      { area: 'Acesso', tipo: 'novo', tela: 'auditoria', texto: {
+        pt: 'Auditoria: tela própria (Gestão, só administrador) com o log bruto de toda ação — quando com segundos, quem, a ação, as referências (compra, venda, pacote, pessoa…) e as tentativas recusadas; filtros padrão e o detalhe de cada registro ao tocar. Saiu da aba de Relatórios.',
+        es: 'Auditoría: pantalla propia (Gestión, solo administrador) con el registro bruto de cada acción — cuándo con segundos, quién, la acción, las referencias (compra, venta, paquete, persona…) y los intentos rechazados; filtros estándar y el detalle de cada registro al tocar. Salió de la pestaña de Informes.' } },
       { area: 'Acesso', tipo: 'novo', texto: {
         pt: 'Entrar com usuário de teste pede a senha de acesso (o sistema não fica aberto na internet).',
         es: 'Entrar con un usuario de prueba pide la contraseña de acceso (el sistema no queda abierto en internet).' } },

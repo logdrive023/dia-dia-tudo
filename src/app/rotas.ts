@@ -35,7 +35,7 @@ export const NOME_TELA: Record<string, string> = {
   painel: 'Painel', comprar: 'Compras', triagem: 'Triagem', estoque: 'Estoque', etiquetas: 'Etiquetas', vender: 'Vender',
   vendas: 'Vendas', caixa: 'Caixa', agenda: 'Agenda', viagens: 'Viagens', livro: 'Livro do cabelo', precos: 'Tabelas de preço',
   pessoas: 'Pessoas', equipe: 'Equipe', emprestimos: 'Empréstimos', adiantamentos: 'Adiantamentos', relatorios: 'Relatórios',
-  config: 'Configurações', novidades: 'Novidades', rastreio: 'Rastreio total', lote: 'Pacote', pedido: 'Pedido', venda: 'Venda',
+  config: 'Configurações', novidades: 'Novidades', auditoria: 'Auditoria', rastreio: 'Rastreio total', lote: 'Pacote', pedido: 'Pedido', venda: 'Venda',
   pessoa: 'Pessoa', viagem: 'Viagem', tabelaPreco: 'Tabela de preço', configSecao: 'Configurações',
 }
 
