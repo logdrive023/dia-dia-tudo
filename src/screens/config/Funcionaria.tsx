@@ -7,7 +7,7 @@ import { Carregando, Cartao, Escolha, cx } from '../../ui/base'
 import { useComando, useConsulta } from '../../ui/contexto'
 import { useT } from '../../ui/i18n'
 import { Chave } from '../../ui/interruptor'
-import { SECOES_CONFIG } from '../configSecoes'
+import { CONFIG_SO_ADMIN, SECOES_CONFIG } from '../configSecoes'
 import type { TelaLiberavel } from '../../ui/liberado'
 
 const TELAS: { id: TelaLiberavel; nome: string; icone: string; dica: string }[] = [
@@ -17,8 +17,7 @@ const TELAS: { id: TelaLiberavel; nome: string; icone: string; dica: string }[] 
   { id: 'conversor', nome: 'Conversor de moedas', icone: '💱', dica: 'O atalho do menu para converter Bs, US$, R$…' },
 ]
 
-/** seções que ficam sempre só do admin (mexem em acesso, dados e módulos) */
-export const CONFIG_SO_ADMIN = new Set(['funcionaria', 'usuarios', 'dados', 'modulos'])
+export { CONFIG_SO_ADMIN } from '../configSecoes'
 
 const AGENDA: { id: 'atendimento' | 'compromisso' | 'viagem' | 'emprestimo'; nome: string; icone: string; dica: string }[] = [
   { id: 'atendimento', nome: 'Atendimentos', icone: '✂️', dica: 'Os horários do salão (os dela; com "agenda da equipe", os das colegas).' },

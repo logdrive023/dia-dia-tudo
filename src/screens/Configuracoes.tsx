@@ -7,11 +7,10 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { Trilha } from '../ui/trilha'
 import { Titulo, Vazio, cx } from '../ui/base'
 import { useApp, useConsulta } from '../ui/contexto'
-import { CONFIG_SO_ADMIN } from './config/Funcionaria'
 import { TrocarMinhaSenha } from './config/Usuarios'
 import { useT } from '../ui/i18n'
 import { PreferenciasCabecalho } from '../ui/preferencias'
-import { GRUPOS_CONFIG, SECOES_CONFIG, type SecaoConfig, buscarSecoes, grupoConfig, secaoConfig } from './configSecoes'
+import { GRUPOS_CONFIG, type SecaoConfig, buscarSecoes, grupoConfig, secaoConfig, secoesDoPerfil } from './configSecoes'
 
 export function Config() {
   const { nav, sessao } = useApp()
@@ -28,7 +27,7 @@ function ConfigFuncionaria({ s }: { s?: SecaoConfig }) {
   const { ir } = useApp()
   const { dados } = useConsulta('configuracoes', {})
   const [senha, setSenha] = useState(false)
-  const liberadas = SECOES_CONFIG.filter((x) => !CONFIG_SO_ADMIN.has(x.id) && (dados?.config.funcionariaConfig ?? []).includes(x.id))
+  const liberadas = secoesDoPerfil(false, dados?.config.funcionariaConfig)
   if (s && liberadas.includes(s)) {
     const C = s.componente
     return (

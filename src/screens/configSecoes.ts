@@ -50,6 +50,17 @@ export const SECOES_CONFIG: SecaoConfig[] = [
   { id: 'dados', grupo: 'sistema', nome: 'Dados', icone: '💾', descricao: 'Backup e demonstração', palavras: 'backup dados exportar restaurar zerar demonstração armazenamento conferência', componente: Dados },
 ]
 
+/** seções que ficam sempre só do admin (mexem em acesso, dados e módulos) */
+export const CONFIG_SO_ADMIN = new Set(['funcionaria', 'usuarios', 'dados', 'modulos'])
+
+/**
+ * As seções que o perfil vê — UMA regra para o menu lateral, o submenu do celular e a tela de Configurações:
+ * admin = todas; funcionária (e gerente) = só as liberadas em "O que a funcionária faz" (config.funcionariaConfig).
+ */
+export function secoesDoPerfil(admin: boolean, liberadas: string[] = []): SecaoConfig[] {
+  return admin ? SECOES_CONFIG : SECOES_CONFIG.filter((s) => !CONFIG_SO_ADMIN.has(s.id) && liberadas.includes(s.id))
+}
+
 export function secaoConfig(id?: string): SecaoConfig | undefined {
   return SECOES_CONFIG.find((s) => s.id === id)
 }

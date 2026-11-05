@@ -17,7 +17,7 @@ import { Icone } from './icones'
 import { abrirConversor } from './compartilhados'
 import { TELAS_LIBERAVEIS, type TelaLiberavel, useLiberado } from './liberado'
 import { PAI } from '../app/rotas'
-import { GRUPOS_CONFIG, SECOES_CONFIG } from '../screens/configSecoes'
+import { GRUPOS_CONFIG, secoesDoPerfil } from '../screens/configSecoes'
 
 export interface ItemMenu {
   tela: string
@@ -146,6 +146,9 @@ function Selo({ c, pontinho }: { c?: Contador; pontinho?: boolean }) {
 export function Shell({ children }: { children: ReactNode }) {
   const { nav: navReal, ir, sessao, backend, trocarSessao, origem } = useApp()
   const liberado = useLiberado()
+  // submenu de Configurações: só as seções que o perfil vê (admin = todas; funcionária = as liberadas)
+  const { dados: cfgMenu } = useConsulta('configuracoes', {})
+  const secoesVisiveis = secoesDoPerfil(sessao.perfil === 'admin', cfgMenu?.config.funcionariaConfig)
   // o menu acende o MESMO lugar que a trilha mostra: numa tela de detalhe/ação (separar, lote, pedido…) aberta a partir
   // de uma lista do menu, acende essa lista (Separar vindo da Triagem → Triagem); aberta por link, a lista "pai" da área
   const daOrigem = origem && !PAI[origem.tela] && MENU.some((m) => m.tela === origem.tela) ? origem.tela : undefined
@@ -189,14 +192,14 @@ export function Shell({ children }: { children: ReactNode }) {
       <span aria-hidden className={cx('inline-block text-lg transition-transform', subConfigAberta && 'rotate-90')}>›</span>
     </button>
   )
-  const subConfig = (celular?: boolean) => (
+  const subConfig = (celular?: boolean) => !secoesVisiveis.length ? null : (
     <ul id={celular ? 'submenu-config-celular' : 'submenu-config'} className={cx('mb-1 mt-1 space-y-2', celular ? 'ml-3' : 'ml-[1.1rem]')}>
       {/* cada ÁREA é um bloco separado: faixa na cor da área + as seções com a mesma cor na lateral */}
-      {GRUPOS_CONFIG.map((g) => (
+      {GRUPOS_CONFIG.filter((g) => secoesVisiveis.some((x) => x.grupo === g.id)).map((g) => (
         <li key={g.id} className="overflow-hidden rounded-xl" style={{ background: `color-mix(in srgb, ${g.cor} 7%, transparent)`, borderLeft: `3px solid ${g.cor}` }}>
           <div className="flex items-center gap-1.5 px-2.5 pb-0.5 pt-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: g.cor }}><span aria-hidden>{g.icone}</span>{t(g.nome)}</div>
           <ul className="px-1 pb-1">
-            {SECOES_CONFIG.filter((x) => x.grupo === g.id).map((x) => {
+            {secoesVisiveis.filter((x) => x.grupo === g.id).map((x) => {
               const ativa = secaoAtual === x.id
               return (
                 <li key={x.id}>
@@ -221,7 +224,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const itemLateral = (m: ItemMenu) => {
     const ativo = nav.tela === m.tela
     const c = contadores[m.tela]
-    const temSub = m.tela === 'config' && !recolhido
+    const temSub = m.tela === 'config' && !recolhido && secoesVisiveis.length > 0
     return (
       <li key={m.tela} className={cx(temSub && 'relative')}>
         <button
@@ -366,7 +369,7 @@ export function Shell({ children }: { children: ReactNode }) {
                   {itens.map((m) => {
                     const ativo = nav.tela === m.tela
                     const c = contadores[m.tela]
-                    const temSub = m.tela === 'config'
+                    const temSub = m.tela === 'config' && secoesVisiveis.length > 0
                     return (
                       <li key={m.tela} className={cx(temSub && 'relative')}>
                         <button

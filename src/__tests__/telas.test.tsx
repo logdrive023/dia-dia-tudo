@@ -89,6 +89,8 @@ describe('telas (com os dados de exemplo)', () => {
     // Pessoas e Viagens são do admin (no padrão)
     expect(within(nav).queryByText('Personas y cuentas')).toBeNull()
     expect(within(nav).queryByText(/Viajes/)).toBeNull()
+    // submenu de Configurações: nenhuma seção de admin (Usuarios, Socias, Lo que hace la funcionaria…)
+    for (const n of screen.getAllByRole('navigation')) for (const s of ['Usuarios', 'Socias', 'Lo que hace la funcionaria', 'Datos']) expect(within(n).queryByText(s)).toBeNull()
     // senha errada não entra
     fireEvent.click(screen.getAllByRole('button', { name: 'Salir' })[0])
     fireEvent.change(await screen.findByLabelText('Usuário'), { target: { value: 'admin' } })
