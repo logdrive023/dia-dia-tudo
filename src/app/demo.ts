@@ -87,7 +87,7 @@ async function montar(b: BackendNoAparelho) {
   }
   // equipe (organograma)
   const rosa = await P('p-rosa', { nome: 'Bianca', papeis: ['funcionario', 'socio'], cargo: 'Diretora geral', salario: { moeda: 'BOB', valor: bs(6000) }, localId: centro, acesso: 'admin' })
-  const mariana = await P('p-mariana', { nome: 'Paula', papeis: ['funcionario'], cargo: 'Gerente', salario: { moeda: 'BOB', valor: bs(4000) }, localId: centro, superiorId: rosa, acesso: 'funcionario', telefone: '+591 70000001' })
+  const mariana = await P('p-mariana', { nome: 'Paula', papeis: ['funcionario'], cargo: 'Gerente', salario: { moeda: 'BOB', valor: bs(4000) }, localId: centro, superiorId: rosa, acesso: 'funcionario', telefone: '+591 70000001', verAgendaEquipe: true })
   const alison = await P('p-alison', { nome: 'Renata', papeis: ['funcionario'], cargo: 'Gerente', salario: { moeda: 'BOB', valor: bs(4000) }, localId: norte, superiorId: rosa, acesso: 'funcionario' })
   const vero = await P('p-vero', { nome: 'Sofia', papeis: ['funcionario', 'profissional'], cargo: 'Cabeleireira sênior', salario: { moeda: 'BOB', valor: bs(3000) }, comissaoBp: 4000, localId: centro, superiorId: mariana, acesso: 'funcionario' })
   const china = await P('p-china', { nome: 'Lia', papeis: ['funcionario', 'profissional'], cargo: 'Cabeleireira', salario: { moeda: 'BOB', valor: bs(2500) }, comissaoBp: 3000, localId: centro, superiorId: vero, acesso: 'funcionario' })
@@ -321,7 +321,7 @@ async function montar(b: BackendNoAparelho) {
   await agendar(2, 10, bia, centro, vero, manut, 250)
 
   // ---------- despesas por unidade, retiradas das sócias ----------
-  await c(30, 'lancarCaixa', { id: id(), tipo: 'despesa', moeda: 'BOB', forma: 'qr', valor: bs(3500), descricao: 'Aluguel', categoria: 'Aluguel', localId: centro })
+  await c(30, 'lancarCaixa', { id: 'd-aluguel-centro', tipo: 'despesa', moeda: 'BOB', forma: 'qr', valor: bs(3500), descricao: 'Aluguel', categoria: 'Aluguel', localId: centro })
   await c(30, 'lancarCaixa', { id: id(), tipo: 'despesa', moeda: 'BOB', forma: 'qr', valor: bs(2800), descricao: 'Aluguel', categoria: 'Aluguel', localId: norte })
   await c(10, 'lancarCaixa', { id: id(), tipo: 'despesa', moeda: 'BOB', forma: 'dinheiro', valor: bs(400), descricao: 'Luz', categoria: 'Luz e água', localId: centro })
   await c(9, 'lancarCaixa', { id: id(), tipo: 'despesa', moeda: 'BOB', forma: 'dinheiro', valor: bs(1200), descricao: 'Transporte do cabelo', categoria: 'Transporte' })
@@ -351,6 +351,73 @@ async function montar(b: BackendNoAparelho) {
   await c(2, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-cocha', categoria: 'combustivel', moeda: 'BOB', valor: bs(300) }, 12)
   await c(1, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-cocha', categoria: 'hospedagem', moeda: 'BOB', valor: bs(250) }, 21)
 
+  // ==========================================================================================================
+  // CENÁRIOS PARA A DEMONSTRAÇÃO: cada tela com tudo o que ela sabe mostrar
+  // ==========================================================================================================
+
+  // ---------- 2ª viagem com compra (Renata em Sucre): Relatórios › Viagens compara uma contra a outra ----------
+  await c(26, 'salvarViagem', { id: 'vg-sucre', nome: 'Feira de cabelo · Sucre', destino: 'Sucre', viajantes: [alison], inicio: somarDias(hoje, -26), fim: somarDias(hoje, -24), orcamento: bs(800), orcamentoCompra: bs(25000) })
+  await c(26, 'adiantarViagem', { id: id(), viagemId: 'vg-sucre', moeda: 'BOB', forma: 'dinheiro', valor: bs(1000) })
+  await c(26, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-sucre', categoria: 'combustivel', moeda: 'BOB', valor: bs(350), nota: 'Ida e volta' }, 8)
+  await c(25, 'registrarDespesaViagem', { id: id(), viagemId: 'vg-sucre', categoria: 'hospedagem', moeda: 'BOB', valor: bs(300), nota: '2 noites' }, 21)
+  await c(25, 'criarCompra', { id: 'c-sucre', moduloId: 'cabelo', pessoaId: maria, linhas: [{ id: id(), quantidade: 6000, moeda: 'BOB', total: bs(21000), campos: { estado: 'Bruto', categoria: 'Normal', cor: 'Castanho', origem: 'Bolívia' } }], obs: 'Comprado na feira de Sucre' })
+  await c(25, 'avancarTriagem', { compraId: 'c-sucre', para: 'conferido' })
+  await c(25, 'avancarTriagem', { compraId: 'c-sucre', para: 'pago', pagamentos: [{ id: id(), forma: 'qr', moeda: 'BOB', valor: bs(21000) }] })
+  await c(25, 'avancarTriagem', { compraId: 'c-sucre', para: 'concluido' })
+  await c(24, 'vincularCompras', { viagemId: 'vg-sucre', compraIds: ['c-sucre'] }, 18)
+  await c(24, 'encerrarViagem', { viagemId: 'vg-sucre', contado: { BOB: bs(350) }, incorporar: true })
+
+  // ---------- compra cancelada (Comprar › Canceladas) ----------
+  await c(10, 'criarCompra', { id: 'c-cancelada', moduloId: 'cabelo', pessoaId: maria, linhas: [{ id: id(), quantidade: 800, moeda: 'BOB', total: bs(2400), campos: { estado: 'Bruto', categoria: 'Normal', cor: 'Misturado' } }] })
+  await c(10, 'cancelarCompra', { compraId: 'c-cancelada', motivo: 'Cabelo chegou molhado e com nós: devolvido' })
+
+  // ---------- pacote JUNTADO (Triagem › 🔗 juntado): os dois brutos castanhos viram um só ----------
+  const estoqueAgora = await b.consulta('estoque', { moduloId: 'cabelo' })
+  const brutoSucre = estoqueAgora.find((i) => i.origem?.id === 'c-sucre')?.id
+  const brutoParceiro = estoqueAgora.find((i) => i.origem?.id === 'c-ad-parceiro')?.id
+  if (brutoSucre && brutoParceiro) await c(9, 'unificarLotes', { id: 'lote-juntado', ids: [brutoSucre, brutoParceiro], motivo: 'Mesma cor e origem: separar de uma vez' })
+
+  // ---------- vendas: cancelada, com desconto, de produto (com vendedora), em aberto e com divisão de valores ----------
+  await c(6, 'concluirVenda', { id: 'v-cancelada', pessoaId: henry, profissionalId: mariana, linhas: [venda(l40, 40, 500, 'lp', '3')], pagamentos: [{ id: id(), forma: 'qr', moeda: 'BOB', valor: bs(1500) }] })
+  await c(6, 'cancelarVenda', { id: 'v-cancelada', motivo: 'A cliente desistiu na hora' })
+  await c(3, 'concluirVenda', { id: 'v-produto', pessoaId: bia, localId: centro, profissionalId: mariana, linhas: [{ id: id(), itemId: 'pr-presilha', quantidade: 2, moeda: 'BOB', total: bs(50) }], desconto: { moeda: 'BOB', pct: 10 }, pagamentos: [{ id: id(), forma: 'dinheiro', moeda: 'BOB', valor: bs(45) }] })
+  await c(5, 'salvarDivisaoVenda', {
+    id: 'v-henry2',
+    partes: [
+      { id: id(), nome: 'Sócia A', modo: 'pct', pctBp: 5000, base: 'lucro' },
+      { id: id(), nome: 'Sócia B', modo: 'pct', pctBp: 5000, base: 'lucro' },
+      { id: id(), nome: 'Indicação (Paula)', pessoaId: mariana, modo: 'valor', valor: bs(200), base: 'total', obs: 'Trouxe o cliente' },
+    ],
+  })
+  // começou e não fechou: fica guardada (Vender › Em aberto · o Modo caixa retoma)
+  await c(0, 'salvarVendaAberta', { id: 'va-pw', pessoaId: pw, vendedorId: mariana, linhas: [{ id: id(), itemId: l40, quantidade: 300 }], total: bs(1170), moedaTotal: 'BOB', obs: 'Volta à tarde para pagar' }, 9)
+
+  // ---------- agenda: compromissos (meu, de uma funcionária e um já feito) ----------
+  await c(5, 'salvarEvento', { id: 'ev-contador', titulo: 'Fechar o mês com o contador', data: somarDias(hoje, 3), hora: '10:00', duracaoMin: 60, nota: 'Levar as facturas de compra' })
+  await c(5, 'salvarEvento', { id: 'ev-correio', titulo: 'Buscar mechas no correio', data: somarDias(hoje, 1), pessoaId: vero })
+  await c(3, 'salvarEvento', { id: 'ev-aluguel', titulo: 'Pagar o aluguel do Norte', data: somarDias(hoje, -2), pessoaId: alison })
+  await c(2, 'concluirEvento', { id: 'ev-aluguel' })
+
+  // ---------- Imposto de Renda: compra com factura, compra sem factura (retenção), recibo de aluguel e IVA pago ----------
+  await c(27, 'classificarDocumentoFiscal', { alvo: 'compra', id: compraElena, documento: 'factura', numero: '000123' })
+  await c(38, 'classificarDocumentoFiscal', { alvo: 'compra', id: compraBruto, documento: 'sem' })
+  await c(29, 'classificarDocumentoFiscal', { alvo: 'despesa', id: 'd-aluguel-centro', documento: 'recibo', dedutivel: true })
+  {
+    const [a, m] = somarDias(hoje, -30).split('-').map(Number)
+    const periodo = `${a}-${String(m).padStart(2, '0')}`
+    await c(2, 'registrarObrigacaoFiscal', { id: 'ob-iva', ano: a, periodo, obrigacao: 'iva', formulario: 'F-200', numeroOrden: '1029384756', declaradoEm: somarDias(hoje, -2), valorDeclarado: bs(1200), pagoEm: somarDias(hoje, -2), valorPago: bs(1200), obs: 'Declarado pelo contador (exemplo)' })
+  }
+
+  // ---------- acesso: o que a funcionária faz (Paula é gerente e viaja) e uma forma de pagamento desligada ----------
+  {
+    const cfg = (await b.consulta('configuracoes', {})).config
+    await c(1, 'salvarConfig', {
+      funcionariaTelas: ['viagens'],
+      funcionariaConfig: ['catalogo'],
+      formas: cfg.formas.map((f) => (f.id === 'debito' ? { ...f, desligada: true } : f)),
+    })
+  }
+
   // ---------- usuários (senha demo1234) ----------
   const U = (login: string, nome: string, perfil: 'admin' | 'funcionario', pessoaId?: string, localId?: string) =>
     c(0, 'salvarUsuario', { id: `u-${login}`, login, nome, perfil, pessoaId, localId, senha: SENHA_DEMO })
@@ -363,4 +430,6 @@ async function montar(b: BackendNoAparelho) {
   await U('nina', 'Nina', 'funcionario', dina, centro)
   await U('clara', 'Clara', 'funcionario', luz, norte)
   await U('julia', 'Júlia', 'funcionario', karen, norte)
+  // usuário desativado (Configurações › Usuários): não entra mais, o que fez continua no histórico
+  await c(0, 'salvarUsuario', { id: 'u-ex', login: 'ex.funcionaria', nome: 'Ex-funcionária', perfil: 'funcionario', senha: SENHA_DEMO, ativo: false })
 }

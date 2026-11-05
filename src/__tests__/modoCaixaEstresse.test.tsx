@@ -27,6 +27,8 @@ function Harness({ base, params = {} }: { base: Omit<AppCtx, 'nav' | 'ajustarPar
 async function abrir(preparar?: (b: B) => Promise<void>, params?: Record<string, string>) {
   const { b, sessao } = await novoBackend()
   await carregarDemo(b)
+  // o caixa começa limpo: a venda em aberto de exemplo (va-pw) sai — o cenário dela é de outra tela
+  await b.comando('descartarVendaAberta', { id: 'va-pw' })
   await preparar?.(b)
   const estoque = await b.consulta('estoque', { moduloId: 'cabelo' })
   const vendaveis = estoque.filter((i) => i.codigo && i.saldo > 0 && (i.status === 'disponivel' || i.status === 'parcial') && i.campos.comprimento)
@@ -200,6 +202,8 @@ describe('lerCodigoPacote (servidor)', () => {
   it('disponível, código antigo, não existe, vendido e separado — sempre o mesmo formato', async () => {
     const { b } = await novoBackend()
     await carregarDemo(b)
+  // o caixa começa limpo: a venda em aberto de exemplo (va-pw) sai — o cenário dela é de outra tela
+  await b.comando('descartarVendaAberta', { id: 'va-pw' })
     const est = await b.consulta('estoque', { moduloId: 'cabelo' })
     const disp = est.find((i) => i.codigo && i.saldo > 0)!
     expect(await b.consulta('lerCodigoPacote', { texto: disp.codigo! })).toMatchObject({ situacao: 'disponivel', item: { id: disp.id }, vendas: [], viraram: [] })
@@ -264,6 +268,8 @@ describe('vendas em aberto (sair no meio não perde)', () => {
   it('servidor: vender (de qualquer tela) um pacote que estava em aberto tira ele de lá e registra', async () => {
     const { b } = await novoBackend()
     await carregarDemo(b)
+  // o caixa começa limpo: a venda em aberto de exemplo (va-pw) sai — o cenário dela é de outra tela
+  await b.comando('descartarVendaAberta', { id: 'va-pw' })
     const [p1, p2] = (await b.consulta('estoque', { moduloId: 'cabelo' })).filter((i) => i.codigo && i.saldo > 0 && i.campos.comprimento)
     await b.comando('salvarVendaAberta', { id: 'va', linhas: [{ id: 'a', itemId: p1.id, quantidade: p1.saldo }, { id: 'b', itemId: p2.id, quantidade: p2.saldo }] })
     await b.comando('concluirVenda', { id: 'v', linhas: [{ id: 'l', itemId: p1.id, quantidade: p1.saldo, moeda: 'BOB', total: 100 }], pagamentos: [{ id: 'p', forma: 'dinheiro', moeda: 'BOB', valor: 100 }] })
@@ -285,6 +291,8 @@ describe('lista "Em aberto" no Vender', () => {
     const { ListaVendas } = await import('../screens/ListaVendas')
     const { b, sessao } = await novoBackend()
     await carregarDemo(b)
+  // o caixa começa limpo: a venda em aberto de exemplo (va-pw) sai — o cenário dela é de outra tela
+  await b.comando('descartarVendaAberta', { id: 'va-pw' })
     const p = (await b.consulta('estoque', { moduloId: 'cabelo' })).find((i) => i.codigo && i.saldo > 0 && i.campos.comprimento)!
     await b.comando('salvarVendaAberta', { id: 'va-l', linhas: [{ id: 'l1', itemId: p.id, quantidade: p.saldo }] })
     function H() {
