@@ -2,6 +2,7 @@
 
 import { MOEDAS, type CodigoMoeda, type Cotacao, type TabelaCotacoes, type UsoCambio, ajustarCotacao, converter } from '../domain/dinheiro'
 import { FISCAL_PADRAO, IMPOSTOS_PADRAO_BO, IMPOSTOS_PADRAO_BR, type ConfigFiscal } from '../dados/impostos'
+import type { ModeloDocumentoId } from '../dados/documentos'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { novoId } from '../domain/ids'
 import type { Base, Dia, Id } from '../domain/tipos'
@@ -127,6 +128,10 @@ export interface Configuracoes {
   compraPagaNoAto: boolean
   /** TRIAGEM: abaixo disso (gramas) o pacote é "sobra pequena" — só avisa, não bloqueia */
   saldoPequenoG: number
+  /** NOTA DE VENTA: o modelo de papel padrão (folha carta/A4 ou rolo 80 mm) — dados/documentos.ts */
+  modeloNota: ModeloDocumentoId
+  /** NOTA DE VENTA impressa: mostra o detalhe dos impostos (estimados)? Só a apresentação: o total não muda */
+  impostosNaNota: boolean
   /** RELATÓRIOS CONTÁBEIS: país do padrão (Bolívia é o motor), regime, NIT, faturas e taxas — CONTABILIDADE.md */
   fiscal: ConfigFiscal
 }
@@ -151,6 +156,8 @@ export const CONFIG_PADRAO: Configuracoes = {
   avisarVendaBruto: true,
   compraPagaNoAto: true,
   saldoPequenoG: 50,
+  modeloNota: 'carta',
+  impostosNaNota: true,
   fiscal: FISCAL_PADRAO,
 }
 

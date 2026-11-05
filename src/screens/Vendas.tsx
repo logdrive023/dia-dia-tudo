@@ -1,14 +1,14 @@
 // DETALHE da venda com linha do tempo (a LISTA de vendas é a tela Vender: ListaVendas.tsx).
 
-import { type LinhaRastreio, ListaRastreio, RastreioTotal } from '../ui/rastreioTotal'
+import { RastreioTotal } from '../ui/rastreioTotal'
 import { SelosViagem } from '../ui/seloViagem'
 import { CaminhoDoCabelo } from '../ui/caminhoCabelo'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../core/domain/dinheiro'
 import type { Id, Transacao } from '../core/domain/tipos'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, ValorInput, cx, dataBR, ErroTela, gramasTexto, loc, Confirmar } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, ValorInput, cx, dataBR, ErroTela, loc, Confirmar } from '../ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
-import { cotacaoDoPagamento, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
+import { linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { AbaAnexos } from '../ui/anexos'
 import { LinhaDoTempo } from '../ui/linhaTempo'
 import { MenuAcoes } from '../ui/menuAcoes'
@@ -16,6 +16,8 @@ import { useT } from '../ui/i18n'
 import { MemoriaLinha } from '../ui/linhaServico'
 import { dividir, memoriaCalculo, pct } from '../core/domain/comissao'
 import { SeloPendencias } from '../ui/pendencias'
+import { ImprimirNota, NotaVenda } from '../ui/notaVenda'
+import { MODELOS_DOCUMENTO, type ModeloDocumentoId } from '../core/dados/documentos'
 
 /** Nome da etapa para gente (o código fica só nos dados). */
 export const NOME_ETAPA: Record<string, string> = { concluido: 'Concluída', agendado: 'Agendada', cancelado: 'Cancelada' }
@@ -52,10 +54,6 @@ export function DetalheVenda() {
   const semComprovante = v.etapa === 'concluido' && naoVivo && !dados.anexos.some((a) => a.categoria === 'comprovante')
   // desconto da venda: "desconto 2,5% = Bs 878,50" (guardado na venda) e o de cada linha
   const descontoVenda = v.campos.desconto ? String(v.campos.desconto) : ''
-  const comCotacao = (p: (typeof v.pagamentos)[number]) => {
-    const c = cotacaoDoPagamento(p, v.moedaPrincipal)
-    return c ? ` · ${c}` : ''
-  }
   // recibo da CLIENTE: só itens e total (a divisão salão × profissional e os insumos são internos)
   const texto = [
     `${t('Venda')} ${dataBR(v.data)}`,
@@ -93,7 +91,7 @@ export function DetalheVenda() {
         {aba === 'historico' || (aba as string) === 'tempo' ? (
           // UM bloco só: o caminho do cabelo (com o registro desta venda dentro); venda sem cabelo: só o registro
           v.linhas.some((l) => l.itemId)
-            ? <CaminhoDoCabelo de={{ vendaId: v.id }} atual="venda" semCadeia={<LinhaDoTempo id={v.id} />} />
+            ? <div className="space-y-4"><CaminhoDoCabelo de={{ vendaId: v.id }} atual="venda" semCadeia={<LinhaDoTempo id={v.id} />} />{sessao.perfil === 'admin' && <RastreioCompleto vendaId={v.id} />}</div>
             : <Cartao titulo={t('Histórico')}><LinhaDoTempo id={v.id} /></Cartao>
         ) : aba === 'arquivos' ? (
           // ARQUIVOS padrão de toda ficha (o mesmo do pedido e do pacote)
@@ -110,30 +108,10 @@ export function DetalheVenda() {
               ))}
             </ul>
           </Cartao>
-        ) : <>
-        {/* bater o olho: de qual compra veio, qual pacote saiu e QUAL ETIQUETA ele tem (o completo fica em Linha do tempo) */}
-        {v.linhas.some((l) => l.itemId) && <CaminhoDoCabelo de={{ vendaId: v.id }} atual="venda" compacto className="mb-4" />}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Cartao titulo={t('Itens')}>
-            <ul className="divide-y divide-[var(--borda)] text-sm">
-              {v.linhas.map((l) => (
-                <li key={l.id} className="py-2">
-                  <div className="flex justify-between gap-2">
-                    <span className="min-w-0 break-words">{l.descricao}{l.campos.calculo ? <span className="num block text-[var(--suave)]">{String(l.campos.calculo)}</span> : null}{l.desconto ? <span className="num block text-[var(--suave)]">− {t('desconto')} {formatar(l.desconto, l.moeda)}</span> : null}</span>
-                    <b className="num shrink-0">{formatar(l.total, l.moeda)}</b>
-                  </div>
-                  {(sessao.perfil === 'admin' || (l.profissionalId && l.profissionalId === (sessao.pessoaId ?? sessao.usuarioId))) && <MemoriaLinha linha={l} moeda={v.moedaPrincipal} />}
-                </li>
-              ))}
-            </ul>
-            {descontoVenda && <p className="num mt-2 text-sm font-semibold text-[var(--bom)]">{descontoVenda.charAt(0).toUpperCase() + descontoVenda.slice(1)}</p>}
-            <div className="mt-2 flex justify-between gap-2 border-t border-[var(--borda)] pt-2 font-bold"><span>{t('Total')}</span><span className="num">{formatar(v.totalPrincipal, v.moedaPrincipal)}</span></div>
-            {v.pagamentos.some((p) => comCotacao(p)) && <p className="num text-xs text-[var(--suave)]">{v.pagamentos.map((p) => `${formatar(p.valor, p.moeda)}${comCotacao(p)}`).join(' + ')}</p>}
-            {v.campos.cobranca ? <p className="text-sm font-semibold">💱 {String(v.campos.cobranca)}</p> : null}
-          </Cartao>
-          {v.linhas.some((l) => l.itemId) && <OrigemDaVenda vendaId={v.id} admin={sessao.perfil === 'admin'} />}
-        </div>
-        </>}
+        ) : (
+          // RESUMO = a NOTA DE VENTA (o documento, com prévia fiel e impressão); o caminho do cabelo fica só no Histórico
+          <ResumoNota vendaId={v.id} linhas={v.linhas} moeda={v.moedaPrincipal} />
+        )}
       </div>
       {corrigir && <CorrigirVenda venda={v} temCliente={!!v.pessoaId} onFechar={() => setCorrigir(false)} />}
       {cancelar && (
@@ -253,35 +231,85 @@ function PreviaCorrecao({ linha: l, c, moeda }: { linha: Transacao['linhas'][num
   return <div className="num mt-2 text-xs text-[var(--suave)]">🧮 {memoriaCalculo({ totalPrincipal: totalP, insumoPrincipal: ins, insumos, comissaoBp: bp, comissaoPrincipal: d.comissao, comissaoRegra: bp !== l.comissaoBp ? 'linha' : l.comissaoRegra, baseComissao: d.base, parteSalao: d.parteSalao }, moeda, t)}</div>
 }
 
-/**
- * De onde veio este cabelo: a parte de cada compra NESTA venda, em gramas ("1,5 kg da compra C1 · Maria"), para quem
- * vendeu também (sem custo), uma linha por compra. O admin vê também a conta numa linha e, sob demanda, o rastreio completo.
- */
-function OrigemDaVenda({ vendaId, admin }: { vendaId: Id; admin: boolean }) {
+/** ADMIN: a conta inteira do cabelo (estoque, vendido, perda) — as compras de origem já estão no caminho, acima */
+function RastreioCompleto({ vendaId }: { vendaId: Id }) {
   const t = useT()
-  const { ir } = useApp()
-  const [completo, setCompleto] = useState(false)
-  const { dados: origem } = useConsulta('origemDaVenda', { vendaId }, admin)
-  const { dados } = useConsulta('genealogia', { vendaId }, admin)
-  const temRastreio = admin && !!dados?.lotes.length
-  if (!origem?.length && !temRastreio) return null
-  // uma linha por compra de origem: "1,5 kg de P-0001 · Maria" (a página da compra é do admin; quem vendeu vê sem abrir, e sem custo)
-  const linhas: LinhaRastreio[] = (origem ?? []).map((o) => ({
-    id: o.compraId,
-    principal: <><span aria-hidden>🛒</span> {t('{g} de {compra}', { g: gramasTexto(o.gramas), compra: o.codigo ?? o.compraId.slice(-4).toUpperCase() })}</>,
-    detalhe: o.fornecedor,
-    onClick: admin ? () => ir('pedido', { id: o.compraId }) : undefined,
-  }))
-  // simples: só as compras desta venda; a conta da compra inteira (estoque, vendido, perda) fica no rastreio completo
+  const [aberto, setAberto] = useState(false)
+  const { dados } = useConsulta('genealogia', { vendaId })
+  if (!dados?.lotes.length) return null
   return (
-    <Cartao titulo={t('De onde veio este cabelo')} ajuda="As compras que formaram este cabelo, em gramas. Ex.: 1,5 kg da Maria + 1 kg do Celso.">
-      <ListaRastreio linhas={linhas} />
-      {temRastreio && dados && (
-        <>
-          <button type="button" aria-expanded={completo} onClick={() => setCompleto(!completo)} className="min-h-10 text-sm font-semibold text-[var(--marca)] hover:underline">{completo ? t('Fechar o rastreio') : t('Ver rastreio completo →')}</button>
-          {completo && <div className="mt-2"><RastreioTotal g={dados} /></div>}
-        </>
-      )}
+    <Cartao titulo={t('Rastreio completo')} ajuda="Tudo o que aconteceu com este cabelo: quanto entrou, quanto se perdeu na triagem, quanto foi vendido e quanto ainda está no estoque.">
+      <button type="button" aria-expanded={aberto} onClick={() => setAberto(!aberto)} className="min-h-10 text-sm font-semibold text-[var(--marca)] hover:underline">{aberto ? t('Fechar o rastreio') : t('Ver rastreio completo →')}</button>
+      {aberto && <div className="mt-2"><RastreioTotal g={dados} /></div>}
     </Cartao>
+  )
+}
+
+/**
+ * RESUMO da venda = a NOTA DE VENTA (o documento). Em cima, as escolhas desta impressão — o papel (folha ou rolo) e o
+ * detalhe dos impostos — que só valem aqui (o padrão fica em Configurações › Geral); a prévia muda na hora e é a mesma
+ * que sai no papel. Embaixo, fora do papel, a divisão interna (comissão e insumos), para quem pode ver.
+ */
+function ResumoNota({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transacao['linhas']; moeda: string }) {
+  const t = useT()
+  const { sessao, ir } = useApp()
+  const { dados: doc } = useConsulta('documentoVenda', { id: vendaId })
+  const [modelo, setModelo] = useState<ModeloDocumentoId>()
+  const [comImpostos, setComImpostos] = useState<boolean>()
+  const [imprimindo, setImprimindo] = useState(false)
+  const fimImpressao = useCallback(() => setImprimindo(false), [])
+  if (!doc) return <Carregando />
+  const md = modelo ?? doc.modeloPadrao
+  const includeTaxesInPrint = comImpostos ?? doc.impostosNaNota
+  const temImpostos = doc.impostos.linhas.length > 0
+  const admin = sessao.perfil === 'admin'
+  const internas = linhas.filter((l) => (l.comissaoBp !== undefined || !!l.insumoPrincipal) && (admin || (l.profissionalId && l.profissionalId === (sessao.pessoaId ?? sessao.usuarioId))))
+  const mudou = md !== doc.modeloPadrao || includeTaxesInPrint !== doc.impostosNaNota
+  return (
+    <div className="space-y-4">
+      {/* AS ESCOLHAS desta impressão (não mexem na configuração de todos) */}
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm">
+        <div role="radiogroup" aria-label={t('Papel')} className="flex rounded-xl bg-[var(--fundo)] p-1">
+          {Object.values(MODELOS_DOCUMENTO).map((m) => (
+            <button key={m.id} type="button" role="radio" aria-checked={md === m.id} title={t(m.descricao)} onClick={() => setModelo(m.id)}
+              className={cx('min-h-10 rounded-lg px-3 text-sm font-semibold transition', md === m.id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)] hover:text-[var(--texto)]')}>
+              {m.formato === 'rollo' ? '🧾' : '📄'} {t(m.nome)}
+            </button>
+          ))}
+        </div>
+        <label className={cx('flex min-h-11 items-center gap-2 text-sm', temImpostos ? 'cursor-pointer' : 'opacity-60')} title={temImpostos ? undefined : t(doc.impostos.aviso ?? 'Esta venda não tem imposto estimado.')}>
+          <input type="checkbox" className="h-5 w-5" disabled={!temImpostos} checked={temImpostos && includeTaxesInPrint} onChange={(e) => setComImpostos(e.target.checked)} />
+          <span><b>{t('Impostos na nota')}</b>{!temImpostos && <span className="block text-xs text-[var(--suave)]">{t(doc.impostos.aviso ?? 'Esta venda não tem imposto estimado.')}</span>}</span>
+        </label>
+        <Botao className="ml-auto" onClick={() => setImprimindo(true)}>🖨 {t('Imprimir nota')}</Botao>
+        {mudou && <p className="basis-full text-xs text-[var(--suave)]">{t('Só nesta impressão — o padrão de todas as notas fica em Configurações › Geral.')}</p>}
+      </div>
+
+      {/* o que falta para o papel ficar completo (o papel mostra "—" no lugar) */}
+      {doc.faltando.length > 0 && (
+        <div role="note" className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--alerta)]/40 bg-[var(--alerta)]/10 px-3 py-2 text-sm">
+          <span className="min-w-0 flex-1">⚠️ {t('Para a nota sair completa, falta: {x}.', { x: doc.faltando.map((x) => t(x)).join(', ') })}</span>
+          {admin && doc.faltando.some((x) => x.includes('empresa')) && <button type="button" onClick={() => ir('configSecao', { id: 'fiscal' })} className="min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Dados da empresa')}</button>}
+        </div>
+      )}
+
+      {/* A PRÉVIA: o papel sobre a mesa (como num leitor de PDF) */}
+      <div className="rounded-2xl bg-[#525659] p-2 sm:p-6">
+        <div className="mx-auto shadow-[0_4px_24px_rgba(0,0,0,.35)]" style={{ maxWidth: md === 'rollo' ? '80mm' : '210mm' }}>
+          <NotaVenda doc={doc} modelo={md} includeTaxesInPrint={includeTaxesInPrint} />
+        </div>
+      </div>
+      <p className="text-xs text-[var(--suave)]">{t('É uma nota de venda (documento comercial), não uma factura: o sistema não está ligado ao SIN, por isso não tem código de autorização nem QR.')}</p>
+
+      {/* FORA DO PAPEL: a divisão interna de cada serviço (comissão, insumos) */}
+      {internas.length > 0 && (
+        <Cartao titulo={t('Divisão interna (não sai na nota)')}>
+          <ul className="divide-y divide-[var(--borda)] text-sm">
+            {internas.map((l) => <li key={l.id} className="py-2"><b>{l.descricao}</b><MemoriaLinha linha={l} moeda={moeda} /></li>)}
+          </ul>
+        </Cartao>
+      )}
+      {imprimindo && <ImprimirNota doc={doc} modelo={md} includeTaxesInPrint={includeTaxesInPrint} onPronto={fimImpressao} />}
+    </div>
   )
 }

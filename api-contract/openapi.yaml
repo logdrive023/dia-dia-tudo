@@ -273,6 +273,7 @@ components:
         - formCompra
         - vendas
         - venda
+        - documentoVenda
         - agenda
         - conflitosAgenda
         - calendario

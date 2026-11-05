@@ -56,6 +56,25 @@ export const naLingua = (x: Texto2, idioma: 'pt' | 'es') => (idioma === 'es' ? x
 
 export const NOVIDADES: Novidade[] = [
   {
+    data: '2026-11-05',
+    titulo: { pt: 'A venda vira um documento: a Nota de venta', es: 'La venta se vuelve un documento: la Nota de venta' },
+    resumo: {
+      pt: 'O Resumo da venda agora é a nota, no jeito da factura boliviana, pronta para imprimir ou salvar em PDF. O caminho do cabelo fica só no Histórico.',
+      es: 'El Resumen de la venta ahora es la nota, al estilo de la factura boliviana, lista para imprimir o guardar en PDF. El camino del cabello queda solo en el Historial.',
+    },
+    itens: [
+      { area: 'Venda', tipo: 'novo', texto: {
+        pt: 'Nota de venta: empresa e NIT, nº e data, cliente com NIT/CI, itens (quantidade, unidade, preço, desconto), total por extenso e pagamentos. Em folha (carta/A4) ou rolo de 80 mm. É documento comercial, sem validade fiscal (não é factura).',
+        es: 'Nota de venta: empresa y NIT, nº y fecha, cliente con NIT/CI, ítems (cantidad, unidad, precio, descuento), total literal y pagos. En hoja (carta/A4) o rollo de 80 mm. Es un documento comercial, sin validez fiscal (no es factura).' } },
+      { area: 'Venda', tipo: 'novo', tela: 'configSecao', params: { id: 'geral' }, texto: {
+        pt: 'Impostos na nota: liga ou desliga o detalhe dos impostos estimados na nota impressa (o total não muda). O padrão fica em Configurações › Geral; na venda dá para trocar só naquela impressão.',
+        es: 'Impuestos en la nota: activa o desactiva el detalle de los impuestos estimados en la nota impresa (el total no cambia). El estándar está en Configuración › General; en la venta se puede cambiar solo para esa impresión.' } },
+      { area: 'Venda', tipo: 'melhoria', texto: {
+        pt: 'Caminho do cabelo mais fácil de ler: cada etapa que aconteceu é um cartão próprio, a que ainda vai passar é uma linha apagada e o detalhe fica num cartão separado.',
+        es: 'Camino del cabello más fácil de leer: cada etapa que ocurrió es una tarjeta propia, la que falta es una línea tenue y el detalle queda en una tarjeta aparte.' } },
+    ],
+  },
+  {
     data: '2026-11-04',
     titulo: { pt: 'Impostos às claras, menu por áreas e acesso por papel', es: 'Impuestos a la vista, menú por áreas y acceso por rol' },
     resumo: {

@@ -4,6 +4,7 @@ import { MOEDAS, type CodigoMoeda } from '../domain/dinheiro'
 import { textoCotacao, valorDeUm, type UsoCambio } from '../domain/dinheiro'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { diasEntre } from '../domain/datas'
+import { MODELOS_DOCUMENTO } from '../dados/documentos'
 import type { Anexo, CategoriaAnexo, CotacaoRegistro, Id, Local, Papel, Pessoa } from '../domain/tipos'
 import { auditar, type Configuracoes, type Ctx, cotacoesAtuais, exigirVersao, lerConfig, MSG_ALTERADO_POR_OUTRA, novo, tocar, versaoDoFormulario } from './contexto'
 import { situacaoDe } from './emprestimos'
@@ -284,6 +285,7 @@ export async function salvarConfig(
   if (valor.moedaPrincipal !== atual.moedaPrincipal && (await ctx.repos.transacoes.listar()).length)
     exigir(false, 'Já existem vendas/compras na moeda principal atual: trocar agora misturaria moedas nos totais. Faça um backup e comece de novo para trocar.')
   exigir(Number.isInteger(valor.saldoPequenoG) && valor.saldoPequenoG >= 0, 'Sobra pequena: use um número de gramas (0 desliga o aviso).')
+  exigir(!valor.modeloNota || valor.modeloNota in MODELOS_DOCUMENTO, 'Modelo de nota inválido.')
   if (d.fiscal) {
     valor.fiscal = { ...atual.fiscal, ...d.fiscal }
     const f = valor.fiscal

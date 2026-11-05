@@ -115,7 +115,10 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
   const mostrar = (e: EtapaCabelo) => !filtro || filtro === e
 
   return (
-    <section aria-label={t('Caminho do cabelo')} className={cx('overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm', className)}>
+    // DUAS PARTES SEPARADAS (dois cartões com espaço entre eles): as etapas e o detalhe — antes era um bloco só e o
+    // detalhe "colava" na última etapa
+    <div className={cx('space-y-4', className)}>
+    <section aria-label={t('Caminho do cabelo')} className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
       {/* 1. AS ETAPAS */}
       <div className="bg-[linear-gradient(180deg,var(--marca-suave),transparent)] px-3 pb-6 pt-4 sm:px-5 sm:pb-8 sm:pt-5">
         <div className="mb-4 flex flex-wrap items-baseline gap-x-2">
@@ -140,7 +143,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
             const estado = aqui ? 'aqui' : e.feito ? 'feito' : 'falta'
             const ligadoProximo = etapas[k + 1] && (etapas[k + 1].feito || etapas[k + 1].id === atual)
             return (
-              <li key={e.id} className="relative flex gap-3 pb-6 last:pb-0 sm:gap-4">
+              <li key={e.id} className="relative flex gap-3 pb-5 last:pb-0 sm:gap-4">
                 {k < etapas.length - 1 && <span aria-hidden className={cx('absolute left-[23px] top-12 h-[calc(100%-3rem)]', ligadoProximo ? 'w-1 bg-[var(--bom)]' : 'w-0 border-l-2 border-dashed border-[var(--borda)]')} />}
                 {/* o círculo é também o filtro da etapa */}
                 <button type="button" onClick={() => !compacto && setFiltro(filtro === e.id ? '' : e.id)} aria-pressed={!compacto ? filtro === e.id : undefined} aria-label={`${t(NOME[e.id])} · ${t(estado === 'aqui' ? 'você está aqui' : estado === 'feito' ? 'já passou' : 'ainda vai passar')}`}
@@ -149,28 +152,39 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
                     filtro === e.id && 'ring-2 ring-[var(--texto)] ring-offset-2')}>
                   {estado === 'feito' ? '✓' : ICONE[e.id]}
                 </button>
-                <div className="min-w-0 flex-1">
+                {/* a etapa que JÁ ACONTECEU (ou a desta tela) é um cartão próprio — cada uma se distingue da outra mesmo
+                    com muitas; a que AINDA VAI PASSAR é só uma linha apagada (não disputa a atenção) */}
+                {estado === 'falta' && !e.itens.length ? (
+                  <p className="num flex min-h-12 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-[var(--suave)]">
+                    <b>{t(NOME[e.id])}</b>
+                    <span className="rounded-full bg-[var(--fundo)] px-2 py-0.5 text-[11px] font-bold">{t('ainda vai passar')}</span>
+                    {e.n > 0 && <span>· {e.resumo}</span>}
+                  </p>
+                ) : (
+                <div className={cx('min-w-0 flex-1 rounded-xl bg-[var(--cartao)] p-3 shadow-sm ring-1', estado === 'aqui' ? 'ring-2 ring-[var(--marca)]/60' : estado === 'falta' ? 'border border-dashed border-[var(--borda)] shadow-none ring-0' : 'ring-[var(--borda)]')}>
                   <p className="flex flex-wrap items-center gap-1.5">
                     <b className={cx('text-base', estado === 'falta' && 'text-[var(--suave)]')}>{ICONE[e.id]} {t(NOME[e.id])}</b>
                     <span className={cx('rounded-full px-2 py-0.5 text-[11px] font-bold', estado === 'aqui' ? 'bg-[var(--marca)] text-white' : estado === 'feito' ? 'bg-[var(--bom)]/12 text-[var(--bom)]' : 'bg-[var(--fundo)] text-[var(--suave)]')}>
                       {t(estado === 'aqui' ? 'você está aqui' : estado === 'feito' ? 'já passou' : 'ainda vai passar')}
                     </span>
                   </p>
-                  <p className={cx('num mt-0.5 text-sm', estado === 'falta' ? 'text-[var(--suave)]' : 'font-semibold')}>{e.resumo}</p>
-                  {e.detalhe && <p className="num text-xs text-[var(--suave)]">{e.detalhe}</p>}
+                  <p className={cx('num mt-1 text-sm', estado === 'falta' ? 'text-[var(--suave)]' : 'font-semibold')}>{e.resumo}</p>
+                  {e.detalhe && <p className="num mt-0.5 text-xs text-[var(--suave)]">{e.detalhe}</p>}
                   {e.itens.length > 0 && <ListaItens itens={e.itens} />}
                   {!compacto && outros[e.id].length > 0 && <Outros itens={outros[e.id]} />}
                 </div>
+                )}
               </li>
             )
           })}
         </ol>
       </div>
+    </section>
 
-      {!compacto && <>
-        {/* 2. O DETALHE: uma parte própria, com o título dizendo o que é e a escolha da etapa logo em cima (só as que têm
+      {!compacto && <section aria-label={t('Detalhe de cada etapa')} className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+        {/* 2. O DETALHE: um cartão próprio, com o título dizendo o que é e a escolha da etapa logo em cima (só as que têm
             registro; o resto some — nada de "Compra 0") */}
-        <div className="border-t-4 border-[var(--fundo)] bg-[var(--cartao)] px-3 pb-3 pt-4 sm:px-5">
+        <div className="border-b border-[var(--borda)] px-3 pb-3 pt-4 sm:px-5">
           <div className="mb-2 flex flex-wrap items-baseline gap-x-2">
             <h3 className="text-base font-bold">📋 {t('Detalhe de cada etapa')}</h3>
             <span className="text-xs text-[var(--suave)]">{t('escolha uma etapa para ver só ela')}</span>
@@ -270,8 +284,8 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
             </Bloco>
           )}
         </div>
-      </>}
-    </section>
+      </section>}
+    </div>
   )
 }
 

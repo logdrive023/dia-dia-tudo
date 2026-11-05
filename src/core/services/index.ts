@@ -27,6 +27,7 @@ import * as resumo from './resumoMenu'
 import * as servicosSalao from './servicosSalao'
 import * as usuarios from './usuarios'
 import * as vendas from './vendas'
+import * as documentos from './documentos'
 import * as viagens from './viagens'
 import * as vendasAbertas from './vendasAbertas'
 import * as viagemCurta from './viagemCurta'
@@ -203,6 +204,8 @@ export const consultas = {
   formCompra: formCompra.formCompra,
   vendas: vendas.vendas,
   venda: vendas.venda,
+  // a NOTA DE VENTA (documento comercial, sem validade fiscal): os dados prontos para o modelo de papel
+  documentoVenda: documentos.documentoVenda,
   agenda: vendas.agenda,
   conflitosAgenda: vendas.conflitosAgenda,
   // calendário: atendimentos + viagens + compromissos numa lista só

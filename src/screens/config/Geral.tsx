@@ -5,6 +5,7 @@ import { Botao, Campo, Carregando, Cartao, Entrada } from '../../ui/base'
 import { BarraSalvar } from '../../ui/barraSalvar'
 import { useAvisoSaida, useComando, useConsulta } from '../../ui/contexto'
 import { useT } from '../../ui/i18n'
+import { MODELOS_DOCUMENTO } from '../../core/dados/documentos'
 
 export function Geral() {
   const t = useT()
@@ -42,6 +43,25 @@ export function Geral() {
             <span className="text-sm">
               <b className="block">{t('Avisar ao vender pacote bruto')}</b>
               <span className="text-[var(--suave)]">{t('A venda passa sempre (nada trava). Ligado: o caixa mostra "ainda está bruto" para conferir o preço.')}</span>
+            </span>
+          </label>
+        </div>
+      </Cartao>
+      {/* NOTA DE VENTA: o padrão de toda nota (na venda dá para mudar só naquela impressão) */}
+      <Cartao titulo={t('Nota de venda')} className="mt-4" ajuda="O documento da venda (aba Resumo da venda): o papel que sai por padrão e se mostra o detalhe dos impostos. Na venda dá para trocar só naquela impressão.">
+        <div className="space-y-3">
+          <Campo rotulo="Papel padrão" comoDiv>
+            <div className="flex flex-wrap gap-2">
+              {Object.values(MODELOS_DOCUMENTO).map((m) => (
+                <Botao key={m.id} variante={(c.modeloNota ?? 'carta') === m.id ? 'primario' : 'secundario'} className="min-h-11" onClick={() => executar('salvarConfig', { modeloNota: m.id }, t('Salvo.'))}>{m.formato === 'rollo' ? '🧾' : '📄'} {t(m.nome)}</Botao>
+              ))}
+            </div>
+          </Campo>
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl bg-[var(--fundo)] p-3">
+            <input type="checkbox" className="mt-0.5 h-6 w-6 shrink-0" checked={c.impostosNaNota !== false} onChange={(e) => executar('salvarConfig', { impostosNaNota: e.target.checked }, t('Salvo.'))} />
+            <span className="text-sm">
+              <b className="block">{t('Exibir detalhamento de impostos nas notas impressas')}</b>
+              <span className="text-[var(--suave)]">{t('Ligado: a nota mostra os impostos estimados (ex.: IVA 13% e IT 3% dentro do preço). Desligado: não mostra. O total da venda é o mesmo nos dois casos.')}</span>
             </span>
           </label>
         </div>

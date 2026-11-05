@@ -134,3 +134,21 @@ body.imprimindo-relatorio { overflow: hidden; }
 @media (max-width: 860px) {
   .folha-a4 { padding: 8mm 5mm; min-height: 0; }
 }
+
+/* NOTA DE VENTA (src/ui/notaVenda.tsx): papel sempre claro; na impressão só a cópia da nota (portal) vai para o papel */
+.nota-papel { --texto: #111; --suave: #555; --borda: #d4d4d8; font-family: 'Segoe UI', Roboto, Arial, sans-serif; }
+.nota-papel.nota-rollo { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+.nota-impressao { display: none; }
+@media print {
+  body.imprimindo-nota #root { display: none !important; }
+  body.imprimindo-nota { background: #fff; overflow: visible; }
+  body.imprimindo-nota .nota-impressao { display: block; }
+  .nota-impressao .nota-papel { width: 100%; max-width: none; padding: 0; box-shadow: none; }
+  .nota-impressao.rollo { page: rollo; }
+  .nota-impressao .break-inside-avoid { break-inside: avoid; }
+}
+@page rollo {
+  size: 80mm 297mm;
+  margin: 3mm 4mm;
+  @bottom-right { content: none; }
+}
