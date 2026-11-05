@@ -241,6 +241,8 @@ components:
         - historicoPacote
         - tabelasPreco
         - tabelaVigente
+        - listaTabelasPreco
+        - versoesEmUso
         - historicoTabela
         - versoesTabela
         - compararVersoes

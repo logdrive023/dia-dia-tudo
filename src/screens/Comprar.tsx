@@ -241,7 +241,7 @@ export function Comprar() {
 
 const CAMPOS_FIXOS = ['estado', 'comprimento', 'categoria', 'obs']
 const SELETOR_CAMPO = 'input:not([type=file]):not([type=checkbox]):not([type=radio]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
-const CAMPOS_TIRAR = ['fator', 'tabelaId', 'colunaId', 'calculo']
+const CAMPOS_TIRAR = ['fator', 'tabelaId', 'colunaId', 'calculo', 'tabelaVersao', 'tabelaNome', 'colunaNome', 'fatorTabela', 'fatorManual']
 
 interface LinhaNova {
   id: Id

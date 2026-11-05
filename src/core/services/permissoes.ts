@@ -52,6 +52,7 @@ export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
   'cidades',
   'tabelasPreco',
   'tabelaVigente',
+  'versoesEmUso',
   'calcularPreco',
   'agenda',
   'conflitosAgenda',

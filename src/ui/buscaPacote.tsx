@@ -9,7 +9,7 @@
 // Teclado: ↑↓ escolhe, Enter adiciona o destacado (sem destaque, quem decide é o leitor/pistola), Esc limpa.
 // O que é "pacote", o preço e o que fazer ao escolher vêm de quem usa: aqui é só a busca e a lista.
 
-import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useId, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useId, useRef, useState } from 'react'
 import type { Id } from '../core/domain/tipos'
 import { Info, cx, gramasTexto } from './base'
 import type { FotoResumo } from '../core/services/fotos'
@@ -79,6 +79,16 @@ export function BuscaPacote<P extends PacoteBusca>({ pacotes, valor, onValor, on
   const t = useT()
   const idLista = useId()
   const [destaque, setDestaque] = useState(-1)
+  // a lista FECHA ao tocar fora (retomar uma venda, rolar, tocar no total…) e volta ao digitar ou tocar no campo:
+  // nunca fica aberta por cima da tela só porque sobrou texto no campo
+  const [fechada, setFechada] = useState(false)
+  const caixa = useRef<HTMLDivElement>(null)
+  useEffect(() => setFechada(false), [valor])
+  useEffect(() => {
+    const fora = (e: Event) => !caixa.current?.contains(e.target as Node) && setFechada(true)
+    document.addEventListener('pointerdown', fora)
+    return () => document.removeEventListener('pointerdown', fora)
+  }, [])
   // com saldo primeiro; esgotados no fim (continuam achados: tocar mostra para onde foram)
   const achados = buscarPacotes(pacotes, valor, max * 2).sort((a, b) => Number(b.saldo > 0) - Number(a.saldo > 0)).slice(0, max)
   const total = valor.trim() ? buscarPacotes(pacotes, valor, 999).length : 0
@@ -91,9 +101,9 @@ export function BuscaPacote<P extends PacoteBusca>({ pacotes, valor, onValor, on
     onTeclaLeitor?.(e)
   }
   const qtd = (p: P) => (p.unidade === 'grama' ? gramasTexto(p.saldo) : String(p.saldo))
-  const aberta = valor.trim().length > 0
+  const aberta = valor.trim().length > 0 && !fechada
   return (
-    <div className="relative">
+    <div ref={caixa} className="relative">
       <div className="mb-1 flex items-center text-sm font-semibold text-[var(--suave)]">
         <label htmlFor={`${idLista}-campo`}>{t(rotulo)}</label>
         <Info texto={ajuda} />
@@ -112,7 +122,8 @@ export function BuscaPacote<P extends PacoteBusca>({ pacotes, valor, onValor, on
           inputMode={inputMode}
           enterKeyHint="go"
           value={valor}
-          onPointerDown={onPointerDown}
+          onPointerDown={() => (setFechada(false), onPointerDown?.())}
+          onFocus={() => setFechada(false)}
           onChange={(e) => onValor(e.target.value)}
           onKeyDown={teclar}
           spellCheck={false}

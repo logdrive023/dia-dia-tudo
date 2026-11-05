@@ -21,7 +21,11 @@ const COR: Record<Tipo, string> = { subiu: 'var(--bom)', desceu: 'var(--ruim)', 
 export const AJUDA_HISTORICO =
   'Cada vez que a tabela é publicada nasce uma versão nova (v1, v2…), e as antigas ficam guardadas. Escolha duas para ver o que mudou. Ex.: v1 → v2: 60 cm × Henrique era 17, ficou 17,5 (+2,9%).'
 
-export function Historico({ id, versoes }: { id: string; versoes: Versao[] }) {
+export function Historico({ id, versoes, usosPorVersao, onVerUsos }: { id: string; versoes: Versao[]
+  /** quantas vendas/compras usaram cada versão (a relação venda ↔ versão à vista no histórico) */
+  usosPorVersao?: Record<number, number>
+  /** abrir "Onde foi usada" já nesta versão */
+  onVerUsos?(numero: number): void }) {
   const t = useT()
   // padrão: a anterior → a em uso
   const [de, setDe] = useState(() => versoes[1]?.numero)
@@ -58,7 +62,12 @@ export function Historico({ id, versoes }: { id: string; versoes: Versao[] }) {
                     {v.numero === a && <Pilula>{t('era')}</Pilula>}
                     {v.numero === b && <Pilula tom="marca">{t('ficou')}</Pilula>}
                   </div>
-                  <p className="mt-0.5 text-xs text-[var(--suave)]">{dataHora(v.em)}{v.por ? ` · ${v.por}` : ''}</p>
+                  <p className="mt-0.5 text-xs text-[var(--suave)]">{t('publicada em')} {dataHora(v.em)}{v.por ? ` · ${t('por {q}', { q: v.por })}` : ''}</p>
+                  {usosPorVersao && (
+                    <button type="button" disabled={!usosPorVersao[v.numero]} onClick={() => onVerUsos?.(v.numero)} className="mt-1 inline-flex min-h-8 items-center gap-1 rounded-full bg-[var(--fundo)] px-2.5 text-xs font-semibold text-[var(--marca)] ring-1 ring-[var(--borda)] disabled:text-[var(--suave)]">
+                      🧾 {t('{n} uso(s) com esta versão', { n: usosPorVersao[v.numero] ?? 0 })}{usosPorVersao[v.numero] ? ' →' : ''}
+                    </button>
+                  )}
                   {v.nota && <p className="mt-1 text-sm break-words">“{v.nota}”</p>}
                   {anterior && !(a === anterior.numero && b === v.numero) && (
                     <button type="button" onClick={() => (setDe(anterior.numero), setPara(v.numero))} className="mt-1 min-h-9 text-sm font-semibold text-[var(--marca)] hover:underline">

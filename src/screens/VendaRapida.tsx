@@ -10,6 +10,7 @@
 // Celular: tudo em coluna e a barra "Total · FECHAR" presa embaixo; com espaço: venda | cobrança fixa ao lado.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { EscolhaPreco } from '../ui/escolhaPreco'
 import { ImpostosDaOperacao, QuadroImpostosOperacao } from '../ui/impostosOperacao'
 import { Trilha } from '../ui/trilha'
 import { type Cotacao, type TabelaCotacoes, formatar, moeda as moedaDe, multiplicarFator, valorDeUm } from '../core/domain/dinheiro'
@@ -39,6 +40,7 @@ export function VendaRapida() {
   const { dados: cfg } = useConsulta('configuracoes', {})
   const { dados: estoqueTodo } = useConsulta('estoque', {})
   const { dados: tabelas } = useConsulta('tabelasPreco', {})
+  const { dados: versoesTab } = useConsulta('versoesEmUso', {})
   const { dados: pessoas } = useConsulta('pessoas', {})
   const { dados: locais } = useConsulta('locais', {})
   const { dados: abertas } = useConsulta('vendasAbertas', {})
@@ -97,17 +99,21 @@ export function VendaRapida() {
     const cat = String(i.campos.categoria || 'Normal')
     return ts.find((x) => (x.categoria ?? 'Normal') === cat) ?? ts.find((x) => !x.categoria) ?? ts[0]
   }
-  const colunaDe = (tb: TabelaPreco) =>
-    (colunaId && tb.colunas.some((c) => c.id === colunaId) ? colunaId : undefined) ?? tb.colunas.find((c) => c.pessoaId && c.pessoaId === pessoaId)?.id ?? tb.colunas[0]?.id
+  /** a coluna PADRÃO: a ligada à cliente (se tiver) ou a primeira da tabela */
+  const padraoDe = (tb: TabelaPreco) => tb.colunas.find((c) => c.pessoaId && c.pessoaId === pessoaId)?.id ?? tb.colunas[0]?.id
+  const colunaDe = (tb: TabelaPreco, forcada?: string) => {
+    const escolhida = forcada ?? colunaId
+    return (escolhida && tb.colunas.some((c) => c.id === escolhida) ? escolhida : undefined) ?? padraoDe(tb)
+  }
 
   /** mesma conta do Vender: gramas × fator da tabela (medida da linha que não passa da do lote, coluna da cliente) */
-  const precoDe = (i: Pacote, q: number): Preco => {
+  const precoDe = (i: Pacote, q: number, forcada?: string): Preco => {
     const c = i.codigo ?? i.nome
     if (i.unidade === 'grama') {
       const medida = Number(i.campos.comprimento)
       const tb = tabelaDe(i)
       if (!tb) return { moeda: moedaPadrao(), total: 0, erro: t('Sem tabela de preço para {c}.', { c }) }
-      const col = colunaDe(tb)
+      const col = colunaDe(tb, forcada)
       const f = col ? fatorDaTabela(tb, medida, col).fator : undefined
       if (!f || !col) return { moeda: tb.moeda, total: 0, erro: t('A tabela não tem preço para {m} cm: ajuste em Tabelas de preço.', { m: medida }) }
       return { moeda: tb.moeda, total: multiplicarFator(q, f, tb.moeda), calculo: { medida, fator: f.replace('.', ','), categoria: String(i.campos.categoria || 'Normal'), tabelaId: tb.id, colunaId: col } }
@@ -123,6 +129,21 @@ export function VendaRapida() {
     })
     .filter((x): x is NonNullable<typeof x> => !!x)
   const moedaVenda = vistas.find((l) => l.preco.calculo)?.preco.moeda ?? vistas[0]?.preco.moeda ?? cfg?.config.moedaPrincipal ?? moedaPadrao()
+  // ESCOLHA DO PREÇO: a tabela dos pacotes (a do primeiro pacote por grama) e, para cada coluna dela, o total da venda
+  const comTabela = vistas.filter((l) => l.item.unidade === 'grama')
+  const tbVenda = comTabela[0] ? tabelaDe(comTabela[0].item) : undefined
+  const opcoesPreco = !tbVenda ? [] : tbVenda.colunas.map((c) => {
+    let total = 0
+    let semPreco = 0
+    for (const l of vistas) {
+      const pr = l.precoManual !== undefined ? l.preco : precoDe(l.item, l.quantidade, c.id)
+      if (pr.erro) semPreco++
+      else total += conv(pr.total, pr.moeda, moedaVenda, cot) ?? 0
+    }
+    return { id: c.id, nome: c.nome, total: semPreco === vistas.length ? undefined : total, semPreco }
+  })
+  const padraoVenda = tbVenda ? padraoDe(tbVenda) : undefined
+  const clienteTemColuna = !!tbVenda?.colunas.some((c) => c.pessoaId && c.pessoaId === pessoaId)
   const bruto = vistas.reduce((s, l) => s + (conv(l.preco.total, l.preco.moeda, moedaVenda, cot) ?? 0), 0)
   const baseDesconto = vistas.filter((l) => l.preco.moeda === moedaVenda).reduce((s, l) => s + l.preco.total, 0)
   // COBRAR EM: Bs, US$ ou R$ (a principal primeiro). Fora da principal, a cotação vem do sistema e pode ser digitada.
@@ -337,6 +358,8 @@ export function VendaRapida() {
     if (v.desconto) { setModoDesconto(v.desconto.modo); setDescontoPct(v.desconto.pct ?? ''); setDesconto(v.desconto.valor) }
     if (v.moeda) setMoedaEscolhida(v.moeda)
     setFeita(undefined)
+    // o que estava digitado na busca sai (senão a lista de pacotes abre por cima da venda retomada)
+    setBusca('')
     setAviso({ texto: t('Venda em aberto retomada: {n} pacote(s).', { n: v.linhas.length }), ok: true })
     ajustarParams({ aberta: undefined })
     focar()
@@ -397,14 +420,12 @@ export function VendaRapida() {
 
   const { dados: vendaFeita } = useConsulta('venda', { id: feita?.id ?? '' }, !!feita)
   const editandoLinha = vistas.find((l) => l.id === editando)
-  const colunas = (tabelas ?? []).filter((x) => modulosVenda.has(x.moduloId))[0]?.colunas ?? []
 
   // ---------- as peças conversam por aqui: a tela guarda o estado da venda e cada peça só mostra e avisa ----------
   const vendedores = sessao.perfil === 'admin' ? (pessoas ?? []).filter((x) => x.papeis.some((pp) => pp === 'funcionario' || pp === 'profissional')).map((x) => ({ id: x.id, nome: x.nome })) : undefined
   const listaLocais = (locais ?? []).map((l) => ({ id: l.id, nome: l.nome }))
   const resumoOpcoes = [
     pessoa && `👤 ${pessoa.nome}`,
-    colunaId && `🏷 ${colunas.find((c) => c.id === colunaId)?.nome ?? ''}`,
     descontoValido > 0 && (modoDesconto === 'pct' && pct !== undefined ? `−${pctTexto(pct)}%` : `−${formatar(descontoCobranca, mc)}`),
     vendedorId && `🧑 ${(pessoas ?? []).find((x) => x.id === vendedorId)?.nome ?? ''}`,
     localId && localId !== sessao.localId && `🏪 ${listaLocais.find((l) => l.id === localId)?.nome ?? ''}`,
@@ -417,9 +438,6 @@ export function VendaRapida() {
       resumo={resumoOpcoes}
       pessoaId={pessoaId}
       onPessoa={(id) => (setPessoaId(id), setColunaId(undefined))}
-      colunas={colunas.map((c) => ({ id: c.id, nome: c.nome }))}
-      colunaId={colunaId}
-      onColuna={setColunaId}
       desconto={{
         modo: modoDesconto,
         onModo: (m) => { setModoDesconto(m); try { localStorage.setItem(CHAVE_MODO_DESCONTO, m) } catch { /* só nesta tela */ } },
@@ -546,6 +564,13 @@ export function VendaRapida() {
               onPreco={(id, v) => setLinhas((ls) => ls.map((x) => (x.id === id ? { ...x, precoManual: v } : x)))}
             />
           </section>
+          {/* O PREÇO DA TABELA: opcional e sempre à vista — trocar a coluna recalcula tudo na hora */}
+          {tbVenda && padraoVenda && (
+            <EscolhaPreco tabela={tbVenda.nome} versao={versoesTab?.[tbVenda.id]} opcoes={opcoesPreco} valor={colunaDe(tbVenda)} padrao={padraoVenda} porque={clienteTemColuna ? 'da cliente' : 'primeira coluna'}
+              moeda={moedaVenda} manuais={vistas.filter((l) => l.precoManual !== undefined).length} onEscolher={setColunaId}
+              // ver ou editar a tabela sem perder a venda: abre em outra aba (a venda fica aqui, guardada)
+              onAbrirTabela={sessao.perfil === 'admin' ? () => window.open(`${window.location.pathname}${window.location.search}#/precos/${encodeURIComponent(tbVenda.id)}`, '_blank', 'noopener') : undefined} />
+          )}
           {/* os IMPOSTOS às claras (o mesmo detalhe da janela), se ligado em Configurações › Fiscal */}
           <QuadroImpostosOperacao produto={total} moeda={principal} />
           {!tablet && <section className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm">{cobrar}</section>}

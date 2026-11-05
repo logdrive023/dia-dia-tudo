@@ -1,24 +1,25 @@
 // TABELAS DE PREÇO com VERSÕES.
-//  #/precos        lista: um cartão por tabela (nome, padrão/categoria, faixa de fatores, medidas · compradores · vendas · compras, última versão)
-//  #/precos/:id    tela da tabela: UMA grade editável (toque no número e digite) + Histórico (versões e comparação)
+//  #/precos        lista (ListaTabelas): filtro padrão e uma linha por tabela (situação, versão em uso, faixa, usos)
+//  #/precos/:id    tela da tabela: Tabela (grade editável) · Onde foi usada (por VERSÃO) · Histórico · Entenda os valores
 //  #/precos/novo   nova tabela
 // Toda alteração publica uma versão nova (barra "3 mudanças · Publicar v3"); as anteriores ficam guardadas e dá para
 // comparar quaisquer duas ("era X → ficou Y"). Vendas e compras guardam o fator que usaram: o passado não muda.
 
-import { Fragment, useRef, useState } from 'react'
-import { fatorValido, formatar, moeda } from '../core/domain/dinheiro'
+import { useRef, useState } from 'react'
+import { CabecalhoFicha } from '../ui/cabecalhoFicha'
+import { EntendaValores } from './precos/EntendaValores'
+import { UsadaEm } from './precos/UsadaEm'
+import { ListaTabelas, SITUACAO_TABELA } from './precos/ListaTabelas'
+import { fatorValido, moeda } from '../core/domain/dinheiro'
 import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { TabelaPreco } from '../core/domain/tipos'
-import { chaveCelula } from '../core/services/precos'
-import { Abas, Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pilula, Selecao, Vazio, cx, dataBR, gramasTexto, loc, moedaPadrao, diaCurto, Titulo } from '../ui/base'
-import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela, useFiltrosTela } from '../ui/contexto'
+import { Abas, Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pilula, Selecao, cx, moedaPadrao, diaCurto } from '../ui/base'
+import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 import { Trilha } from '../ui/trilha'
 import { MenuAcoes, type Acao } from '../ui/menuAcoes'
 import { Historico } from './PrecosHistorico'
-import { NumeroGrande } from '../ui/numeroGrande'
-import { BarraFiltros, ChipsFiltros, GrupoFiltro, PainelFiltros, BotaoPeriodo } from '../ui/filtroPadrao'
 import {
   type Alvo, adicionarColuna, adicionarMedidas, ajustarPct, chave, comValor, contarMudancas, copiarColuna, invalidos, moverColuna,
   precosDaColuna, precosDaMedida, preencherVazios, tirarColuna, tirarMedida, trocarMedida,
@@ -44,115 +45,10 @@ function rascunhoDe(tb: TabelaPreco | undefined, t: T): Rascunho {
 // ---------- lista ----------
 
 export function Precos() {
-  const t = useT()
-  const { ir, nav } = useApp()
-  const { dados } = useConsulta('tabelasPreco', {})
+  const { nav } = useApp()
   // key: trocar de tabela (ou ir para "novo") recomeça o rascunho do zero
   if (nav.params.id || nav.tela === 'tabelaPreco') return <TabelaTela key={String(nav.params.id)} />
-  const nova = () => ir('tabelaPreco', { id: 'novo' })
-  // a geral (sem categoria) primeiro: é a padrão; depois as das categorias
-  const lista = [...(dados ?? [])].sort((a, b) => Number(!!a.categoria) - Number(!!b.categoria))
-  return (
-    <div>
-      {/* CABEÇALHO PADRÃO: as duas regras da tela, curtas, na descrição; o detalhe com exemplos fica no ⓘ */}
-      <Titulo
-        subtitulo={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="inline-flex items-center">🧮 {t('Como calcula o preço')}<Info texto={AJUDA_CONTA} /></span>
-          <span className="inline-flex items-center">🕓 {t('Versões e comparação')}<Info texto={AJUDA_VERSOES} /></span>
-        </span>}
-        acao={!!dados?.length && <Botao onClick={nova}>+ {t('Tabela')}</Botao>}
-      >
-        {t('Tabelas de preço')}
-      </Titulo>
-      {!dados ? <Carregando /> : !dados.length ? (
-        <Vazio texto="Nenhuma tabela ainda.">
-          <p className="mb-3">{t('Uma tabela diz o fator por medida e comprador: 60 cm × Helena = 16 → valor = gramas × 16.')}</p>
-          <Botao onClick={nova}>+ {t('Criar a primeira tabela')}</Botao>
-        </Vazio>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {lista.map((tb) => <CartaoTabela key={tb.id} tb={tb} />)}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** menor e maior fator da tabela (só os preenchidos e válidos) */
-function faixaDe(tb: TabelaPreco): [number, number] | undefined {
-  const ns = Object.values(tb.valores).filter((v) => fatorValido(v)).map((v) => Number(String(v).replace(',', '.')))
-  return ns.length ? [Math.min(...ns), Math.max(...ns)] : undefined
-}
-
-function CartaoTabela({ tb }: { tb: TabelaPreco }) {
-  const t = useT()
-  const { ir } = useApp()
-  const { dados } = useConsulta('tabelaPreco', { id: tb.id })
-  const v = dados?.versoes[0]
-  const faixa = faixaDe(tb)
-  const n = (x: number) => x.toLocaleString(loc(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  const simbolo = moeda(tb.moeda).simbolo
-  const porQue = tb.fatorPor === 'grama' ? '/g' : `/${t('un.')}`
-  const medidas = [...tb.linhas].sort((a, b) => a - b)
-  const stats: [string, number | undefined][] = [
-    ['Medidas', tb.linhas.length],
-    ['Compradores', tb.colunas.length],
-    ['Vendas', dados?.totalVendas],
-    ['Compras', dados?.totalCompras],
-  ]
-  // PRÉVIA EM MAPA DE CALOR: a grade (medida × comprador) em quadradinhos; mais escuro = fator maior; vazio = sem preço.
-  // Bate o olho e vê onde a tabela tem preço e como ele sobe com a medida — sem abrir.
-  const colsPrevia = tb.colunas.slice(0, 12)
-  const linhasPrevia = medidas.slice(0, 10)
-  const intensidade = (val?: string) => {
-    if (!faixa || !val || !fatorValido(val)) return 0
-    const x = Number(String(val).replace(',', '.'))
-    return faixa[1] === faixa[0] ? 1 : 0.2 + (0.8 * (x - faixa[0])) / (faixa[1] - faixa[0])
-  }
-  return (
-    <button type="button" onClick={() => ir('tabelaPreco', { id: tb.id })} className="group flex w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--marca)] hover:shadow-md">
-      <div className="flex w-full items-start gap-2 p-4 pb-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-lg font-bold leading-tight break-words">{tb.nome}</span>
-            {tb.categoria ? <Pilula tom="marca">{t(tb.categoria)}</Pilula> : <Pilula tom="bom">★ {t('Padrão')}</Pilula>}
-          </div>
-          {v && <p className="mt-0.5 truncate text-xs text-[var(--suave)]"><b className="text-[var(--marca)]">v{v.numero}</b> · {t('mudou em {d}', { d: diaCurto(v.em) })}{v.nota ? ` · “${v.nota}”` : ''}</p>}
-        </div>
-        <span aria-hidden className="text-2xl leading-none text-[var(--suave)] group-hover:text-[var(--marca)]">›</span>
-      </div>
-      {/* faixa de preço como barra: do mais barato ao mais caro */}
-      <div className="px-4">
-        {faixa ? (
-          <div className="num">
-            <div className="flex items-baseline justify-between text-sm"><b>{simbolo} {n(faixa[0])}</b><span className="text-xs text-[var(--suave)]">{porQue}</span><b>{simbolo} {n(faixa[1])}</b></div>
-            <div className="mt-1 h-1.5 rounded-full" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--marca) 20%, transparent), var(--marca))' }} />
-            {medidas.length > 0 && <div className="mt-0.5 flex justify-between text-[11px] text-[var(--suave)]"><span>{medidas[0]} {tb.unidadeMedida}</span><span>{medidas[medidas.length - 1]} {tb.unidadeMedida}</span></div>}
-          </div>
-        ) : <p className="text-sm text-[var(--suave)]">{t('sem preços ainda')}</p>}
-      </div>
-      {linhasPrevia.length > 0 && colsPrevia.length > 0 && (
-        <div aria-hidden className="mx-4 mt-3 overflow-hidden rounded-xl bg-[var(--fundo)] p-2">
-          <div className="grid gap-0.5" style={{ gridTemplateColumns: `2rem repeat(${colsPrevia.length}, minmax(0, 1fr))` }}>
-            {linhasPrevia.map((l) => (
-              <Fragment key={l}>
-                <span className="num pr-1 text-right text-[9px] leading-3 text-[var(--suave)]">{l}</span>
-                {colsPrevia.map((c) => {
-                  const a = intensidade(tb.valores[chaveCelula(l, c.id)])
-                  return <span key={c.id} className="h-3 rounded-[3px]" style={{ background: a ? `color-mix(in srgb, var(--marca) ${Math.round(a * 100)}%, transparent)` : 'var(--borda)', opacity: a ? 1 : 0.5 }} />
-                })}
-              </Fragment>
-            ))}
-          </div>
-        </div>
-      )}
-      <div className="mt-3 flex flex-wrap gap-1.5 border-t border-[var(--borda)] px-4 py-2.5">
-        {stats.map(([rotulo, valor]) => (
-          <Pilula key={rotulo} tom={valor ? 'marca' : 'suave'}><b>{valor ?? '…'}</b> <span className="font-normal">{t(rotulo).toLowerCase()}</span></Pilula>
-        ))}
-      </div>
-    </button>
-  )
+  return <ListaTabelas ajudaConta={AJUDA_CONTA} ajudaVersoes={AJUDA_VERSOES} />
 }
 
 // ---------- tela da tabela ----------
@@ -162,14 +58,15 @@ type Ferramenta = { tipo: 'pct' | 'copiar' | 'preencher'; alvo?: Alvo; para?: st
 
 function TabelaTela() {
   const t = useT()
-  const { nav, ir, voltar, marcarSujo, avisar } = useApp()
+  const { nav, ir, voltar, marcarSujo, avisar, ajustarParams } = useApp()
   const { executar, ocupado } = useComando()
   const id = nav.params.id as string
   const novo = id === 'novo'
   const { dados, erro } = useConsulta('tabelaPreco', { id }, !novo)
+  const { dados: listaTabelas } = useConsulta('listaTabelasPreco', {}, !novo)
   const [abaUrl, setAba] = useParamTela<string>('aba', 'tabela')
   // links antigos (?aba=versoes / comparar / editar) continuam abrindo o lugar certo
-  const aba = novo ? 'tabela' : ['versoes', 'comparar', 'historico'].includes(abaUrl) ? 'historico' : 'tabela'
+  const aba = novo ? 'tabela' : ['versoes', 'comparar', 'historico'].includes(abaUrl) ? 'historico' : ['usada', 'entenda'].includes(abaUrl) ? abaUrl : 'tabela'
   const [ver, setVer] = useParamTela<'grade' | 'medida'>('ver', 'grade')
   const tb = dados?.tabela
   const [inicial] = useState(() => (novo ? rascunhoDe(undefined, t) : undefined))
@@ -283,54 +180,68 @@ function TabelaTela() {
     if (novo) ir('tabelaPreco', { id: res.id })
   }
 
-  const nome = (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      {editandoNome !== undefined ? (
-        <Entrada
-          autoFocus
-          focoSempre
-          aria-label={t('Nome')}
-          className="max-w-md text-xl font-bold"
-          value={editandoNome}
-          onChange={(e) => setEditandoNome(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setEditandoNome(undefined)
-            if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur()
-          }}
-          onBlur={() => {
-            if (editandoNome?.trim()) mudar((x) => ({ ...x, nome: editandoNome.trim() }))
-            setEditandoNome(undefined)
-          }}
-        />
-      ) : (
-        <h1 className="min-w-0 text-2xl font-bold leading-tight">
-          <button type="button" onClick={() => setEditandoNome(g.nome)} className="group inline-flex items-center gap-2 rounded-lg text-left hover:text-[var(--marca)]" aria-label={`${g.nome} · ${t('Mudar o nome')}`}>
-            <span className="break-words">{g.nome}</span>
-            <span aria-hidden className="text-base text-[var(--suave)] group-hover:text-[var(--marca)]">✎</span>
-          </button>
-        </h1>
-      )}
-      {/* categoria: rótulo claro + ✎ (tocar troca ou cria outra) e o ⓘ explica para que serve */}
-      <span className="inline-flex items-center">
-        <button type="button" onClick={() => setJanela({ tipo: 'detalhes' })} className={cx('inline-flex min-h-9 items-center gap-1 rounded-full border px-3 text-sm', g.categoria ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)]')}>
-          <span className="text-[var(--suave)]">{t('Categoria')}:</span> <b>{g.categoria ? t(g.categoria) : `${t('Normal')} (${t('geral')})`}</b> <span aria-hidden className="text-[var(--suave)]">✎</span>
-        </button>
-        <Info texto="Categoria: para qual tipo de cabelo esta tabela vale. Toque para trocar ou criar outra (Tinte, CH, Platinado…). Ex.: pacote 60 cm Tinte → usa a tabela Tinte; sem ela, usa a Normal." />
-      </span>
-    </div>
+  const nome = editandoNome !== undefined ? (
+    <Entrada
+      autoFocus
+      focoSempre
+      aria-label={t('Nome')}
+      className="max-w-md text-xl font-bold"
+      value={editandoNome}
+      onChange={(e) => setEditandoNome(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') setEditandoNome(undefined)
+        if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur()
+      }}
+      onBlur={() => {
+        if (editandoNome?.trim()) mudar((x) => ({ ...x, nome: editandoNome.trim() }))
+        setEditandoNome(undefined)
+      }}
+    />
+  ) : (
+    <button type="button" onClick={() => setEditandoNome(g.nome)} className="group inline-flex items-center gap-2 rounded-lg text-left hover:text-[var(--marca)]" aria-label={`${g.nome} · ${t('Mudar o nome')}`}>
+      <span className="break-words">{g.nome}</span>
+      <span aria-hidden className="text-base text-[var(--suave)] group-hover:text-[var(--marca)]">✎</span>
+    </button>
   )
+  // os números do cabeçalho: faixa de preço, a situação (vigente/agendada/substituída) e a última versão
+  const nums = Object.values(g.valores).filter((v) => fatorValido(v)).map((v) => Number(String(v).replace(',', '.')))
+  const faixa = nums.length ? [Math.min(...nums), Math.max(...nums)] : undefined
+  const fmt = (x: number) => x.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const daLista = listaTabelas?.find((x) => x.id === id)
+  const sit = daLista ? SITUACAO_TABELA[daLista.situacao] : undefined
+  const ultima = versoes[0]
 
   return (
     <div className={cx(sujo && 'pb-4')}>
       <Trilha atual={novo ? t('Nova tabela') : g.nome} />
-      <div className="mb-3">
-        {nome}
-        <p className="mt-1 flex flex-wrap items-center text-sm text-[var(--suave)]">
-          {novo ? t('Nova tabela · vai publicar a v1') : <><b className="text-[var(--marca)]">{t('versão')} v{atual}</b>&nbsp;· {t('vale desde {d}', { d: diaCurto(g.validaDesde) })}{tb && tb.moeda !== moedaPadrao() ? ` · ${tb.moeda}` : ''}</>}
+      {/* CABEÇALHO PADRÃO DE FICHA (o mesmo do pacote e da compra): nome (✎ no lugar) · situação, categoria e versão ·
+          detalhes · faixa de preço · ações */}
+      <CabecalhoFicha
+        className="mb-3"
+        titulo={nome}
+        selos={novo ? <Pilula tom="marca">{t('Nova tabela · vai publicar a v1')}</Pilula> : <>
+          {sit && <Pilula tom={sit.tom} title={t(sit.ajuda)}>{daLista?.situacao === 'vigente' ? '● ' : ''}{t(sit.nome)}</Pilula>}
+          <Pilula tom="marca">v{atual} · {t('em uso')}</Pilula>
+          <button type="button" onClick={() => setJanela({ tipo: 'detalhes' })} title={t('Categoria: para qual tipo de cabelo esta tabela vale. Toque para trocar ou criar outra (Tinte, CH, Platinado…).')}
+            className={cx('inline-flex min-h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold ring-1', g.categoria ? 'bg-[var(--marca-suave)] text-[var(--marca)] ring-[var(--marca)]/40' : 'bg-[var(--fundo)] ring-[var(--borda)]')}>
+            🏷 {g.categoria ? t(g.categoria) : t('Normal (geral)')} <span aria-hidden className="text-[var(--suave)]">✎</span>
+          </button>
+        </>}
+        detalhes={[
+          g.validaDesde && t('vale desde {d}', { d: diaCurto(g.validaDesde) }),
+          `${g.linhas.length} ${t('medidas')} · ${g.colunas.length} ${t('compradores')}`,
+          ultima && !novo && `${t('mudou em {d}', { d: diaCurto(ultima.em) })}${ultima.por ? ` · ${ultima.por}` : ''}`,
+          tb && tb.moeda !== moedaPadrao() && tb.moeda,
+        ]}
+        valor={faixa ? <span className="num whitespace-nowrap">{moeda(g.moeda).simbolo} {fmt(faixa[0])} – {fmt(faixa[1])}</span> : undefined}
+        valorDetalhe={faixa ? t(g.fatorPor === 'grama' ? 'por grama' : 'por unidade') : undefined}
+        acoes={<div className="flex flex-wrap items-center gap-2">
+          <Botao variante="secundario" onClick={() => setJanela({ tipo: 'detalhes' })}>✎ {t('Nome, categoria e data')}</Botao>
+          {!novo && <Botao variante="leve" onClick={() => setAba('entenda')}>💡 {t('Como funciona')}</Botao>}
           <Info texto={AJUDA_VERSOES} />
-        </p>
-      </div>
-      {!novo && <Abas variante="sublinhado" atual={aba} onChange={(a) => setAba(a)} abas={[{ id: 'tabela', nome: 'Tabela', extra: sujo ? <Pilula key="r" tom="alerta">{t('não publicado')}</Pilula> : undefined }, { id: 'historico', nome: 'Histórico', extra: <Pilula key="v">{versoes.length}</Pilula> }]} />}
+        </div>}
+      />
+      {!novo && <Abas variante="sublinhado" atual={aba} onChange={(a) => setAba(a)} abas={[{ id: 'tabela', nome: 'Tabela', extra: sujo ? <Pilula key="r" tom="alerta">{t('não publicado')}</Pilula> : undefined }, { id: 'usada', nome: 'Onde foi usada', extra: <Pilula key="u">{dados?.totalUsos ?? 0}</Pilula> }, { id: 'historico', nome: 'Histórico', extra: <Pilula key="v">{versoes.length}</Pilula> }, { id: 'entenda', nome: 'Entenda os valores' }]} />}
 
       {aba === 'tabela' && (
         <div className="space-y-3">
@@ -382,11 +293,12 @@ function TabelaTela() {
             </div>
           )}
 
-          {tb && dados!.usos.length > 0 && <UsadaEm usos={dados!.usos} total={dados!.totalUsos} moeda={tb.moeda} />}
         </div>
       )}
 
-      {aba === 'historico' && <Historico id={id} versoes={versoes} />}
+      {aba === 'usada' && tb && <UsadaEm usos={dados!.usos} versoes={versoes} atual={atual} moeda={tb.moeda} />}
+      {aba === 'historico' && <Historico id={id} versoes={versoes} usosPorVersao={Object.fromEntries(versoes.map((v) => [v.numero, (dados?.usos ?? []).filter((u) => u.versao === v.numero).length]))} onVerUsos={(n) => ajustarParams({ aba: 'usada', uv: n === atual ? undefined : String(n) })} />}
+      {aba === 'entenda' && <EntendaValores />}
 
       {/* barra do rascunho: só aparece quando algo mudou */}
       {(sujo || ocupado) && (
@@ -495,7 +407,7 @@ function GradeEditavel({ g, base, baixa, celula, acoesMedida, acoesColuna, onMed
   const t = useT()
   return (
     // altura limitada: o cabeçalho (compradores) fica grudado ao rolar; com a barra de publicar aberta, fica mais baixa
-    <div className={cx('overflow-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]', baixa ? 'max-h-[calc(100dvh-22rem)] min-h-[16rem] md:max-h-[calc(100dvh-19rem)]' : 'max-h-[calc(100dvh-15rem)] md:max-h-[calc(100dvh-13rem)]')}>
+    <div className={cx('sem-barra overflow-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] [background:linear-gradient(to_right,var(--cartao)_30%,transparent),linear-gradient(to_left,var(--cartao)_30%,transparent)_100%_0,radial-gradient(farthest-side_at_100%_50%,rgba(0,0,0,.25),transparent)_100%_0] [background-attachment:local,local,scroll] [background-repeat:no-repeat] [background-size:40px_100%,40px_100%,14px_100%]', baixa ? 'max-h-[calc(100dvh-22rem)] min-h-[16rem] md:max-h-[calc(100dvh-19rem)]' : 'max-h-[calc(100dvh-15rem)] md:max-h-[calc(100dvh-13rem)]')}>
       <table className="border-separate border-spacing-0 text-sm">
         <thead>
           <tr>
@@ -696,124 +608,5 @@ function Ferramentas({ g, inicial, onFechar, onAplicar }: { g: Rascunho; inicial
         )}
       </div>
     </Janela>
-  )
-}
-
-type Uso = Awaited<ReturnType<typeof import('../core/services/precos').tabelaPreco>>['usos'][number]
-
-const AJUDA_USADA = 'Vendas e compras que calcularam o preço com esta tabela. Cada uma guarda o fator e a versão que usou: mudar a tabela não muda o passado. Ex.: V-0004 usou a v1 (60 cm × 17); a v2 subiu para 17,5, mas a V-0004 continua com 17.'
-
-/**
- * USADA EM (filtro padrão): números grandes Vendas/Compras (tocar filtra), busca e o painel com período, pessoa,
- * versão e comprador (coluna). Tudo no endereço (u*), para voltar e achar a lista igual.
- */
-function UsadaEm({ usos, total, moeda: m }: { usos: Uso[]; total: number; moeda: string }) {
-  const t = useT()
-  const { ajustarParams } = useApp()
-  const { p, setP, tirar: tirarFiltro } = useFiltrosTela()
-  const [aberto, setAberto] = useState(false)
-  const CHAVES = ['ut', 'ub', 'ude', 'uate', 'up', 'uv', 'uc']
-  const busca = p('ub').trim().toLowerCase()
-  const passa = (u: Uso, sem?: string) =>
-    (sem === 'ut' || !p('ut') || (p('ut') === 'compra') === (u.tipo === 'compra')) &&
-    (!busca || [u.codigo, u.pessoa, ...u.colunas].filter(Boolean).join(' ').toLowerCase().includes(busca)) &&
-    (!p('ude') || u.data >= p('ude')) &&
-    (!p('uate') || u.data <= p('uate')) &&
-    (!p('up') || u.pessoa === p('up')) &&
-    (!p('uv') || String(u.versao) === p('uv')) &&
-    (!p('uc') || u.colunas.includes(p('uc')))
-  const lista = usos.filter((u) => passa(u))
-  // números grandes contam com os outros filtros, menos o tipo (para ver quantas de cada)
-  const semTipo = usos.filter((u) => passa(u, 'ut'))
-  const vendas = semTipo.filter((u) => u.tipo !== 'compra')
-  const compras = semTipo.filter((u) => u.tipo === 'compra')
-  const soma = (xs: Uso[]) => xs.reduce((s, u) => s + u.total, 0)
-  const gramas = (xs: Uso[]) => xs.reduce((s, u) => s + u.gramas, 0)
-  const valores = (f: (u: Uso) => (string | number | undefined)[]) => [...new Set(usos.flatMap(f).filter((x) => x !== undefined && x !== '').map(String))].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }))
-  const avancados = CHAVES.filter((k) => k !== 'ut' && k !== 'ub' && p(k)).length
-  const limpar = () => ajustarParams(Object.fromEntries(CHAVES.map((k) => [k, undefined])))
-  const ativos = [
-    ...(p('ude') || p('uate') ? [{ k: 'ude,uate', rotulo: `📅 ${p('ude') ? diaCurto(p('ude')) : '…'} – ${p('uate') ? diaCurto(p('uate')) : '…'}` }] : []),
-    ...(p('up') ? [{ k: 'up', rotulo: `👤 ${p('up')}` }] : []),
-    ...(p('uv') ? [{ k: 'uv', rotulo: `${t('versão')} v${p('uv')}` }] : []),
-    ...(p('uc') ? [{ k: 'uc', rotulo: `▦ ${p('uc')}` }] : []),
-  ]
-  const alternarTipo = (x: 'venda' | 'compra') => setP('ut', p('ut') === x ? '' : x)
-  return (
-    <section aria-label={t('Usada em')} className="space-y-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:p-4">
-      <h2 className="flex items-center gap-1 text-base font-bold">{t('Onde esta tabela foi usada')}<span className="num text-sm font-normal text-[var(--suave)]">· {total}</span><Info texto={AJUDA_USADA} /></h2>
-      <div className="grid grid-cols-2 gap-2">
-        <NumeroGrande rotulo="Vendas" icone="💰" cor="var(--marca)" valor={String(vendas.length)} ativo={p('ut') === 'venda'} onClick={() => alternarTipo('venda')} selos={[{ texto: formatar(soma(vendas), m), tom: 'marca' }, { texto: gramasTexto(gramas(vendas)) }]} />
-        <NumeroGrande rotulo="Compras" icone="🛒" cor="var(--bom)" valor={String(compras.length)} ativo={p('ut') === 'compra'} onClick={() => alternarTipo('compra')} selos={[{ texto: formatar(soma(compras), m), tom: 'bom' }, { texto: gramasTexto(gramas(compras)) }]} />
-      </div>
-      <BarraFiltros busca={p('ub')} onBusca={(v) => setP('ub', v)} placeholder="Buscar código, pessoa ou comprador" extra={<BotaoPeriodo de={p('ude')} ate={p('uate')} onChange={(d, a) => (setP('ude', d ?? ''), setP('uate', a ?? ''))} />} ativos={avancados} aberto={aberto} onAlternar={() => setAberto(!aberto)} />
-      <ChipsFiltros itens={ativos} onTirar={tirarFiltro} onLimpar={limpar} />
-      {aberto && (
-        <PainelFiltros resultados={lista.length} temAtivos={avancados > 0} onLimpar={limpar} onFechar={() => setAberto(false)}>
-          <GrupoFiltro titulo="Quem e como" icone="👤">
-            <Campo rotulo="Cliente / fornecedor"><Selecao valor={p('up')} onChange={(v) => setP('up', v)} vazio={t('Todos')} opcoes={valores((u) => [u.pessoa]).map((x) => ({ id: x, nome: x }))} /></Campo>
-            <Campo rotulo="Versão da tabela" ajuda="A versão que valia no dia. Ex.: v1 = antes do aumento de 14/10."><Selecao valor={p('uv')} onChange={(v) => setP('uv', v)} vazio={t('Todas')} opcoes={valores((u) => [u.versao]).map((x) => ({ id: x, nome: `v${x}` }))} /></Campo>
-            <Campo rotulo="Comprador (coluna)"><Selecao valor={p('uc')} onChange={(v) => setP('uc', v)} vazio={t('Todos')} opcoes={valores((u) => u.colunas).map((x) => ({ id: x, nome: x }))} /></Campo>
-          </GrupoFiltro>
-        </PainelFiltros>
-      )}
-      {lista.length ? (
-        <>
-          <ul className="divide-y divide-[var(--borda)] text-sm">
-            {lista.map((u) => <UsoTabela key={u.id} u={u} moeda={m} />)}
-          </ul>
-          <p className="num flex flex-wrap justify-between gap-2 border-t border-[var(--borda)] pt-2 text-xs text-[var(--suave)]">
-            <span>{t('Mostrando {n} de {t}', { n: lista.length, t: total })}</span>
-            <span>{gramasTexto(gramas(lista))} · <b className="text-[var(--texto)]">{formatar(soma(lista), m)}</b></span>
-          </p>
-        </>
-      ) : <Vazio texto="Nada com estes filtros." />}
-    </section>
-  )
-}
-
-/** Uma venda/compra que usou a tabela: resumo numa linha; tocar abre o detalhe ali mesmo (sem trocar de tela). */
-function UsoTabela({ u, moeda }: { u: Uso; moeda: string }) {
-  const t = useT()
-  const { ir } = useApp()
-  const [aberto, setAberto] = useState(false)
-  const compra = u.tipo === 'compra'
-  return (
-    <li>
-      <button type="button" aria-expanded={aberto} onClick={() => setAberto((x) => !x)} className="flex w-full items-center gap-3 py-3.5 text-left hover:text-[var(--marca)]">
-        <span className={cx('h-8 w-1 shrink-0 rounded-full', compra ? 'bg-[var(--bom)]' : 'bg-[var(--marca)]')} aria-hidden />
-        <span className="min-w-0 flex-1">
-          <span className="block font-semibold">{t(compra ? 'Compra' : 'Venda')} {u.codigo ?? ''}{u.pessoa ? ` · ${u.pessoa}` : ''}</span>
-          <span className="mt-0.5 block text-xs text-[var(--suave)]">{dataBR(u.data)} · {gramasTexto(u.gramas)} · {u.linhas} {t('linha(s)')}</span>
-          <span className="mt-1 flex flex-wrap gap-1">
-            {u.versao !== undefined && <Pilula pequena tom="marca">v{u.versao}</Pilula>}
-            {u.colunas.map((c) => <Pilula key={c} pequena tom="suave">▦ {c}</Pilula>)}
-          </span>
-        </span>
-        <span className="num shrink-0 text-right font-semibold">
-          {formatar(u.total, moeda)}
-          {u.desconto ? <span className="block text-xs font-normal text-[var(--suave)]">{t('desconto')} {formatar(u.desconto, moeda)}</span> : null}
-        </span>
-        <span className={cx('shrink-0 text-[var(--suave)] transition-transform', aberto && 'rotate-90')} aria-hidden>›</span>
-      </button>
-      {aberto && (
-        <div className="mb-3 ml-4 rounded-xl bg-[var(--fundo)] p-3">
-          <ul className="space-y-1.5">
-            {u.detalhe.map((l) => (
-              <li key={l.id} className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <span className="min-w-0">
-                  {l.medida !== undefined ? `${l.medida} cm` : l.descricao}
-                  <span className="num ml-2 text-xs text-[var(--suave)]">{gramasTexto(l.gramas)}{l.fator !== undefined ? ` × ${l.fator}` : ''}</span>
-                </span>
-                <span className="num">{formatar(l.total, moeda)}{l.desconto ? <span className="ml-1 text-xs text-[var(--suave)]">(−{formatar(l.desconto, moeda)})</span> : null}</span>
-              </li>
-            ))}
-          </ul>
-          <button type="button" onClick={() => ir(compra ? 'pedido' : 'venda', { id: u.id })} className="mt-2 text-sm font-semibold text-[var(--marca)]">
-            {t(compra ? 'Abrir a compra' : 'Abrir a venda')} →
-          </button>
-        </div>
-      )}
-    </li>
   )
 }

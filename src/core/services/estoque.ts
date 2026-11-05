@@ -732,7 +732,7 @@ export async function rastreio(ctx: Ctx, p: { compraId?: Id; itemId?: Id }) {
 
 // ---------- atributos dos lotes (admin) ----------
 
-const CAMPOS_INTERNOS = ['separacaoId', 'rateio', 'tabelaId', 'colunaId', 'calculo']
+const CAMPOS_INTERNOS = ['separacaoId', 'rateio', 'tabelaId', 'colunaId', 'calculo', 'tabelaVersao', 'tabelaNome', 'colunaNome', 'fatorTabela', 'fatorManual']
 
 function textoValor(v: Campos[string]) {
   return v === undefined || v === null || v === '' ? '—' : v === true ? 'sim' : v === false ? 'não' : String(v)

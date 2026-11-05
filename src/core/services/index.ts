@@ -171,6 +171,8 @@ export const consultas = {
   historicoPacote: livro.historicoPacote,
   tabelasPreco: precos.tabelasPreco,
   tabelaVigente: precos.tabelaVigente,
+  listaTabelasPreco: precos.listaTabelasPreco,
+  versoesEmUso: precos.versoesEmUso,
   historicoTabela: precos.historicoTabela,
   versoesTabela: precos.versoesTabela,
   compararVersoes: precos.compararVersoes,

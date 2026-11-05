@@ -4,6 +4,7 @@
 // Item de catálogo (produto) continua entrando no estoque só na última etapa, como antes.
 
 import { formatar, multiplicarFator, proporcao, type CodigoMoeda } from '../domain/dinheiro'
+import { carimbarTabela } from './precos'
 import { registrarImpostosEstimados } from './impostosRegistro'
 import { redividirGasto } from './viagens'
 import { mapaViagens } from './viagemCurta'
@@ -43,6 +44,8 @@ export interface LinhaCompraEntrada {
 function semMarcaDeValor(c: Campos): Campos {
   const r = { ...c }
   delete r.semValor
+  // o carimbo da tabela (versão, nomes, fator da tabela) é da LINHA da compra, não do pacote
+  for (const k of ['tabelaVersao', 'tabelaNome', 'colunaNome', 'fatorTabela', 'fatorManual']) delete r[k]
   return r
 }
 
@@ -66,6 +69,7 @@ async function montarLinha(ctx: Ctx, l: LinhaCompraEntrada, nomePadrao: string):
     campos.tabelaId = l.calculo.tabelaId
     campos.colunaId = l.calculo.colunaId
     campos.calculo = `${l.calculo.medida ?? ''}${l.calculo.categoria ? ' ' + l.calculo.categoria : ''} | ${l.quantidade.toLocaleString('pt-BR')} × ${l.calculo.fator} = ${formatar(total, l.moeda)}`
+    await carimbarTabela(ctx, campos)
   }
   return {
     id: l.id,

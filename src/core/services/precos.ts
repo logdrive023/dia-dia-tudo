@@ -78,6 +78,31 @@ export async function salvarTabelaPreco(
   return { id: d.id, versao: numero }
 }
 
+/**
+ * CARIMBO DA TABELA NA LINHA (venda e compra): no momento em que a linha nasce, guarda a VERSÃO da tabela que valia,
+ * o nome da tabela e do comprador (coluna), o fator que a tabela dava e se o fator usado foi mudado à mão.
+ * É o que faz o histórico mostrar o que REALMENTE aconteceu: publicar a v3 depois não muda a venda feita com a v2.
+ */
+export async function carimbarTabela(ctx: Ctx, campos: Record<string, unknown>, cache = new Map<Id, { t?: TabelaPreco; versao?: number }>()) {
+  const id = campos.tabelaId as Id | undefined
+  if (!id || campos.tabelaVersao !== undefined) return
+  if (!cache.has(id)) {
+    const t = await ctx.repos.tabelasPreco.obter(id)
+    cache.set(id, { t, versao: t ? (await versoesTabela(ctx, { id }))[0]?.numero ?? 1 : undefined })
+  }
+  const { t, versao } = cache.get(id)!
+  if (!t) return
+  const colunaId = campos.colunaId as string | undefined
+  const medida = Number(campos.medida ?? campos.comprimento)
+  const daTabela = colunaId && Number.isFinite(medida) ? fatorDaTabela(t, medida, colunaId).fator : undefined
+  const norm = (x: unknown) => String(x ?? '').trim().replace('.', ',')
+  campos.tabelaVersao = versao
+  campos.tabelaNome = t.nome
+  if (colunaId) campos.colunaNome = t.colunas.find((c) => c.id === colunaId)?.nome
+  if (daTabela) campos.fatorTabela = norm(daTabela)
+  if (daTabela && campos.fator !== undefined && norm(campos.fator) !== norm(daTabela)) campos.fatorManual = true
+}
+
 // ---------- consultas ----------
 
 export async function tabelasPreco(ctx: Ctx, p: { moduloId?: string } = {}) {
@@ -190,23 +215,33 @@ export async function tabelaPreco(ctx: Ctx, p: { id: Id }) {
   exigir(t, 'Tabela não encontrada.')
   const versoes = await versoesTabela(ctx, p)
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x.nome]))
+  const usuarios = new Map((await ctx.repos.usuarios.listar()).map((u) => [u.id, u.nome]))
   const usos = (await ctx.repos.transacoes.listar())
     .filter((x) => x.etapa !== 'cancelado' && x.linhas.some((l) => l.campos.tabelaId === t.id))
     .map((x) => {
       const ls = x.linhas.filter((l) => l.campos.tabelaId === t.id)
-      // versão que valia quando foi feita (a mais nova publicada antes dela) e as colunas (compradores) usadas
-      const versao = versoes.find((v) => v.em <= x.criadoEm)?.numero ?? versoes[versoes.length - 1]?.numero
-      const colunas = [...new Set(ls.map((l) => t.colunas.find((c) => c.id === l.campos.colunaId)?.nome).filter((n): n is string => !!n))]
+      // a VERSÃO que a linha usou: a guardada na linha (carimbo na hora da venda/compra). Venda antiga, de antes do
+      // carimbo: a versão que valia na data (a mais nova publicada antes dela) — marcada como estimada
+      const guardada = ls.map((l) => l.campos.tabelaVersao as number | undefined).find((v) => v !== undefined)
+      const versao = guardada ?? versoes.find((v) => v.em <= x.criadoEm)?.numero ?? versoes[versoes.length - 1]?.numero
+      const colunas = [...new Set(ls.map((l) => (l.campos.colunaNome as string | undefined) ?? t.colunas.find((c) => c.id === l.campos.colunaId)?.nome).filter((n): n is string => !!n))]
       // desconto das linhas desta tabela (a linha com desconto continua ligada à tabela, com o fator que usou)
       return {
-        id: x.id, tipo: x.tipo, data: x.data, codigo: x.codigo, total: x.totalPrincipal, linhas: ls.length, versao, colunas,
+        id: x.id, tipo: x.tipo, data: x.data, codigo: x.codigo, total: x.totalPrincipal, linhas: ls.length, versao, versaoEstimada: guardada === undefined, colunas,
+        /** quem fez a venda/compra */
+        responsavel: usuarios.get(x.criadoPor) ?? undefined,
+        /** valor só das linhas desta tabela */
+        valorTabela: ls.reduce((s, l) => s + l.totalPrincipal, 0),
+        /** alguma linha com o fator mudado à mão (diferente do que a tabela dava) */
+        manual: ls.some((l) => !!l.campos.fatorManual),
         desconto: ls.reduce((s, l) => s + (l.descontoPrincipal ?? 0), 0),
         pessoa: x.pessoaId ? pessoas.get(x.pessoaId) : undefined,
         gramas: ls.reduce((s, l) => s + l.quantidade, 0),
         // detalhe (aberto na própria lista): cada linha com medida, gramas × fator e valor
         detalhe: ls.map((l) => ({
           id: l.id, descricao: l.descricao, medida: l.campos.medida as number | string | undefined, gramas: l.quantidade,
-          fator: l.campos.fator as number | string | undefined, total: l.totalPrincipal, desconto: l.descontoPrincipal,
+          fator: l.campos.fator as number | string | undefined, fatorTabela: l.campos.fatorTabela as string | undefined, manual: !!l.campos.fatorManual,
+          coluna: (l.campos.colunaNome as string | undefined) ?? t.colunas.find((c) => c.id === l.campos.colunaId)?.nome, total: l.totalPrincipal, desconto: l.descontoPrincipal,
         })),
       }
     })
@@ -218,6 +253,47 @@ export async function tabelaPreco(ctx: Ctx, p: { id: Id }) {
     totalVendas: usos.filter((u) => u.tipo !== 'compra').length,
     totalCompras: usos.filter((u) => u.tipo === 'compra').length,
   }
+}
+
+/** a versão em uso de cada tabela: { tabelaId: número } (o caixa mostra; a venda guarda a mesma ao fechar) */
+export async function versoesEmUso(ctx: Ctx, _p: object = {}) {
+  const r: Record<Id, number> = {}
+  for (const t of await ctx.repos.tabelasPreco.listar()) r[t.id] = (await versoesTabela(ctx, { id: t.id }))[0]?.numero ?? 1
+  return r
+}
+
+/**
+ * A LISTA DAS TABELAS (tela Tabelas de preço): cada uma com a versão em uso (quando, quem, nota), a faixa de preço,
+ * quantas vendas/compras usaram e a SITUAÇÃO: vigente (é a que vale hoje para a categoria dela) · agendada (vale
+ * a partir de uma data que ainda não chegou) · substituída (outra mais nova da mesma categoria tomou o lugar).
+ */
+export async function listaTabelasPreco(ctx: Ctx, _p: object = {}) {
+  const hoje = ctx.relogio.hoje()
+  const ts = await ctx.repos.tabelasPreco.listar()
+  const trans = (await ctx.repos.transacoes.listar()).filter((x) => x.etapa !== 'cancelado')
+  const vigentes = new Set<Id>()
+  for (const t of ts) {
+    const v = await tabelaVigente(ctx, { moduloId: t.moduloId, categoria: t.categoria })
+    if (v && (v.categoria ?? '') === (t.categoria ?? '')) vigentes.add(v.id)
+  }
+  const lista = []
+  for (const t of ts) {
+    const vs = await versoesTabela(ctx, { id: t.id })
+    const usa = trans.filter((x) => x.linhas.some((l) => l.campos.tabelaId === t.id))
+    const ns = Object.values(t.valores).filter((v) => fatorValido(v)).map((v) => Number(String(v).replace(',', '.')))
+    const situacao: 'vigente' | 'agendada' | 'substituida' = t.validaDesde && t.validaDesde > hoje ? 'agendada' : vigentes.has(t.id) ? 'vigente' : 'substituida'
+    lista.push({
+      id: t.id, nome: t.nome, categoria: t.categoria, moeda: t.moeda, fatorPor: t.fatorPor, unidadeMedida: t.unidadeMedida, validaDesde: t.validaDesde,
+      medidas: t.linhas.length, compradores: t.colunas.length, colunas: t.colunas.map((c) => c.nome),
+      faixa: ns.length ? [Math.min(...ns), Math.max(...ns)] as [number, number] : undefined,
+      medidaMin: Math.min(...t.linhas), medidaMax: Math.max(...t.linhas),
+      versao: vs[0]?.numero ?? 1, versoes: vs.length, mudouEm: vs[0]?.em ?? t.atualizadoEm, por: vs[0]?.por, nota: vs[0]?.nota,
+      vendas: usa.filter((x) => x.tipo !== 'compra').length, compras: usa.filter((x) => x.tipo === 'compra').length,
+      situacao,
+    })
+  }
+  // a geral (sem categoria) primeiro; depois por nome
+  return lista.sort((a, b) => Number(!!a.categoria) - Number(!!b.categoria) || a.nome.localeCompare(b.nome, 'pt-BR'))
 }
 
 /** Calcula como no caderno: "40 | 3,5 × 2 kg = Bs 7.000". */

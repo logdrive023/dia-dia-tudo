@@ -2,6 +2,7 @@
 // Agendado não mexe em estoque nem caixa; só ao concluir.
 
 import { converter, formatar, moeda as moedaDe, multiplicarFator, proporcao, type CodigoMoeda, type Cotacao } from '../domain/dinheiro'
+import { carimbarTabela } from './precos'
 import { registrarImpostosEstimados } from './impostosRegistro'
 import { mapaViagens } from './viagemCurta'
 import { ErroNegocio, exigir } from '../domain/erros'
@@ -213,6 +214,9 @@ async function montarLinhas(ctx: Ctx, entrada: LinhaVendaEntrada[], profissional
     aplicarDivisao(linha, regra?.bp, regra?.regra)
     linhas.push(linha)
   }
+  // a versão da tabela que valia AGORA fica guardada na linha (o histórico nunca muda depois)
+  const cache = new Map()
+  for (const l of linhas) await carimbarTabela(ctx, l.campos, cache)
   return linhas
 }
 

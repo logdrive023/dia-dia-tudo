@@ -75,6 +75,15 @@ export const NOVIDADES: Novidade[] = [
       { area: 'Relatórios', tipo: 'novo', tela: 'relatorios', texto: {
         pt: 'Estados financeiros no padrão boliviano (IVA, IT, IUE, RTS) com folha A4 para imprimir; DRE do Brasil continua como opção.',
         es: 'Estados financieros en el estándar boliviano (IVA, IT, IUE, RTS) con hoja A4 para imprimir; el DRE de Brasil sigue como opción.' } },
+      { area: 'Venda', tipo: 'novo', tela: 'vendaRapida', texto: {
+        pt: 'Preço da tabela na venda: embaixo de "Nesta venda", a linha "Preço da tabela" mostra cada comprador com o total; tocar troca o valor de todos os pacotes na hora (opcional — sem mexer vale o padrão). A venda guarda a coluna, o fator e a versão usados.',
+        es: 'Precio de la tabla en la venta: debajo de "En esta venta", la línea "Precio de la tabla" muestra cada comprador con el total; tocar cambia el valor de todos los paquetes al momento (opcional — sin tocar vale el estándar). La venta guarda la columna, el factor y la versión usados.' } },
+      { area: 'Venda', tipo: 'novo', tela: 'precos', texto: {
+        pt: 'Tabelas de preço refeitas: lista limpa com filtro padrão e situação (vigente, agendada, substituída); "Onde foi usada" sempre por versão (nunca mistura); o histórico mostra quantos usos cada versão teve; nova aba "Entenda os valores".',
+        es: 'Tablas de precios rehechas: lista limpia con filtro estándar y situación (vigente, programada, reemplazada); "Dónde se usó" siempre por versión (nunca mezcla); el historial muestra cuántos usos tuvo cada versión; nueva pestaña "Entienda los valores".' } },
+      { area: 'Venda', tipo: 'correcao', tela: 'vendaRapida', texto: {
+        pt: 'Corrigido: no modo caixa, depois de digitar na busca e retomar uma venda em aberto, a lista de pacotes ficava aberta por cima da venda.',
+        es: 'Corregido: en el modo caja, después de escribir en la búsqueda y retomar una venta abierta, la lista de paquetes quedaba abierta encima de la venta.' } },
       { area: 'Venda', tipo: 'melhoria', tela: 'vendaRapida', texto: {
         pt: '"Cobrar em" com cartões de moeda (bandeira e nome) e a cotação do dia escrita como conta: 1 R$ = [ 1,25 ] Bs.',
         es: '"Cobrar en" con tarjetas de moneda (bandera y nombre) y la cotización del día escrita como cuenta: 1 R$ = [ 1,25 ] Bs.' } },

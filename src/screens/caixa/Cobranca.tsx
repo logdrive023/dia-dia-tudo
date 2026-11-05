@@ -105,9 +105,6 @@ export interface OpcoesVendaProps {
   resumo: string[]
   pessoaId?: Id
   onPessoa(id?: Id): void
-  colunas: { id: string; nome: string }[]
-  colunaId?: string
-  onColuna(id?: string): void
   desconto: { modo: 'pct' | 'valor'; onModo(m: 'pct' | 'valor'): void; pct: string; onPct(v: string): void; valor?: number; onValor(v?: number): void; moeda: string; simbolo: string; aviso?: string; erro?: string }
   /** quem vendeu (comissão): só o administrador escolhe; funcionária vende em nome dela */
   vendedores?: { id: string; nome: string }[]
@@ -135,11 +132,6 @@ export function OpcoesVenda(p: OpcoesVendaProps) {
             <SeletorPessoa rotulo="Cliente" valor={p.pessoaId} onChange={p.onPessoa} opcional />
           </Grupo>
           <Grupo icone="🏷" titulo="Preço">
-            {p.colunas.length > 1 && (
-              <Campo rotulo="Coluna da tabela (comprador)" ajuda="Cada comprador tem seu preço. Se a pessoa estiver ligada a uma coluna, ela já vem escolhida.">
-                <Selecao valor={p.colunaId} onChange={(v) => p.onColuna(v || undefined)} vazio="Automática" opcoes={p.colunas} />
-              </Campo>
-            )}
             <Campo comoDiv rotulo="Desconto" ajuda="Em % ou em valor. Ex.: 5% de Bs 35.000 = Bs 1.750 · ou Bs 500 fixo.">
               <div className="flex gap-2">
                 <div className="w-28 shrink-0"><Escolha rotulo="Desconto" valor={p.desconto.modo} onChange={(m) => p.desconto.onModo(m as 'pct' | 'valor')} opcoes={[{ id: 'pct', nome: '%' }, { id: 'valor', nome: p.desconto.simbolo }]} /></div>
