@@ -27,6 +27,8 @@ export async function viagensParaFiltro(ctx: Ctx, _p: object = {}) {
   const hoje = ctx.relogio.hoje()
   return (await ctx.repos.viagens.listar())
     .filter((x) => !x.apagadoEm)
+    // funcionária: só as viagens em que ela viajou
+    .filter((x) => ctx.sessao.perfil === 'admin' || (!!ctx.sessao.pessoaId && x.viajantes.includes(ctx.sessao.pessoaId)))
     .map((x) => {
       const encerradaEm = x.status === 'encerrada' ? x.encerramento?.data ?? x.fim : undefined
       const diasEncerrada = encerradaEm ? Math.max(0, diasEntre(encerradaEm, hoje)) : undefined

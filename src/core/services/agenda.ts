@@ -99,7 +99,7 @@ function ocorrencias(e: Evento, de: string, ate: string): string[] {
  * As pessoas cuja agenda a sessão pode ver: admin = todas (undefined); funcionária = ela e, com "agenda da equipe",
  * as colegas da unidade (funcionárias/profissionais; sem unidade = a equipe toda).
  */
-async function visiveis(ctx: Ctx, pessoas: Map<Id, import('../domain/tipos').Pessoa>): Promise<Set<Id> | undefined> {
+export async function visiveis(ctx: Ctx, pessoas: Map<Id, import('../domain/tipos').Pessoa>): Promise<Set<Id> | undefined> {
   if (admin(ctx)) return undefined
   const euId = eu(ctx)
   const euP = pessoas.get(euId)

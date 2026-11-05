@@ -7,7 +7,7 @@ import { novoId } from '../../core/domain/ids'
 import type { Id } from '../../core/domain/tipos'
 import { Botao, Campo, Info, Janela, ValorInput, cx, ehToque, gramasTexto } from '../../ui/base'
 import { EditorPagamentos, type PagamentoTela, useCotacoes } from '../../ui/compartilhados'
-import { useConsulta } from '../../ui/contexto'
+import { useApp, useConsulta } from '../../ui/contexto'
 import { StatusBadge } from '../../ui/estoqueUi'
 import { VisorFotos } from '../../ui/fotos'
 import { HistoricoPacote } from '../../ui/historicoPacote'
@@ -190,7 +190,9 @@ export function Conferir({ item, naVenda, lateral, onFechar }: { item: Pacote; n
   const t = useT()
   const [ver, setVer] = useState(false)
   const grama = item.unidade === 'grama'
-  const { dados: origem } = useConsulta('origemDoPacote', { itemId: item.id, gramas: item.saldo }, grama && item.saldo > 0)
+  const { sessao } = useApp()
+  // de que compra veio (e de quem): só o administrador
+  const { dados: origem } = useConsulta('origemDoPacote', { itemId: item.id, gramas: item.saldo }, grama && item.saldo > 0 && sessao.perfil === 'admin')
   const q = (n: number) => (grama ? gramasTexto(n) : String(n))
   useEffect(() => {
     if (!lateral) return

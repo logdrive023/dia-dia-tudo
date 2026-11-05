@@ -67,8 +67,10 @@ const textoLivre = (e: EventoTempo) => e.texto ?? (e.detalhe && !e.detalhe.start
 /** `simples`: só a lista (sem a fileira de filtros e busca) — dentro do Caminho do cabelo, onde o filtro é o das etapas */
 export function LinhaDoTempo({ id, prefixo = 'lt', simples }: { id: string; prefixo?: string; simples?: boolean }) {
   const t = useT()
-  const { nav, ajustarParams } = useApp()
-  const { dados } = useConsulta('linhaDoTempo', { id })
+  const { nav, ajustarParams, sessao } = useApp()
+  // a linha do tempo (caixa, contas e o registro de todos) é só do administrador
+  const admin = sessao.perfil === 'admin'
+  const { dados } = useConsulta('linhaDoTempo', { id }, admin)
   const [tudo, setTudo] = useState(false)
   const [abertos, setAbertos] = useState<Set<string>>(new Set())
   const [verFiltros, setVerFiltros] = useState(false)

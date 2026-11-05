@@ -2,6 +2,7 @@
 // Cada comando: fila (um por vez) → transação (tudo ou nada) → registro na fila de saída (outbox) → avisa as telas.
 
 import type { Base, Id, Outbox } from '../core/domain/tipos'
+import { antesDaConsulta, depoisDaConsulta, antesDoComando } from '../core/services/visibilidade'
 import { nomeAcao } from '../core/services/historico'
 import { ErroNegocio } from '../core/domain/erros'
 import type { RegistroModulos } from '../core/modulos'
@@ -67,6 +68,8 @@ export class BackendNoAparelho implements Backend {
       let r: ResultadoComando<N>
       try {
         r = await this.transacao<ResultadoComando<N>>(async () => {
+          // o que ela pode mudar (de quem é o registro): src/core/services/visibilidade.ts
+          await antesDoComando(ctx, nome, prontos as Record<string, unknown>)
           const res: ResultadoComando<N> = await handler(ctx, prontos)
           // fila de saída: hoje só fica guardada; com a API, um sincronizador envia (nunca com senha)
           const { _senha: _a, _atualHash: _b, ...semSegredo } = prontos as Record<string, unknown>
@@ -115,7 +118,11 @@ export class BackendNoAparelho implements Backend {
     if (!this.sessao.usuarioId && !SEM_LOGIN.has(nome)) throw new ErroNegocio('Entre com seu usuário.')
     if (this.sessao.usuarioId && !podeConsulta(this.sessao.perfil, nome)) throw new ErroNegocio('Sem permissão para ver isso.')
     await this.carregarModulos()
-    return handler(this.ctx(), params ?? {})
+    // O QUE A FUNCIONÁRIA VÊ (de quem é o registro e quais campos): um lugar só, src/core/services/visibilidade.ts
+    const ctx = this.ctx()
+    const p = await antesDaConsulta(ctx, nome, (params ?? {}) as Record<string, unknown>)
+    if (p === 'vazio') return [] as unknown as ResultadoConsulta<N>
+    return (await depoisDaConsulta(ctx, nome, p, await handler(ctx, p))) as ResultadoConsulta<N>
   }
 
   async anexar(d: { id: Id; donoId: Id; categoria: Parameters<Backend['anexar']>[0]['categoria']; nome: string; arquivo: Blob }) {

@@ -261,7 +261,7 @@ function OrigemDaVenda({ vendaId, admin }: { vendaId: Id; admin: boolean }) {
   const t = useT()
   const { ir } = useApp()
   const [completo, setCompleto] = useState(false)
-  const { dados: origem } = useConsulta('origemDaVenda', { vendaId })
+  const { dados: origem } = useConsulta('origemDaVenda', { vendaId }, admin)
   const { dados } = useConsulta('genealogia', { vendaId }, admin)
   const temRastreio = admin && !!dados?.lotes.length
   if (!origem?.length && !temRastreio) return null

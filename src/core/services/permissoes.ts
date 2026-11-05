@@ -7,6 +7,9 @@
 // Funcionária: papel enxuto, focado na venda do cabelo (modo caixa, ver pacote para vender: pacoteVenda);
 // administrar estoque, triagem, compras e custos (fichaItem, rastreio, triagem…) é do administrador.
 // Códigos (salvarCodigos, salvarSigla, trocarCodigo*, codigos, codigoDisponivel): só administrador (fora das listas).
+// De QUEM é o registro e QUAIS campos saem (custo, fornecedor, comissão de outra pessoa…): visibilidade.ts.
+// Só do administrador (fora da lista): origem do pacote/da venda (compra e fornecedor), unidades (margem, salários),
+// linha do tempo (caixa, contas e o registro de todos) e o painel do câmbio (taxas de compra).
 // Etiquetas: a funcionária vê os dados da etiqueta (etiquetas, modoEtiqueta); marcarEtiquetasImpressas (tela Etiquetas,
 // "Sem etiqueta" / "Já impressa") é do administrador (fora das listas).
 
@@ -57,22 +60,17 @@ export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
   'impostosOperacao',
   'evento',
   'venda',
-  'origemDoPacote',
-  'origemDaVenda',
   // ver o pacote para VENDER (QR): só foto, código, rótulo, peso e preço da tabela; a ficha completa (fichaItem) é do admin
   'pacoteVenda',
   'organograma',
   'resumoFuncionario',
-  'unidades',
   'anexosDe',
   'fotosDoLote',
   'etiquetas',
   'modoEtiqueta',
-  'linhaDoTempo',
   'comissoes',
   'usuariosDemo',
   'resumoMenu',
-  'cambio',
   'painelViajante',
   'viagens',
   'categoriasViagem',

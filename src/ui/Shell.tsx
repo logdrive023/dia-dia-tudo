@@ -55,7 +55,7 @@ export const MENU: ItemMenu[] = [
   { tela: 'relatorios', nome: 'Relatórios', grupo: 'Gestão', admin: true },
   { tela: 'config', nome: 'Configurações', curto: 'Ajustes', grupo: 'Gestão', admin: true },
   // o que mudou no sistema (changelog), para todos
-  { tela: 'novidades', nome: 'Novidades', grupo: 'Gestão' },
+  { tela: 'novidades', nome: 'Novidades', grupo: 'Gestão', admin: true },
 ]
 
 /** barra do celular, na ordem do dia: Agenda (e o resto) ficam no "Mais" */

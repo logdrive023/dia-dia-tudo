@@ -101,6 +101,8 @@ export async function vendasAbertas(ctx: Ctx, _p: object = {}) {
   const itens = new Map((await ctx.repos.itens.listar()).map((i) => [i.id, i]))
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((p) => [p.id, p.nome]))
   return (await lerTodas(ctx))
+    // funcionária: só as vendas em aberto que ELA guardou
+    .filter((r) => ctx.sessao.perfil === 'admin' || r.criadoPor === ctx.sessao.usuarioId)
     .map((r) => {
       const v = r.valor as VendaAberta & { salvaEm: string; porNome?: string }
       return {

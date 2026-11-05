@@ -33,14 +33,14 @@ export function Equipe() {
         <SeletorPeriodo periodo={periodo} onChange={setPeriodo} />
         {sessao.perfil === 'admin' && <Selecao className="w-auto max-w-full" valor={localId} onChange={setLocalId} vazio="Todas as unidades" opcoes={(locais ?? []).filter((l) => l.tipo === 'salao').map((l) => ({ id: l.id, nome: l.nome }))} />}
       </div>
-      <Abas atual={aba} onChange={(v) => setAba(v as typeof aba)} abas={[{ id: 'organograma', nome: 'Organograma' }, { id: 'comissoes', nome: 'Comissões' }, { id: 'unidades', nome: 'Entradas × saídas por unidade' }]} />
+      <Abas atual={aba} onChange={(v) => setAba(v as typeof aba)} abas={[{ id: 'organograma', nome: 'Organograma' }, { id: 'comissoes', nome: 'Comissões' }, ...(sessao.perfil === 'admin' ? [{ id: 'unidades', nome: 'Entradas × saídas por unidade' }] : [])]} />
       {aba === 'organograma' ? (
         !org ? <Carregando /> : !org.raizes.length ? <Vazio texto="Ninguém na equipe desta unidade ainda." /> : (
           <OrganogramaVisual raizes={org.raizes} onClick={setResumo} />
         )
       ) : aba === 'comissoes' ? (
         <Comissoes de={periodo.de} ate={periodo.ate} />
-      ) : (
+      ) : sessao.perfil !== 'admin' ? null : (
         <Unidades de={periodo.de} ate={periodo.ate} onComissoes={() => setAba('comissoes')} />
       )}
       {resumo && <Resumo id={resumo} de={periodo.de} ate={periodo.ate} onFechar={() => setResumo(undefined)} onEditar={(p) => (setResumo(undefined), setEditar(p))} onComissoes={(id) => (setResumo(undefined), ajustarParams({ aba: 'comissoes', pessoaId: id }))} />}
