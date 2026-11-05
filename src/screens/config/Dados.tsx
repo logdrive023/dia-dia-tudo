@@ -51,11 +51,11 @@ export function Dados() {
           <>
             <ol className="grid gap-2 sm:grid-cols-2">
               <li className="rounded-2xl border-2 border-[var(--marca)] bg-[var(--marca-suave)] p-3">
-                <p className="flex items-center gap-2 font-bold"><span aria-hidden>📱</span>{t('Hoje: só neste aparelho')}<Pilula pequena tom="marca">{t('em uso')}</Pilula></p>
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-bold"><span aria-hidden>📱</span><span className="min-w-0">{t('Hoje: só neste aparelho')}</span><Pilula pequena tom="marca" className="shrink-0 whitespace-nowrap">{t('em uso')}</Pilula></p>
                 <p className="mt-1 text-sm">{t('Tudo fica guardado no navegador deste aparelho, sem internet e sem servidor. Outro celular ou computador não vê estes dados.')}</p>
               </li>
               <li className="rounded-2xl border-2 border-dashed border-[var(--borda)] p-3">
-                <p className="flex items-center gap-2 font-bold"><span aria-hidden>🗄️</span>{t('Depois: banco de dados no servidor')}<Pilula pequena>{t('em breve')}</Pilula></p>
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-bold"><span aria-hidden>🗄️</span><span className="min-w-0">{t('Depois: banco de dados no servidor')}</span><Pilula pequena className="shrink-0 whitespace-nowrap">{t('em breve')}</Pilula></p>
                 <p className="mt-1 text-sm text-[var(--suave)]">{t('Todos os aparelhos vão ver os mesmos dados, com cópia de segurança automática. As telas e as regras continuam iguais.')}</p>
               </li>
             </ol>
