@@ -28,7 +28,7 @@ import { LinkTirarFoto, MiniaturaLote, marcadorLote, useTirarFoto } from '../ui/
 import { ImprimirEtiquetas, SeloEtiqueta } from '../ui/etiquetas'
 import { Unificar } from './triagem/Unificar'
 import { DesfazerMistura } from './triagem/DesfazerMistura'
-import { DepoisDeSeparar, ProximoPasso } from './triagem/guia'
+import { DepoisDeSeparar, PainelTriagem, type RegraJuntar } from './triagem/guia'
 import { LeitorCodigo } from '../ui/estoqueUi'
 import { usePistola } from '../ui/leitorPistola'
 import { useLembrado } from '../ui/filtros'
@@ -228,6 +228,12 @@ export function Triagem() {
   const aguardando = dados.lotes.filter(naFila)
   // "para separar" e "para depois" (não identificado) são abas diferentes
   const separarTodos = aguardando.filter((l) => l.campos.estado !== NAO_ID)
+  // JUNTADO = pacote misturado (2+ pacotes viraram um) ou com cabelo de mais de uma compra (veio de uma mistura)
+  const juntado = (l: Lote) => l.unificado > 0 || l.compras.length > 1
+  const seloJuntados = (ls: Lote[]): { texto: string; tom?: string }[] => {
+    const j = ls.filter(juntado).length
+    return !ls.length ? [] : [{ texto: j ? `🔗 ${t('{j} juntado(s) · {s} sem juntar', { j, s: ls.length - j })}` : t('nenhum juntado'), ...(j ? { tom: 'marca' } : {}) }]
+  }
   const gSeparar = separarTodos.reduce((s, l) => s + l.saldo, 0)
   const paradosN = separarTodos.filter((l) => l.atrasado).length
   const daAba = abaReal === 'depois' ? aguardando.filter((l) => l.campos.estado === NAO_ID) : separarTodos
@@ -239,16 +245,18 @@ export function Triagem() {
     (!fp('sc') || l.compras.some((c) => (c.codigo ?? '').toLowerCase().includes(fp('sc').toLowerCase()))) &&
     (!fp('sd') || l.dias >= Number(fp('sd'))) &&
     (!fp('set') || (fp('set') === 'sem' ? !l.etiqueta.impressaEm : !!l.etiqueta.impressaEm)) &&
+    (!fp('sj') || (fp('sj') === 'sim' ? juntado(l) : !juntado(l))) &&
     passaViagem(fp('sv'), l.compras.map((c) => c.viagem))
   const ativosFila = [
     ...(fp('sf') ? [{ k: 'sf', rotulo: `👤 ${fp('sf')}` }] : []),
     ...(fp('sc') ? [{ k: 'sc', rotulo: `🛒 ${fp('sc')}` }] : []),
     ...(fp('sd') ? [{ k: 'sd', rotulo: t('parado há {n}+ dias', { n: fp('sd') }) }] : []),
     ...(fp('set') ? [{ k: 'set', rotulo: t(fp('set') === 'sem' ? 'Sem etiqueta' : 'Com etiqueta') }] : []),
+    ...(fp('sj') ? [{ k: 'sj', rotulo: fp('sj') === 'sim' ? `🔗 ${t('Só juntados')}` : t('Só sem juntar') }] : []),
   ]
   const viagensFila = viagensDasLinhas(daAba.flatMap((l) => l.compras.map((c) => c.viagem)))
   if (fp('sv')) ativosFila.push({ k: 'sv', rotulo: `✈️ ${((id: string, vs: { id: string; codigo: string; nome: string }[]) => (id === 'sem' ? 'Sem viagem' : vs.find((v) => v.id === id)?.codigo ?? id))(fp('sv'), viagensFila)}` })
-  const limparFila = () => ajustarParams({ sf: undefined, sc: undefined, sd: undefined, set: undefined, sv: undefined, busca: undefined })
+  const limparFila = () => ajustarParams({ sf: undefined, sc: undefined, sd: undefined, set: undefined, sj: undefined, sv: undefined, busca: undefined })
   const paraSeparar = daAba.filter((l) => passaBusca(l) && passaFiltroPadrao(l) && (filtro === 'depois' || filtroDePronto || passaFiltro(l))).sort((a, b) => b.dias - a.dias)
   const prontos = dados.lotes.filter((l) => ehPronto(l) && passaBusca(l) && (!filtroDePronto || passaFiltro(l)))
   const nomeFiltro = (f: string) => colDe(f)?.nome ?? { atrasados: 'Esperando há mais tempo', depois: 'Para depois', semana: 'Triado nesta semana', mes: 'Triado neste mês', pronto: 'Pronto para vender' }[f] ?? f
@@ -263,6 +271,14 @@ export function Triagem() {
   const prontosSemEtiqueta = dados.lotes.filter((l) => ehPronto(l) && !l.etiqueta.impressaEm)
   const maisAntigo = [...separarTodos].sort((a, b) => b.dias - a.dias)[0]
   /** a dica do próximo passo de cada linha (abre no celular): o que fazer com ESTE pacote */
+  // O PAINEL: o próximo passo (separar o mais antigo) e o juntar (com 2+ pacotes) — as regras com ícone, ligadas ou não
+  const temPasso = !comSelecao && abaReal === 'separar' && !!maisAntigo
+  const temJuntar = daAba.length >= 2 && (!comSelecao || sel.size < 2)
+  const regrasJuntar: RegraJuntar[] = [
+    { icone: '📍', titulo: mesmaEtapa ? 'Uma etapa por vez' : 'Etapas misturadas: liberado', texto: mesmaEtapa ? 'Só junta quem está na mesma etapa do quadro. Ex.: todos em “Aguardando triagem”.' : 'Pode juntar pacotes de etapas diferentes (a regra está desligada).', ligado: mesmaEtapa },
+    { icone: '🧬', titulo: 'Compras diferentes, pode', texto: 'Cada grama guarda de qual compra veio. Ex.: 2 kg da P-0005 + 4 kg da P-0007.', ligado: true },
+    { icone: '⚠️', titulo: SALDO_PEQUENO > 0 ? t('Menos de {n} g: aviso', { n: SALDO_PEQUENO }) : 'Aviso de sobra: desligado', texto: SALDO_PEQUENO > 0 ? 'Sobra pequena: junte com outro ou ajuste como perda.' : 'Nenhum pacote é marcado como sobra pequena.', ligado: SALDO_PEQUENO > 0 },
+  ]
   const proximoDoLote = (l: Lote) => l.campos.estado === NAO_ID ? t('Próximo passo: separar o que ficou para depois.') : precisaSeparar(l) ? t('Próximo passo: separar por medida (cada parte vira um pacote com etiqueta).') : t('Próximo passo: mover para a próxima etapa.')
   /** o selo do pacote juntado: "🔗 Misturado de 2 · ↩ Desfazer mistura" (apagado, com o porquê, se já mexeram nele) */
   const seloMistura = (l: Lote) => l.mistura && (
@@ -314,10 +330,10 @@ export function Triagem() {
       {/* abas = NÚMEROS GRANDES na fileira padrão (mesmo cartão de Compras, Estoque e Etiquetas): tocar troca a lista */}
       <GrupoNumeros colunas={4} abas rotulo="Triagem" className="!mb-0 !mt-0">
         {([
-          { id: 'separar', nome: 'Para separar', icone: '⏳', cor: paradosN ? 'var(--ruim)' : 'var(--alerta)', valor: separarTodos.length ? gramasTexto(gSeparar) : t('Tudo separado ✓'), selos: separarTodos.length ? [{ texto: t('{n} pacote(s)', { n: separarTodos.length }) }, ...(paradosN ? [{ texto: `⏰ ${t('{n} parado(s)', { n: paradosN })}`, tom: 'ruim' }] : [])] : [{ texto: t('nada esperando'), tom: 'bom' }] },
-          { id: 'prontos', nome: 'Prontos', icone: '✅', cor: 'var(--bom)', valor: gramasTexto(tt.pronto), selos: [{ texto: t('{n} pacote(s)', { n: dados.lotes.filter(ehPronto).length }) }, ...(tt.prontoValor ? [{ texto: formatar(tt.prontoValor, moedaPadrao()), tom: 'bom' }] : [])] },
-          { id: 'depois', nome: 'Para depois', icone: '❓', cor: '#a78bfa', valor: gramasTexto(tt.naoIdentificado.g), selos: [{ texto: t('{n} pacote(s)', { n: tt.naoIdentificado.n }), ...(tt.naoIdentificado.n ? { tom: 'alerta' } : {}) }] },
-          { id: 'triagens', nome: 'Triagens feitas', icone: '✂️', cor: 'var(--marca)', valor: gramasTexto(tt.triadoSemana), selos: [{ texto: t('nesta semana'), tom: 'marca' }] },
+          { id: 'separar', nome: 'Para separar', icone: '⏳', cor: paradosN ? 'var(--ruim)' : 'var(--alerta)', valor: separarTodos.length ? gramasTexto(gSeparar) : t('Tudo separado ✓'), selos: separarTodos.length ? [{ texto: t('{n} pacote(s)', { n: separarTodos.length }) }, ...seloJuntados(separarTodos), ...(paradosN ? [{ texto: `⏰ ${t('{n} parado(s)', { n: paradosN })}`, tom: 'ruim' }] : [])] : [{ texto: t('nada esperando'), tom: 'bom' }] },
+          { id: 'prontos', nome: 'Prontos', icone: '✅', cor: 'var(--bom)', valor: gramasTexto(tt.pronto), selos: [{ texto: t('{n} pacote(s)', { n: dados.lotes.filter(ehPronto).length }) }, ...seloJuntados(dados.lotes.filter(ehPronto)), ...(tt.prontoValor ? [{ texto: formatar(tt.prontoValor, moedaPadrao()), tom: 'bom' }] : [])] },
+          { id: 'depois', nome: 'Para depois', icone: '❓', cor: '#a78bfa', valor: gramasTexto(tt.naoIdentificado.g), selos: [{ texto: t('{n} pacote(s)', { n: tt.naoIdentificado.n }), ...(tt.naoIdentificado.n ? { tom: 'alerta' } : {}) }, ...seloJuntados(aguardando.filter((l) => l.campos.estado === NAO_ID))] },
+          { id: 'triagens', nome: 'Triagens feitas', icone: '✂️', cor: 'var(--marca)', valor: gramasTexto(tt.triadoSemana), selos: [{ texto: t('nesta semana'), tom: 'marca' }, { texto: t('{n} triagem(ns)', { n: tt.triagensSemana.n }) }, ...(tt.triagensSemana.n ? [{ texto: `🔗 ${t('{j} juntando', { j: tt.triagensSemana.juntando })}`, ...(tt.triagensSemana.juntando ? { tom: 'marca' } : {}) }] : [])] },
         ] as { id: string; nome: string; icone: string; cor: string; valor: string; selos: { texto: string; tom?: string }[] }[]).map((a) => (
           <NumeroGrande key={a.id} role="tab" rotulo={a.nome} icone={a.icone} cor={a.cor} valor={a.valor} selos={a.selos as Selo[]} ativo={abaReal === a.id} colorirValor={abaReal === a.id} onClick={() => irAba(a.id)} />
         ))}
@@ -355,7 +371,7 @@ export function Triagem() {
           <h2 className="min-w-0 truncate text-lg font-bold">{t(visao === 'quadro' ? 'Quadro' : abaReal === 'depois' ? 'Para depois' : 'Para separar')}</h2>
           {visao !== 'quadro' && <Info texto={DICA_SEPARAR} />}
           {/* LEGENDA dos selos da lista (parado, etiqueta, para depois) */}
-          {visao !== 'quadro' && <span className="ml-1 inline-flex items-center text-xs font-semibold text-[var(--suave)]">{t('Legenda')}<Info texto={t('parado: esperando para separar há mais de {n} dias (muda em Configurações › Etapas da compra). ✓ Etiqueta: já foi impressa (toque para ver ou reimprimir). 🏷 Sem etiqueta: ainda não imprimiu (toque para imprimir). ❓ para depois: ficou sem identificar numa separação. Ex.: “parado” + há 12 dias = está esperando faz tempo, separe primeiro.', { n: dados.diasParado })} /></span>}
+          {visao !== 'quadro' && <span className="ml-1 inline-flex items-center text-xs font-semibold text-[var(--suave)]">{t('Legenda')}<Info texto={t('parado: esperando para separar há mais de {n} dias (muda em Configurações › Etapas da compra). ✓ Etiqueta: já foi impressa (toque para ver ou reimprimir). 🏷 Sem etiqueta: ainda não imprimiu (toque para imprimir). ❓ para depois: ficou sem identificar numa separação. 🔗 juntado: pacote misturado (2 ou mais viraram um) ou com cabelo de mais de uma compra. Ex.: “parado” + há 12 dias = está esperando faz tempo, separe primeiro.', { n: dados.diasParado })} /></span>}
           {/* os dois botões nunca quebram no meio da palavra ("Seleciona / r") no celular */}
           <span className="ml-auto flex shrink-0 items-center [&>button]:whitespace-nowrap [&>button]:px-2 sm:[&>button]:px-3">
             <Botao variante="leve" className="px-3" aria-pressed={comSelecao} onClick={() => { if (comSelecao) limparSel(); setSelecionando(!comSelecao) }}>{t(comSelecao ? 'Cancelar' : 'Selecionar')}</Botao>
@@ -368,38 +384,23 @@ export function Triagem() {
             de cada grama fica guardada (a ligação aparece no pacote novo e na triagem feita) */}
         {/* AS REGRAS DE JUNTAR, à vista (cada uma com ícone): mesma etapa · compras diferentes pode · saldo pequeno avisa */}
         {/* PRÓXIMO PASSO (sempre à vista): separar o mais antigo; juntar antes é opcional */}
-        {visao !== 'quadro' && !comSelecao && abaReal === 'separar' && maisAntigo && (
+        {/* O PAINEL DA TRIAGEM (um só): o próximo passo (separar o mais antigo) e, ao lado, juntar antes (opcional) */}
+        {visao !== 'quadro' && (temPasso || temJuntar) && (
           <div className="mb-3">
-            <ProximoPasso agora="separar" titulo={t('Próximo passo: separar {c}', { c: maisAntigo.codigo ?? '' })}
-              texto={<span className="text-[var(--suave)]">{t('É o que espera há mais tempo ({g}). Diga as partes por medida; o que sobrar é perda.', { g: gramasTexto(maisAntigo.saldo) })}{separarTodos.length >= 2 ? ` ${t('Mesma qualidade? Junte antes (opcional, logo abaixo).')}` : ''}</span>}
-              acoes={<>
-                <Botao disabled={ocupado} onClick={() => separar(maisAntigo.id)}>✂️ {t('Separar {c}', { c: maisAntigo.codigo ?? '' })}</Botao>
-              </>} />
+            <PainelTriagem agora={temPasso ? 'separar' : 'juntar'}
+              titulo={temPasso ? t('Separar {c}', { c: maisAntigo!.codigo ?? '' }) : undefined}
+              texto={temPasso ? <>{t('É o que espera há mais tempo ({g}). Diga as partes por medida; o que sobrar é perda.', { g: gramasTexto(maisAntigo!.saldo) })}{temJuntar ? ` ${t('Mesma qualidade? Dá para juntar antes (opcional).')}` : ''}</> : undefined}
+              acoes={temPasso ? <Botao disabled={ocupado} onClick={() => separar(maisAntigo!.id)}>✂️ {t('Separar {c}', { c: maisAntigo!.codigo ?? '' })}</Botao> : undefined}
+              juntar={temJuntar ? {
+                titulo: comSelecao ? 'Marque os pacotes que vão juntos (2 ou mais)' : 'Juntar pacotes numa separação só',
+                regras: regrasJuntar,
+                acoes: <>
+                  {!comSelecao && <Botao variante="secundario" onClick={() => setSelecionando(true)}>☑ {t('Começar a marcar')}</Botao>}
+                  {/* as regras são de quem usa: o ⚙ muda aqui mesmo (vale para todos, na tela e no servidor) */}
+                  {admin && <Botao variante="leve" onClick={() => setJanela('regras')}>⚙ {t('Mudar regras')}</Botao>}
+                </>,
+              } : undefined} />
           </div>
-        )}
-        {visao !== 'quadro' && daAba.length >= 2 && (!comSelecao || sel.size < 2) && (
-          <section aria-label={t('Como juntar pacotes')} className="mb-3 rounded-2xl border border-[var(--marca)]/40 bg-[var(--marca-suave)] p-3">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              {/* o título nunca espreme: os botões descem de linha quando não cabem */}
-              <b className="min-w-[min(100%,14rem)] flex-1 text-sm">🔗 {t(comSelecao ? 'Marque os pacotes que vão juntos (2 ou mais)' : 'Juntar pacotes numa separação só')}</b>
-              {/* as regras são de quem usa: o ⚙ muda aqui mesmo (vale para todos, na tela e no servidor) */}
-              {admin && <Botao variante="leve" className="shrink-0" onClick={() => setJanela('regras')}>⚙ {t('Mudar regras')}</Botao>}
-              {!comSelecao && <Botao variante="secundario" className="shrink-0" onClick={() => setSelecionando(true)}>☑ {t('Começar a marcar')}</Botao>}
-            </div>
-            <ul className="grid gap-1.5 text-xs sm:grid-cols-3">
-              {[
-                { icone: '📍', titulo: mesmaEtapa ? 'Uma etapa por vez' : 'Etapas misturadas: liberado', texto: mesmaEtapa ? 'Só junta quem está na mesma etapa do quadro. Ex.: todos em “Aguardando triagem”.' : 'Pode juntar pacotes de etapas diferentes (a regra está desligada).', ligado: mesmaEtapa },
-                { icone: '🧬', titulo: 'Compras diferentes, pode', texto: 'Cada grama guarda de qual compra veio. Ex.: 2 kg da P-0005 + 4 kg da P-0007.', ligado: true },
-                { icone: '⚠️', titulo: SALDO_PEQUENO > 0 ? t('Menos de {n} g: aviso', { n: SALDO_PEQUENO }) : 'Aviso de sobra: desligado', texto: SALDO_PEQUENO > 0 ? 'Sobra pequena: junte com outro ou ajuste como perda.' : 'Nenhum pacote é marcado como sobra pequena.', ligado: SALDO_PEQUENO > 0 },
-              ].map((r) => (
-                <li key={r.icone} className={cx('flex min-w-0 items-start gap-2.5 rounded-xl bg-[var(--cartao)] p-2.5', !r.ligado && 'opacity-70')}>
-                  {/* o ícone num quadrado fixo: nunca encavala no texto, em qualquer largura */}
-                  <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--fundo)] text-base leading-none">{r.icone}</span>
-                  <span className="min-w-0 flex-1"><b className="block text-[var(--texto)] break-words">{t(r.titulo)}</b><span className="block text-[var(--suave)]">{t(r.texto)}</span></span>
-                </li>
-              ))}
-            </ul>
-          </section>
         )}
         {/* FILTRO PADRÃO (o mesmo de Compras, Estoque e Etiquetas): busca + ⚙ Filtros → painel em grupos → resultado + chips ✕ */}
         {visao !== 'quadro' && daAba.length > 0 && (
@@ -417,6 +418,7 @@ export function Triagem() {
                 <GrupoFiltro titulo="Situação" icone="⏳">
                   <Campo rotulo="Parado há"><Selecao valor={fp('sd')} onChange={(v) => ajustarParams({ sd: v || undefined })} vazio="Qualquer tempo" opcoes={[{ id: '3', nome: t('3 dias ou mais') }, { id: '7', nome: t('7 dias ou mais') }, { id: '15', nome: t('15 dias ou mais') }]} /></Campo>
                   <Campo rotulo="Etiqueta"><Selecao valor={fp('set')} onChange={(v) => ajustarParams({ set: v || undefined })} vazio="Todas" opcoes={[{ id: 'sem', nome: t('Sem etiqueta') }, { id: 'com', nome: t('Com etiqueta') }]} /></Campo>
+                  <Campo rotulo="Juntado" ajuda="Juntado: pacote misturado (2 ou mais viraram um) ou com cabelo de mais de uma compra."><Selecao valor={fp('sj')} onChange={(v) => ajustarParams({ sj: v || undefined })} vazio="Todos" opcoes={[{ id: 'sim', nome: t('Só juntados') }, { id: 'nao', nome: t('Só sem juntar') }]} /></Campo>
                 </GrupoFiltro>
             </>}
           />
@@ -432,15 +434,14 @@ export function Triagem() {
           </div>
         ) : !aguardando.length ? (
           // VAZIO que explica o que vem depois: de onde chega cabelo bruto (compra) e onde estão os pacotes prontos
-          <div className="space-y-3 rounded-2xl border border-dashed border-[var(--borda)] px-4 py-6">
-            <p className="text-center text-2xl font-bold">{t('Nada para separar 🎉')}</p>
+          <div>
             {prontosSemEtiqueta.length > 0 ? (
-              <ProximoPasso agora="etiqueta" titulo={t(prontosSemEtiqueta.length === 1 ? 'Próximo passo: gerar 1 etiqueta' : 'Próximo passo: gerar {n} etiquetas', { n: prontosSemEtiqueta.length })}
-                texto={<span className="text-[var(--suave)]">{t('Já separados, mas ainda sem etiqueta: com a etiqueta ficam prontos para vender.')}</span>}
+              <PainelTriagem agora="etiqueta" rotulo="Nada para separar 🎉 · Próximo passo" titulo={t(prontosSemEtiqueta.length === 1 ? 'Gerar 1 etiqueta' : 'Gerar {n} etiquetas', { n: prontosSemEtiqueta.length })}
+                texto={t('Já separados, mas ainda sem etiqueta: com a etiqueta ficam prontos para vender.')}
                 acoes={<Botao onClick={() => setImprimirProntos(prontosSemEtiqueta.map((l) => l.id))}>🏷 {t('Gerar as etiquetas')}</Botao>} />
             ) : (
-              <ProximoPasso agora="pronto" tom="bom" titulo={t('Tudo pronto ✓ — os pacotes estão no estoque para vender')}
-                texto={<span className="text-[var(--suave)]">{t('Cabelo bruto novo chega por uma compra: registre a compra e ele aparece aqui para separar.')}</span>}
+              <PainelTriagem agora="pronto" tom="bom" rotulo="Nada para separar 🎉" titulo={t('Tudo pronto ✓ — os pacotes estão no estoque para vender')}
+                texto={t('Cabelo bruto novo chega por uma compra: registre a compra e ele aparece aqui para separar.')}
                 acoes={<>
                   {prontos.length > 0 && <Botao onClick={verPronto}>✅ {t('Ver os prontos')}</Botao>}
                   <Botao variante="secundario" onClick={() => ir('estoque', { modulo: 'cabelo' })}>📦 {t('Estoque')}</Botao>
@@ -451,7 +452,7 @@ export function Triagem() {
         ) : !paraSeparar.length ? (
           <p className="rounded-2xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nada encontrado.')}</p>
         ) : (
-          <Paginada itens={paraSeparar} unidade="pacote(s)" reiniciar={JSON.stringify([abaReal, busca, fp('sf'), fp('sc'), fp('sd'), fp('set'), filtro, medida])}>{(pagina) => (
+          <Paginada itens={paraSeparar} unidade="pacote(s)" reiniciar={JSON.stringify([abaReal, busca, fp('sf'), fp('sc'), fp('sd'), fp('set'), fp('sj'), filtro, medida])}>{(pagina) => (
             <div className="space-y-3">{etapasDaPagina(pagina).map((grupo) => (
             <section key={grupo.fase} aria-label={grupo.nome}>
               {/* a ETAPA: nome · quantos e quanto pesa · selecionar todos desta etapa (só quando há mais de uma etapa) */}

@@ -90,3 +90,66 @@ export function DepoisDeSeparar({ onProntos }: { onProntos(): void }) {
     </>
   )
 }
+
+/** uma regra de juntar (mesma etapa · compras diferentes · sobra pequena): ligada ou não */
+export interface RegraJuntar { icone: string; titulo: string; texto: string; ligado: boolean }
+
+/**
+ * O PAINEL DA TRIAGEM — UMA composição para o que antes eram dois cartões ("Próximo passo" e "Juntar pacotes"):
+ *   · em cima, a trilha do caminho (Compra › Juntar › Separar › Etiqueta › Pronto);
+ *   · à esquerda (o principal), o PRÓXIMO PASSO: rótulo pequeno, a frase, o porquê e o botão;
+ *   · à direita (secundário, fundo mais calmo), JUNTAR ANTES (opcional): as regras numa lista simples e as ações.
+ * Computador: duas colunas com um divisor fino; celular: uma embaixo da outra, divisor na horizontal. Um só contorno,
+ * um só fundo. Sem o próximo passo (marcando pacotes), só o juntar; sem 2+ pacotes, só o próximo passo.
+ */
+export function PainelTriagem({ agora, tom = 'marca', rotulo = 'Próximo passo', titulo, texto, acoes, juntar }: {
+  agora: EtapaFluxo
+  tom?: 'marca' | 'bom'
+  /** o rótulo pequeno do próximo passo ("Próximo passo", "Nada para separar 🎉") */
+  rotulo?: string
+  titulo?: string
+  texto?: ReactNode
+  acoes?: ReactNode
+  juntar?: { titulo: string; regras: RegraJuntar[]; acoes?: ReactNode }
+}) {
+  const t = useT()
+  const cor = tom === 'bom' ? 'var(--bom)' : 'var(--marca)'
+  const passo = !!titulo
+  return (
+    <section aria-label={t(titulo ?? juntar?.titulo ?? 'Triagem')} className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+      <div className="border-b border-[var(--borda)] px-4 py-2.5" style={{ background: `color-mix(in srgb, ${cor} 7%, transparent)` }}>
+        <TrilhaFluxo agora={agora} />
+      </div>
+      <div className={cx('grid divide-y divide-[var(--borda)]', passo && juntar && 'md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] md:divide-x md:divide-y-0')}>
+        {passo && (
+          <div role="status" className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--suave)]">{t(rotulo)}</p>
+              <p className="mt-1 text-lg font-bold leading-snug" style={{ color: cor }}>{t(titulo!)}</p>
+              {texto && <p className="mt-1 text-sm text-[var(--suave)]">{texto}</p>}
+            </div>
+            {acoes && <div className="mt-auto flex flex-wrap items-center gap-2 [&>button]:min-w-max">{acoes}</div>}
+          </div>
+        )}
+        {juntar && (
+          <div className={cx('flex min-w-0 flex-col gap-3 p-4 sm:p-5', passo && 'bg-[var(--fundo)]/50')}>
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              {passo && <p className="basis-full text-[11px] font-bold uppercase tracking-wider text-[var(--suave)]">{t('Antes, se quiser')}</p>}
+              <p className="text-sm font-bold">🔗 {t(juntar.titulo)}</p>
+            </div>
+            {/* as regras: lista simples (ícone · título · explicação), sem cartão dentro de cartão */}
+            <ul className={cx('grid gap-x-5 gap-y-2.5 text-xs', !passo && 'sm:grid-cols-3')}>
+              {juntar.regras.map((r) => (
+                <li key={r.icone} className={cx('flex min-w-0 items-start gap-2.5', !r.ligado && 'opacity-70')}>
+                  <span aria-hidden className="mt-px w-5 shrink-0 text-center text-sm leading-none">{r.icone}</span>
+                  <span className="min-w-0 flex-1"><b className="block break-words text-[var(--texto)]">{t(r.titulo)}</b><span className="block text-[var(--suave)]">{t(r.texto)}</span></span>
+                </li>
+              ))}
+            </ul>
+            {juntar.acoes && <div className="mt-auto flex flex-wrap items-center gap-2 [&>button]:min-w-max">{juntar.acoes}</div>}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}

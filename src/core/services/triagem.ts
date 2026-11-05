@@ -463,6 +463,10 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
   const porColuna = Object.fromEntries(colunas.map((c) => { const ls = lotes.filter((x) => x.fase === c.id); return [c.id, { n: ls.length, g: ls.reduce((s, x) => s + x.saldo, 0) }] }))
   const prontos = lotes.filter((x) => porColunaId.get(x.fase)?.pronto)
   const naoId = lotes.filter((x) => x.fase !== COLUNA_VENDIDO && x.campos.estado === NAO_IDENTIFICADO)
+  // TRIAGENS DA SEMANA: quantas operações (T-…) e quantas JUNTARAM pacotes — cada pacote guarda a triagem que o criou; a
+  // mistura (origem "unificacao") carrega o mesmo id da triagem, então uma operação que juntou e separou conta uma vez
+  const daSemana = itens.filter((i) => i.triagem && i.triagem.em.slice(0, 10) >= semanaDesde)
+  const triagensSemana = { n: new Set(daSemana.map((i) => i.triagem!.id)).size, juntando: new Set(daSemana.filter((i) => i.origem?.tipo === 'unificacao').map((i) => i.triagem!.id)).size }
   return {
     lotes,
     colunas,
@@ -479,6 +483,7 @@ export async function triagem(ctx: Ctx, p: { moduloId?: string; colunaId?: strin
     totais: {
       porColuna,
       triadoSemana: soma((m) => m.delta > 0 && m.data >= semanaDesde),
+      triagensSemana,
       perdaMes: usadoMes - geradoMes,
       usadoMes,
       perdaMesBp: usadoMes ? Math.round(((usadoMes - geradoMes) * 10000) / usadoMes) : 0,
