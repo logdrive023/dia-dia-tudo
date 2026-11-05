@@ -152,7 +152,8 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
         const pedir = (v: MediaTrackConstraints) => navigator.mediaDevices.getUserMedia({ video: v, audio: false })
         stream = await pedir({ facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] })
           .catch(() => pedir({ facingMode: 'environment' }))
-        if (!vivo || !video.current) return
+        // fechou enquanto a câmera ligava (ex.: na pergunta de permissão): desliga a câmera que acabou de abrir
+        if (!vivo || !video.current) return stream.getTracks().forEach((x) => x.stop())
         const tr = stream.getVideoTracks()[0]
         trilha.current = tr
         const c = (tr?.getCapabilities?.() ?? {}) as MediaTrackCapabilities & { torch?: boolean; zoom?: { min: number; max: number; step?: number } }
@@ -216,7 +217,7 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
   const enviar = () => { const c = digitado.trim(); if (c) (ref.current.ultimo = undefined, onLer(c), setDigitado('')) }
   const certos = lidos.filter((x) => x.ok).length
   return (
-    <Janela aberta titulo={t(continuo ? 'Ler códigos (um atrás do outro)' : 'Ler código')} onFechar={onFechar} rodape={continuo
+    <Janela aberta titulo={t(continuo ? 'Ler vários códigos' : 'Ler código')} onFechar={onFechar} rodape={continuo
       ? <Botao grande className="w-full" onClick={onFechar}>{certos ? t('Concluir · {n} adicionado(s)', { n: certos }) : t('Concluir')}</Botao>
       : <Botao variante="leve" className="w-full" onClick={onFechar}>{t('Fechar')}</Botao>}>
       <div className="space-y-3">

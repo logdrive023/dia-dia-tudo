@@ -10,6 +10,7 @@
 // Celular: tudo em coluna e a barra "Total · FECHAR" presa embaixo; com espaço: venda | cobrança fixa ao lado.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AvisoGuardado } from '../ui/avisoGuardado'
 import { EscolhaPreco } from '../ui/escolhaPreco'
 import { ImpostosDaOperacao, QuadroImpostosOperacao } from '../ui/impostosOperacao'
 import { Trilha } from '../ui/trilha'
@@ -511,7 +512,7 @@ export function VendaRapida() {
           </ul>
         </section>
       )}
-      {linhas.length > 0 && guardada && <p className="mb-2 text-right text-xs text-[var(--suave)]">💾 {t('guardada em aberto · {h} — pode sair, nada se perde', { h: guardada })}</p>}
+      {linhas.length > 0 && guardada && <AvisoGuardado className="mb-3" titulo="Venda guardada em aberto" quando={guardada} texto="Pode sair ou fechar o app: nada se perde. Ela volta aqui no Modo caixa." />}
       {deOutraAberta && (
         <Confirmar
           titulo="Este pacote está numa venda em aberto"

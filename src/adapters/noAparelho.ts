@@ -86,12 +86,24 @@ export class BackendNoAparelho implements Backend {
     return true
   }
 
+  /**
+   * SIMULAR A API (só no aparelho): espera N ms antes de cada consulta/comando, como se fosse pela internet — para ver
+   * o carregamento das telas como vai ser com o servidor. Configurações › Dados › Simular internet. Os dados de exemplo
+   * (comandoEm, com relógio próprio) não esperam.
+   */
+  atrasoSimulado?: () => number
+  private async esperarSimulado() {
+    const ms = this.atrasoSimulado?.() ?? 0
+    if (ms > 0) await new Promise((r) => setTimeout(r, ms))
+  }
+
   comando<N extends NomeComando>(nome: N, dados: DadosComando<N>, relogio?: Relogio): Promise<ResultadoComando<N>> {
     const handler = comandos[nome] as unknown as (ctx: Ctx, d: unknown) => Promise<ResultadoComando<N>>
     if (!handler) return Promise.reject(new ErroNegocio(`Comando desconhecido: ${String(nome)}`))
     if (!this.sessao.usuarioId || this.saindo) return Promise.reject(new ErroNegocio('Sem permissão para isso. Peça a um administrador.'))
     const ctx = this.ctx(relogio, { ...this.sessao })
     return this.enfileirar(async (): Promise<ResultadoComando<N>> => {
+      if (!relogio) await this.esperarSimulado()
       if (!(await this.conferirUsuario(ctx.sessao))) {
         const erro = new ErroNegocio('Seu usuário foi desativado. Entre de novo ou fale com um administrador.')
         await this.registrarRecusa(ctx, nome, dados, erro)
@@ -155,6 +167,7 @@ export class BackendNoAparelho implements Backend {
   async consulta<N extends NomeConsulta>(nome: N, params: ParamsConsulta<N>): Promise<ResultadoConsulta<N>> {
     const handler = consultas[nome] as unknown as (ctx: Ctx, p: unknown) => Promise<ResultadoConsulta<N>>
     if (!handler) throw new ErroNegocio(`Consulta desconhecida: ${String(nome)}`)
+    await this.esperarSimulado()
     if (!this.sessao.usuarioId && !SEM_LOGIN.has(nome)) throw new ErroNegocio('Entre com seu usuário.')
     if (this.sessao.usuarioId && !podeConsulta(this.sessao.perfil, nome)) throw new ErroNegocio('Sem permissão para ver isso.')
     await this.carregarModulos()

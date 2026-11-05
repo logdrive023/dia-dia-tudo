@@ -169,8 +169,10 @@ export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
   const explicacao = corte > 0 ? traduzido.slice(0, corte).trim() : traduzido
   const ex = exemplo ? t(exemplo) : corte > 0 ? traduzido.slice(corte).replace(/^(Ex\.|Ej\.):?\s*/, '') : undefined
   return (
-    <span className="relative inline-flex">
-      <button ref={botao} type="button" aria-label={t('Explicação')} aria-expanded={aberto} onClick={(e) => (e.stopPropagation(), setAberto(!aberto))} className={cx('relative ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition after:absolute after:-inset-2 after:content-[\'\']', aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
+    // o ⓘ acompanha a linha do texto (fica logo depois da última palavra, mesmo quando o texto quebra); o círculo é
+    // pequeno, mas a área de toque é maior (after:-inset-2)
+    <span className="relative inline-flex shrink-0 align-middle">
+      <button ref={botao} type="button" aria-label={t('Explicação')} aria-expanded={aberto} onClick={(e) => (e.stopPropagation(), setAberto(!aberto))} className={cx('relative ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold leading-none transition after:absolute after:-inset-2 after:content-[\'\']', aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
         i
       </button>
       {aberto &&
@@ -305,9 +307,23 @@ export function Vazio({ texto, children, compacto }: { texto: string; children?:
   )
 }
 
-export function Carregando() {
+/**
+ * CARREGANDO (padrão de todas as telas): o "T" da marca respirando, uma barra que corre e o texto. Aparece enquanto a
+ * consulta não volta — hoje é instantâneo no aparelho; com a API (ou com Configurações › Dados › Simular internet) é o
+ * que a pessoa vê. `tela`: ocupa a altura da tela (abertura do app). Quem prefere menos movimento vê tudo parado.
+ */
+export function Carregando({ texto = 'Carregando…', tela }: { texto?: string; tela?: boolean }) {
   const t = useT()
-  return <p className="p-6 text-center text-[var(--suave)]">{t('Carregando…')}</p>
+  return (
+    <div role="status" aria-live="polite" className={cx('flex flex-col items-center justify-center gap-3 p-8 text-center', tela && 'min-h-[60vh]')}>
+      <span aria-hidden className="relative flex h-12 w-12 items-center justify-center">
+        <span className="absolute inset-0 rounded-2xl bg-[var(--marca)] opacity-30 motion-safe:animate-ping" />
+        <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--marca)] to-fuchsia-500 text-xl font-black text-white shadow-lg shadow-[var(--marca)]/30">T</span>
+      </span>
+      <span aria-hidden className="carregando-barra relative h-1 w-32 overflow-hidden rounded-full bg-[var(--marca-suave)]" />
+      <span className="text-sm font-semibold text-[var(--suave)]">{t(texto)}</span>
+    </div>
+  )
 }
 
 export function Erro({ texto }: { texto?: string }) {
@@ -556,11 +572,12 @@ export function Janela({ aberta, titulo, onFechar, children, rodape, larga }: { 
         onClick={(e) => e.stopPropagation()}
         className={cx('flex max-h-[92vh] max-h-[92dvh] min-h-0 w-full flex-col rounded-t-3xl bg-[var(--cartao)] shadow-xl md:rounded-3xl', larga ? 'md:max-w-4xl' : 'md:max-w-lg')}
       >
-        <div className="flex items-center justify-between border-b border-[var(--borda)] px-4 py-3">
-          <h2 id={id} className="text-lg font-bold">
+        <div className="flex items-center justify-between gap-2 border-b border-[var(--borda)] py-2 pl-4 pr-2">
+          <h2 id={id} className="min-w-0 text-lg font-bold leading-tight">
             {titulo}
           </h2>
-          <button type="button" onClick={onFechar} aria-label={t('Fechar')} className="h-10 w-10 rounded-full text-xl hover:bg-[var(--marca-suave)]">
+          {/* × sempre com área de toque grande e por cima de tudo da janela (câmera, vídeo…) */}
+          <button type="button" onClick={onFechar} aria-label={t('Fechar')} className="relative z-10 h-12 w-12 shrink-0 rounded-full text-2xl hover:bg-[var(--marca-suave)] active:bg-[var(--marca-suave)]">
             ×
           </button>
         </div>

@@ -71,6 +71,25 @@ describe('impressão de etiquetas', () => {
     expect(fichas.map((f) => !!f.item.etiquetaImpressaEm)).toEqual([true, false])
   }, 30000)
 
+  it('duas janelas de etiquetas abertas: só a que mandou imprimir vai para o papel (1 etiqueta ≠ 3 páginas)', async () => {
+    const { b, sessao, ids } = await separados(1)
+    vi.spyOn(window, 'print').mockImplementation(() => undefined)
+    function H() {
+      const [nav, setNav] = useState<Navegacao>({ tela: 'etiquetas', params: {} })
+      return <Ctx.Provider value={ctxDe({ b, sessao }, nav, setNav)}><ImprimirEtiquetas ids={ids} onFechar={() => undefined} /><ImprimirEtiquetas ids={ids} onFechar={() => undefined} /></Ctx.Provider>
+    }
+    render(<H />)
+    const [debaixo, decima] = await screen.findAllByRole('dialog', { name: 'Imprimir etiquetas' })
+    await within(decima).findByText('1 etiqueta(s)', {}, { timeout: 10000 })
+    fireEvent.click(within(decima).getByRole('button', { name: /Imprimir/ }))
+    await waitFor(() => expect(decima.classList.contains('etiquetas-ativa')).toBe(true))
+    expect(debaixo.classList.contains('etiquetas-ativa')).toBe(false)
+    expect(document.body.classList.contains('imprimindo-etiquetas')).toBe(true)
+    // o tamanho do papel (@page) só vem da janela que imprime
+    expect(debaixo.querySelector('style')!.textContent).not.toContain('@page')
+    expect(decima.querySelector('style')!.textContent).toContain('@page')
+  }, 30000)
+
   it('acima do limite por vez (10 folhas A4 = 210) o Imprimir fica desligado', async () => {
     const { b, sessao, ids } = await separados(5)
     function H() {

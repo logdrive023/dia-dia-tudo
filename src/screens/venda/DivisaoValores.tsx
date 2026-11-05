@@ -51,7 +51,7 @@ export function DivisaoValores({ vendaId }: { vendaId: Id }) {
       x.tipo === 'subtotal' && 'mt-1 border-t border-[var(--borda)] pt-2',
       x.tipo === 'total' && 'mt-1 border-t border-[var(--borda)] pt-2.5')}>
       <span className="min-w-0">
-        <span className={cx('flex items-center gap-1 text-sm', x.tipo === 'conta' ? 'text-[var(--suave)]' : 'font-bold')}>{t(x.pt)}<Info texto={x.ajuda} /></span>
+        <span className={cx('block text-sm leading-snug', x.tipo === 'conta' ? 'text-[var(--suave)]' : 'font-bold')}>{t(x.pt)}<Info texto={x.ajuda} /></span>
         <span lang="es" className="block truncate text-[11px] italic text-[var(--suave)] opacity-80">{x.es}</span>
       </span>
       <span className={cx('whitespace-nowrap text-right', x.tipo === 'conta' ? 'text-sm' : 'text-base font-bold', x.tipo === 'total' && 'border-b-[3px] border-double border-[var(--texto)] pb-0.5 font-black', x.tipo === 'total' && (x.valor < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'))}>{contabil(x.valor, m)}</span>

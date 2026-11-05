@@ -86,16 +86,21 @@ export function QuadroImpostosOperacao({ produto, servico, compra, moeda, classN
   const total = ehCompra ? dados.compra : dados.venda
   return (
     <section aria-label={t('Impostos')} className={cx('overflow-hidden rounded-2xl border border-[var(--alerta)]/40 bg-[var(--cartao)] shadow-sm', className)}>
-      <button type="button" aria-expanded={aberto} onClick={() => setAberto(!aberto)} className="flex min-h-12 w-full items-center gap-2 bg-[var(--alerta)]/10 px-4 py-2 text-left">
-        <span aria-hidden>🧾</span>
-        <span className="linha-texto flex-1">
-          <b className="block">{t(ehCompra ? 'Impostos desta compra (estimado)' : 'Impostos desta venda (estimado)')}</b>
-          <span className="block text-xs text-[var(--suave)]">{dados.linhas.map((l) => `${l.sigla} ${pct(l.taxaBp)}`).join(' · ')}</span>
-        </span>
-        <b className="num shrink-0 text-[var(--alerta)]">{formatar(total, moeda)}</b>
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--cartao)] px-2.5 py-1 text-xs font-semibold text-[var(--marca)] ring-1 ring-[var(--borda)]">
-          {t(aberto ? 'fechar' : 'ver detalhe')}
-          <span aria-hidden className={cx('transition-transform', aberto && 'rotate-180')}>▾</span>
+      {/* 2 linhas que cabem em qualquer celular: [🧾] título ········ valor / siglas · estimado ···· ver detalhe ▾ */}
+      <button type="button" aria-expanded={aberto} onClick={() => setAberto(!aberto)} className="flex min-h-14 w-full items-center gap-3 bg-[var(--alerta)]/10 px-3 py-2 text-left">
+        <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--alerta)]/15 text-lg">🧾</span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline justify-between gap-2">
+            <b className="min-w-0 text-sm">{t(ehCompra ? 'Impostos desta compra' : 'Impostos desta venda')}</b>
+            <b className="num shrink-0 text-base text-[var(--alerta)]">{formatar(total, moeda)}</b>
+          </span>
+          <span className="mt-0.5 flex items-center justify-between gap-2 text-xs">
+            <span className="min-w-0 truncate text-[var(--suave)]">{dados.linhas.map((l) => `${l.sigla} ${pct(l.taxaBp)}`).join(' · ')} · {t('estimado')}</span>
+            <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-[var(--marca)]">
+              {t(aberto ? 'fechar' : 'ver detalhe')}
+              <span aria-hidden className={cx('transition-transform', aberto && 'rotate-180')}>▾</span>
+            </span>
+          </span>
         </span>
       </button>
       {aberto && <div className="border-t border-[var(--borda)] p-3"><QuadroImpostos calculo={dados} moeda={moeda} ehCompra={ehCompra} /></div>}

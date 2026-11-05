@@ -198,8 +198,19 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   const pacotes = (dados ?? []).filter((e) => copiasDe(e.id) > 0).length
 
   // mandou imprimir: o lote sai de Etiquetas › "Sem etiqueta" (fica "impressa em 03/11 por Paula")
-  const imprimir = async () => {
+  // SÓ ESTA JANELA vai para o papel: se outra janela de etiquetas ficou aberta por baixo (ex.: aberta de duas telas),
+  // ela não sai junto (antes: 1 etiqueta virava 3 páginas). O @page (tamanho do papel) também só vale para esta.
+  // vez = quantas vezes mandou imprimir (cada toque imprime de novo, mesmo se o celular não avisar que terminou)
+  const [vez, setVez] = useState(0)
+  const ativa = vez > 0
+  useEffect(() => {
+    if (!vez) return
+    document.body.classList.add('imprimindo-etiquetas')
     window.print()
+    return () => document.body.classList.remove('imprimindo-etiquetas')
+  }, [vez])
+  const imprimir = async () => {
+    setVez((n) => n + 1)
     if (sessao.perfil !== 'admin') return
     const feitos = ids.filter((id) => copiasDe(id) > 0)
     if (feitos.length && (await executar('marcarEtiquetasImpressas', { ids: feitos }))) (setImpresso(true), onImpresso?.())
@@ -219,21 +230,25 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   const pagina = tamanho === 'a4' ? '@page{size:A4;margin:0}' : `@page{size:${medRolo.w}mm ${medRolo.h}mm;margin:0}`
   const secao = 'rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm'
   const conteudo = (
-    <div id="etiquetas-impressao" role="dialog" aria-modal="true" aria-label={t('Imprimir etiquetas')} className="fixed inset-0 z-[60] flex flex-col bg-[var(--fundo)] text-[var(--texto)]">
-      <style>{`${pagina}
+    <div id="etiquetas-impressao" role="dialog" aria-modal="true" aria-label={t('Imprimir etiquetas')} className={cx('fixed inset-0 z-[60] flex flex-col bg-[var(--fundo)] text-[var(--texto)]', ativa && 'etiquetas-ativa')}>
+      <style>{`${ativa ? pagina : ''}
 @media print{
-  body>*:not(#etiquetas-impressao){display:none!important}
-  #etiquetas-impressao{position:static!important;background:#fff!important;overflow:visible!important;display:block!important}
-  #etiquetas-impressao .nao-imprimir{display:none!important}
-  #etiquetas-impressao .folha,#etiquetas-impressao .previa{padding:0!important;margin:0!important;overflow:visible!important;border:none!important;background:none!important;box-shadow:none!important;display:block!important}
-  #etiquetas-impressao .escala{width:auto!important;height:auto!important;overflow:visible!important}
-  #etiquetas-impressao .escala>div{transform:none!important}
-  #etiquetas-impressao .grade{gap:0!important}
-  #etiquetas-impressao .etiqueta{border:none!important}
-  #etiquetas-impressao .vaga{border:none!important}
-  #etiquetas-impressao .pagina-a4{box-shadow:none!important;margin:0!important;break-after:page}
-  #etiquetas-impressao .pagina-a4:last-child{break-after:auto}
-  #etiquetas-impressao .pequena .etiqueta{break-after:page}
+  body.imprimindo-etiquetas>*:not(.etiquetas-ativa){display:none!important}
+  .etiquetas-ativa{position:static!important;background:#fff!important;overflow:visible!important;display:block!important}
+  .etiquetas-ativa .nao-imprimir{display:none!important}
+  .etiquetas-ativa .folha,.etiquetas-ativa .previa{padding:0!important;margin:0!important;overflow:visible!important;border:none!important;background:none!important;box-shadow:none!important;display:block!important}
+  .etiquetas-ativa .escala{width:auto!important;height:auto!important;overflow:visible!important}
+  .etiquetas-ativa .escala>div{transform:none!important}
+  .etiquetas-ativa .grade{gap:0!important}
+  .etiquetas-ativa .etiqueta{border:none!important}
+  .etiquetas-ativa .vaga{border:none!important}
+  .etiquetas-ativa .pagina-a4{box-shadow:none!important;margin:0!important;break-after:page}
+  .etiquetas-ativa .pagina-a4:last-child{break-after:auto}
+  .etiquetas-ativa .pequena .etiqueta{break-after:page}
+  .etiquetas-ativa .pequena .etiqueta:last-child{break-after:auto}
+  .etiquetas-ativa .pagina-a4{height:296mm!important;overflow:hidden!important;break-after:auto!important}
+  .etiquetas-ativa .escala{break-after:page}
+  .etiquetas-ativa .escala:last-child{break-after:auto}
 }`}</style>
       {/* topo: voltar · título · quantas */}
       <header className="nao-imprimir flex items-center gap-2 border-b border-[var(--borda)] bg-[var(--cartao)] px-3 py-2">

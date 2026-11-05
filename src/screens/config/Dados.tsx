@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 import type { BackendNoAparelho } from '../../adapters/noAparelho'
 import { espacoUsado, protegerDados } from '../../adapters/local/indexeddb'
 import { carregarDemo } from '../../app/demo'
-import { Botao, Cartao, Confirmar, Pilula } from '../../ui/base'
+import { Botao, Carregando, Cartao, Confirmar, Escolha, Pilula, loc } from '../../ui/base'
 import { useApp, useConsulta } from '../../ui/contexto'
 import { useT } from '../../ui/i18n'
+import { OPCOES_ATRASO, lerAtraso, salvarAtraso } from '../../app/simularApi'
 
 export function Dados() {
   const t = useT()
@@ -68,6 +69,7 @@ export function Dados() {
         </dl>
         {diag && !diag.ok && <ul className="mt-1 text-xs text-[var(--ruim)]">{diag.problemas.slice(0, 5).map((p) => <li key={p}>{p}</li>)}</ul>}
       </Cartao>
+      {backend.tipo !== 'api' && <SimularInternet />}
       <Cartao titulo={t('Backup')}>
         <div className="flex flex-wrap gap-2">
           <Botao onClick={exportar}>⬇️ {t('Baixar backup (JSON)')}</Botao>
@@ -111,3 +113,20 @@ export function Dados() {
   )
 }
 
+
+/** SIMULAR INTERNET: cada tela espera um pouco antes de mostrar os dados, como vai ser com o servidor (só neste aparelho) */
+function SimularInternet() {
+  const t = useT()
+  const [ms, setMs] = useState(lerAtraso)
+  const [previa, setPrevia] = useState(false)
+  // "Desligado" · "0,3 s" · "0,8 s" · "2 s"
+  const nome = (x: number) => (x === 0 ? t('Desligado') : `${(x / 1000).toLocaleString(loc(), { maximumFractionDigits: 1 })} s`)
+  return (
+    <Cartao titulo={t('Simular internet (teste)')} ajuda="Para ver como o app fica quando os dados vierem do servidor: cada tela espera o tempo escolhido antes de mostrar os dados (aparece o carregamento). Só neste aparelho; não muda nenhum dado.">
+      <Escolha<string> rotulo="Simular internet (teste)" valor={String(ms)} onChange={(v) => (setMs(Number(v)), salvarAtraso(Number(v)))} opcoes={OPCOES_ATRASO.map((x) => ({ id: String(x), nome: nome(x) }))} />
+      <p className="mt-2 text-xs text-[var(--suave)]">{t(ms ? 'Ligado: cada tela espera {n} antes de mostrar os dados.' : 'Desligado: os dados aparecem na hora (estão no aparelho).', { n: nome(ms) })}</p>
+      <button type="button" onClick={() => setPrevia(!previa)} className="mt-1 min-h-9 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t(previa ? 'Esconder o carregamento' : 'Ver o carregamento')}</button>
+      {previa && <div className="mt-2 rounded-2xl border border-dashed border-[var(--borda)]"><Carregando /></div>}
+    </Cartao>
+  )
+}
