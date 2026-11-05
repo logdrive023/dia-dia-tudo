@@ -136,7 +136,6 @@ describe('modo caixa sob estresse', () => {
     await ler(campo, vendaveis[0].codigo!)
     await waitFor(() => expect(linhas()).toHaveLength(1))
     const totalAntes = screen.getAllByText(/^Bs /, { selector: '.num.font-black, .num' })[0]?.textContent
-    fireEvent.click(screen.getAllByText(/mais \(cliente, desconto/)[0])
     fireEvent.click(screen.getAllByRole('radio', { name: '%' })[0])
     fireEvent.change(screen.getAllByLabelText('Desconto em %')[0], { target: { value: '150' } })
     expect(await screen.findAllByText('Desconto de 0 a 100%.')).toBeTruthy()
@@ -186,11 +185,11 @@ describe('modo caixa sob estresse', () => {
     expect(screen.queryByText('Como pagou?')).toBeNull()
   }, 60000)
 
-  it('FECHAR é o ÚLTIMO da cobrança: vem depois do "+ mais" e do total', async () => {
+  it('FECHAR é o ÚLTIMO da cobrança: vem depois do opcional (cliente…) e do total', async () => {
     await abrir()
     const aside = screen.getByRole('complementary', { name: 'Cobrança' })
     const ordem = [...aside.querySelectorAll('button')].map((x) => x.textContent ?? '')
-    const iMais = ordem.findIndex((x) => /mais \(cliente/.test(x))
+    const iMais = ordem.findIndex((x) => /Cliente/.test(x))
     const iFechar = ordem.findIndex((x) => x === 'FECHAR')
     expect(iMais).toBeGreaterThanOrEqual(0)
     expect(iFechar).toBeGreaterThan(iMais)

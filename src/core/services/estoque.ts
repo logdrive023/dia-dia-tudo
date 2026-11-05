@@ -4,7 +4,8 @@ import { fatorValido, multiplicarFator, proporcao } from '../domain/dinheiro'
 import { mapaViagens } from './viagemCurta'
 import { exigir } from '../domain/erros'
 import type { Campos, Id, InsumoServico, Item, MotivoEstoque, MovEstoque, Transacao, Unidade } from '../domain/tipos'
-import { auditar, type Ctx, exigirInteiroPositivo, novo, tocar } from './contexto'
+import { auditar, type Ctx, exigirInteiroPositivo, lerConfig, novo, tocar } from './contexto'
+import { diasEntre } from '../domain/datas'
 import { nomeAcao } from './historico'
 import { codigoNovoLote, exigirCodigosLivres, proximoSequencial, siglasPorPessoa } from './codigos'
 import { leitorFotos } from './fotos'
@@ -623,10 +624,22 @@ export async function fichaItem(ctx: Ctx, p: { id: Id }) {
   const perdaAjuste = -movimentos.filter((m) => (m.motivo === 'perda' || m.motivo === 'ajuste') && m.delta < 0).reduce((s, m) => s + m.delta, 0)
   // FOTOS: as do lote primeiro, depois as herdadas (lotes de origem e compras), por referência
   const fotos = (await leitorFotos(ctx, { porId, compras: transCompras })).fotosDe(item.id)
+  // ONDE ESTÁ e HÁ QUANTO TEMPO (para o resumo da ficha): a coluna do quadro da triagem e os limites de "parado"
+  // (import tardio: triagem.ts já importa este arquivo)
+  const { colunasTriagem, faseLote } = await import('./triagem')
+  const cfg = await lerConfig(ctx)
+  const cols = await colunasTriagem(ctx, item.moduloId)
+  const col = cols.find((c) => c.id === faseLote(item, cols, vendido > 0))
+  const desde = item.faseTriagem?.desde ?? item.criadoEm
+  const etapa = col ? { id: col.id, nome: col.nome, desde, dias: Math.max(0, diasEntre(desde.slice(0, 10), ctx.relogio.hoje())), pronto: !!col.pronto } : undefined
+  const limites = { triagemParadaDias: cfg.diasTriagemParada, loteParadoDias: cfg.diasLoteParado }
   return {
     item, movimentos, anexos: [...anexos, ...anexosCompra], compra, fornecedor, saidas, vendido, custoVendido, lucro: vendido - custoVendido, derivados,
     fotos,
     fotoPrincipal: fotos[0],
+    etapa,
+    limites,
+    etiquetaVelha: etiquetaVelha(item),
     status: statusLote(item),
     entrada,
     separacoes,

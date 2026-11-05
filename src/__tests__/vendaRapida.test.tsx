@@ -149,8 +149,7 @@ describe('modo caixa (venda rápida)', () => {
     const cheio = multiplicarFator(500, fator, 'BOB')
     const esperado = cheio - Math.round(cheio * 0.1)
 
-    // + mais → [ % | Bs ] → 10 %
-    fireEvent.click(screen.getByText(/mais \(cliente, desconto/))
+    // o desconto fica sempre à vista: [ % | Bs ] → 10 %
     fireEvent.click(screen.getByRole('radio', { name: '%' }))
     expect(localStorage.getItem('tudo.caixa.modoDesconto')).toBe('pct')
     fireEvent.change(screen.getByLabelText('Desconto em %'), { target: { value: '150' } })
@@ -202,7 +201,6 @@ describe('modo caixa (venda rápida)', () => {
     fireEvent.change(cotacao, { target: { value: '1,30' } })
 
     // desconto de R$ 10,00 (na moeda da cobrança)
-    fireEvent.click(screen.getByText(/mais \(cliente, desconto/))
     const grupoDesconto = screen.getByRole('radiogroup', { name: 'Desconto' })
     fireEvent.click(within(grupoDesconto).getByRole('radio', { name: 'R$' }))
     fireEvent.change(grupoDesconto.parentElement!.parentElement!.querySelector('input:not([aria-label])')!, { target: { value: '10' } })

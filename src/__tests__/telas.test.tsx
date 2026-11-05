@@ -48,8 +48,8 @@ describe('telas (com os dados de exemplo)', () => {
     // fichas: lote, rastreio, pessoa
     irPara('Estoque')
     fireEvent.click((await screen.findAllByText(/60 cm · Normal · Preto/, {}, { timeout: 10000 }))[0])
-    // resumo do pacote: a vida (compra → triagem → etiqueta → venda); o rastreio completo fica em Detalhes
-    await screen.findByRole('region', { name: 'A vida do pacote' }, { timeout: 10000 })
+    // resumo do pacote (estoque): a rastreabilidade (compra → triagem → etiqueta → venda); o rastreio completo fica em Detalhes
+    await screen.findByRole('region', { name: 'Rastreabilidade' }, { timeout: 10000 })
     fireEvent.click(screen.getByRole('tab', { name: 'Detalhes' }))
     fireEvent.click(await screen.findByText(/Rastreio completo/, {}, { timeout: 10000 }))
     await waitFor(() => expect(screen.queryByText('Carregando…')).toBeNull(), { timeout: 10000 })

@@ -29,6 +29,7 @@ import { MenuAcoes, acoesLote } from '../ui/menuAcoes'
 import { CodigoSelo, TrocarCodigo } from '../ui/codigos'
 import { useT } from '../ui/i18n'
 import { Trilha } from '../ui/trilha'
+import { ResumoEstoque, ResumoTriagem } from './lote/ResumoLote'
 import { FotosDoLote, MiniaturaLote, marcadorLote, useTirarFoto } from '../ui/fotos'
 import { AvisoPacotesNovos, RefazerEtiqueta, VerEtiqueta, SeloEtiqueta } from '../ui/etiquetas'
 import { ReservarLote, SeloReserva, reservado } from '../ui/reserva'
@@ -629,17 +630,11 @@ export function FichaLote() {
           <AbaAnexos donoId={i.id} categorias={['outro']} />
         </div>
       ) : aba === 'resumo' ? (
-      <div className="space-y-4">
-        {/* A VIDA DO PACOTE: compra → triagem → etiqueta → venda, cada passo leva direto ao registro */}
-        <VidaDoPacote i={i} gen={gen} compras={dados.dna.compras} onEtiqueta={() => (i.etiquetaImpressaEm ? setVerEtq('ver') : ir('etiquetas', { f: 'todas', sel: i.id }))} />
-        {/* números: peso e dinheiro; bruto já separado não mostra "vendido 0 / lucro 0" (o custo foi para os pacotes) */}
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          <Cartao><div className="text-xs text-[var(--suave)]">{t('Agora')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{q(i.saldo)}</div>{f.inicial !== i.saldo && <div className="num text-xs text-[var(--suave)]">{t('entrou')} {q(f.inicial)}</div>}</Cartao>
-          <Cartao><div className="text-xs text-[var(--suave)]">{t('Custo do lote')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{formatar(i.custoPrincipal ?? 0, m)}</div>{soSeparado && <div className="text-xs text-[var(--suave)]">{t('dividido entre os pacotes')}</div>}</Cartao>
-          {!soSeparado && <BotaoNumero rotulo={t('Vendido')} onClick={verRastreio}>{formatar(dados.vendido, m)}</BotaoNumero>}
-          {!soSeparado && <BotaoNumero rotulo={t('Lucro (vendido − custo)')} onClick={verRastreio} className={dados.lucro < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{formatar(dados.lucro, m)}</BotaoNumero>}
-        </div>
-      </div>
+      // RESUMO conforme a ETAPA do cabelo (a mesma linguagem; a prioridade muda): bruto = avaliar e classificar;
+      // separado = disponibilidade, onde está e rastreabilidade — screens/lote/ResumoLote.tsx
+      bruto
+        ? <ResumoTriagem dados={dados} gen={gen} campos={campos} onRastreio={verRastreio} onEtiqueta={() => (i.etiquetaImpressaEm ? setVerEtq('ver') : ir('etiquetas', { f: 'todas', sel: i.id }))} />
+        : <ResumoEstoque dados={dados} gen={gen} campos={campos} onRastreio={verRastreio} onEtiqueta={() => (i.etiquetaImpressaEm ? setVerEtq('ver') : ir('etiquetas', { f: 'todas', sel: i.id }))} />
       ) : <>
       {/* DETALHES: números completos, caminho, cada grama e atributos */}
       <section aria-label={t('Números')} className="space-y-2">
@@ -685,38 +680,6 @@ export function FichaLote() {
       {refazer && <RefazerEtiqueta id={i.id} codigo={i.codigo} onFechar={() => setRefazer(false)} />}
       {verEtq && <VerEtiqueta id={i.id} admin={admin} onFechar={() => setVerEtq('')} />}
     </div>
-  )
-}
-
-/**
- * A VIDA DO PACOTE em 4 passos (a vida do negócio): 🛒 Compra → ✂️ Triagem → 🏷 Etiqueta → 💰 Venda. Cada passo é um
- * botão que leva direto ao registro (a compra, a triagem, a etiqueta usada, a venda); passo que ainda não aconteceu
- * fica apagado ("ainda não"). Celular: 2 × 2; computador: 4 numa linha.
- */
-function VidaDoPacote({ i, gen, compras, onEtiqueta }: { i: ResultadoConsulta<'fichaItem'>['item']; gen?: ResultadoConsulta<'genealogia'>; compras: ResultadoConsulta<'fichaItem'>['dna']['compras']; onEtiqueta(): void }) {
-  const t = useT()
-  const { ir } = useApp()
-  const triagem = gen?.triagens.find((x) => x.saidas.some((s) => s.id === i.id)) ?? gen?.triagens.find((x) => x.entradas.some((e) => e.id === i.id))
-  const meu = gen?.lotes.find((l) => l.id === i.id)
-  const vendas = (meu?.para ?? []).filter((p) => p.tipo === 'venda').map((p) => ({ ...p, cliente: gen?.vendas.find((v) => v.id === p.id)?.cliente }))
-  const c = compras[0]
-  const passo = (p: { icone: string; nome: string; feito: boolean; titulo?: string; sub?: string; onClick?(): void }) => (
-    <button type="button" disabled={!p.onClick} onClick={p.onClick}
-      className={cx('flex min-h-20 min-w-0 flex-col justify-between rounded-2xl border p-3 text-left transition', p.feito ? 'border-[var(--borda)] bg-[var(--cartao)] shadow-sm hover:border-[var(--marca)]' : 'border-dashed border-[var(--borda)] text-[var(--suave)]')}>
-      <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--suave)]"><span aria-hidden className="text-base">{p.icone}</span>{t(p.nome)}</span>
-      <span className="min-w-0">
-        <b className={cx('block truncate font-mono text-base', p.feito ? 'text-[var(--marca)]' : 'font-sans font-normal')}>{p.titulo ?? t('ainda não')}</b>
-        {p.sub && <span className="block truncate text-xs text-[var(--suave)]">{p.sub}</span>}
-      </span>
-    </button>
-  )
-  return (
-    <section aria-label={t('A vida do pacote')} className="grid grid-cols-2 gap-2 md:grid-cols-4">
-      {passo({ icone: '🛒', nome: 'Compra', feito: !!c, titulo: c?.codigo ?? undefined, sub: [c?.fornecedor?.nome, compras.length > 1 ? `+${compras.length - 1}` : ''].filter(Boolean).join(' · ') || undefined, onClick: c ? () => ir('pedido', { id: c.id }) : undefined })}
-      {passo({ icone: '✂️', nome: 'Triagem', feito: !!triagem, titulo: triagem?.codigo, sub: triagem ? `${dataBR(triagem.em)}${triagem.por ? ` · ${triagem.por}` : ''}` : undefined, onClick: triagem ? () => ir('triagem', { aba: 'triagens', t: triagem.id }) : undefined })}
-      {passo({ icone: '🏷', nome: 'Etiqueta', feito: !!i.etiquetaImpressaEm, titulo: i.etiquetaImpressaEm ? `${i.codigo ?? ''}${(i.etiquetaVia ?? 1) > 1 ? ` · ${t('{n}ª via', { n: i.etiquetaVia! })}` : ''}` : t('Sem etiqueta'), sub: i.etiquetaImpressaEm ? `${dataBR(i.etiquetaImpressaEm)}${i.etiquetaImpressaPor ? ` · ${i.etiquetaImpressaPor}` : ''}` : t('Toque para imprimir'), onClick: onEtiqueta })}
-      {passo({ icone: '💰', nome: 'Venda', feito: vendas.length > 0, titulo: vendas[0]?.codigo, sub: vendas.length ? [vendas[0].cliente, vendas.length > 1 ? `+${vendas.length - 1}` : ''].filter(Boolean).join(' · ') || undefined : undefined, onClick: vendas.length ? () => ir('venda', { id: vendas[0].id }) : undefined })}
-    </section>
   )
 }
 
