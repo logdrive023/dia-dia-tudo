@@ -79,4 +79,12 @@ describe('conciliação de um mês intenso', () => {
     const ir = await b.consulta('impostoRenda', { ano: 2026 })
     expect(ir.meses.reduce((s: number, x: any) => s + x.receita, 0)).toBe(ir.visao.receitaBruta.valor)
   })
+  it('comparar viagens: custo por kg = cabelo + viagem (a mesma conta da tela da viagem)', async () => {
+    const { b } = await mes()
+    const v = (await b.consulta('viagens', {})).linhas.find((x: any) => x.id === 'vg')!
+    expect(v.gramas).toBe(3000)
+    expect(v.investido).toBe(v.custoCabelo + v.gasto)
+    expect(Math.abs((v.custoKgReal ?? 0) - ((v.custoKg ?? 0) + (v.gastoKg ?? 0)))).toBeLessThanOrEqual(1)
+    expect(v.receita).toBe(bs(5000))
+  })
 })

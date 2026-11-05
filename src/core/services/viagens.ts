@@ -879,6 +879,16 @@ function resumoLinha(v: Viagem, base: BaseViagens, a: ReturnType<typeof analisar
     roiBp: a.kpis.roiBp,
     custoKgReal: a.kpis.custoKgReal,
     dias: a.kpis.dias,
+    // para COMPARAR viagens (Relatórios › Viagens): o mesmo cálculo da tela da viagem
+    custoKg: a.kpis.custoKg,
+    gastoKg: a.kpis.gramas ? Math.round((a.kpis.gasto * 1000) / a.kpis.gramas) : undefined,
+    investido: a.kpis.investido,
+    receita: a.kpis.receita,
+    gramasVendidas: a.kpis.gramasVendidas,
+    gramasEstoque: a.kpis.gramasEstoque,
+    pctVendidoBp: a.kpis.pctVendidoBp,
+    potencial: a.kpis.potencial,
+    lucroVendido: a.kpis.lucroVendido,
     compras: a.compras.length,
     prospeccao: a.prospeccao,
     acimaOrcamento: a.acimaOrcamento,
@@ -906,7 +916,7 @@ export async function viagens(ctx: Ctx, p: { status?: 'aberta' | 'encerrada'; vi
     .filter((v) => !p.viagemId || v.id === p.viagemId)
     .sort((a, b) => (a.inicio + a.criadoEm < b.inicio + b.criadoEm ? 1 : -1))
   // funcionária não vê custo nem resultado (só o que ela gastou e as gramas)
-  const semCustos = <R extends ReturnType<typeof resumoLinha>>(r: R): R => (admin ? r : { ...r, custoCabelo: 0, resultado: 0, resultadoPotencial: 0, roiBp: undefined, custoKgReal: undefined })
+  const semCustos = <R extends ReturnType<typeof resumoLinha>>(r: R): R => (admin ? r : { ...r, custoCabelo: 0, resultado: 0, resultadoPotencial: 0, roiBp: undefined, custoKgReal: undefined, custoKg: undefined, investido: 0, receita: 0, potencial: 0, lucroVendido: 0 })
   const linhas = lista
     .map((v) => semCustos(resumoLinha(v, base, analisar(ctx, v, base, fr))))
     .filter((r) => !b || [r.codigo, r.nome, r.destino, ...r.viajantes.map((x) => x.nome)].some((x) => x?.toLowerCase().includes(b)))
