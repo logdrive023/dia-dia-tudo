@@ -67,7 +67,9 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
   type V = NonNullable<typeof concluidas>[number]
   const nomeForma = (id: string) => t(cfg?.formas.find((x) => x.id === id)?.nome ?? id)
   const formas = (v: V) => [...new Set(v.pagamentos.map((x) => x.forma))].map(nomeForma).join(' + ')
-  const textoBusca = (v: V) => [v.codigo, v.cliente, v.feitoPor, ...v.linhas.map((l) => l.descricao)].filter(Boolean).join(' ').toLowerCase()
+  // quem vendeu (a vendedora) e, se outra pessoa registrou no sistema, também quem registrou
+  const quem = (v: V) => (v.vendedora && v.feitoPor && v.vendedora !== v.feitoPor ? `${v.vendedora} (${t('registrou')}: ${v.feitoPor})` : v.vendedora ?? v.feitoPor)
+  const textoBusca = (v: V) => [v.codigo, v.cliente, v.feitoPor, v.vendedora, ...v.linhas.map((l) => l.descricao)].filter(Boolean).join(' ').toLowerCase()
   const passa = (v: V) => (!termo || textoBusca(v).includes(termo)) && (!pendencia || v.pendencias.some((x) => x.id === pendencia)) && passaViagem(p('viagem'), v.viagens)
   const viagensVendas = viagensDasLinhas([...(concluidas ?? []), ...(canceladas ?? [])].flatMap((v) => v.viagens))
   const conc = (concluidas ?? []).filter(passa)
@@ -115,7 +117,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
     ...(v.pessoaId ? [{ rotulo: 'Ver cliente', icone: '🧑', onClick: () => ir('pessoa', { id: v.pessoaId! }) }] : []),
     ...(admin && v.etapa === 'concluido' ? [{ rotulo: 'Cancelar venda', icone: '✕', perigo: true, separar: true, onClick: () => setCancelar(v.id) }] : []),
   ]
-  const exportar = () => baixarCSV('vendas', lista.map((v) => ({ codigo: v.codigo ?? '', data: v.data, hora: hora(v.criadoEm), cliente: v.cliente ?? '', itens: v.linhas.map((l) => l.descricao).join(' + '), pagamento: formas(v), situacao: v.etapa === 'cancelado' ? t('Cancelada') : v.pendencias.length ? v.pendencias.map((x) => t(x.texto)).join(' · ') : t('Completa'), valor: v.valor / 100, feito_por: v.feitoPor ?? '' })))
+  const exportar = () => baixarCSV('vendas', lista.map((v) => ({ codigo: v.codigo ?? '', data: v.data, hora: hora(v.criadoEm), cliente: v.cliente ?? '', itens: v.linhas.map((l) => l.descricao).join(' + '), pagamento: formas(v), situacao: v.etapa === 'cancelado' ? t('Cancelada') : v.pendencias.length ? v.pendencias.map((x) => t(x.texto)).join(' · ') : t('Completa'), valor: v.valor / 100, vendedora: v.vendedora ?? '', registrado_por: v.feitoPor ?? '' })))
   return (
     <div>
       {/* CABEÇALHO PADRÃO: nome · para que serve · a ação principal (+ Nova venda ▾ com os caminhos de venda) */}
@@ -154,7 +156,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
             {(cfg?.moedasAtivas.length ?? 0) > 1 && <Campo rotulo="Moeda recebida"><Selecao valor={p('moeda')} onChange={(v) => mudar('moeda', v)} vazio="Todas" opcoes={(cfg?.moedasAtivas ?? []).map((m) => ({ id: m, nome: m }))} /></Campo>}
           </GrupoFiltro>
           <GrupoFiltro titulo="Quem e onde" icone="👤">
-            {verEquipe && funcionarios.length > 1 && <Campo rotulo="Quem vendeu"><Selecao valor={p('usuarioId')} onChange={(v) => mudar('usuarioId', v)} vazio="Qualquer pessoa" opcoes={funcionarios.map((u) => ({ id: u.id, nome: u.nome }))} /></Campo>}
+            {verEquipe && funcionarios.length > 1 && <Campo rotulo="Quem vendeu"><Selecao valor={p('profissionalId')} onChange={(v) => mudar('profissionalId', v)} vazio="Qualquer pessoa" opcoes={funcionarios.map((u) => ({ id: u.id, nome: u.nome }))} /></Campo>}
             {clientes.length > 0 && <Campo rotulo="Cliente"><Selecao valor={p('pessoaId')} onChange={(v) => mudar('pessoaId', v)} vazio="Todos" opcoes={clientes.map((u) => ({ id: u.id, nome: u.nome }))} /></Campo>}
             {admin && (locais ?? []).length > 0 && <Campo rotulo="Unidade"><Selecao valor={p('localId')} onChange={(v) => mudar('localId', v)} vazio="Todas" opcoes={(locais ?? []).map((l) => ({ id: l.id, nome: l.nome }))} /></Campo>}
           </GrupoFiltro>
@@ -213,7 +215,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
         onOrdenar={(por) => mudar('ordem', por === 'data' ? '' : ordem === 'valor' ? 'valorMenor' : 'valor')}
         colunas={[
           { id: 'venda', titulo: 'Venda', celula: (v) => <><SeloCodigo codigo={v.codigo} /><b className="mt-1 block">{v.cliente ?? t('Sem nome')}</b>{v.viagens.length > 0 && <span className="mt-1 block"><SelosViagem vs={v.viagens} curto /></span>}</> },
-          { id: 'data', titulo: 'Data', ordenar: 'data', classe: 'num whitespace-nowrap', celula: (v) => <>{dataBR(v.data)}<span className="block text-xs text-[var(--suave)]">{hora(v.criadoEm)}{v.feitoPor ? ` · ${v.feitoPor}` : ''}</span></> },
+          { id: 'data', titulo: 'Data', ordenar: 'data', classe: 'num whitespace-nowrap', celula: (v) => <>{dataBR(v.data)}<span className="block text-xs text-[var(--suave)]">{hora(v.criadoEm)}{quem(v) ? ` · ${quem(v)}` : ''}</span></> },
           { id: 'itens', titulo: 'Itens', classe: 'max-w-72', celula: (v) => <><span className="line-clamp-2">{v.linhas.map((l) => l.descricao).join(' + ')}</span><span className="text-xs text-[var(--suave)]">{t('{n} item(ns)', { n: v.linhas.length })}</span></> },
           { id: 'pagamento', titulo: 'Pagamento', classe: 'text-[var(--suave)]', celula: (v) => formas(v) || '—' },
           { id: 'situacao', titulo: 'Situação', celula: situacao },
@@ -241,7 +243,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
             return { texto: resto.length === 1 ? (resto[0].id === 'semComprovante' ? t('sem comprovante') : t(resto[0].texto)) : t('{n} pendências', { n: resto.length }), tom: 'alerta' }
           },
           marca: (v) => <SelosViagem vs={v.viagens} curto soLeitura />,
-          fatos: (v) => [formas(v) && `💳 ${formas(v)}`, v.feitoPor && `👤 ${v.feitoPor}`, `📅 ${dataBR(v.data)}`],
+          fatos: (v) => [formas(v) && `💳 ${formas(v)}`, quem(v) && `👤 ${quem(v)}`, `📅 ${dataBR(v.data)}`],
           aberto: (v) => <>
             {v.linhas.length > 1 && <ul className="space-y-0.5">{v.linhas.map((l, k) => <li key={k} className="flex justify-between gap-3"><span className="min-w-0 truncate">{l.descricao}</span></li>)}</ul>}
             {v.etapa !== 'cancelado' && v.pendencias.length > 1 && <SeloPendencias pendencias={v.pendencias} moeda={v.moedaPrincipal} />}

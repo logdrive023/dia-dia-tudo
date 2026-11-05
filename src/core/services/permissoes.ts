@@ -61,6 +61,8 @@ export const CONSULTAS_FUNCIONARIO = new Set<NomeConsulta>([
   'impostosOperacao',
   'evento',
   'venda',
+  // a lista de vendas (tela Vender): filtrada pela bolha dela em visibilidade.ts
+  'vendas',
   // ver o pacote para VENDER (QR): só foto, código, rótulo, peso e preço da tabela; a ficha completa (fichaItem) é do admin
   'pacoteVenda',
   'organograma',

@@ -20,7 +20,7 @@ const SENSIVEIS = new Set([
   'insumo', 'insumoPrincipal', 'insumos', 'insumoMotivo', 'baseComissao', 'parteSalao', 'comissaoRegra',
   'comissaoBp', 'comissaoPrincipal', 'salario', 'salarioPrincipal', 'documento',
   'fornecedor', 'fornecedorId', 'fornecedorNome', 'valorCompras', 'comprasDela',
-  'margem', 'lucro', 'cotacoesCompra',
+  'margem', 'lucro', 'lucroPrincipal', 'cotacoesCompra',
 ])
 /** campos da linha do atendimento que só a dona da linha vê */
 const DA_LINHA = ['comissaoBp', 'comissaoPrincipal', 'insumo', 'insumoPrincipal', 'insumos', 'insumoMotivo', 'baseComissao']
@@ -184,6 +184,14 @@ export async function depoisDaConsulta(ctx: Ctx, nome: string, _p: Record<string
       // atendimento de colega (agenda da equipe): o horário e a cliente aparecem; o valor não
       x = (r as { tipo: string; pessoaId?: Id }[]).map((i) => (i.tipo === 'atendimento' && i.pessoaId && i.pessoaId !== eu ? { ...i, valor: undefined, falta: undefined } : i)) as unknown as X
       break
+    case 'vendas': {
+      // a lista de vendas (tela Vender): só as da bolha dela (as dela; a gerente com "agenda da equipe", também as das
+      // colegas que ela vê) — a mesma regra da venda aberta uma a uma (vendaVisivel). Viagens são do admin.
+      const lista = r as { id: Id }[]
+      const ok = await Promise.all(lista.map(async (v) => vendaVisivel(ctx, await ctx.repos.transacoes.obter(v.id))))
+      x = lista.filter((_, k) => ok[k]).map((v) => ({ ...linhasSoMinhas(v as { linhas?: { profissionalId?: Id }[] }, eu), viagens: [] })) as unknown as X
+      break
+    }
     case 'lerCodigoPacote':
       // pacote já vendido: para quem foi não é da conta dela
       if (Array.isArray(x?.vendas)) x = { ...x, vendas: (x.vendas as object[]).map((v) => ({ ...v, cliente: undefined })) } as X

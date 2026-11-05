@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { formasEmUso } from '../core/domain/formas'
 import { faltaNaSenha } from '../core/domain/senha'
 import { nomeProprio } from '../core/domain/textoFormatado'
-import { novoBackend } from './ajuda'
+import { bs, novoBackend } from './ajuda'
 
 describe('formas de pagamento ligadas e desligadas', () => {
   it('desligar o Pix tira ele das escolhas; dinheiro não desliga', async () => {
@@ -67,5 +67,40 @@ describe('o que a funcionária faz (o admin decide)', () => {
     await b.comando('salvarConfig', { funcionariaAgenda: [...c.funcionariaAgenda, 'viagem'], antes: { funcionariaAgenda: c.funcionariaAgenda } } as never)
     await comoSofia()
     expect(await cal()).toContain('v1')
+  })
+})
+
+describe('vendas da funcionária: lista, vendedora e auditoria', () => {
+  it('ela vê só as vendas dela (sem lucro), vira a vendedora sozinha, e tudo o que faz (e o que tentou) entra na auditoria', async () => {
+    const { b, sessao } = await novoBackend('2026-11-05')
+    const admin = { ...sessao }
+    await b.comando('salvarPessoa', { id: 'p-l', nome: 'Lúcia', papeis: ['funcionario'] } as any)
+    await b.comando('salvarUsuario', { id: 'u-l', login: 'lucia', nome: 'Lúcia', perfil: 'funcionario', pessoaId: 'p-l', senha: 'Lucia2026!' } as any)
+    await b.comando('salvarPessoa', { id: 'cli', nome: 'Cliente', papeis: ['cliente'] } as any)
+    await b.comando('salvarPessoa', { id: 'f', nome: 'Fornecedora', papeis: ['fornecedor'] } as any)
+    const comprar = async (id: string) => {
+      await b.comando('criarCompra', { id, moduloId: 'cabelo', pessoaId: 'f', linhas: [{ id: id + 'l', quantidade: 100, moeda: 'BOB', total: bs(100), campos: { estado: 'Bruto' } }], pagarNoAto: [{ id: 'p' + id, forma: 'dinheiro', moeda: 'BOB', valor: bs(100) }] } as any)
+      return (await (b as any).repos.transacoes.obter(id)).linhas[0].itemId as string
+    }
+    const A = await comprar('ca')
+    const B = await comprar('cb')
+    const vender = (id: string, item: string) => b.comando('concluirVenda', { id, pessoaId: 'cli', linhas: [{ id: id + 'l', itemId: item, quantidade: 100, moeda: 'BOB', total: bs(500) }], pagamentos: [{ id: 'p' + id, forma: 'dinheiro', moeda: 'BOB', valor: bs(500) }] } as any)
+    await vender('v-admin', A) // venda do admin (não é dela)
+    Object.assign(sessao, await b.entrar('lucia', 'Lucia2026!'))
+    await vender('v-lucia', B)
+    await expect(b.comando('lancarCaixa', { id: 'x', tipo: 'despesa', moeda: 'BOB', forma: 'dinheiro', valor: 100, descricao: 'x' } as any)).rejects.toThrow(/permissão/)
+    const minhas = (await b.consulta('vendas', {})) as any[]
+    expect(minhas.map((v) => v.id)).toEqual(['v-lucia'])
+    expect(minhas[0].lucroPrincipal).toBeUndefined()
+    expect(minhas[0].vendedora).toBe('Lúcia')
+    Object.assign(sessao, admin)
+    const venda = (await b.consulta('vendas', {}) as any[]).find((v) => v.id === 'v-lucia')
+    expect(venda.profissionalId).toBe('p-l')
+    expect(venda.feitoPor).toBe('Lúcia')
+    // auditoria: a venda dela e a tentativa recusada, no nome dela
+    const aud = (await b.consulta('auditoria', {} as any)) as any
+    const linhas = (aud.linhas ?? aud) as any[]
+    expect(linhas.some((x) => x.acao === 'concluirVenda' && x.usuarioNome === 'Lúcia')).toBe(true)
+    expect(linhas.some((x) => x.acao === 'recusado' && x.usuarioNome === 'Lúcia')).toBe(true)
   })
 })

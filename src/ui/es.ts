@@ -4781,4 +4781,5 @@ export const ES: Record<string, string> = {
   'Parcelas para receber ou pagar (no padrão, só do admin).': 'Cuotas para cobrar o pagar (por defecto, solo del admin).',
   'Modo caixa: lê a etiqueta e vende.': 'Modo caja: lee la etiqueta y vende.',
   'Escolhe medida e categoria na tabela de preço.': 'Elige medida y categoría en la tabla de precios.',
+  'registrou': 'registró',
 }

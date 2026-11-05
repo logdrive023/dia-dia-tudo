@@ -282,7 +282,8 @@ export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
     etapa: d.agendadoPara ? 'agendado' : 'novo',
     pessoaId: d.pessoaId,
     localId: d.localId,
-    profissionalId: d.profissionalId,
+    // VENDEDORA: a escolhida na tela; a funcionária que vende sem escolher fica como a vendedora (nunca vazio para ela)
+    profissionalId: d.profissionalId ?? (ctx.sessao.perfil === 'funcionario' ? ctx.sessao.pessoaId ?? ctx.sessao.usuarioId : undefined),
     agendadoPara: d.agendadoPara,
     linhas,
     pagamentos: [],
@@ -605,6 +606,8 @@ export async function vendas(ctx: Ctx, f: FiltroVendas = {}) {
       cliente: original.pessoaId ? pessoas.get(original.pessoaId)?.nome : undefined,
       viagens: viagensDaVenda(original),
       feitoPor: original.historico.find((h) => h.para === 'concluido')?.porNome ?? original.historico[0]?.porNome,
+      /** quem vendeu/atendeu (a vendedora), separado de quem registrou no sistema (feitoPor) */
+      vendedora: original.profissionalId ? pessoas.get(original.profissionalId)?.nome : undefined,
       pendencias: pendenciasVenda(original, anexos, vivas, original.pessoaId ? saldoConta.get(original.pessoaId) : undefined),
       valor: valorEm(recorte, f.moeda),
       lucroPrincipal: recorte.linhas.reduce((s, l) => s + l.totalPrincipal - (l.custoPrincipal ?? 0) - (l.insumoPrincipal ?? 0) - (l.comissaoPrincipal ?? 0), 0),
