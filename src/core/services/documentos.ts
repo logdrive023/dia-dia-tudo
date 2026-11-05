@@ -66,7 +66,7 @@ export async function documentoVenda(ctx: Ctx, p: { id: Id }) {
   // a DIVISÃO gravada (aba Divisão de valores): cada parte com quanto leva e o que fica com a casa — vai na nota se ligar
   const det = detalheDeValores(v, true, impostos)
   const div = calcularDivisao(v.divisao?.partes ?? [], { total: det.totais.cobrado, liquido: det.totais.liquido, lucro: det.totais.lucro ?? 0 })
-  const BASE_ES = { total: 'del total', liquido: 'del neto', lucro: 'de la utilidad' } as const
+  const BASE_ES = { total: 'del total facturado', liquido: 'de las ventas netas', lucro: 'de la utilidad de la venta' } as const
   const divisao = { partes: div.partes.map((p) => ({ nome: p.nome, valor: p.calculado, como: p.modo === 'pct' ? `${((p.pctBp ?? 0) / 100).toLocaleString('es-BO')}% ${BASE_ES[p.base]}` : 'monto fijo' })), casa: div.casa }
 
   return {

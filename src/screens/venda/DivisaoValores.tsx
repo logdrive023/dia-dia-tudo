@@ -13,11 +13,16 @@ import { Botao, Carregando, Entrada, Escolha, Info, Selecao, ValorInput, cx, dat
 import { useAvisoSaida, useComando, useConsulta } from '../../ui/contexto'
 import { useT } from '../../ui/i18n'
 
+/** as bases do % (os mesmos nomes do estado de resultado) */
 const BASES = [
-  { id: 'total', nome: 'Total cobrado' },
-  { id: 'liquido', nome: 'Líquido' },
-  { id: 'lucro', nome: 'Lucro' },
+  { id: 'total', nome: 'Total faturado' },
+  { id: 'liquido', nome: 'Vendas líquidas (sem IVA)' },
+  { id: 'lucro', nome: 'Resultado da venda' },
 ] as const
+
+/** valor contábil: negativo entre parênteses — "(Bs 3.600,00)" */
+const contabil = (n: number, m: string) => (n < 0 ? `(${formatar(-n, m)})` : formatar(n, m))
+const pctTexto = (bp: number) => { const v = Math.round(bp / 10) / 10; return `${v < 0 ? '−' : ''}${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` }
 /** as cores das partes na barra (a casa fica cinza) */
 const CORES = ['#8b5cf6', '#0ea5e9', '#f59e0b', '#ec4899', '#14b8a6', '#6366f1']
 
@@ -39,50 +44,65 @@ export function DivisaoValores({ vendaId }: { vendaId: Id }) {
   const mudar = (i: number, p: Partial<ParteDivisao>) => setEditando(partes.map((x, k) => (k === i ? { ...x, ...p } : x)))
   const nomes = [...new Set((pessoas ?? []).map((p) => p.nome))].sort((a, b) => a.localeCompare(b))
   const tot = d.totais
-  const degraus: { rot: string; valor: number; sinal?: '−' | '='; forte?: boolean; tom?: 'bom' | 'ruim'; ajuda: string }[] = [
-    { rot: 'Bruto (preço cheio)', valor: tot.bruto, ajuda: 'O preço de tabela de cada item, antes do desconto. Ex.: 2 kg × 17,5 = Bs 35.000.' },
-    { rot: 'Desconto', valor: tot.desconto, sinal: '−', ajuda: 'O desconto dado na venda (em % ou valor), já repartido entre os itens.' },
-    { rot: 'Cobrado (total da venda)', valor: tot.cobrado, sinal: '=', forte: true, ajuda: 'O que a cliente pagou (ou vai pagar). É o total da venda.' },
-    { rot: `Impostos estimados${d.impostos.length ? ` (${d.impostos.map((x) => `${x.sigla} ${x.taxaBp / 100}%`).join(' · ')})` : ''}`, valor: tot.imposto, sinal: '−', ajuda: 'Os impostos estimados no dia da venda (Configurações › Fiscal). Estimativa: o valor real sai da declaração do período.' },
-    { rot: 'Líquido', valor: tot.liquido, sinal: '=', forte: true, ajuda: 'Cobrado − impostos estimados: o que fica para o negócio antes dos custos.' },
-    ...(d.verCusto && tot.custo !== undefined ? [
-      { rot: 'Custo do cabelo / produto', valor: tot.custo, sinal: '−' as const, ajuda: 'Quanto custou o que saiu do estoque (pela compra).' },
-      { rot: 'Insumos', valor: tot.insumos ?? 0, sinal: '−' as const, ajuda: 'Tinta, produtos e o que o serviço gastou (do catálogo ou da linha).' },
-      { rot: 'Comissão', valor: tot.comissao ?? 0, sinal: '−' as const, ajuda: 'A parte da profissional nos serviços.' },
-      { rot: 'Lucro (antes dos impostos)', valor: tot.lucro ?? 0, sinal: '=' as const, forte: true, tom: (tot.lucro ?? 0) < 0 ? 'ruim' as const : 'bom' as const, ajuda: 'Cobrado − custo − insumos − comissão. O mesmo lucro do Painel.' },
-    ] : []),
-  ]
+  const comercial = d.estado.filter((x) => ['lista', 'desconto', 'facturado'].includes(x.id))
+  const contabilL = d.estado.filter((x) => !['lista', 'desconto', 'facturado'].includes(x.id))
+  const linha = (x: (typeof d.estado)[number]) => (
+    <li key={x.id} className={cx('num grid grid-cols-[minmax(0,1fr)_auto_3.5rem] items-baseline gap-x-3 px-4 py-1.5 sm:grid-cols-[minmax(0,1fr)_auto_4.5rem]',
+      x.tipo === 'subtotal' && 'mt-1 border-t border-[var(--borda)] pt-2',
+      x.tipo === 'total' && 'mt-1 border-t border-[var(--borda)] pt-2.5')}>
+      <span className="min-w-0">
+        <span className={cx('flex items-center gap-1 text-sm', x.tipo === 'conta' ? 'text-[var(--suave)]' : 'font-bold')}>{t(x.pt)}<Info texto={x.ajuda} /></span>
+        <span lang="es" className="block truncate text-[11px] italic text-[var(--suave)] opacity-80">{x.es}</span>
+      </span>
+      <span className={cx('whitespace-nowrap text-right', x.tipo === 'conta' ? 'text-sm' : 'text-base font-bold', x.tipo === 'total' && 'border-b-[3px] border-double border-[var(--texto)] pb-0.5 font-black', x.tipo === 'total' && (x.valor < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'))}>{contabil(x.valor, m)}</span>
+      <span className="whitespace-nowrap text-right text-xs text-[var(--suave)]">{pctTexto(x.pctBp)}</span>
+    </li>
+  )
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-      {/* 1. O DETALHE DO VALOR */}
-      <section aria-label={t('Detalhe do valor')} className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-        <p className="border-b border-[var(--borda)] px-4 py-3"><b>{t('Detalhe do valor')}</b> <span className="text-xs text-[var(--suave)]">{t('do preço cheio ao lucro')}</span></p>
-        <ol className="px-4 py-2">
-          {degraus.map((x) => (
-            <li key={x.rot} className={cx('num flex items-center gap-2 py-1.5', x.forte && 'mt-1 border-t border-[var(--borda)] pt-2.5')}>
-              <span aria-hidden className="w-4 shrink-0 text-center font-bold text-[var(--suave)]">{x.sinal ?? ''}</span>
-              <span className={cx('flex min-w-0 flex-1 items-center gap-1 text-sm', x.forte ? 'font-bold' : 'text-[var(--suave)]')}>{t(x.rot)}<Info texto={x.ajuda} /></span>
-              <span className={cx('shrink-0 whitespace-nowrap', x.forte ? 'text-base font-black' : 'text-sm', x.tom === 'bom' && 'text-[var(--bom)]', x.tom === 'ruim' && 'text-[var(--ruim)]')}>{v(x.valor)}</span>
-            </li>
-          ))}
-        </ol>
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+      {/* 1. O ESTADO DE RESULTADO DA VENDA (padrão boliviano do relatório contábil) */}
+      <section aria-label={t('Estado de resultado da venda')} className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+        <div className="flex flex-wrap items-baseline gap-x-2 border-b border-[var(--borda)] px-4 py-3">
+          <b>{t('Estado de resultado da venda')}</b>
+          <span className="text-xs text-[var(--suave)]">{t('padrão boliviano · NC (CTNAC) e Ley 843')}</span>
+          <Info texto="A mesma ordem do Estado de Resultados do relatório contábil, para uma venda só: primeiro o que está na factura (preço de lista, descontos, total faturado); depois o IVA (do fisco), o custo e o IT. O IUE é anual (sobre o lucro do ano) e por isso não se reparte por venda. Impostos estimados." />
+        </div>
+        {/* cabeçalho das colunas */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_3.5rem] gap-x-3 bg-[var(--fundo)] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--suave)] sm:grid-cols-[minmax(0,1fr)_auto_4.5rem]">
+          <span>{t('Conceito')}</span><span className="text-right">{m}</span><span className="text-right"><span className="sm:hidden">%</span><span className="hidden sm:inline">{t('% do faturado')}</span></span>
+        </div>
+        <p className="px-4 pt-2.5 text-[11px] font-bold uppercase tracking-wider text-[var(--marca)]">{t('Comercial · como na factura')}</p>
+        <ol className="pb-1">{comercial.map(linha)}</ol>
+        {contabilL.length > 0 && <>
+          <p className="border-t border-dashed border-[var(--borda)] px-4 pt-2.5 text-[11px] font-bold uppercase tracking-wider text-[var(--marca)]">{t('Contábil')}</p>
+          <ol className="pb-3">{contabilL.map(linha)}</ol>
+        </>}
+        {tot.lucroPainel !== undefined && <p className="num border-t border-[var(--borda)] px-4 py-2 text-xs text-[var(--suave)]">{t('No Painel, o lucro é antes de qualquer imposto: {v}.', { v: formatar(tot.lucroPainel, m) })}</p>}
         <div className="border-t border-[var(--borda)]">
           <button type="button" aria-expanded={porItem} onClick={() => setPorItem(!porItem)} className="flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm font-semibold text-[var(--marca)] hover:bg-[var(--fundo)]">
             <span aria-hidden className={cx('transition-transform', porItem && 'rotate-90')}>›</span>{t('Por item')} <span className="font-normal text-[var(--suave)]">· {t('{n} item(ns)', { n: d.linhas.length })}</span>
           </button>
           {porItem && (
-            <ul className="divide-y divide-[var(--borda)] border-t border-[var(--borda)] text-sm">
-              {d.linhas.map((l) => (
-                <li key={l.id} className="px-4 py-2.5">
-                  <p className="font-semibold">{l.descricao}</p>
-                  <dl className="num mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs sm:grid-cols-3">
-                    {[['Bruto', l.bruto], ['Desconto', -l.desconto], ['Cobrado', l.cobrado], ['Impostos', -l.imposto], ['Líquido', l.liquido], ...(l.custo !== undefined ? [['Custo', -l.custo], ['Insumos', -(l.insumos ?? 0)], ['Comissão', -(l.comissao ?? 0)], ['Lucro', l.lucro ?? 0]] : [])].map(([r, n]) => (
-                      <div key={r as string} className="flex justify-between gap-2"><dt className="text-[var(--suave)]">{t(r as string)}</dt><dd className={cx(r === 'Lucro' || r === 'Cobrado' || r === 'Líquido' ? 'font-bold' : '')}>{v(n as number)}</dd></div>
-                    ))}
-                  </dl>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto border-t border-[var(--borda)]">
+              <table className="num w-full text-sm">
+                <thead className="bg-[var(--fundo)] text-left text-[11px] uppercase tracking-wide text-[var(--suave)]">
+                  <tr><th className="px-4 py-1.5 font-semibold">{t('Item')}</th><th className="px-2 py-1.5 text-right font-semibold">{t('Faturado')}</th>{d.verCusto && <><th className="px-2 py-1.5 text-right font-semibold">{t('Custo')}</th><th className="px-2 py-1.5 text-right font-semibold">{t('Resultado')}</th><th className="px-4 py-1.5 text-right font-semibold">{t('Margem')}</th></>}</tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--borda)]">
+                  {d.linhas.map((l) => (
+                    <tr key={l.id}>
+                      <td className="px-4 py-2"><span className="block font-semibold">{l.descricao}</span>{l.desconto > 0 && <span className="block text-xs text-[var(--suave)]">{t('desconto')} {formatar(l.desconto, m)}</span>}</td>
+                      <td className="whitespace-nowrap px-2 py-2 text-right">{formatar(l.facturado, m)}</td>
+                      {d.verCusto && <>
+                        <td className="whitespace-nowrap px-2 py-2 text-right text-[var(--suave)]">{contabil(-(l.custo ?? 0) - (l.servicos ?? 0), m)}</td>
+                        <td className={cx('whitespace-nowrap px-2 py-2 text-right font-bold', (l.resultado ?? 0) < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>{contabil(l.resultado ?? 0, m)}</td>
+                        <td className="whitespace-nowrap px-4 py-2 text-right">{pctTexto(l.margemBp ?? 0)}</td>
+                      </>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </section>

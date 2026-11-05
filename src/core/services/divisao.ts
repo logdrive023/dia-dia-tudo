@@ -46,32 +46,95 @@ export async function impostosDaVenda(ctx: Ctx, t: Transacao) {
 }
 export type ImpostosDaVenda = Awaited<ReturnType<typeof impostosDaVenda>>
 
-/** o detalhe do dinheiro de uma venda, linha a linha e no total (custo/lucro só para o administrador) */
+/** uma linha do ESTADO DE RESULTADO da venda (o mesmo jeito do relatório contábil): nome em pt e o termo oficial em es */
+export interface LinhaEstado {
+  id: string
+  pt: string
+  es: string
+  valor: number
+  /** conta (−), subtotal (= com linha em cima) ou total (= com linha dupla) */
+  tipo: 'conta' | 'subtotal' | 'total'
+  /** % do total faturado (análise vertical) */
+  pctBp: number
+  ajuda: string
+}
+
+/**
+ * O ESTADO DE RESULTADO DA VENDA — o padrão boliviano do relatório contábil (Normas de Contabilidad CTNAC/CAUB; impostos
+ * da Ley 843), aplicado a uma venda só:
+ *   bloco COMERCIAL (o mesmo da factura): preço de lista − descontos e bonificações = TOTAL FATURADO
+ *   bloco CONTÁBIL: − IVA débito fiscal = VENDAS LÍQUIDAS · − custo das vendas − insumos e comissões = LUCRO BRUTO
+ *                   · − IT (e outros impostos sobre a receita) = RESULTADO DA VENDA (antes do IUE, que é anual)
+ * Os impostos são os ESTIMADOS da venda (impostosDaVenda), repartidos entre as linhas pelo valor faturado de cada uma.
+ * Custo e resultado só para o administrador.
+ */
 export function detalheDeValores(t: Transacao, verCusto: boolean, imp: ImpostosDaVenda) {
-  const cobradoTotal = t.linhas.reduce((s, l) => s + l.totalPrincipal, 0)
-  const impostosTotal = imp.total
-  // os impostos repartidos pelo valor de cada linha (o último fica com a sobra de arredondamento)
-  let restoImposto = impostosTotal
+  const facturadoTotal = t.linhas.reduce((s, l) => s + l.totalPrincipal, 0)
+  const ivaTotal = imp.linhas.filter((l) => l.sigla === 'IVA').reduce((s, l) => s + l.valor, 0)
+  const outros = imp.linhas.filter((l) => l.sigla !== 'IVA')
+  const outrosTotal = outros.reduce((s, l) => s + l.valor, 0)
+  // reparte um total pelas linhas, pelo faturado de cada uma (a última fica com a sobra do arredondamento)
+  const repartir = (total: number) => {
+    let resto = total
+    return t.linhas.map((l, k) => {
+      const v = k === t.linhas.length - 1 ? resto : facturadoTotal ? Math.round((total * l.totalPrincipal) / facturadoTotal) : 0
+      resto -= v
+      return v
+    })
+  }
+  const ivaL = repartir(ivaTotal)
+  const outrosL = repartir(outrosTotal)
   const linhas = t.linhas.map((l, k) => {
     const desconto = l.descontoPrincipal ?? 0
-    const cobrado = l.totalPrincipal
-    const imposto = k === t.linhas.length - 1 ? restoImposto : cobradoTotal ? Math.round((impostosTotal * cobrado) / cobradoTotal) : 0
-    restoImposto -= imposto
+    const facturado = l.totalPrincipal
+    const netas = facturado - ivaL[k]
     const custo = l.custoPrincipal ?? 0
-    const insumos = l.insumoPrincipal ?? 0
-    const comissao = l.comissaoPrincipal ?? 0
+    const servicos = (l.insumoPrincipal ?? 0) + (l.comissaoPrincipal ?? 0)
+    const bruta = netas - custo - servicos
+    const resultado = bruta - outrosL[k]
     return {
       id: l.id, descricao: l.descricao, quantidade: l.quantidade,
-      bruto: cobrado + desconto, desconto, cobrado, imposto, liquido: cobrado - imposto,
-      ...(verCusto ? { custo, insumos, comissao, lucro: cobrado - custo - insumos - comissao } : {}),
+      lista: facturado + desconto, desconto, facturado, iva: ivaL[k], netas, outros: outrosL[k],
+      ...(verCusto ? { custo, servicos, bruta, resultado, margemBp: facturado ? Math.round((resultado * 10000) / facturado) : 0 } : {}),
     }
   })
-  const soma = (k: 'bruto' | 'desconto' | 'cobrado' | 'imposto' | 'liquido' | 'custo' | 'insumos' | 'comissao' | 'lucro') => linhas.reduce((s, l) => s + ((l as unknown as Record<string, number | undefined>)[k] ?? 0), 0)
+  const soma = (f: (l: (typeof linhas)[number]) => number | undefined) => linhas.reduce((s, l) => s + (f(l) ?? 0), 0)
+  const lista = soma((l) => l.lista)
+  const desconto = soma((l) => l.desconto)
+  const custo = soma((l) => l.custo)
+  const servicos = soma((l) => l.servicos)
+  const netas = facturadoTotal - ivaTotal
+  const bruta = netas - custo - servicos
+  const resultado = bruta - outrosTotal
+  const pct = (v: number) => (facturadoTotal ? Math.round((v * 10000) / facturadoTotal) : 0)
+  const pctTaxa = (bp: number) => `${(bp / 100).toLocaleString('pt-BR')}%`
+  const L = (id: string, pt: string, es: string, valor: number, tipo: LinhaEstado['tipo'], ajuda: string): LinhaEstado => ({ id, pt, es, valor, tipo, pctBp: pct(valor), ajuda })
+  const iva = imp.linhas.find((l) => l.sigla === 'IVA')
+  const estado: LinhaEstado[] = [
+    // bloco comercial (o mesmo da factura)
+    L('lista', 'Preço de lista', 'Precio de lista', lista, 'conta', 'O preço de tabela de cada item, antes do desconto (o "SUBTOTAL" da factura).'),
+    L('desconto', '(−) Descontos e bonificações', 'Descuentos y bonificaciones', -desconto, 'conta', 'O desconto comercial dado na venda, já repartido entre os itens (o "DESCUENTO" da factura).'),
+    L('facturado', 'Total faturado', ivaTotal ? 'Ventas brutas (facturado)' : 'Ventas', facturadoTotal, 'subtotal', 'O que a cliente paga: o total da venda (o "TOTAL" da factura).'),
+    // bloco contábil
+    ...(ivaTotal ? [
+      L('iva', `(−) IVA débito fiscal (${pctTaxa(iva!.taxaBp)})`, 'IVA débito fiscal', -ivaTotal, 'conta', 'O IVA vem DENTRO do preço e é do fisco: sai da venda antes de tudo (Ley 843). Estimado no dia da venda.'),
+      L('netas', 'Vendas líquidas', 'Ventas netas', netas, 'subtotal', 'Total faturado − IVA: o que é do negócio.'),
+    ] : []),
+    ...(verCusto ? [
+      L('costo', '(−) Custo das vendas', 'Costo de ventas', -custo, 'conta', 'Quanto custou o cabelo ou o produto que saiu (pela compra).'),
+      ...(servicos ? [L('servicios', '(−) Insumos e comissões', 'Insumos y comisiones de servicios', -servicos, 'conta', 'Tinta, produtos do serviço e a parte da profissional.')] : []),
+      L('bruta', 'Lucro bruto', 'Utilidad bruta', bruta, 'subtotal', 'Vendas líquidas − custo − insumos e comissões.'),
+      ...outros.map((o) => L(`imp-${o.sigla}`, `(−) ${o.sigla === 'IT' ? 'Imposto sobre Transações' : o.nome} (${o.sigla} ${pctTaxa(o.taxaBp)})`, o.sigla === 'IT' ? 'Impuesto a las Transacciones' : o.nome, -o.valor, 'conta', o.sigla === 'IT' ? 'O IT incide sobre o faturamento bruto e entra como gasto, depois do lucro bruto (Ley 843). Estimado.' : 'Imposto estimado sobre a receita.')),
+      L('resultado', 'Resultado da venda (antes do IUE)', 'Utilidad de la venta (antes del IUE)', resultado, 'total', 'Lucro bruto − IT. O IUE (25%) é anual, sobre o lucro do ano, por isso não se reparte por venda.'),
+    ] : []),
+  ]
   return {
     linhas,
+    estado,
     totais: {
-      bruto: soma('bruto'), desconto: soma('desconto'), cobrado: soma('cobrado'), imposto: soma('imposto'), liquido: soma('liquido'),
-      ...(verCusto ? { custo: soma('custo'), insumos: soma('insumos'), comissao: soma('comissao'), lucro: soma('lucro') } : {}),
+      bruto: lista, desconto, cobrado: facturadoTotal, iva: ivaTotal, liquido: netas, outrosImpostos: outrosTotal,
+      ...(verCusto ? { custo, servicos, bruta, lucro: resultado, lucroPainel: facturadoTotal - custo - servicos } : {}),
+      imposto: ivaTotal + outrosTotal,
     },
     impostos: imp.linhas.map((l) => ({ sigla: l.sigla, taxaBp: l.taxaBp, valor: l.valor })),
     impostosDoDia: imp.doDia,

@@ -12,13 +12,18 @@ async function montar() {
 }
 
 describe('divisão de valores', () => {
-  it('o detalhe fecha: bruto − desconto = cobrado; cobrado − impostos = líquido', async () => {
+  it('o estado de resultado da venda fecha (padrão boliviano): lista − desconto = faturado − IVA = líquidas … = resultado', async () => {
     const b = await montar()
     const d = await b.consulta('divisaoVenda', { id: 'v' })
     expect(d.totais).toMatchObject({ bruto: bs(1000), desconto: bs(100), cobrado: bs(900) })
-    expect(d.totais.cobrado - d.totais.imposto).toBe(d.totais.liquido)
-    // IVA 13% + IT 3% (estimados do dia da venda) sobre 900
-    expect(d.totais.imposto).toBe(bs(144))
+    // padrão boliviano: vendas líquidas = faturado − IVA (13% de 900 = 117); o IT (3% = 27) vem depois do lucro bruto
+    expect(d.totais.iva).toBe(bs(117))
+    expect(d.totais.liquido).toBe(d.totais.cobrado - d.totais.iva)
+    expect(d.totais.outrosImpostos).toBe(bs(27))
+    expect(d.estado.map((x) => x.id)).toEqual(['lista', 'desconto', 'facturado', 'iva', 'netas', 'costo', 'bruta', 'imp-IT', 'resultado'])
+    const r = d.estado.find((x) => x.id === 'resultado')!
+    expect(r.valor).toBe(d.totais.liquido - (d.totais.custo ?? 0) - (d.totais.servicos ?? 0) - d.totais.outrosImpostos)
+    expect(d.estado.find((x) => x.id === 'facturado')!.pctBp).toBe(10000)
     expect(d.linhas).toHaveLength(1)
     expect(d.verCusto).toBe(true)
   })
