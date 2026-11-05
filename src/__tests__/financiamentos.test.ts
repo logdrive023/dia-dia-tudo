@@ -182,3 +182,20 @@ describe('adiantamento a parceiros (financiamento pago com cabelo)', () => {
     expect(menu.adiantamentosAbertos).toBe(2)
   })
 })
+
+describe('adiantamento: data em que foi feito e data limite', () => {
+  it('guarda a data e o prazo; filtra por período e por prazo (vencido); recusa data no futuro e prazo antes da data', async () => {
+    const { b } = await cenario()
+    const hoje = '2026-11-01'
+    await b.comando('criarFinanciamento', { id: 'a1', pessoaId: 'px', moeda: 'BOB', valor: bs(1000), forma: 'dinheiro', data: '2026-10-01', prazo: '2026-10-20' })
+    await b.comando('criarFinanciamento', { id: 'a2', pessoaId: 'px', moeda: 'BOB', valor: bs(500), forma: 'dinheiro' })
+    const todos = (await b.consulta('financiamentos', {})).linhas
+    expect(todos.find((x) => x.id === 'a1')).toMatchObject({ data: '2026-10-01', prazo: '2026-10-20' })
+    expect(todos.find((x) => x.id === 'a2')?.data).toBe(hoje)
+    expect((await b.consulta('financiamentos', { de: '2026-10-01', ate: '2026-10-31' })).linhas.map((x) => x.id)).toEqual(['a1'])
+    expect((await b.consulta('financiamentos', { prazo: 'vencido' })).linhas.map((x) => x.id)).toEqual(['a1'])
+    expect((await b.consulta('financiamentos', { prazo: 'sem' })).linhas.map((x) => x.id)).toEqual(['a2'])
+    await expect(b.comando('criarFinanciamento', { id: 'a3', pessoaId: 'px', moeda: 'BOB', valor: bs(100), forma: 'dinheiro', data: '2026-12-01' })).rejects.toThrow(/futuro/)
+    await expect(b.comando('criarFinanciamento', { id: 'a4', pessoaId: 'px', moeda: 'BOB', valor: bs(100), forma: 'dinheiro', data: '2026-10-10', prazo: '2026-10-01' })).rejects.toThrow(/antes/)
+  })
+})

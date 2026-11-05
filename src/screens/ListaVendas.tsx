@@ -9,9 +9,9 @@ import { dataLocal } from '../core/domain/datas'
 import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../ui/seloViagem'
 import { TabelaDados, SeloCodigo, corDoNome, iniciais } from '../ui/tabelaDados'
 import { formatar } from '../core/domain/dinheiro'
-import { Campo, Confirmar, Entrada, Pilula, Selecao, Titulo, Vazio, cx, dataBR, diaCurto, hora, moedaPadrao } from '../ui/base'
+import { Campo, Confirmar, Pilula, Selecao, Titulo, Vazio, cx, dataBR, diaCurto, hora, moedaPadrao } from '../ui/base'
 import { useApp, useComando, useConsulta, useFiltrosTela } from '../ui/contexto'
-import { CampoFaixa, FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo } from '../ui/filtroPadrao'
+import { FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo } from '../ui/filtroPadrao'
 import { useT } from '../ui/i18n'
 import { type Acao } from '../ui/menuAcoes'
 import { GrupoNumeros, NumeroGrande } from '../ui/numeroGrande'
@@ -134,11 +134,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
         detalhe={!carregando && lista.length > 0 && formatar(lista.reduce((s, v) => s + v.valor, 0), moeda)}
         exportar={{ onExportar: exportar, quantos: lista.length, unidade: 'venda(s)' }}
         painel={<>
-          <GrupoFiltro titulo="Quando e o quê" icone="📅">
-            <CampoFaixa rotulo="Data da venda">
-              <Entrada type="date" aria-label={t('De')} value={p('de')} max={p('ate') || undefined} onChange={(e) => mudar('de', e.target.value)} />
-              <Entrada type="date" aria-label={t('Até')} value={p('ate')} min={p('de') || undefined} onChange={(e) => mudar('ate', e.target.value)} />
-            </CampoFaixa>
+          <GrupoFiltro titulo="O quê" icone="🏷">
             {modulosVenda.length > 1 && <Campo rotulo="Área"><Selecao valor={p('moduloId')} onChange={(v) => mudar('moduloId', v)} vazio="Todas" opcoes={modulosVenda.map((m) => ({ id: m.id, nome: `${m.icone} ${t(m.nome)}` }))} /></Campo>}
             <Campo rotulo="Pendência"><Selecao valor={pendencia} onChange={(v) => mudar('pendencia', v)} vazio="Qualquer" opcoes={PENDENCIAS} /></Campo>
           </GrupoFiltro>

@@ -34,6 +34,8 @@ export interface ConfigFiscal {
   atividade?: string
   contador?: string
   representante?: string
+  /** as FIRMAS (Contador · Representante legal) no fim do relatório impresso — padrão: sim; dá para tirar na hora */
+  firmasNoRelatorio?: boolean
   /** 🇧🇴 Régimen General: as vendas saem com fatura? (débito fiscal IVA) · as compras vêm com fatura? (crédito fiscal) */
   vendasComFatura: boolean
   comprasComFatura: boolean

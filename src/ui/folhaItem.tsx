@@ -7,16 +7,19 @@
 //   │  [ secundária ] [ secundária ]                                     │
 //   │  Abrir venda →                                  Desmarcar (perigo) │
 //   └────────────────────────────────────────────────────────────────────┘
-// Quem usa só diz o QUE mostrar (fatos, ações); o COMO é sempre este.
+//   numeros: um bloco de números em cartões ("Desempenho no período"); o que abre algo ganha › e um toque abre.
+// Quem usa só diz o QUE mostrar (fatos, números, ações); o COMO é sempre este. Usada na agenda e na equipe.
 import type { ReactNode } from 'react'
 import { Botao, Janela, cx } from './base'
 import { useT } from './i18n'
 
 export interface FatoFolha { icone: string; rotulo: string; valor?: ReactNode }
+export interface NumeroFolha { rotulo: string; valor: string; icone?: string; tom?: 'bom' | 'ruim' | 'alerta'; onClick?(): void }
 export interface AcaoFolha { rotulo: string; icone?: string; onClick(): void; disabled?: boolean; href?: string }
 
-export function FolhaItem({ icone, cor, tipo, titulo, riscado, selos, fatos, destaque, aviso, principal, secundarias = [], abrir, perigo, onFechar, aberta = true }: {
-  icone: string
+export function FolhaItem({ icone, cor, tipo, titulo, riscado, selos, fatos, destaque, numeros, aviso, principal, secundarias = [], abrir, perigo, onFechar, aberta = true, children }: {
+  /** emoji do tipo ou um avatar (iniciais) */
+  icone: ReactNode
   /** a cor do tipo (a mesma do calendário) */
   cor: string
   /** o nome do tipo ("Atendimento") */
@@ -28,7 +31,11 @@ export function FolhaItem({ icone, cor, tipo, titulo, riscado, selos, fatos, des
   selos?: ReactNode
   fatos: FatoFolha[]
   /** o número que importa (valor), à direita dos fatos */
-  destaque?: { rotulo: string; valor: string; tom?: 'bom' | 'ruim' | 'alerta' }
+  destaque?: { rotulo: string; valor: string; tom?: 'bom' | 'ruim' | 'alerta'; sub?: string }
+  /** um bloco de números (título + cartões) */
+  numeros?: { titulo: string; sub?: string; itens: NumeroFolha[] }
+  /** algo a mais da tela, entre os números e as ações */
+  children?: ReactNode
   /** um aviso em faixa (horário ocupado, parcela atrasada) */
   aviso?: { texto: string; tom: 'alerta' | 'ruim' }
   principal?: AcaoFolha
@@ -73,9 +80,33 @@ export function FolhaItem({ icone, cor, tipo, titulo, riscado, selos, fatos, des
             <div className="ml-auto shrink-0 self-start rounded-2xl bg-[var(--fundo)] px-4 py-3 text-right ring-1 ring-[var(--borda)]">
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-[var(--suave)]">{t(destaque.rotulo)}</span>
               <b className="num block whitespace-nowrap text-2xl leading-tight" style={destaque.tom ? { color: corTom[destaque.tom] } : undefined}>{destaque.valor}</b>
+              {destaque.sub && <span className="block text-xs text-[var(--suave)]">{destaque.sub}</span>}
             </div>
           )}
         </div>
+        {numeros && numeros.itens.length > 0 && (
+          <section aria-label={t(numeros.titulo)}>
+            <h3 className="mb-2 flex flex-wrap items-baseline gap-x-2 text-xs font-bold uppercase tracking-wide text-[var(--suave)]">{t(numeros.titulo)}{numeros.sub && <span className="num font-semibold normal-case tracking-normal">{numeros.sub}</span>}</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {numeros.itens.map((n) => {
+                const dentro = (
+                  <>
+                    <span className="flex items-center gap-1 text-xs text-[var(--suave)]">{n.icone && <span aria-hidden>{n.icone}</span>}<span className="truncate">{t(n.rotulo)}</span></span>
+                    <span className="flex items-center justify-between gap-1">
+                      <b className="num truncate text-lg leading-tight" style={n.tom ? { color: corTom[n.tom] } : undefined}>{n.valor}</b>
+                      {n.onClick && <span aria-hidden className="text-[var(--suave)] transition group-hover:translate-x-0.5 group-hover:text-[var(--marca)]">›</span>}
+                    </span>
+                  </>
+                )
+                const caixa = 'flex min-h-[4.25rem] min-w-0 flex-col justify-between gap-1 rounded-xl bg-[var(--fundo)] p-2.5 text-left ring-1 ring-[var(--borda)]'
+                return n.onClick
+                  ? <button key={n.rotulo} type="button" onClick={n.onClick} className={cx(caixa, 'group transition hover:ring-[var(--marca)]')}>{dentro}</button>
+                  : <div key={n.rotulo} className={caixa}>{dentro}</div>
+              })}
+            </div>
+          </section>
+        )}
+        {children}
         {/* as ações: a principal (larga), as secundárias (lado a lado), e no rodapé abrir · perigo */}
         {(principal || secundarias.length > 0) && (
           <div className="space-y-2">

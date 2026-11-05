@@ -2,15 +2,21 @@
 // (salário por mês, semana ou dia) e a "ponta do lápis" de cada unidade: entradas × saídas = margem.
 
 import { useState } from 'react'
+import { FiltroUnidade } from '../ui/filtroUnidade'
+import { Unidades } from './equipe/Unidades'
+import { Comissoes } from './equipe/Comissoes'
+import { GrupoNumeros, NumeroGrande } from '../ui/numeroGrande'
+import { FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
+import { corDoNome, iniciais } from '../ui/tabelaDados'
+import { FolhaItem } from '../ui/folhaItem'
 import { CadastroFuncionario } from './cadastros/CadastroFuncionario'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id, Pessoa } from '../core/domain/tipos'
 import type { NoOrganograma } from '../core/services/equipe'
-import { memoriaCalculo } from '../core/domain/comissao'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Info, Janela, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, moedaPadrao } from '../ui/base'
+import { Abas, Botao, Campo, Carregando, Entrada, Janela, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, moedaPadrao } from '../ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
-import { SeletorPeriodo, useLembrado, usePeriodo } from '../ui/filtros'
+import { useLembrado, usePeriodo } from '../ui/filtros'
 import { useT } from '../ui/i18n'
 import { useLargo } from '../ui/calendario'
 
@@ -26,22 +32,49 @@ export function Equipe() {
   const [editar, setEditar] = useState<Pessoa | 'novo'>()
   const { dados: locais } = useConsulta('locais', {})
   const { dados: org } = useConsulta('organograma', { localId: localId || undefined, de: periodo.de, ate: periodo.ate })
+  const [busca, setBusca] = useState('')
+  const admin = sessao.perfil === 'admin'
+  const nomeLocal = new Map((locais ?? []).map((l) => [l.id, l.nome]))
+  // o período no padrão (📅 ▾); "Tudo" = desde sempre
+  // o período é obrigatório aqui (comissão e margem são sempre de um intervalo): atalhos ou datas livres
+  const mudarPeriodo = (de?: string, ate?: string) => de && ate && setPeriodo({ preset: 'livre', de, ate })
+  const tot = org ? contar(org.raizes) : undefined
+  const m = moedaPadrao()
+  const ativos = localId ? [{ k: 'local', rotulo: `🏢 ${nomeLocal.get(localId) ?? ''}` }] : []
   return (
     <div>
-      <Titulo acao={sessao.perfil === 'admin' && <Botao onClick={() => setEditar('novo')}>+ {t('Funcionário')}</Botao>}>{t('Equipe e unidades')}</Titulo>
-      <div className="mb-3 flex flex-wrap gap-2">
-        <SeletorPeriodo periodo={periodo} onChange={setPeriodo} />
-        {sessao.perfil === 'admin' && <Selecao className="w-auto max-w-full" valor={localId} onChange={setLocalId} vazio="Todas as unidades" opcoes={(locais ?? []).filter((l) => l.tipo === 'salao').map((l) => ({ id: l.id, nome: l.nome }))} />}
-      </div>
-      <Abas atual={aba} onChange={(v) => setAba(v as typeof aba)} abas={[{ id: 'organograma', nome: 'Organograma' }, { id: 'comissoes', nome: 'Comissões' }, ...(sessao.perfil === 'admin' ? [{ id: 'unidades', nome: 'Entradas × saídas por unidade' }] : [])]} />
+      <Titulo subtitulo={t('Quem é quem, quanto cada uma atendeu e as comissões do período.')} acao={admin && <Botao onClick={() => setEditar('novo')}>+ {t('Funcionário')}</Botao>}>{t('Equipe e unidades')}</Titulo>
+      <Abas atual={aba} onChange={(v) => setAba(v as typeof aba)} abas={[{ id: 'organograma', nome: 'Organograma' }, { id: 'comissoes', nome: 'Comissões' }, ...(admin ? [{ id: 'unidades', nome: 'Entradas × saídas' }] : [])]} />
+      <FiltroLista
+        className="mb-4 mt-3"
+        busca={busca}
+        onBusca={setBusca}
+        placeholder={aba === 'unidades' ? 'Buscar unidade' : 'Buscar pessoa ou cargo'}
+        periodo={{ de: periodo.de, ate: periodo.ate, onChange: mudarPeriodo, obrigatorio: true, presets: ['hoje', '7d', '30d', 'mes', 'mesPassado', 'ano'] }}
+        extra={admin ? <FiltroUnidade valor={localId} onChange={setLocalId} tipos={['salao']} /> : undefined}
+        ativos={ativos}
+        onTirar={() => setLocalId('')}
+        temAtivos={!!(localId || busca)}
+        onLimpar={() => (setLocalId(''), setBusca(''))}
+        resultados={aba === 'organograma' && tot ? (busca.trim() ? achar(org!.raizes, busca).length : tot.pessoas) : undefined}
+        total={aba === 'organograma' ? tot?.pessoas : undefined}
+        unidade="pessoa(s)"
+      />
       {aba === 'organograma' ? (
         !org ? <Carregando /> : !org.raizes.length ? <Vazio texto="Ninguém na equipe desta unidade ainda." /> : (
-          <OrganogramaVisual raizes={org.raizes} onClick={setResumo} />
+          <>
+            <GrupoNumeros colunas={3} celular={3}>
+              <NumeroGrande rotulo="Pessoas" valor={tot!.pessoas} icone="👥" sub={localId ? nomeLocal.get(localId) : t('todas as unidades')} />
+              <NumeroGrande rotulo="Atendimentos" valor={tot!.atend} icone="✂️" sub={t('no período')} />
+              <NumeroGrande rotulo="Faturado" valor={formatar(tot!.fat, m)} icone="💰" tom={tot!.fat ? 'bom' : undefined} sub={t('no período')} />
+            </GrupoNumeros>
+            <OrganogramaVisual raizes={org.raizes} busca={busca} eu={sessao.pessoaId} nomeLocal={nomeLocal} onClick={setResumo} onLimpar={() => setBusca('')} />
+          </>
         )
       ) : aba === 'comissoes' ? (
-        <Comissoes de={periodo.de} ate={periodo.ate} />
-      ) : sessao.perfil !== 'admin' ? null : (
-        <Unidades de={periodo.de} ate={periodo.ate} onComissoes={() => setAba('comissoes')} />
+        <Comissoes de={periodo.de} ate={periodo.ate} busca={busca} />
+      ) : !admin ? null : (
+        <Unidades de={periodo.de} ate={periodo.ate} busca={busca} onComissoes={() => setAba('comissoes')} />
       )}
       {resumo && <Resumo id={resumo} de={periodo.de} ate={periodo.ate} onFechar={() => setResumo(undefined)} onEditar={(p) => (setResumo(undefined), setEditar(p))} onComissoes={(id) => (setResumo(undefined), ajustarParams({ aba: 'comissoes', pessoaId: id }))} />}
       {editar && <CadastroFuncionario pessoa={editar === 'novo' ? undefined : editar} localPadrao={localId} onFechar={() => setEditar(undefined)} />}
@@ -49,65 +82,86 @@ export function Equipe() {
   )
 }
 
-// ORGANOGRAMA (minimalista, para ler informação): cartão branco, avatar com a cor do nível, nome, cargo e os dois
-// números do período (atendimentos · faturado). Computador: árvore com linhas finas; celular: lista em níveis.
-const COR_NIVEL = ['#1f2937', '#64748b', 'var(--marca)', '#a78bfa']
-const corNivel = (nivel: number) => COR_NIVEL[Math.min(nivel, COR_NIVEL.length - 1)]
+// ORGANOGRAMA — cada pessoa num cartão: avatar com a cor dela (iniciais), nome, cargo e unidade, e os números do período
+// (✂️ atendimentos · 💰 faturado · 👥 quantas respondem a ela). Computador: árvore com linhas; celular: níveis com a
+// linha colorida de quem responde a quem. Buscando: só os cartões que batem, numa lista (com "responde a").
 const contar = (ns: NoOrganograma[]): { pessoas: number; atend: number; fat: number } =>
   ns.reduce((s, n) => { const f = contar(n.subordinados); return { pessoas: s.pessoas + 1 + f.pessoas, atend: s.atend + n.atendimentos + f.atend, fat: s.fat + n.faturamento + f.fat } }, { pessoas: 0, atend: 0, fat: 0 })
+const semAcento = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+/** quem bate com a busca (nome ou cargo), com o nome de quem é o chefe */
+function achar(ns: NoOrganograma[], busca: string, chefe?: string): { n: NoOrganograma; chefe?: string }[] {
+  const b = semAcento(busca.trim())
+  return ns.flatMap((n) => [
+    ...(semAcento(`${n.pessoa.nome} ${n.pessoa.cargo ?? ''}`).includes(b) ? [{ n, chefe }] : []),
+    ...achar(n.subordinados, busca, n.pessoa.nome),
+  ])
+}
 
-function OrganogramaVisual({ raizes, onClick }: { raizes: NoOrganograma[]; onClick(id: Id): void }) {
+function OrganogramaVisual({ raizes, busca, eu, nomeLocal, onClick, onLimpar }: { raizes: NoOrganograma[]; busca: string; eu?: Id; nomeLocal: Map<Id, string>; onClick(id: Id): void; onLimpar(): void }) {
   const t = useT()
   const largo = useLargo()
-  const tot = contar(raizes)
-  const m = moedaPadrao()
+  const p = { eu, nomeLocal, onClick }
+  if (busca.trim()) {
+    const achados = achar(raizes, busca)
+    if (!achados.length) return <VazioFiltro texto="Ninguém com esse nome ou cargo." filtrando onLimpar={onLimpar} />
+    return (
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {achados.map(({ n, chefe }) => <li key={n.pessoa.id}><CartaoPessoa n={n} {...p} chefe={chefe} /></li>)}
+      </ul>
+    )
+  }
   return (
-    <div className="space-y-3">
-      {/* resumo da equipe no período */}
-      <div className="grid grid-cols-3 gap-2">
-        {[{ r: 'Pessoas', v: String(tot.pessoas) }, { r: 'Atendimentos', v: String(tot.atend) }, { r: 'Faturado', v: formatar(tot.fat, m) }].map((x) => (
-          <div key={x.r} className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-3 py-2">
-            <div className="truncate text-xs text-[var(--suave)]">{t(x.r)}</div>
-            <div className="num truncate text-lg font-bold">{x.v}</div>
-          </div>
-        ))}
-      </div>
-      <div className="overflow-x-auto rounded-2xl border border-[var(--borda)] bg-[var(--fundo)] p-3 sm:p-6 [scrollbar-width:thin]">
-        {largo ? (
-          <div className="flex min-w-max justify-center gap-8">
-            {raizes.map((n) => <NoArvore key={n.pessoa.id} n={n} nivel={0} onClick={onClick} />)}
-          </div>
-        ) : (
-          <ul className="space-y-2">{raizes.map((n) => <NoLista key={n.pessoa.id} n={n} nivel={0} onClick={onClick} />)}</ul>
-        )}
-      </div>
+    <div className="overflow-x-auto rounded-2xl border border-[var(--borda)] bg-[var(--fundo)] p-3 sm:p-6 [scrollbar-width:thin]">
+      {largo ? (
+        <div className="flex min-w-max justify-center gap-8">
+          {raizes.map((n) => <NoArvore key={n.pessoa.id} n={n} {...p} />)}
+        </div>
+      ) : (
+        <ul className="space-y-2">{raizes.map((n) => <NoLista key={n.pessoa.id} n={n} {...p} />)}</ul>
+      )}
+      <p className="mt-3 text-center text-xs text-[var(--suave)]">{t('Toque numa pessoa para ver o resumo.')}</p>
     </div>
   )
 }
 
-function CartaoPessoa({ n, nivel, onClick, largura }: { n: NoOrganograma; nivel: number; onClick(id: Id): void; largura?: string }) {
+type PropsNo = { n: NoOrganograma; eu?: Id; nomeLocal: Map<Id, string>; onClick(id: Id): void }
+
+function CartaoPessoa({ n, eu, nomeLocal, onClick, chefe, largura }: PropsNo & { chefe?: string; largura?: string }) {
   const t = useT()
   const m = moedaPadrao()
-  const cor = corNivel(nivel)
+  const cor = corDoNome(n.pessoa.nome)
+  const equipe = contar(n.subordinados).pessoas
+  const local = n.pessoa.localId ? nomeLocal.get(n.pessoa.localId) : undefined
+  const souEu = !!eu && n.pessoa.id === eu
   return (
-    <button type="button" onClick={() => onClick(n.pessoa.id)} className={cx('group flex items-center gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--marca)] hover:shadow-md', largura)}>
-      <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-bold text-white" style={{ background: cor }}>{n.pessoa.nome.slice(0, 1)}</span>
+    <button type="button" onClick={() => onClick(n.pessoa.id)}
+      className={cx('group relative flex w-full items-start gap-3 overflow-hidden rounded-2xl border bg-[var(--cartao)] p-3 pl-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md', souEu ? 'border-[var(--marca)]' : 'border-[var(--borda)] hover:border-[var(--marca)]', largura)}>
+      {/* a faixa da cor da pessoa (a mesma do avatar) */}
+      <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: cor }} />
+      <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold" style={{ background: `color-mix(in srgb, ${cor} 18%, transparent)`, color: cor, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${cor} 45%, transparent)` }}>{iniciais(n.pessoa.nome)}</span>
       <span className="min-w-0 flex-1">
-        <b className="block truncate">{n.pessoa.nome}</b>
-        <span className="block truncate text-xs text-[var(--suave)]">{n.pessoa.cargo ?? '—'}</span>
-        <span className="num mt-1 flex flex-wrap gap-1.5 text-[11px]">
-          <span className="whitespace-nowrap rounded-md bg-[var(--fundo)] px-1.5 py-0.5"><b>{n.atendimentos}</b> {t('atend.')}</span>
-          {n.faturamento > 0 && <span className="truncate rounded-md bg-[var(--fundo)] px-1.5 py-0.5"><b>{formatar(n.faturamento, m)}</b></span>}
+        <span className="flex items-center gap-1.5">
+          <b className="truncate">{n.pessoa.nome}</b>
+          {souEu && <span className="shrink-0 rounded-full bg-[var(--marca)] px-1.5 py-px text-[10px] font-bold text-white">{t('você')}</span>}
+        </span>
+        <span className="block truncate text-xs text-[var(--suave)]">{[n.pessoa.cargo, local && `🏢 ${local}`].filter(Boolean).join(' · ') || '—'}</span>
+        {chefe && <span className="block truncate text-xs text-[var(--suave)]">↑ {t('responde a')} {chefe}</span>}
+        <span className="num mt-1.5 flex flex-wrap gap-1 text-[11px]">
+          <span className="whitespace-nowrap rounded-md bg-[var(--fundo)] px-1.5 py-0.5">✂️ <b>{n.atendimentos}</b> {t('atend.')}</span>
+          {n.faturamento > 0 && <span className="whitespace-nowrap rounded-md bg-[var(--bom)]/12 px-1.5 py-0.5 text-[var(--bom)]">💰 <b>{formatar(n.faturamento, m)}</b></span>}
+          {equipe > 0 && <span className="whitespace-nowrap rounded-md bg-[var(--fundo)] px-1.5 py-0.5">👥 <b>{equipe}</b></span>}
         </span>
       </span>
+      <span aria-hidden className="self-center text-lg text-[var(--suave)] transition group-hover:translate-x-0.5 group-hover:text-[var(--marca)]">›</span>
     </button>
   )
 }
 
-function NoArvore({ n, nivel, onClick }: { n: NoOrganograma; nivel: number; onClick(id: Id): void }) {
+function NoArvore(p: PropsNo) {
+  const { n } = p
   return (
     <div className="flex flex-col items-center">
-      <CartaoPessoa n={n} nivel={nivel} onClick={onClick} largura="w-56" />
+      <CartaoPessoa {...p} largura="w-60" />
       {n.subordinados.length > 0 && (
         <>
           <div className="h-6 w-px bg-[var(--suave)]/40" />
@@ -117,7 +171,7 @@ function NoArvore({ n, nivel, onClick }: { n: NoOrganograma; nivel: number; onCl
               <div key={s.pessoa.id} className="relative flex flex-col items-center pt-6">
                 <span aria-hidden className={cx('absolute top-0 h-px bg-[var(--suave)]/40', n.subordinados.length === 1 ? 'hidden' : k === 0 ? 'left-1/2 right-[-0.5rem]' : k === n.subordinados.length - 1 ? 'left-[-0.5rem] right-1/2' : '-left-2 -right-2')} />
                 <span aria-hidden className="absolute left-1/2 top-0 h-6 w-px bg-[var(--suave)]/40" />
-                <NoArvore n={s} nivel={nivel + 1} onClick={onClick} />
+                <NoArvore {...p} n={s} />
               </div>
             ))}
           </div>
@@ -127,20 +181,31 @@ function NoArvore({ n, nivel, onClick }: { n: NoOrganograma; nivel: number; onCl
   )
 }
 
-/** celular: a mesma árvore como lista em níveis (linha fina à esquerda mostra quem responde a quem) */
-function NoLista({ n, nivel, onClick }: { n: NoOrganograma; nivel: number; onClick(id: Id): void }) {
+/** celular: a árvore em níveis — a linha à esquerda tem a cor de quem é o chefe, e cada cartão tem o seu "cotovelo" */
+function NoLista(p: PropsNo) {
+  const { n } = p
+  const cor = corDoNome(n.pessoa.nome)
+  const linha = `color-mix(in srgb, ${cor} 45%, transparent)`
   return (
     <li>
-      <CartaoPessoa n={n} nivel={nivel} onClick={onClick} largura="w-full" />
+      <CartaoPessoa {...p} />
       {n.subordinados.length > 0 && (
-        <ul className="ml-5 mt-2 space-y-2 border-l border-[var(--suave)]/40 pl-3">
-          {n.subordinados.map((s) => <NoLista key={s.pessoa.id} n={s} nivel={nivel + 1} onClick={onClick} />)}
+        <ul className="ml-4 mt-2 space-y-2 border-l-2 pl-3" style={{ borderColor: linha }}>
+          {n.subordinados.map((s) => (
+            <li key={s.pessoa.id} className="relative list-none">
+              <span aria-hidden className="absolute -left-3 top-7 h-0.5 w-3" style={{ background: linha }} />
+              <ul><NoLista {...p} n={s} /></ul>
+            </li>
+          ))}
         </ul>
       )}
     </li>
   )
 }
 
+/** RESUMO DA PESSOA DA EQUIPE (toque no organograma) — a folha padrão (FolhaItem), a mesma da agenda:
+ *  avatar + nome · cargo e acesso · os fatos (unidade, a quem responde, salário, comissão) · o faturamento em destaque ·
+ *  os números do período em cartões (cada um abre a lista certa) · Pagar salário / Editar / O que fez · Abrir ficha. */
 function Resumo({ id, de, ate, onFechar, onEditar, onComissoes }: { id: Id; de: string; ate: string; onFechar(): void; onEditar(p: Pessoa): void; onComissoes(id: Id): void }) {
   const t = useT()
   const { sessao, ir } = useApp()
@@ -149,44 +214,50 @@ function Resumo({ id, de, ate, onFechar, onEditar, onComissoes }: { id: Id; de: 
   if (erro) return <Janela aberta titulo={t('Resumo')} onFechar={onFechar}><p className="text-sm">{erro}</p></Janela>
   if (!dados) return <Janela aberta titulo={t('Resumo')} onFechar={onFechar}><Carregando /></Janela>
   const p = dados.pessoa
+  const admin = sessao.perfil === 'admin'
   const moeda = moedaPadrao()
+  const cor = corDoNome(p.nome)
   const vendas = () => ir('vendas', { profissionalId: p.id, de, ate })
+  const salario = p.salario ? `${formatar(p.salario.valor, p.salario.moeda)} ${t(PERIODOS[p.salario.periodo ?? 'mes'])}` : undefined
+  // o "≈ por mês" só quando muda algo (outra moeda ou pago por semana/dia)
+  const salarioMes = p.salario && (p.salario.moeda !== moeda || (p.salario.periodo ?? 'mes') !== 'mes') ? `≈ ${formatar(dados.salarioPrincipal, moeda)} ${t('por mês')}` : undefined
+  const acesso = p.acesso === 'admin' ? 'Administrador' : p.acesso === 'funcionario' ? 'Funcionário' : 'Sem acesso'
   return (
-    <Janela aberta titulo={p.nome} onFechar={onFechar}>
-      <dl className="grid grid-cols-2 gap-2 text-sm">
-        <dt className="text-[var(--suave)]">{t('Cargo')}</dt><dd className="font-semibold">{p.cargo ?? '—'}</dd>
-        <dt className="text-[var(--suave)]">{t('Unidade')}</dt><dd className="font-semibold">{dados.local?.nome ?? '—'}</dd>
-        <dt className="text-[var(--suave)]">{t('Responde a')}</dt><dd className="font-semibold">{dados.superior?.nome ?? '—'}</dd>
-        <dt className="text-[var(--suave)]">{t('Salário / custo')}</dt><dd className="num font-semibold">{p.salario ? `${formatar(p.salario.valor, p.salario.moeda)} ${t(PERIODOS[p.salario.periodo ?? 'mes'])}` : '—'}<div className="text-xs text-[var(--suave)]">≈ {formatar(dados.salarioPrincipal, moeda)} {t('por mês')}</div></dd>
-        <dt className="text-[var(--suave)]">{t('Comissão')}</dt><dd className="font-semibold">{p.comissaoBp ? `${p.comissaoBp / 100}%` : '—'}</dd>
-        <dt className="text-[var(--suave)]">{t('Acesso')}</dt><dd><Pilula tom="marca">{t(p.acesso === 'admin' ? 'Administrador' : p.acesso === 'funcionario' ? 'Funcionário' : 'Sem acesso')}</Pilula></dd>
-      </dl>
-      <h3 className="mb-2 mt-4 text-sm font-bold text-[var(--suave)]">{t('Desempenho no período')}</h3>
-      <div className="grid grid-cols-2 gap-2">
-        {([
-          ['Atendimentos', String(dados.atendimentos), vendas],
-          ['Faturamento', formatar(dados.faturamento, moeda), vendas],
-          ['Ticket médio', formatar(dados.ticket, moeda), vendas],
-          ['Comissão no período', formatar(dados.comissao, moeda), () => onComissoes(p.id)],
-          ['Agendados', String(dados.agendados), () => ir('agenda', { profissionalId: p.id, modo: 'semana' })],
-          ['Pago no período', formatar(dados.pagoNoPeriodo, moeda), undefined],
-        ] as [string, string, (() => void) | undefined][]).map(([n, v, abrir]) => {
-          const dentro = <><div className="text-xs text-[var(--suave)]">{t(n)}</div><div className="num break-words font-bold">{v}</div></>
-          return abrir ? (
-            <button key={n} type="button" onClick={abrir} className="min-h-10 rounded-xl border border-transparent bg-[var(--fundo)] p-2 text-left hover:border-[var(--marca)]">{dentro}</button>
-          ) : (
-            <div key={n} className="rounded-xl bg-[var(--fundo)] p-2">{dentro}</div>
-          )
-        })}
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {sessao.perfil === 'admin' && <Botao onClick={() => setPagar(true)}>{t('Pagar salário')}</Botao>}
-        {sessao.perfil === 'admin' && <Botao variante="secundario" onClick={() => onEditar(p)}>{t('Editar')}</Botao>}
-        <Botao variante="secundario" onClick={() => ir('pessoa', { id: p.id })}>{t('Abrir ficha')}</Botao>
-        <Botao variante="leve" onClick={() => ir('relatorios', { relatorio: 'log', usuarioId: p.id })}>{t('O que fez (log)')}</Botao>
-      </div>
+    <>
+      <FolhaItem
+        aberta={!pagar}
+        onFechar={onFechar}
+        icone={<span className="text-base font-bold" style={{ color: cor }}>{iniciais(p.nome)}</span>}
+        cor={cor}
+        tipo={p.cargo || 'Equipe'}
+        titulo={p.nome}
+        selos={<Pilula tom={p.acesso === 'admin' ? 'marca' : 'neutro'}>{t(acesso)}</Pilula>}
+        fatos={[
+          { icone: '🏢', rotulo: 'Unidade', valor: dados.local?.nome },
+          { icone: '👤', rotulo: 'Responde a', valor: dados.superior?.nome },
+          { icone: '💵', rotulo: 'Salário', valor: salario && <span className="num">{salario}{salarioMes && <span className="block text-xs font-normal text-[var(--suave)]">{salarioMes}</span>}</span> },
+          { icone: '%', rotulo: 'Comissão', valor: p.comissaoBp ? `${p.comissaoBp / 100}%` : undefined },
+        ]}
+        destaque={{ rotulo: 'Faturamento', valor: formatar(dados.faturamento, moeda), sub: `${dataBR(de)} – ${dataBR(ate)}` }}
+        numeros={{
+          titulo: 'Desempenho no período',
+          itens: [
+            { icone: '✂️', rotulo: 'Atendimentos', valor: String(dados.atendimentos), onClick: admin ? vendas : undefined },
+            { icone: '🎯', rotulo: 'Ticket médio', valor: formatar(dados.ticket, moeda) },
+            { icone: '💰', rotulo: 'Comissão no período', valor: formatar(dados.comissao, moeda), tom: dados.comissao ? 'bom' : undefined, onClick: () => onComissoes(p.id) },
+            { icone: '📅', rotulo: 'Agendados', valor: String(dados.agendados), onClick: () => ir('agenda', { profissionalId: p.id, modo: 'semana' }) },
+            ...(admin ? [{ icone: '🧾', rotulo: 'Pago no período', valor: formatar(dados.pagoNoPeriodo, moeda) }] : []),
+          ],
+        }}
+        principal={admin ? { icone: '💵', rotulo: 'Pagar salário', onClick: () => setPagar(true) } : undefined}
+        secundarias={admin ? [
+          { icone: '✎', rotulo: 'Editar', onClick: () => onEditar(p) },
+          { icone: '📜', rotulo: 'O que fez (log)', onClick: () => ir('relatorios', { relatorio: 'log', usuarioId: p.id }) },
+        ] : []}
+        abrir={{ rotulo: 'Abrir ficha', onClick: () => ir('pessoa', { id: p.id }) }}
+      />
       {pagar && <PagarSalario pessoa={p} onFechar={() => setPagar(false)} />}
-    </Janela>
+    </>
   )
 }
 
@@ -209,137 +280,6 @@ function PagarSalario({ pessoa, onFechar }: { pessoa: Pessoa; onFechar(): void }
         <Campo rotulo="Valor"><ValorInput moeda={moeda} valor={v} onChange={setValor} /></Campo>
         <Campo rotulo="Forma"><Selecao valor={forma ?? sug?.forma ?? 'dinheiro'} onChange={setForma} opcoes={(cfg?.config.formas ?? []).filter((f) => f.moedas.includes(moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
         <Campo rotulo="Referência (opcional)"><Entrada value={ref} placeholder={t('Ex.: semana 1 a 7, diária de sábado')} onChange={(e) => setRef(e.target.value)} /></Campo>
-      </div>
-    </Janela>
-  )
-}
-
-function Unidades({ de, ate, onComissoes }: { de: string; ate: string; onComissoes(): void }) {
-  const t = useT()
-  const { ir } = useApp()
-  const { dados } = useConsulta('unidades', { de, ate })
-  if (!dados) return <Carregando />
-  const m = dados.moeda
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-[var(--suave)]">{t('Salários entram proporcionais aos {n} dias do período (mensal ÷ 30 × dias).', { n: dados.dias })}</p>
-      <div className="grid gap-4 md:grid-cols-2">
-        {dados.lista.filter((u) => u.local.tipo === 'salao' || u.entradas || u.saidas).map((u) => (
-          <Cartao key={u.local.id} titulo={u.local.nome} acao={<Pilula tom={u.margem >= 0 ? 'bom' : 'ruim'}>{t('Margem')} {formatar(u.margem, m)}</Pilula>}>
-            <table className="w-full text-sm">
-              <tbody>
-                <tr className="font-semibold text-[var(--bom)]"><td className="py-0.5"><button type="button" className="min-h-10 text-left hover:underline" onClick={() => ir('vendas', { localId: u.local.id, de, ate })}>{t('Entradas (atendimentos)')} · {u.atendimentos}</button></td><td className="num whitespace-nowrap pl-2 text-right">+{formatar(u.entradas, m)}</td></tr>
-                <tr><td className="py-1">− {t('Salários')} ({u.funcionarios} · {formatar(u.salarioMensal, m)}/{t('mês')})</td><td className="num text-right text-[var(--ruim)]">−{formatar(u.salarios, m)}</td></tr>
-                <tr><td className="py-0.5"><button type="button" className="min-h-10 text-left hover:underline" onClick={onComissoes}>− {t('Comissões')}</button></td><td className="num whitespace-nowrap pl-2 text-right text-[var(--ruim)]">−{formatar(u.comissoes, m)}</td></tr>
-                <tr><td className="py-1">− {t('Cabelo usado')}</td><td className="num text-right text-[var(--ruim)]">−{formatar(u.custoCabelo, m)}</td></tr>
-                {u.insumos > 0 && <tr><td className="py-1">− {t('Insumos dos serviços')}</td><td className="num text-right text-[var(--ruim)]">−{formatar(u.insumos, m)}</td></tr>}
-                <tr><td className="py-1">− {t('Despesas da unidade')}</td><td className="num text-right text-[var(--ruim)]">−{formatar(u.despesas, m)}</td></tr>
-                <tr className="border-t-2 border-[var(--texto)] text-base font-bold"><td className="py-1">= {t('Margem')}</td><td className={cx('num text-right', u.margem < 0 && 'text-[var(--ruim)]')}>{formatar(u.margem, m)}</td></tr>
-              </tbody>
-            </table>
-            <div className="mt-2 flex flex-wrap gap-1 text-xs">
-              <button type="button" className="min-h-10" onClick={() => ir('agenda', { localId: u.local.id, modo: 'semana' })}><Pilula tom="marca">{t('Agendados')}: {u.agendados}</Pilula></button>
-              <Pilula>{t('Clientes')}: {u.clientes}</Pilula>
-              <Pilula>{t('Salários pagos no período')}: {formatar(u.salariosPagos, m)}</Pilula>
-            </div>
-            {u.entradas + u.saidas > 0 && (
-              <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-[var(--fundo)]" title={t('Entradas × saídas')}>
-                <div className="bg-[var(--bom)]" style={{ width: `${(u.entradas / Math.max(u.entradas, u.saidas)) * 50}%` }} />
-                <div className="bg-[var(--ruim)]" style={{ width: `${(u.saidas / Math.max(u.entradas, u.saidas)) * 50}%` }} />
-              </div>
-            )}
-          </Cartao>
-        ))}
-      </div>
-      <Cartao titulo={t('Todas as unidades')}>
-        <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-3">
-          <button type="button" className="min-h-10 rounded-xl hover:bg-[var(--marca-suave)]" onClick={() => ir('vendas', { de, ate })}><div className="text-xs text-[var(--suave)]">{t('Entradas')}</div><div className="num break-words font-bold text-[var(--bom)]">{formatar(dados.total.entradas, m)}</div></button>
-          <div><div className="text-xs text-[var(--suave)]">{t('Saídas')}</div><div className="num font-bold text-[var(--ruim)]">{formatar(dados.total.saidas, m)}</div></div>
-          <div><div className="text-xs text-[var(--suave)]">{t('Margem')}</div><div className="num font-bold">{formatar(dados.total.margem, m)}</div></div>
-        </div>
-      </Cartao>
-    </div>
-  )
-}
-
-/**
- * Comissões dos dois jeitos: o HISTÓRICO do que cada uma ganhou (venda a venda, muda se a venda for corrigida)
- * e os PAGAMENTOS lançados no caixa. A pagar = ganho − pago.
- */
-function Comissoes({ de, ate }: { de: string; ate: string }) {
-  const t = useT()
-  const { sessao, ir } = useApp()
-  const [pessoaFiltro, setPessoaFiltro] = useParamTela('pessoaId', '')
-  const pessoaId = pessoaFiltro || undefined
-  const setPessoaId = (id?: string) => setPessoaFiltro(id ?? '')
-  const { dados } = useConsulta('comissoes', { de, ate, pessoaId })
-  const [pagar, setPagar] = useState<{ id: string; nome: string; aPagar: number }>()
-  if (!dados) return <Carregando />
-  const m = dados.moeda
-  return (
-    <div className="space-y-4">
-      <Cartao titulo={`${t('A pagar (todas)')}: ${formatar(dados.aPagar, m)}`} ajuda="Ganho = soma das comissões das vendas (desde sempre). Pago = pagamentos de comissão lançados. Ex.: ganhou Bs 1.200, já recebeu Bs 800 → a pagar Bs 400.">
-        {!dados.porPessoa.length ? <Vazio texto="Nenhuma comissão ainda." /> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-[var(--suave)]"><th className="py-1">{t('Profissional')}</th><th className="text-right max-md:hidden">{t('Atendimentos')}</th><th className="text-right max-md:hidden">{t('Ganhou no período')}</th><th className="text-right max-md:hidden">{t('Pago no período')}</th><th className="text-right">{t('A pagar')}</th><th /></tr></thead>
-              <tbody>
-                {dados.porPessoa.map((x) => (
-                  <tr key={x.pessoaId} className={cx('border-t border-[var(--borda)]', pessoaId === x.pessoaId && 'bg-[var(--marca-suave)]')}>
-                    <td className="py-1"><button type="button" aria-pressed={pessoaId === x.pessoaId} className="min-h-10 text-left font-semibold underline" onClick={() => setPessoaId(pessoaId === x.pessoaId ? undefined : x.pessoaId)}>{x.nome}</button></td>
-                    <td className="num text-right max-md:hidden">{x.atendimentos}</td>
-                    <td className="num text-right max-md:hidden">{formatar(x.ganhoPeriodo, m)}</td>
-                    <td className="num text-right max-md:hidden">{formatar(x.pagoPeriodo, m)}</td>
-                    <td className={cx('num whitespace-nowrap pl-2 text-right font-bold', x.aPagar > 0 && 'text-[var(--alerta)]')}>{formatar(x.aPagar, m)}</td>
-                    <td className="pl-2 text-right">{sessao.perfil === 'admin' && x.aPagar > 0 && <Botao variante="secundario" onClick={() => setPagar({ id: x.pessoaId, nome: x.nome, aPagar: x.aPagar })}>{t('Pagar')}</Botao>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Cartao>
-      <Cartao titulo={t('Histórico (ganhos e pagamentos)')} acao={pessoaId && <Botao variante="leve" onClick={() => setPessoaId(undefined)}>{t('Todas')}</Botao>}>
-        {!dados.extrato.length ? <Vazio texto="Nada no período." /> : (
-          <ul className="divide-y divide-[var(--borda)] text-sm">
-            {dados.extrato.slice(0, 200).map((e, i) => (
-              <li key={i} className="flex items-center justify-between gap-2 py-2">
-                {e.tipo === 'ganho' ? (
-                  <button type="button" className="min-h-10 min-w-0 text-left" onClick={() => ir('venda', { id: e.vendaId })}>
-                    <div className="truncate"><b>{dataBR(e.data)}</b> · {e.descricao}{e.cliente ? ` · ${e.cliente}` : ''}{e.corrigida && <> · <Pilula tom="alerta">{t('corrigida')}</Pilula></>}</div>
-                    <div className="num whitespace-normal text-xs text-[var(--suave)]">{memoriaCalculo({ totalPrincipal: e.valorLinha, insumoPrincipal: e.insumo, insumos: e.insumos, comissaoBp: e.bp, comissaoPrincipal: e.valor, comissaoRegra: e.regra, baseComissao: e.base, parteSalao: e.parteSalao }, m, t)}</div>
-                  </button>
-                ) : (
-                  <div className="min-w-0"><div className="truncate"><b>{dataBR(e.data)}</b> · 💵 {e.descricao}</div><div className="text-xs text-[var(--suave)]">{t('pagamento')} · {formatar(e.valorMoeda, e.moeda)}</div></div>
-                )}
-                <span className={cx('num shrink-0 font-bold', e.tipo === 'pago' ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>{e.tipo === 'pago' ? '−' : '+'}{formatar(e.valor, m)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Cartao>
-      {pagar && <PagarComissao {...pagar} onFechar={() => setPagar(undefined)} />}
-    </div>
-  )
-}
-
-function PagarComissao({ id: pessoaId, nome, aPagar, onFechar }: { id: string; nome: string; aPagar: number; onFechar(): void }) {
-  const t = useT()
-  const { dados: cfg } = useConsulta('configuracoes', {})
-  const { executar, ocupado } = useComando()
-  const [id] = useState(() => novoId())
-  const [valor, setValor] = useState<number | undefined>(aPagar)
-  const [forma, setForma] = useState('dinheiro')
-  const [ref, setRef] = useState('')
-  const moeda = cfg?.config.moedaPrincipal ?? moedaPadrao()
-  const fechar = () => ((valor === aPagar && !ref.trim()) || window.confirm(t('Sair sem salvar?'))) && onFechar()
-  return (
-    <Janela aberta titulo={`${t('Pagar comissão')} · ${nome}`} onFechar={fechar} rodape={<Botao grande className="w-full" disabled={ocupado || !valor} onClick={async () => (await executar('pagarComissao', { id, pessoaId, valor: valor!, moeda, forma, referencia: ref }, t('Comissão paga (sai do caixa e abate do a pagar).'))) && onFechar()}>{t('Pagar')}</Botao>}>
-      <div className="space-y-3">
-        <p className="text-sm">{t('A pagar')}: <b className="num">{formatar(aPagar, moeda)}</b> <Info texto="Pode pagar tudo ou uma parte; o resto continua a pagar. Ex.: a pagar Bs 400, pagou Bs 300 → fica Bs 100." /></p>
-        <Campo rotulo="Valor"><ValorInput moeda={moeda} valor={valor} onChange={setValor} /></Campo>
-        <Campo rotulo="Forma"><Selecao valor={forma} onChange={setForma} opcoes={(cfg?.config.formas ?? []).filter((f) => f.moedas.includes(moeda)).map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
-        <Campo rotulo="Referência (opcional)"><Entrada value={ref} placeholder={t('Ex.: comissões da quinzena')} onChange={(e) => setRef(e.target.value)} /></Campo>
       </div>
     </Janela>
   )

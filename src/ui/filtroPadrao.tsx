@@ -154,10 +154,18 @@ export function AbasSituacao({ opcoes, valor, onChange, rotulo = 'Situação' }:
  * ESCOLHA NUM BOTÃO ("📅 7 dias ▾" ao lado da busca): abre a lista de opções; a escolhida fica marcada ✓ e o botão
  * mostra o nome dela. A primeira opção é o "sem filtro" (botão neutro); as outras deixam o botão ligado (cor da marca).
  */
-export function BotaoEscolha({ icone, rotulo, valor, opcoes, onChange, nomeLivre }: { icone: string; rotulo: string; valor: string; opcoes: { id: string; nome: string }[]; onChange(id: string): void; nomeLivre?: string }) {
+export function BotaoEscolha({ icone, rotulo, valor, opcoes, onChange, nomeLivre, rodape, ligadoSempre }: { icone: string; rotulo: string; valor: string
+  /** `icone` e `sub` (uma linha de detalhe, ex.: o endereço da unidade) são opcionais */
+  opcoes: { id: string; nome: string; icone?: string; sub?: string }[]; onChange(id: string): void; nomeLivre?: string
+  /** algo embaixo das opções, dentro da lista (recebe o fechar) */
+  rodape?(fechar: () => void): ReactNode
+  /** o nome aparece sempre (não só quando muda do primeiro) */
+  ligadoSempre?: boolean }) {
   const t = useT()
   const [aberto, setAberto] = useState(false)
   const caixa = useRef<HTMLDivElement>(null)
+  // abre para o lado que tem espaço (botão à esquerda da tela → a lista vai para a direita)
+  const [lado, setLado] = useState<'esq' | 'dir'>('dir')
   useEffect(() => {
     if (!aberto) return
     const fora = (e: MouseEvent) => !caixa.current?.contains(e.target as Node) && setAberto(false)
@@ -169,27 +177,38 @@ export function BotaoEscolha({ icone, rotulo, valor, opcoes, onChange, nomeLivre
   const atual = opcoes.find((o) => o.id === valor)
   const nome = atual ? t(atual.nome) : nomeLivre ?? '—'
   const ligado = valor !== (opcoes[0]?.id ?? '')
+  const mostrarNome = ligado || !!ligadoSempre
   return (
     <div ref={caixa} className="relative shrink-0">
-      <button type="button" aria-haspopup="listbox" aria-expanded={aberto} aria-label={`${t(rotulo)}: ${nome}`} onClick={() => setAberto(!aberto)}
+      <button type="button" aria-haspopup="listbox" aria-expanded={aberto} aria-label={`${t(rotulo)}: ${nome}`} onClick={() => { const x = caixa.current?.getBoundingClientRect(); setLado(x && x.left + x.width / 2 < window.innerWidth / 2 ? 'esq' : 'dir'); setAberto(!aberto) }}
         className={cx('inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition', ligado ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] text-[var(--texto)] hover:border-[var(--marca)]')}>
         {/* celular: sem filtro, só o ícone (a busca precisa do espaço); escolhido, o nome aparece */}
-        <span aria-hidden>{icone}</span><span className={cx('num max-w-[7rem] truncate', !ligado && 'hidden sm:inline')}>{nome}</span><span aria-hidden className={cx('text-xs transition-transform', aberto && 'rotate-180')}>▾</span>
+        <span aria-hidden>{icone}</span><span className={cx('num max-w-[7rem] truncate', !mostrarNome && 'hidden sm:inline')}>{nome}</span><span aria-hidden className={cx('text-xs transition-transform', aberto && 'rotate-180')}>▾</span>
       </button>
       {aberto && (
-        <ul role="listbox" aria-label={t(rotulo)} className="absolute right-0 z-30 mt-1 min-w-44 overflow-hidden rounded-xl border border-[var(--borda)] bg-[var(--cartao)] py-1 shadow-lg">
+        <div className={cx('absolute z-30 mt-1 w-max min-w-48 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-[var(--borda)] bg-[var(--cartao)] shadow-lg', lado === 'esq' ? 'left-0' : 'right-0')}>
+        <ul role="listbox" aria-label={t(rotulo)} className="py-1">
           {opcoes.map((o) => {
             const on = o.id === valor
             return (
               <li key={o.id || 'tudo'}>
                 <button type="button" role="option" aria-selected={on} onClick={() => { onChange(o.id); setAberto(false) }}
-                  className={cx('flex min-h-11 w-full items-center justify-between gap-3 px-3 text-left text-sm hover:bg-[var(--marca-suave)]', on && 'font-semibold text-[var(--marca)]')}>
-                  {t(o.nome)}{on && <span aria-hidden>✓</span>}
+                  className={cx('flex min-h-11 w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm hover:bg-[var(--marca-suave)]', on && 'font-semibold text-[var(--marca)]')}>
+                  <span className="flex min-w-0 items-center gap-2">
+                    {o.icone && <span aria-hidden className="shrink-0">{o.icone}</span>}
+                    <span className="min-w-0">
+                      <span className="block">{t(o.nome)}</span>
+                      {o.sub && <span className="block max-w-[16rem] truncate text-xs font-normal text-[var(--suave)]">{o.sub}</span>}
+                    </span>
+                  </span>
+                  {on && <span aria-hidden>✓</span>}
                 </button>
               </li>
             )
           })}
         </ul>
+        {rodape && <div className="border-t border-[var(--borda)] p-2">{rodape(() => setAberto(false))}</div>}
+        </div>
       )}
     </div>
   )
@@ -199,12 +218,33 @@ export function BotaoEscolha({ icone, rotulo, valor, opcoes, onChange, nomeLivre
  * PERÍODO numa peça só (BotaoEscolha "📅 Tudo ▾"): Tudo · Hoje · 7 dias · 30 dias · Este mês. As datas vêm de
  * calcularPeriodo (as mesmas do Painel); datas livres (de–até, no painel de filtros) aparecem como "📅 02/11–04/11".
  */
-export function BotaoPeriodo({ de, ate, onChange, presets = ['hoje', '7d', '30d', 'mes'] }: { de: string; ate: string; onChange(de?: string, ate?: string): void; presets?: Exclude<Preset, 'livre'>[] }) {
-  const NOME: Record<string, string> = { hoje: 'Hoje', '7d': '7 dias', '30d': '30 dias', mes: 'Este mês', mesPassado: 'Mês passado', ano: 'Ano' }
-  const opcoes = [{ id: '', nome: 'Tudo', p: undefined as ReturnType<typeof calcularPeriodo> | undefined }, ...presets.map((id) => ({ id: id as string, nome: NOME[id], p: calcularPeriodo(id) }))]
+export function BotaoPeriodo({ de, ate, onChange, presets = ['hoje', '7d', '30d', 'mes'], obrigatorio }: { de: string; ate: string; onChange(de?: string, ate?: string): void; presets?: Exclude<Preset, 'livre'>[]
+  /** o período é obrigatório (sem "Tudo") */
+  obrigatorio?: boolean }) {
+  const NOME: Record<string, string> = { hoje: 'Hoje', '7d': '7 dias', '30d': '30 dias', mes: 'Este mês', mesPassado: 'Mês passado', ano: 'Este ano' }
+  const opcoes = [...(obrigatorio ? [] : [{ id: '', nome: 'Tudo', p: undefined as ReturnType<typeof calcularPeriodo> | undefined }]), ...presets.map((id) => ({ id: id as string, nome: NOME[id], p: calcularPeriodo(id) as ReturnType<typeof calcularPeriodo> | undefined }))]
   const atual = opcoes.find((x) => (x.p ? x.p.de === de && x.p.ate === ate : !de && !ate))
   const curta = (d: string) => d.slice(5).split('-').reverse().join('/')
-  return <BotaoEscolha icone="📅" rotulo="Período" valor={atual?.id ?? '__livre'} nomeLivre={`${de ? curta(de) : '…'}–${ate ? curta(ate) : '…'}`} opcoes={opcoes} onChange={(id) => { const x = opcoes.find((o) => o.id === id); onChange(x?.p?.de, x?.p?.ate) }} />
+  return <BotaoEscolha icone="📅" rotulo="Período" valor={atual?.id ?? '__livre'} ligadoSempre={obrigatorio} nomeLivre={`${de ? curta(de) : '…'}–${ate ? curta(ate) : '…'}`} opcoes={opcoes} onChange={(id) => { const x = opcoes.find((o) => o.id === id); onChange(x?.p?.de, x?.p?.ate) }}
+    rodape={(fechar) => <DatasLivres de={de} ate={ate} onAplicar={(d, a) => (onChange(d, a), fechar())} />} />
+}
+
+/** "📆 Escolher datas": de–até dentro da lista do período (até nunca antes de de) */
+function DatasLivres({ de, ate, onAplicar }: { de: string; ate: string; onAplicar(de: string, ate: string): void }) {
+  const t = useT()
+  const [d, setD] = useState(de)
+  const [a, setA] = useState(ate)
+  const ok = !!d && !!a && d <= a
+  return (
+    <div className="space-y-2">
+      <span className="block text-xs font-semibold text-[var(--suave)]">📆 {t('Escolher datas')}</span>
+      <div className="grid grid-cols-2 gap-1.5">
+        <label className="text-xs text-[var(--suave)]">{t('De')}<input type="date" value={d} max={a || undefined} onChange={(e) => setD(e.target.value)} className="num mt-0.5 block min-h-10 w-full rounded-lg border border-[var(--borda)] bg-[var(--fundo)] px-2 text-sm text-[var(--texto)]" /></label>
+        <label className="text-xs text-[var(--suave)]">{t('Até')}<input type="date" value={a} min={d || undefined} onChange={(e) => setA(e.target.value)} className="num mt-0.5 block min-h-10 w-full rounded-lg border border-[var(--borda)] bg-[var(--fundo)] px-2 text-sm text-[var(--texto)]" /></label>
+      </div>
+      <Botao className="w-full" disabled={!ok} onClick={() => onAplicar(d, a)}>{t('Ver este período')}</Botao>
+    </div>
+  )
 }
 
 /**
@@ -222,7 +262,7 @@ export function FiltroLista({ busca, onBusca, placeholder, onKeyDown, autoFocus,
   /** as abas da situação (o seletor padrão) */
   situacao?: { opcoes: OpcaoSituacao[]; valor: string; onChange(id: string): void }
   /** o período ("📅 Tudo ▾"), ao lado da busca */
-  periodo?: { de: string; ate: string; onChange(de?: string, ate?: string): void; presets?: Exclude<Preset, 'livre'>[] }
+  periodo?: { de: string; ate: string; onChange(de?: string, ate?: string): void; presets?: Exclude<Preset, 'livre'>[]; obrigatorio?: boolean }
   topo?: ReactNode; acaoTopo?: ReactNode; extra?: ReactNode
   /** os grupos (GrupoFiltro) do painel; sem painel, sem botão "⚙ Filtros" */
   painel?: ReactNode

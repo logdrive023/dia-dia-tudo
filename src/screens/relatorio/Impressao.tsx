@@ -13,6 +13,8 @@ import { type Relatorio, TEXTO } from './pecas'
 export function Impressao({ rel, onFechar }: { rel: Relatorio; onFechar(): void }) {
   const t = useT()
   const x = TEXTO[rel.pais]
+  // as firmas no fim: vem da configuração (Fiscal › Relatório impresso) e dá para tirar/pôr só nesta impressão
+  const [comFirmas, setComFirmas] = useState(rel.empresa.firmas !== false)
   const [marcadas, setMarcadas] = useState<Set<IdSecao>>(new Set(['resultado', 'balanco', 'impostos', 'conferencia', 'diario', 'vendas', 'compras', 'gastos', 'inventario', 'cuentas']))
   // Esc fecha; a página por baixo não rola
   useEffect(() => {
@@ -34,7 +36,7 @@ export function Impressao({ rel, onFechar }: { rel: Relatorio; onFechar(): void 
       <p className="text-[10px]">{x.periodo.replace('{de}', dataBR(rel.de)).replace('{ate}', dataBR(rel.ate))} · {x.expresado(rel.moeda)} · {x.regime}: {rel.regimeNome}</p>
     </header>
   )
-  const firmas = (
+  const firmas = !comFirmas ? null : (
     <div className="mt-16 grid grid-cols-2 gap-10 text-center text-[11px] print:break-inside-avoid">
       <div><div className="mx-auto mb-1 w-48 border-t border-black" />{rel.empresa.contador || '…'}<br /><b>{x.contador}</b></div>
       <div><div className="mx-auto mb-1 w-48 border-t border-black" />{rel.empresa.representante || '…'}<br /><b>{x.representante}</b></div>
@@ -53,6 +55,10 @@ export function Impressao({ rel, onFechar }: { rel: Relatorio; onFechar(): void 
               {marcadas.has(s.id) ? '✓ ' : ''}{s.icone} {tituloSecao(s.id, rel)}
             </button>
           ))}
+          <button type="button" aria-pressed={comFirmas} onClick={() => setComFirmas(!comFirmas)}
+            className={`min-h-9 rounded-full px-2.5 text-xs font-semibold ring-1 ${comFirmas ? 'bg-[var(--marca)] text-white ring-[var(--marca)]' : 'bg-[var(--cartao)] text-[var(--suave)] ring-[var(--borda)]'}`}>
+            {comFirmas ? '✓ ' : ''}✍️ {t('Firmas')}
+          </button>
         </div>
         <Botao variante="secundario" onClick={onFechar}>{t('Fechar')}</Botao>
         <Botao disabled={!lista.length} onClick={() => window.print()}>🖨 {t('Imprimir / salvar PDF')}</Botao>

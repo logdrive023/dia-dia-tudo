@@ -181,7 +181,7 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
     titulo: BO ? 'Estados Financieros' : 'Demonstrações Contábeis',
     tituloResultado: BO ? 'Estado de Resultados' : 'Demonstração do Resultado do Exercício (DRE)',
     tituloBalanco: BO ? 'Balance General' : 'Balanço Patrimonial',
-    empresa: { nome: fis.razaoSocial || cfg.nomeNegocio, nit: fis.nit, endereco: fis.endereco, atividade: fis.atividade, contador: fis.contador, representante: fis.representante },
+    empresa: { nome: fis.razaoSocial || cfg.nomeNegocio, nit: fis.nit, endereco: fis.endereco, atividade: fis.atividade, contador: fis.contador, representante: fis.representante, firmas: fis.firmasNoRelatorio !== false },
     de: p.de,
     ate: p.ate,
     moeda: m,

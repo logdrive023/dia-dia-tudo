@@ -42,6 +42,8 @@ export interface Pessoa extends Base {
 
 export interface Local extends Base {
   nome: string
+  /** como a equipe chama a unidade ("Centro", "a do shopping"); aparece no lugar do nome nos filtros */
+  apelido?: string
   tipo: 'salao' | 'ponto' | 'outro'
   rua?: string
   numero?: string
@@ -498,6 +500,8 @@ export interface Financiamento extends Base {
   cotacao?: Cotacao
   forma: string
   viagemId?: Id
+  /** DATA LIMITE (opcional): até quando o parceiro deve entregar o cabelo; passou e ainda deve = vencido */
+  prazo?: string
   /** abater sozinho das próximas comissões pagas à pessoa */
   abaterComissoes?: boolean
   obs?: string

@@ -18,7 +18,7 @@ import { Trilha } from '../ui/trilha'
 import { MenuAcoes, type Acao } from '../ui/menuAcoes'
 import { Historico } from './PrecosHistorico'
 import { NumeroGrande } from '../ui/numeroGrande'
-import { BarraFiltros, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
+import { BarraFiltros, ChipsFiltros, GrupoFiltro, PainelFiltros, BotaoPeriodo } from '../ui/filtroPadrao'
 import {
   type Alvo, adicionarColuna, adicionarMedidas, ajustarPct, chave, comValor, contarMudancas, copiarColuna, invalidos, moverColuna,
   precosDaColuna, precosDaMedida, preencherVazios, tirarColuna, tirarMedida, trocarMedida,
@@ -746,16 +746,10 @@ function UsadaEm({ usos, total, moeda: m }: { usos: Uso[]; total: number; moeda:
         <NumeroGrande rotulo="Vendas" icone="💰" cor="var(--marca)" valor={String(vendas.length)} ativo={p('ut') === 'venda'} onClick={() => alternarTipo('venda')} selos={[{ texto: formatar(soma(vendas), m), tom: 'marca' }, { texto: gramasTexto(gramas(vendas)) }]} />
         <NumeroGrande rotulo="Compras" icone="🛒" cor="var(--bom)" valor={String(compras.length)} ativo={p('ut') === 'compra'} onClick={() => alternarTipo('compra')} selos={[{ texto: formatar(soma(compras), m), tom: 'bom' }, { texto: gramasTexto(gramas(compras)) }]} />
       </div>
-      <BarraFiltros busca={p('ub')} onBusca={(v) => setP('ub', v)} placeholder="Buscar código, pessoa ou comprador" ativos={avancados} aberto={aberto} onAlternar={() => setAberto(!aberto)} />
+      <BarraFiltros busca={p('ub')} onBusca={(v) => setP('ub', v)} placeholder="Buscar código, pessoa ou comprador" extra={<BotaoPeriodo de={p('ude')} ate={p('uate')} onChange={(d, a) => (setP('ude', d ?? ''), setP('uate', a ?? ''))} />} ativos={avancados} aberto={aberto} onAlternar={() => setAberto(!aberto)} />
       <ChipsFiltros itens={ativos} onTirar={tirarFiltro} onLimpar={limpar} />
       {aberto && (
         <PainelFiltros resultados={lista.length} temAtivos={avancados > 0} onLimpar={limpar} onFechar={() => setAberto(false)}>
-          <GrupoFiltro titulo="Quando" icone="📅">
-            <CampoFaixa rotulo="Período">
-              <Entrada type="date" aria-label={t('De')} value={p('ude')} onChange={(e) => setP('ude', e.target.value)} />
-              <Entrada type="date" aria-label={t('Até')} value={p('uate')} onChange={(e) => setP('uate', e.target.value)} />
-            </CampoFaixa>
-          </GrupoFiltro>
           <GrupoFiltro titulo="Quem e como" icone="👤">
             <Campo rotulo="Cliente / fornecedor"><Selecao valor={p('up')} onChange={(v) => setP('up', v)} vazio={t('Todos')} opcoes={valores((u) => [u.pessoa]).map((x) => ({ id: x, nome: x }))} /></Campo>
             <Campo rotulo="Versão da tabela" ajuda="A versão que valia no dia. Ex.: v1 = antes do aumento de 14/10."><Selecao valor={p('uv')} onChange={(v) => setP('uv', v)} vazio={t('Todas')} opcoes={valores((u) => [u.versao]).map((x) => ({ id: x, nome: `v${x}` }))} /></Campo>

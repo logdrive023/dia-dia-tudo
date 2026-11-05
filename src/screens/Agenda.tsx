@@ -5,6 +5,7 @@
 // Atender = lançar o que foi feito e o pagamento (a venda nasce do agendamento).
 
 import { useRef, useState } from 'react'
+import { FiltroUnidade } from '../ui/filtroUnidade'
 import { FolhaItem, type AcaoFolha, type FatoFolha } from '../ui/folhaItem'
 import { FiltroLista, GrupoFiltro } from '../ui/filtroPadrao'
 import { MarcarAgenda, type TipoMarcar } from './agenda/MarcarAgenda'
@@ -74,7 +75,7 @@ export function Agenda() {
     ...(profissionalId ? [{ k: 'profissionalId', rotulo: `👤 ${nomePessoa ?? profissionalId}` }] : []),
   ]
   const limpar = () => (setLocalId(''), setProfissionalId(''), setBusca(''))
-  const temPainel = unidades.length > 1 || (!!filtros?.equipe && pessoasFiltro.length > 1)
+  const temPainel = !!filtros?.equipe && pessoasFiltro.length > 1
 
   return (
     <div>
@@ -113,12 +114,12 @@ export function Agenda() {
           ],
         }}
         busca={busca} onBusca={setBusca} placeholder="Buscar cliente, serviço ou pessoa"
+        extra={unidades.length > 1 ? <FiltroUnidade valor={localId} onChange={setLocalId} /> : undefined}
         ativos={ativos} onTirar={(k) => (k === 'localId' ? setLocalId('') : setProfissionalId(''))} onLimpar={limpar}
         resultados={dados ? itens.length : undefined} total={dados?.length} unidade="item(ns)"
         painel={temPainel ? <>
           <GrupoFiltro titulo="Quem e onde" icone="👤">
             {filtros?.equipe && pessoasFiltro.length > 1 && <Campo rotulo="Pessoa"><Selecao valor={profissionalId} onChange={setProfissionalId} vazio={admin ? 'Todas as pessoas' : 'Eu e a equipe'} opcoes={pessoasFiltro.map((p) => ({ id: p.id, nome: p.nome }))} /></Campo>}
-            {unidades.length > 1 && <Campo rotulo="Unidade"><Selecao valor={localId} onChange={setLocalId} vazio="Todas as unidades" opcoes={unidades.map((u) => ({ id: u.id, nome: u.nome }))} /></Campo>}
           </GrupoFiltro>
         </> : undefined}
       />

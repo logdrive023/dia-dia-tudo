@@ -133,6 +133,10 @@ export function ConfigFiscal() {
             <Campo rotulo="Contador(a)"><Entrada value={v.contador ?? ''} onChange={(e) => mudar({ contador: e.target.value })} /></Campo>
             <Campo rotulo="Representante legal"><Entrada value={v.representante ?? ''} onChange={(e) => mudar({ representante: e.target.value })} /></Campo>
           </div>
+          <div className="mt-3">
+            <Interruptor ligado={v.firmasNoRelatorio !== false} onChange={(firmasNoRelatorio) => mudar({ firmasNoRelatorio })} titulo="Firmas no fim do relatório"
+              texto="As linhas para assinar (Contador(a) · Representante legal). Desligado, o relatório sai sem elas; na hora de imprimir dá para pôr ou tirar." />
+          </div>
         </Cartao>
       )}
 

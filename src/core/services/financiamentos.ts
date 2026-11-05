@@ -13,6 +13,7 @@
 // Saldo do adiantamento = soma dos movimentos da conta ligados a ele (o próprio id, cada evento e cada compra).
 
 import { formatar, type CodigoMoeda } from '../domain/dinheiro'
+import { diasEntre } from '../domain/datas'
 import { exigir } from '../domain/erros'
 import type { EventoFinanciamento, Financiamento, Id, Item, MovConta, Transacao } from '../domain/tipos'
 import { auditar, type Ctx, exigirInteiroPositivo, lerConfig, novo, paraPrincipal, tocar } from './contexto'
@@ -140,7 +141,11 @@ async function exigirMoedaAtiva(ctx: Ctx, moeda: CodigoMoeda) {
  */
 export async function criarFinanciamento(
   ctx: Ctx,
-  d: { id: Id; pessoaId: Id; moeda: CodigoMoeda; valor: number; forma: string; viagemId?: Id; abaterComissoes?: boolean; obs?: string },
+  d: { id: Id; pessoaId: Id; moeda: CodigoMoeda; valor: number; forma: string; viagemId?: Id; abaterComissoes?: boolean; obs?: string
+    /** a data em que foi feito (padrão: hoje; não pode ser no futuro) */
+    data?: string
+    /** data limite para entregar (opcional; não antes da data) */
+    prazo?: string },
 ) {
   exigirAdmin(ctx)
   if (await ctx.repos.financiamentos.obter(d.id)) return { id: d.id }
@@ -152,6 +157,10 @@ export async function criarFinanciamento(
     const v = await ctx.repos.viagens.obter(d.viagemId)
     exigir(v && !v.apagadoEm, 'Viagem não encontrada.', 'viagemId')
   }
+  const hoje = ctx.relogio.hoje()
+  const data = d.data || hoje
+  exigir(/^\d{4}-\d{2}-\d{2}$/.test(data) && data <= hoje, 'A data do adiantamento não pode ser no futuro.', 'data')
+  exigir(!d.prazo || (/^\d{4}-\d{2}-\d{2}$/.test(d.prazo) && d.prazo >= data), 'A data limite não pode ser antes da data do adiantamento.', 'prazo')
   // o dinheiro sai: cotação de "compra" (a mesma do pagamento a fornecedor)
   const { valorPrincipal, cotacao } = await paraPrincipal(ctx, d.valor, d.moeda, 'compra')
   exigir(valorPrincipal > 0, 'Valor pequeno demais para registrar.')
@@ -160,7 +169,8 @@ export async function criarFinanciamento(
     id: d.id,
     codigo,
     pessoaId: pessoa.id,
-    data: ctx.relogio.hoje(),
+    data,
+    prazo: d.prazo || undefined,
     moeda: d.moeda,
     valor: d.valor,
     valorPrincipal,
@@ -373,7 +383,20 @@ function podeVer(ctx: Ctx, f: Financiamento) {
 }
 
 /** Lista com filtros (situação, pessoa, viagem, busca) e os totais: dinheiro na mão dos compradores, entregue, a pagar. */
-export async function financiamentos(ctx: Ctx, p: { status?: StatusFinanciamento | 'ativos'; pessoaId?: Id; viagemId?: Id; busca?: string } = {}) {
+/** o prazo de um adiantamento ainda em aberto: vencido · semana (vence em até 7 dias) · ok · sem (sem data limite) */
+export function situacaoPrazo(x: { prazo?: string; status: string }, hoje: string): 'vencido' | 'semana' | 'ok' | 'sem' | 'fechado' {
+  if (x.status !== 'aberto') return 'fechado'
+  if (!x.prazo) return 'sem'
+  if (x.prazo < hoje) return 'vencido'
+  return diasEntre(hoje, x.prazo) <= 7 ? 'semana' : 'ok'
+}
+
+export async function financiamentos(ctx: Ctx, p: { status?: StatusFinanciamento | 'ativos'; pessoaId?: Id; viagemId?: Id; busca?: string
+  /** período pela DATA em que o adiantamento foi feito */
+  de?: string; ate?: string
+  /** o prazo: vencido (passou da data limite e ainda deve) · semana (vence em até 7 dias) · sem (sem data limite) */
+  prazo?: 'vencido' | 'semana' | 'sem' } = {}) {
+  const hoje = ctx.relogio.hoje()
   const cfg = await lerConfig(ctx)
   const todos = (await ctx.repos.financiamentos.listar()).filter((f) => podeVer(ctx, f))
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x]))
@@ -396,6 +419,7 @@ export async function financiamentos(ctx: Ctx, p: { status?: StatusFinanciamento
         moeda: f.moeda,
         valor: f.valor,
         viagem: v ? { id: v.id, codigo: v.codigo, nome: v.nome } : undefined,
+        prazo: f.prazo,
         abaterComissoes: !!f.abaterComissoes,
         entregas: f.eventos.filter((e) => e.tipo === 'entrega').length,
         ultimo: f.eventos[f.eventos.length - 1]?.data ?? f.data,
@@ -407,6 +431,8 @@ export async function financiamentos(ctx: Ctx, p: { status?: StatusFinanciamento
     .filter((x) => !p.status || (p.status === 'ativos' ? x.status === 'aberto' || x.status === 'aPagar' : x.status === p.status))
     .filter((x) => !p.pessoaId || x.pessoaId === p.pessoaId)
     .filter((x) => !p.viagemId || x.viagem?.id === p.viagemId)
+    .filter((x) => (!p.de || x.data >= p.de) && (!p.ate || x.data <= p.ate))
+    .filter((x) => !p.prazo || situacaoPrazo(x, hoje) === p.prazo)
     .filter((x) => !b || [x.codigo, x.pessoa, x.viagem?.codigo, x.viagem?.nome].some((y) => y?.toLowerCase().includes(b)))
   const contar = (st: StatusFinanciamento) => todas.filter((x) => x.status === st).length
   return {

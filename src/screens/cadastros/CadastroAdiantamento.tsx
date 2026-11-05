@@ -6,10 +6,11 @@
 //   4 Confira            o que vai acontecer (caixa, conta corrente, entregas), antes de registrar
 // Registra com o mesmo comando (criarFinanciamento).
 import { useState } from 'react'
+import { dataLocal, somarDias } from '../../core/domain/datas'
 import { formatar } from '../../core/domain/dinheiro'
 import { novoId } from '../../core/domain/ids'
 import type { Id } from '../../core/domain/tipos'
-import { Botao, Campo, Entrada, Pagina, Selecao, ValorInput, moedaPadrao } from '../../ui/base'
+import { Botao, Campo, Entrada, Pagina, Selecao, ValorInput, cx, dataBR, moedaPadrao } from '../../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta } from '../../ui/contexto'
 import { SeletorPessoa, useCotacoes } from '../../ui/compartilhados'
 import { EscolhaCartoes } from '../../ui/escolhaCartoes'
@@ -31,6 +32,10 @@ export function CadastroAdiantamento() {
   const [viagemId, setViagemId] = useState<string>((nav.params.viagemId as string | undefined) ?? '')
   const [abater, setAbater] = useState(false)
   const [obs, setObs] = useState('')
+  // a data em que é feito (padrão hoje: é o filtro da lista) e a data limite para entregar o cabelo (opcional)
+  const hoje = dataLocal()
+  const [data, setData] = useState(hoje)
+  const [prazo, setPrazo] = useState('')
   const { dados: pessoas } = useConsulta('pessoas', {})
   const { dados: viagens } = useConsulta('viagensParaFiltro', {})
   // vindo da pessoa ou da viagem: a pessoa já está escolhida → começa no "Quanto"
@@ -39,9 +44,9 @@ export function CadastroAdiantamento() {
   const formas = (cfg?.formas ?? []).filter((f) => f.moedas.includes(moeda))
   const nome = pessoas?.find((p) => p.id === pessoaId)?.nome
   const viagem = viagens?.find((v) => v.id === viagemId)
-  const falta = !pessoaId ? t('quem vai comprar') : !valor ? t('o valor') : ''
+  const falta = !pessoaId ? t('quem vai comprar') : !valor ? t('o valor') : prazo && prazo < data ? t('a data limite depois da data') : ''
   const registrar = async () => {
-    const r = await executar('criarFinanciamento', { id, pessoaId: pessoaId!, moeda, valor: valor!, forma, viagemId: viagemId || undefined, abaterComissoes: abater, obs }, t('Adiantamento registrado.'))
+    const r = await executar('criarFinanciamento', { id, pessoaId: pessoaId!, moeda, valor: valor!, forma, viagemId: viagemId || undefined, abaterComissoes: abater, obs, data, prazo: prazo || undefined }, t('Adiantamento registrado.'))
     if (r) {
       marcarSujo(false)
       ir('financiamento', { id })
@@ -59,7 +64,7 @@ export function CadastroAdiantamento() {
           {w.proximo(1, 'Quanto', !!pessoaId)}
         </Passo>
         <Passo n={2} de={4} titulo="Quanto" feito={!!valor} aberto={w.aberto(2)} onAlternar={() => w.alternar(2)}
-          resumo={valor ? `${formatar(valor, moeda)} · ${t(formas.find((f) => f.id === forma)?.nome ?? forma)}` : t('falta o valor')}
+          resumo={valor ? [formatar(valor, moeda), t(formas.find((f) => f.id === forma)?.nome ?? forma), data !== hoje && `📅 ${dataBR(data)}`, prazo && `⏰ ${t('até')} ${dataBR(prazo)}`].filter(Boolean).join(' · ') : t('falta o valor')}
           ajuda="Quanto sai do caixa agora e de que jeito." exemplo="Ex.: Bs 10.000 em dinheiro">
           <Campo rotulo="Valor *" comoDiv>
             <div className="grid grid-cols-[7rem_1fr] gap-2">
@@ -68,6 +73,16 @@ export function CadastroAdiantamento() {
             </div>
           </Campo>
           <Campo rotulo="Sai do caixa como"><Selecao valor={forma} onChange={setForma} opcoes={formas.map((f) => ({ id: f.id, nome: t(f.nome) }))} /></Campo>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Campo rotulo="Data do adiantamento" ajuda="O dia em que o dinheiro saiu (padrão: hoje). É por ela que a lista filtra."><Entrada type="date" value={data} max={hoje} onChange={(e) => setData(e.target.value || hoje)} /></Campo>
+            <Campo rotulo="Data limite (opcional)" ajuda="Até quando ele deve entregar o cabelo. Passou e ainda deve: aparece como vencido." comoDiv>
+              <Entrada type="date" aria-label={t('Data limite')} value={prazo} min={data} onChange={(e) => setPrazo(e.target.value)} />
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {[15, 30, 60].map((n) => <button key={n} type="button" onClick={() => setPrazo(somarDias(data, n))} className={cx('min-h-9 rounded-full px-3 text-xs font-semibold ring-1', prazo === somarDias(data, n) ? 'bg-[var(--marca)] text-white ring-[var(--marca)]' : 'bg-[var(--cartao)] text-[var(--suave)] ring-[var(--borda)]')}>+{n} {t('dias')}</button>)}
+                {prazo && <button type="button" onClick={() => setPrazo('')} className="min-h-9 rounded-full px-3 text-xs font-semibold text-[var(--suave)]">✕ {t('sem prazo')}</button>}
+              </div>
+            </Campo>
+          </div>
           {w.proximo(2, 'Ligações', !!valor)}
         </Passo>
         <Passo n={3} de={4} titulo="Ligações" opcional feito={!!viagemId || abater || !!obs} aberto={w.aberto(3)} onAlternar={() => w.alternar(3)}
@@ -88,6 +103,7 @@ export function CadastroAdiantamento() {
           <ul className="space-y-2 text-sm">
             <li className="flex gap-2"><span aria-hidden>💸</span><span>{t('Sai do caixa')}: <b className="num">{valor ? formatar(valor, moeda) : '—'}</b> {t('como "Saída por empréstimo operacional" (não é despesa nem compra).')}</span></li>
             <li className="flex gap-2"><span aria-hidden>📒</span><span>{nome ? t('{nome} passa a dever esse valor na conta corrente.', { nome }) : t('A pessoa passa a dever esse valor na conta corrente.')}</span></li>
+            {prazo && <li className="flex gap-2"><span aria-hidden>⏰</span><span>{t('Data limite para entregar')}: <b className="num">{dataBR(prazo)}</b></span></li>}
             <li className="flex gap-2"><span aria-hidden>💇‍♀️</span><span>{t('Cada entrega de cabelo vira uma compra normal que abate a dívida, sem sair do caixa.')}</span></li>
             {viagem && <li className="flex gap-2"><span aria-hidden>✈️</span><span>{t('As entregas entram como compras da viagem {v}.', { v: viagem.codigo })}</span></li>}
           </ul>

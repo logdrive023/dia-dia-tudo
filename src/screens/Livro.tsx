@@ -52,8 +52,8 @@ export function Livro() {
   const [pessoa, setPessoa] = useParamTela('pessoa', '')
   const [tipo] = useParamTela('tipo', '')
   const [grupo] = useParamTela<'' | Grupo>('grupo', '')
-  const [de, setDe] = useParamTela('de', '')
-  const [ate, setAte] = useParamTela('ate', '')
+  const [de] = useParamTela('de', '')
+  const [ate] = useParamTela('ate', '')
   const [busca, setBusca] = useParamTela('b', '')
   const [quem, setQuem] = useParamTela('quem', '')
   const [sentido, setSentido] = useParamTela<'' | 'entrou' | 'saiu'>('sentido', '')
@@ -178,12 +178,6 @@ export function Livro() {
                 <Entrada inputMode="numeric" aria-label={t('Máximo (g)')} placeholder={t('até')} value={gMax} onChange={(e) => setGMax(e.target.value.replace(/\D/g, ''))} />
               </CampoFaixa>
             </GrupoFiltro>
-            <GrupoFiltro titulo="Quando" icone="📅">
-              <CampoFaixa rotulo="Período">
-                <Entrada type="date" aria-label={t('De')} value={de} onChange={(e) => setDe(e.target.value)} />
-                <Entrada type="date" aria-label={t('Até')} value={ate} onChange={(e) => setAte(e.target.value)} />
-              </CampoFaixa>
-            </GrupoFiltro>
           </PainelFiltros>
         )}
       </div>
@@ -192,6 +186,7 @@ export function Livro() {
         {linhas.length > 0 && (
           // minimizar: fechar/abrir todos os dias e o modo compacto (uma linha por lançamento)
           <div className="-mt-1 mb-3 flex flex-wrap items-center gap-2 text-sm">
+            <span className="w-full text-xs text-[var(--suave)]">👆 {t('Toque no dia para fechar ou abrir os lançamentos dele.')}</span>
             <BotaoExpandir aberto={!fechados.size} onClick={() => setFechados(fechados.size ? new Set() : new Set(dias.map(([d]) => d)))} rotuloAberto={t('Fechar todos os dias')}>{t('Abrir todos os dias')}</BotaoExpandir>
             <label className="ml-auto inline-flex min-h-10 cursor-pointer items-center gap-2 font-semibold">
               <input type="checkbox" className="h-5 w-5" checked={compacto} onChange={(e) => setCompacto(e.target.checked)} />
@@ -208,7 +203,7 @@ export function Livro() {
               return (
                 <section key={dia} aria-label={dataBR(dia)} className="overflow-hidden rounded-xl border border-[var(--borda)]">
                   <button type="button" aria-expanded={!fechado} onClick={() => setFechados((f) => { const n = new Set(f); if (n.has(dia)) n.delete(dia); else n.add(dia); return n })} className={cx('flex min-h-11 w-full flex-wrap items-center justify-between gap-x-3 bg-[var(--fundo)] px-3 py-2 text-left text-sm hover:bg-[var(--marca-suave)]', !fechado && 'border-b border-[var(--borda)]')}>
-                    <b className="capitalize"><span aria-hidden className={cx('mr-1 inline-block text-[var(--suave)] transition-transform', !fechado && 'rotate-90')}>›</span>{nomeDia(dia)} <span className="text-xs font-normal text-[var(--suave)]">· {s.n}</span></b>
+                    <b className="flex items-center gap-2 capitalize">{/* o botão de abrir/fechar à vista: círculo com a seta (▾ aberto · ▸ fechado) */}<span aria-hidden className={cx('flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cartao)] text-[var(--marca)] ring-1 ring-[var(--borda)] transition-transform', !fechado && 'rotate-90')}>›</span>{nomeDia(dia)} <span className="text-xs font-normal text-[var(--suave)]">· {s.n}</span></b>
                     <span className="num text-xs">
                       {s.entrou > 0 && s.saiu > 0 && (
                         <span className="text-[var(--suave)]">
@@ -216,6 +211,7 @@ export function Livro() {
                         </span>
                       )}
                       <b className={s.entrou - s.saiu < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{sinalGramas(s.entrou - s.saiu)}</b>
+                      <span className="ml-2 hidden rounded-full bg-[var(--cartao)] px-2 py-0.5 font-sans text-[11px] font-semibold text-[var(--marca)] ring-1 ring-[var(--borda)] xs:inline">{t(fechado ? 'abrir' : 'fechar')}</span>
                     </span>
                   </button>
                   {!fechado && (

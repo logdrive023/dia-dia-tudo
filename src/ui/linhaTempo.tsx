@@ -5,10 +5,10 @@
 
 import { useState } from 'react'
 import { CartaoEvento, SeloEvento, DetalhesEvento, BlocoDetalhe, AntesDepois, BotaoReferencia, CabecalhoDia, ListaEventos, type TomEvento } from './cartaoEvento'
-import { BarraFiltros, ChipsFiltros, PainelFiltros, GrupoFiltro, CampoFaixa } from './filtroPadrao'
+import { BarraFiltros, ChipsFiltros, PainelFiltros, GrupoFiltro, BotaoPeriodo } from './filtroPadrao'
 import { formatar } from '../core/domain/dinheiro'
 import type { EventoTempo } from '../core/services/historico'
-import { Botao, Info, cx, gramasTexto, loc, Vazio, BotaoExpandir, Campo, Selecao, Entrada, diaMes } from './base'
+import { Botao, Info, cx, gramasTexto, loc, Vazio, BotaoExpandir, Campo, Selecao, diaMes } from './base'
 import { baixarCSV } from './csv'
 import { useApp, useConsulta } from './contexto'
 import { useT } from './i18n'
@@ -161,7 +161,7 @@ export function LinhaDoTempo({ id, prefixo = 'lt', simples }: { id: string; pref
             </button>
           ))}
         </div>
-        <BarraFiltros busca={busca} onBusca={(v) => definir('Busca', v)} placeholder="Buscar código ou texto" ativos={(quem ? 1 : 0) + (de || ate ? 1 : 0)} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
+        <BarraFiltros busca={busca} onBusca={(v) => definir('Busca', v)} placeholder="Buscar código ou texto" extra={<BotaoPeriodo de={de} ate={ate} onChange={(d, a) => (definir('De', d ?? ''), definir('Ate', a ?? ''))} />} ativos={quem ? 1 : 0} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)} />
         <ChipsFiltros
           itens={[...(quem ? [{ k: 'Quem', rotulo: `👤 ${quem}` }] : []), ...(de || ate ? [{ k: 'De,Ate', rotulo: `📅 ${de ? diaMes(de) : '…'} – ${ate ? diaMes(ate) : '…'}` }] : [])]}
           onTirar={(k) => k.split(',').forEach((x) => definir(x as 'Quem', ''))}
@@ -171,12 +171,6 @@ export function LinhaDoTempo({ id, prefixo = 'lt', simples }: { id: string; pref
           <PainelFiltros resultados={filtrados.length} temAtivos={!!(quem || de || ate)} onLimpar={limpar} onFechar={() => setVerFiltros(false)} exportar={{ onExportar: exportar, quantos: lista.length, unidade: 'registro(s)' }}>
             <GrupoFiltro titulo="Quem" icone="👤">
               <Campo rotulo="Quem fez"><Selecao valor={quem} onChange={(v) => definir('Quem', v)} vazio="Todos" opcoes={pessoas.map((p) => ({ id: p, nome: p }))} /></Campo>
-            </GrupoFiltro>
-            <GrupoFiltro titulo="Quando" icone="📅">
-              <CampoFaixa rotulo="Período">
-                <Entrada type="date" aria-label={t('De')} value={de} max={ate || undefined} onChange={(e) => definir('De', e.target.value)} />
-                <Entrada type="date" aria-label={t('Até')} value={ate} min={de || undefined} onChange={(e) => definir('Ate', e.target.value)} />
-              </CampoFaixa>
             </GrupoFiltro>
           </PainelFiltros>
         )}

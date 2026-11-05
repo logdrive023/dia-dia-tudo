@@ -43,7 +43,7 @@ import { ItensCompra } from './compra/ItensCompra'
 import { ParaOndeFoi } from './compra/ParaOndeFoi'
 import { TriagemCompra } from './compra/TriagemCompra'
 import { type DadosPedido, codigoDe } from './compra/pecas'
-import { CampoFaixa, GrupoFiltro, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
+import { GrupoFiltro, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 
 const ENCERRADAS = ['concluido', 'recusado', 'cancelado']
 /** compra cancelada ou recusada não entra em viagem (nem na seleção para ligar) */
@@ -153,12 +153,8 @@ export function Comprar() {
             <GrupoFiltro titulo="O que falta" icone="⚠️">
               <div className="col-span-2 lg:col-span-4"><FiltroPendencia valor={pendencia} onChange={setPendencia} contagem={contagem} opcoes={opcoesPend.filter((o) => contagem[o.id] || pendencia === o.id)} /></div>
             </GrupoFiltro>
-            <GrupoFiltro titulo="De quem e quando" icone="👤">
+            <GrupoFiltro titulo="De quem" icone="👤">
               <Campo rotulo="Fornecedor"><Selecao valor={forn} onChange={(v) => ajustarParams({ forn: v || undefined })} vazio="Todos" opcoes={fornecedores.map((x) => ({ id: x, nome: x }))} /></Campo>
-              <CampoFaixa rotulo="Data da compra">
-                <Entrada type="date" aria-label={t('De')} value={de} onChange={(e) => ajustarParams({ de: e.target.value || undefined })} />
-                <Entrada type="date" aria-label={t('Até')} value={ate} onChange={(e) => ajustarParams({ ate: e.target.value || undefined })} />
-              </CampoFaixa>
             </GrupoFiltro>
         </>}
       />

@@ -4,14 +4,15 @@
 // (dinheiro → entregas → acertos → quitação) e as ações: entrega, receber, abater da comissão, pagar diferença, encerrar.
 
 import { useState } from 'react'
-import { BarraFiltros } from '../ui/filtroPadrao'
-import { NumeroGrande } from '../ui/numeroGrande'
+import { dataLocal, diasEntre } from '../core/domain/datas'
+import { BotaoEscolha, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
+import { NumeroGrande, GrupoNumeros } from '../ui/numeroGrande'
 import { formatar } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
 import type { Id } from '../core/domain/tipos'
 import type { PassoFinanciamento, StatusFinanciamento } from '../core/services/financiamentos'
 import { CATEGORIAS_CABELO } from '../modules/cabelo'
-import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, Entrada, ErroTela, Escolha, GramasInput, Janela, Pagina, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, gramasTexto, moedaPadrao } from '../ui/base'
+import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, ErroTela, Escolha, GramasInput, Janela, Pagina, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, gramasTexto, moedaPadrao } from '../ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { Anexos, linkWhatsApp, useCotacoes } from '../ui/compartilhados'
 import { BarraFinanciamento, StatusFinanciamentoPilula } from '../ui/financiamento'
@@ -20,13 +21,29 @@ import { useT } from '../ui/i18n'
 
 type FiltroStatus = 'ativos' | StatusFinanciamento | 'todos'
 
+const PRAZOS = [{ id: '', nome: 'Qualquer prazo' }, { id: 'vencido', nome: 'Vencido', icone: '🔴' }, { id: 'semana', nome: 'Vence em 7 dias', icone: '🟡' }, { id: 'sem', nome: 'Sem data limite', icone: '⚪' }]
+
+/** a data limite no cartão: "⏰ até 30/11 · faltam 12 dias" (vermelho se passou e ainda deve) */
+function SeloPrazo({ prazo, status, hoje }: { prazo?: string; status: string; hoje: string }) {
+  const t = useT()
+  if (!prazo || status !== 'aberto') return null
+  const dias = diasEntre(hoje, prazo)
+  const tom = dias < 0 ? 'bg-[var(--ruim)]/10 text-[var(--ruim)]' : dias <= 7 ? 'bg-[var(--alerta)]/12 text-[var(--alerta)]' : 'bg-[var(--fundo)] text-[var(--suave)]'
+  return <span className={cx('num self-start rounded-full px-2.5 py-0.5 text-xs font-semibold', tom)}>⏰ {t('até')} {dataBR(prazo)} · {dias < 0 ? t('vencido há {n} dia(s)', { n: -dias }) : dias === 0 ? t('vence hoje') : t('faltam {n} dia(s)', { n: dias })}</span>
+}
+
 export function Financiamentos() {
   const t = useT()
   const { ir, sessao } = useApp()
   const admin = sessao.perfil === 'admin'
   const [status, setStatus] = useParamTela<FiltroStatus>('status', 'ativos')
   const [busca, setBusca] = useParamTela('busca', '')
-  const { dados, erro } = useConsulta('financiamentos', { status: status === 'todos' ? undefined : status, busca: busca || undefined })
+  const [de, setDe] = useParamTela('de', '')
+  const [ate, setAte] = useParamTela('ate', '')
+  const [prazo, setPrazo] = useParamTela<'' | 'vencido' | 'semana' | 'sem'>('prazo', '')
+  const { dados, erro } = useConsulta('financiamentos', { status: status === 'todos' ? undefined : status, busca: busca || undefined, de: de || undefined, ate: ate || undefined, prazo: prazo || undefined })
+  const hoje = dataLocal()
+  const limpar = () => (setBusca(''), setDe(''), setAte(''), setPrazo(''))
   const m = dados?.moeda ?? moedaPadrao()
   const c = dados?.contagem
   const abas: { id: FiltroStatus; nome: string; n?: number }[] = [
@@ -47,18 +64,24 @@ export function Financiamentos() {
       </Titulo>
       {erro && <p className="mb-3 text-sm text-[var(--ruim)]">{erro}</p>}
       {dados && (
-        <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-          <NumeroGrande rotulo="Na mão dos compradores" valor={formatar(dados.totais.naMao, m)} onClick={() => setStatus('aberto')} />
-          <NumeroGrande rotulo="Financiado" valor={formatar(dados.totais.financiado, m)} />
-          <NumeroGrande rotulo="Cabelo entregue" valor={formatar(dados.totais.entregue, m)} sub={gramasTexto(dados.totais.gramas)} />
-          <NumeroGrande rotulo="A pagar a parceiros" valor={formatar(dados.totais.aPagarParceiros, m)} tom={dados.totais.aPagarParceiros ? 'alerta' : undefined} onClick={() => setStatus('aPagar')} />
-        </div>
+        <GrupoNumeros colunas={4}>
+          <NumeroGrande rotulo="Na mão dos compradores" icone="🤲" valor={formatar(dados.totais.naMao, m)} tom="marca" ativo={status === 'aberto'} onClick={() => setStatus('aberto')} />
+          <NumeroGrande rotulo="Financiado" icone="💸" valor={formatar(dados.totais.financiado, m)} />
+          <NumeroGrande rotulo="Cabelo entregue" icone="💇‍♀️" valor={formatar(dados.totais.entregue, m)} tom={dados.totais.entregue ? 'bom' : undefined} sub={gramasTexto(dados.totais.gramas)} />
+          <NumeroGrande rotulo="A pagar a parceiros" icone="⬆" valor={formatar(dados.totais.aPagarParceiros, m)} tom={dados.totais.aPagarParceiros ? 'alerta' : undefined} ativo={status === 'aPagar'} onClick={() => setStatus('aPagar')} />
+        </GrupoNumeros>
       )}
-      <Abas atual={status} onChange={(v) => setStatus(v as FiltroStatus)} abas={abas.map((a) => ({ id: a.id, nome: a.nome, extra: a.n ? <span className="num text-xs opacity-70">{a.n}</span> : undefined }))} />
-      <div className="mb-3">
-        <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar por código, pessoa ou viagem" />
-      </div>
-      {!dados ? <Carregando /> : !dados.linhas.length ? (
+      <FiltroLista
+        className="mb-3"
+        situacao={{ valor: status, onChange: (v) => setStatus(v as FiltroStatus), opcoes: abas.map((a) => ({ id: a.id, nome: a.nome, n: a.n, tom: a.id === 'aPagar' ? 'alerta' : undefined })) }}
+        busca={busca} onBusca={setBusca} placeholder="Buscar por código, pessoa ou viagem"
+        periodo={{ de, ate, onChange: (d, a) => (setDe(d ?? ''), setAte(a ?? '')), presets: ['30d', 'mes', 'mesPassado', 'ano'] }}
+        extra={<BotaoEscolha icone="⏰" rotulo="Prazo" valor={prazo} onChange={(v) => setPrazo(v as typeof prazo)} opcoes={PRAZOS} />}
+        ativos={prazo ? [{ k: 'prazo', rotulo: `⏰ ${t(PRAZOS.find((x) => x.id === prazo)?.nome ?? prazo)}` }] : []}
+        onTirar={() => setPrazo('')} onLimpar={limpar} temAtivos={!!(busca || de || prazo)}
+        resultados={dados?.linhas.length} total={dados?.contagem.todos} unidade="adiantamento(s)"
+      />
+      {!dados ? <Carregando /> : !dados.linhas.length && (busca || de || prazo) ? <VazioFiltro filtrando onLimpar={limpar} /> : !dados.linhas.length ? (
         <Vazio texto={status === 'ativos' ? 'Nenhum adiantamento em andamento.' : 'Nenhum adiantamento.'}>
           {admin && <Botao className="mt-2" onClick={() => ir('novoFinanciamento')}>+ {t('Adiantamento')}</Botao>}
         </Vazio>
@@ -88,6 +111,7 @@ export function Financiamentos() {
                   {f.viagem && <span>✈ {f.viagem.codigo}</span>}
                   {f.abaterComissoes && <span>{t('abate das comissões')}</span>}
                 </div>
+                <SeloPrazo prazo={f.prazo} status={f.status} hoje={hoje} />
               </button>
             </li>
           ))}

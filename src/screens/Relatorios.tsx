@@ -2,9 +2,10 @@
 // vendas e compras linha a linha, contas, e o LOG de tudo (filtra por usuário e período). CSV e imprimir/PDF.
 
 import { formatar } from '../core/domain/dinheiro'
+import { BotaoPeriodo } from '../ui/filtroPadrao'
 import { Abas, Botao, Carregando, Cartao, Entrada, Selecao, Titulo, Vazio, cx, dataBR, loc } from '../ui/base'
 import { useConsulta, useParamTela } from '../ui/contexto'
-import { SeletorPeriodo, usePeriodo } from '../ui/filtros'
+import { usePeriodo } from '../ui/filtros'
 import { useT } from '../ui/i18n'
 import { EstadosFinanceiros } from './relatorio/EstadosFinanceiros'
 
@@ -31,7 +32,7 @@ export function Relatorios() {
       <Titulo subtitulo={t('Estados financeiros no padrão boliviano (ou brasileiro), com cada centavo nos anexos.')}>{t('Relatórios')}</Titulo>
       <div className="nao-imprimir">
         <Abas atual={rel} onChange={setRel} abas={RELATORIOS} />
-        <div className="mb-3"><SeletorPeriodo periodo={periodo} onChange={setPeriodo} /></div>
+        <div className="mb-3 mt-3 flex"><BotaoPeriodo obrigatorio de={periodo.de} ate={periodo.ate} presets={['mes', 'mesPassado', '30d', 'ano']} onChange={(de, ate) => de && ate && setPeriodo({ preset: 'livre', de, ate })} /></div>
       </div>
       <p className="mb-2 hidden text-sm print:block">{t(RELATORIOS.find((r) => r.id === rel)!.nome)} · {dataBR(periodo.de)} – {dataBR(periodo.ate)}</p>
       {rel === 'estados' && <EstadosFinanceiros de={periodo.de} ate={periodo.ate} />}

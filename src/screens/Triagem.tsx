@@ -32,7 +32,7 @@ import { LeitorCodigo } from '../ui/estoqueUi'
 import { usePistola } from '../ui/leitorPistola'
 import { useLembrado } from '../ui/filtros'
 import { Icone } from '../ui/icones'
-import { GrupoFiltro, FiltroLista, VazioFiltro, BotaoEscolha } from '../ui/filtroPadrao'
+import { GrupoFiltro, FiltroLista, VazioFiltro } from '../ui/filtroPadrao'
 import { FiltrosProntos, PARAMS_PRONTOS, agruparProntos, filtrarProntos, useFiltroProntos, ativosProntos } from '../ui/filtrosProntos'
 
 const NAO_ID = 'Não identificado'
@@ -937,7 +937,6 @@ function Unificar({ lotes, campos, onFechar, onFeito }: { lotes: Lote[]; campos:
 }
 
 type TriagemFeita = ResultadoConsulta<'triagens'>[number]
-const PERIODOS = [{ id: '', nome: 'Tudo' }, { id: '7', nome: '7 dias' }, { id: '30', nome: '30 dias' }, { id: 'mes', nome: 'Mês' }]
 const ORDENS = [{ id: '', nome: 'Mais recentes' }, { id: 'perda', nome: 'Mais perda (%)' }, { id: 'peso', nome: 'Mais peso' }]
 const AJUDA_PERDA = 'Perda = o que entrou − o que saiu. Ex.: 10 kg → 9,6 kg = 400 g (4%).'
 
@@ -953,7 +952,9 @@ function ListaTriagens({ aberta }: { aberta?: string }) {
   const t = useT()
   const { ir, ajustarParams } = useApp()
   const { dados } = useConsulta('triagens', { moduloId: 'cabelo' })
-  const [periodo, setPeriodo] = useParamTela('tp', '')
+  const [tde, setTde] = useParamTela('tde', '')
+  const [tate, setTate] = useParamTela('tate', '')
+  const periodo = tde || tate
   const [quem, setQuem] = useParamTela('tq', '')
   const [compra, setCompra] = useParamTela('tc', '')
   const [perdaMin, setPerdaMin] = useParamTela('tperda', '')
@@ -964,15 +965,13 @@ function ListaTriagens({ aberta }: { aberta?: string }) {
   if (!dados) return <Carregando />
   if (!dados.length) return <p className="rounded-xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nenhuma triagem ainda. Selecione lotes no quadro e toque em “Separar” ou “Juntar e separar”.')}</p>
 
-  const agora = new Date()
-  const desde = periodo === 'mes' ? new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString() : periodo ? new Date(agora.getTime() - Number(periodo) * 86400000).toISOString() : ''
   const pessoas = [...new Set(dados.map((x) => x.por).filter((p): p is string => !!p))].sort()
   const termo = busca.trim().toLowerCase()
   const termoCompra = compra.trim().toLowerCase()
   const minBp = perdaMin ? Math.round(Number(perdaMin.replace(',', '.')) * 100) : undefined
   const lista = dados
     .filter((x) =>
-      (!desde || x.em >= desde) &&
+      (!tde || x.em.slice(0, 10) >= tde) && (!tate || x.em.slice(0, 10) <= tate) &&
       (!quem || x.por === quem) &&
       (!termoCompra || x.compras.some((c) => [c.codigo, c.fornecedor].filter(Boolean).join(' ').toLowerCase().includes(termoCompra))) &&
       (minBp === undefined || !Number.isFinite(minBp) || x.perdaPct > minBp) &&
@@ -987,7 +986,7 @@ function ListaTriagens({ aberta }: { aberta?: string }) {
     ...(compra ? [{ k: 'tc', rotulo: `🛒 ${compra}` }] : []),
     ...(perdaMin ? [{ k: 'tperda', rotulo: `📉 ${t('perda')} > ${perdaMin}%` }] : []),
   ]
-  const limpar = () => ajustarParams({ tp: undefined, tq: undefined, tc: undefined, tperda: undefined, tb: undefined, to: undefined })
+  const limpar = () => ajustarParams({ tde: undefined, tate: undefined, tq: undefined, tc: undefined, tperda: undefined, tb: undefined, to: undefined })
 
   return (
     <div className="space-y-3">
@@ -1002,7 +1001,7 @@ function ListaTriagens({ aberta }: { aberta?: string }) {
 
       {/* FILTRO PADRÃO: período em atalhos (no topo) · busca · ⚙ Filtros (quem, compra, perda, ordem) → resultado + chips ✕ */}
       <FiltroLista
-        extra={<BotaoEscolha icone="📅" rotulo="Período" valor={periodo} onChange={setPeriodo} opcoes={PERIODOS} />}
+        periodo={{ de: tde, ate: tate, onChange: (d, a) => (setTde(d ?? ''), setTate(a ?? '')) }}
         busca={busca} onBusca={setBusca} placeholder="T-0003, compra, fornecedor, pacote…"
         ativos={ativosT} onTirar={(k) => ajustarParams({ [k]: undefined })} onLimpar={limpar} temAtivos={!!(periodo || ativos > 0 || termo || ordem)}
         resultados={lista.length} total={dados.length} unidade="triagem(ns)"

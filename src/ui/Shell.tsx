@@ -315,7 +315,7 @@ export function Shell({ children }: { children: ReactNode }) {
         {backend.tipo !== 'api' && (
           <div className="nao-imprimir bg-[var(--marca-suave)] px-4 py-1.5 text-center text-xs text-[var(--marca)]">{t('Modo demonstração: os dados ficam só neste aparelho.')}</div>
         )}
-        <main className={cx('mx-auto px-3 pb-28 pt-3 xs:px-4 xs:pt-4 md:pb-10', oculto ? 'max-w-7xl md:pl-16' : 'max-w-6xl')}>{children}</main>
+        <main className={cx('mx-auto px-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-3 xs:px-4 xs:pt-4 md:pb-10', oculto ? 'max-w-7xl md:pl-16' : 'max-w-6xl')}>{children}</main>
       </div>
 
       {/* celular: 5 destinos, nome sempre visível, contador no canto do ícone, indicador em pílula */}
