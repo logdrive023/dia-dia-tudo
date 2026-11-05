@@ -464,8 +464,10 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     setFocarCampo(undefined)
   }, [focarCampo])
 
-  const abrir = (c: CampoFormId) => (setAbertos(new Set([...abertos, c])), setFocarCampo(c))
-  const estaAberto = (c: CampoFormId) => abertos.has(c) || (c === 'comprador' && porComprador) || (c === 'viagem' && viagensAbertas.length > 0)
+  // a viagem abre sozinha quando há viagem aberta, mas o X fecha de verdade (antes ficava presa aberta)
+  const [viagemFechada, setViagemFechada] = useState(false)
+  const abrir = (c: CampoFormId) => (setAbertos(new Set([...abertos, c])), setFocarCampo(c), c === 'viagem' && setViagemFechada(false))
+  const estaAberto = (c: CampoFormId) => abertos.has(c) || (c === 'comprador' && porComprador) || (c === 'viagem' && viagensAbertas.length > 0 && !viagemFechada)
   // TROCAR fornecedor ou módulo com algo preenchido: pergunta e começa limpo (só o módulo/fornecedor novo fica)
   const preenchido = linhas.some((l) => l.quantidade || l.total || l.itemId) || estado.length > 0 || !!obs.trim() || (anexos?.length ?? 0) > 0 || !!codigo.trim()
   const limparRascunho = (cabelo: boolean) => {
@@ -785,7 +787,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     if (c === 'comprador') setCompradorId(undefined)
     else if (c === 'estado') setEstado([])
     else if (c === 'obs') setObs('')
-    else if (c === 'viagem') setViagemEscolhida('')
+    else if (c === 'viagem') (setViagemEscolhida(''), setViagemFechada(true))
     else if (c === 'codigo') (setCodigo(''), setModoEscolhido(form.padroes.modoCodigo))
     else if (c === 'coluna') setColuna(undefined)
   }
