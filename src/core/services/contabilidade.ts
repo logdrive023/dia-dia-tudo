@@ -48,7 +48,7 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
     vendasDetalhadas(ctx, { de: p.de, ate: p.ate }),
     comprasDetalhadas(ctx, { de: p.de, ate: p.ate }),
   ])
-  const gastos = r.linhas.filter((l) => l.nivel === 1 && !['(−) Descontos', '(−) Custo do que foi vendido', '(−) Insumos dos serviços', '(−) Comissões'].includes(l.conta)).map((l) => ({ categoria: l.conta.replace(/^\(−\) /, ''), valor: -l.valor }))
+  const gastos = r.linhas.filter((l) => l.nivel === 1 && !['(−) Descontos', '(−) Custo do que foi vendido', '(−) Insumos dos serviços', '(−) Comissões'].includes(l.conta)).map((l) => ({ categoria: l.conta.replace(/^\([−+]\) /, ''), valor: -l.valor }))
   const totalGastos = gastos.reduce((s, g) => s + g.valor, 0)
   const comprasPeriodo = compras.filter((c) => c.etapa !== 'cancelado' && c.etapa !== 'recusado').reduce((s, c) => s + c.totalPrincipal, 0)
   const custoServicos = r.insumos + r.comissoes
@@ -86,7 +86,7 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
       { id: 'costo', rotulo: '(−) Costo de ventas', valor: -cmv, tipo: 'conta', anexo: 'vendas' },
       ...(custoServicos ? [{ id: 'servicios', rotulo: '(−) Insumos y comisiones de servicios', valor: -custoServicos, tipo: 'conta' as const, anexo: 'vendas' as const }] : []),
       { id: 'bruta', rotulo: 'Utilidad bruta', valor: utilidadBruta, tipo: 'subtotal' },
-      ...gastos.map((g, k) => ({ id: `gasto${k}`, rotulo: `(−) ${g.categoria}`, valor: -g.valor, tipo: 'conta' as const, anexo: 'gastos' as const })),
+      ...gastos.map((g, k) => ({ id: `gasto${k}`, rotulo: `${g.valor < 0 ? '(+)' : '(−)'} ${g.categoria}`, valor: -g.valor, tipo: 'conta' as const, anexo: 'gastos' as const })),
       ...(it ? [{ id: 'it', rotulo: `(−) Impuesto a las Transacciones (IT ${fmtPct(itBp)})`, valor: -it, tipo: 'conta' as const, anexo: 'impostos' as const, conta: `${fmtPct(itBp)} × ingresos brutos` }] : []),
       ...(!general ? [{ id: 'rts', rotulo: '(−) Cuota RTS', valor: -rts, tipo: 'conta' as const, anexo: 'impostos' as const }] : []),
       { id: 'antes', rotulo: general ? 'Utilidad antes del IUE' : 'Utilidad del período', valor: antesIue, tipo: general ? 'subtotal' : 'total' },

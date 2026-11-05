@@ -50,7 +50,9 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
   // gasto de viagem incorporado ao custo dos lotes vira estoque (entra no custo quando vender): não conta duas vezes
   for (const v of await ctx.repos.viagens.listar()) {
     const inc = v.incorporacao
-    if (inc && inc.em.slice(0, 10) >= p.de && inc.em.slice(0, 10) <= p.ate && despesasPorCategoria.has('Viagens'))
+    // a RECLASSIFICAÇÃO vale no período da incorporação SEMPRE (antes só se houvesse gasto de viagem no mesmo período:
+    // gasto em outubro + incorporação em novembro contava o mesmo dinheiro duas vezes — como gasto e depois como custo)
+    if (inc && inc.em.slice(0, 10) >= p.de && inc.em.slice(0, 10) <= p.ate)
       despesasPorCategoria.set('Viagens', (despesasPorCategoria.get('Viagens') ?? 0) - inc.total)
   }
   const despesas = [...despesasPorCategoria.values()].reduce((s, v) => s + v, 0)
@@ -73,7 +75,8 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
       ...(insumos ? [{ conta: '(−) Insumos dos serviços', valor: -insumos, nivel: 1 }] : []),
       { conta: '(−) Comissões', valor: -comissoes, nivel: 1 },
       { conta: '= Lucro bruto', valor: lucroBruto, nivel: 0 },
-      ...[...despesasPorCategoria].map(([c, v]) => ({ conta: `(−) ${c}`, valor: -v, nivel: 1 })),
+      // negativo = o gasto de viagem levado ao custo do estoque passou do gasto do período: aparece como (+)
+      ...[...despesasPorCategoria].map(([c, v]) => ({ conta: v < 0 ? `(+) ${c} (gasto levado ao custo do estoque)` : `(−) ${c}`, valor: -v, nivel: 1 })),
       { conta: '= Resultado do período', valor: resultado, nivel: 0 },
     ],
     receita,
