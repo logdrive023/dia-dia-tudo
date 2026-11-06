@@ -301,6 +301,30 @@ Tabelas de preço refeitas e relatórios no padrão contábil boliviano.
 7. Pendências menores de [SISTEMA.md](SISTEMA.md) §7: devolução parcial de produto, leitura de QR própria para
    iPhone/Firefox, testes de longa duração.
 
+**Achados da refatoração de 05/11/2026 (avaliados, ainda não feitos):**
+
+8. **Fuso horário da empresa na configuração** (médio, ~2–3 h com testes). Hoje não existe fuso: o "que dia é hoje"
+   vem do relógio do aparelho (`dataLocal()`, `relogio.hoje()`) e alguns lugares cortam o horário em UTC.
+   - Bug: horário UTC cortado com `slice(0, 10)` → na Bolívia (UTC−4), depois das 20h, aparece o dia seguinte. Casos
+     achados: `dataComAno(i.criadoEm)` em `codigos.ts` ("no estoque desde"), `dataComAno(ctx.relogio.agora())` em
+     `triagem.ts` (registro de "triagem desfeita") e o "N hoje" das Etiquetas (`toISOString().slice(0, 10)`); cerca
+     de 8 lugares no total.
+   - Brasil está 1 h à frente da Bolívia: quem abre do Brasil entre 0h e 1h lança no dia seguinte do caixa boliviano.
+   - Proposta: campo **"Fuso horário da empresa"** em Configurações › Geral (padrão `America/La_Paz`) e uma função só
+     para "que dia é hoje" e "de que dia é este horário" usando esse fuso; apontar os ~40 lugares para ela (20
+     `dataLocal()`, 61 `relogio.hoje()` passam pelo relógio, 8 `toISOString().slice(0, 10)`, 18 `toLocale…`). Combina
+     com o DDL da API, que já usa `America/La_Paz`.
+9. **Botão ⓘ dentro do botão do faturamento** no Painel (`painel/VisaoGeral.tsx`): HTML inválido, avisa no console.
+   Simples (~10 min): tirar o ⓘ de dentro do botão e deixar ao lado, sem mudar o visual.
+10. **4 ciclos de import antigos** (simples, ~30–60 min): `estoque ↔ fotos`, `comissoes ↔ financiamentos`,
+    `Config ↔ configSecoes ↔ config/Funcionaria`, `precos/CartaoTabela ↔ precos/ListaTabelas`. Em cada um, levar a peça
+    que os dois dividem para um terceiro arquivo.
+11. **ESLint enxuto** (vale a pena): só as regras dos hooks (ordem dos hooks como erro; dependências dos efeitos como
+    aviso). Teria pego o bug de hooks de Comprar; a Venda rápida já tem 2 `eslint-disable`. Sem regras de estilo.
+    Precisa baixar 2–3 pacotes de desenvolvimento do npm: pedir confirmação ao dono antes.
+12. **Divisão por dentro** de `compra/NovaCompra.tsx` (~30 estados ligados) e de `ModoCaixa` em `VendaRapida.tsx`
+    (7 efeitos que guardam/retomam a venda): só com mais testes de caracterização antes.
+
 ## 8. Para o Claude numa conversa nova
 
 - Comece lendo este arquivo e o [SISTEMA.md](SISTEMA.md).
