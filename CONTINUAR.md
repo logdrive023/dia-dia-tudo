@@ -118,6 +118,16 @@ npm run build
   `etiquetas.tsx`, `linhaTempo.tsx`, `rastreioTotal.tsx`, `historicoPacote.tsx`, `valorMoeda.tsx`).
 - **Tradução**: textos em português são as chaves; o espanhol fica em `src/ui/es.ts`. Toda string nova precisa de
   entrada lá (antes da chave final `}`), conferindo se a chave já existe (com e sem aspas) para não duplicar.
+- **Tela = orquestrador** (refatoração de 05/11/2026): o arquivo `src/screens/X.tsx` só organiza; as seções ficam
+  na subpasta da tela (`painel/`, `triagem/`, `caixa/`, `venda/`, `viagem/`, `estoque/`, `lote/`, `precos/`,
+  `compra/`), cada uma recebendo os dados por props. O que as peças de uma tela dividem fica num arquivo comum da
+  subpasta (`comum.ts`, `tipos.ts`, `caixaDia.ts`). Contas que a tela mostra vão para função pura (ex.:
+  `painel/calculos.ts`), e os dados da tela num hook (ex.: `painel/usePainel.ts`: estado + consultas). Os nomes
+  antigos continuam exportados de `Estoque.tsx` e `Comprar.tsx` (App e testes importam de lá).
+- **Peças comuns dos serviços** em `contexto.ts`: `ehAdmin`, `euPessoa`, `ehEquipe`, `conversorPara`/
+  `conversorPrincipal` (relatório: moeda sem cotação vale 0; para gravar operação use `paraPrincipal`). Datas:
+  `dataCurta` ("05/11") e `dataComAno` ("05/11/2026") em `core/domain/datas.ts`. Media query: `useMidia`
+  (`ui/midia.ts`). Não recriar essas contas dentro de serviço ou tela.
 - CSS global em `src/index.css` usa `:where()` (especificidade zero) para não brigar com o Tailwind.
 - Testes de tela: `src/__tests__/setup.ts` usa `asyncUtilTimeout: 10000` porque a CI é lenta (já quebrou por isso).
 

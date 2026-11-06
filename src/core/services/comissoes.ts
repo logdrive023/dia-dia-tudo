@@ -5,10 +5,10 @@
 //     A pagar = ganho − pago. No resultado (DRE) o pagamento não vira despesa de novo.
 
 import type { CodigoMoeda } from '../domain/dinheiro'
-import { converter, formatar } from '../domain/dinheiro'
+import { formatar } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
 import type { Id } from '../domain/tipos'
-import { auditar, type Ctx, cotacoesAtuais, exigirInteiroPositivo, lerConfig, paraPrincipal } from './contexto'
+import { auditar, type Ctx, conversorPara, cotacoesAtuais, exigirInteiroPositivo, lerConfig, paraPrincipal, euPessoa } from './contexto'
 import { moverCaixa } from './caixa'
 import { memoriaCalculo } from '../domain/comissao'
 import { reterComissaoFinanciamentos } from './financiamentos'
@@ -16,16 +16,10 @@ import { reterComissaoFinanciamentos } from './financiamentos'
 export const CATEGORIA_COMISSAO = 'Comissões'
 
 export async function comissoes(ctx: Ctx, p: { de?: string; ate?: string; pessoaId?: Id } = {}) {
-  const pessoaId = ctx.sessao.perfil === 'funcionario' ? ctx.sessao.pessoaId ?? ctx.sessao.usuarioId : p.pessoaId
+  const pessoaId = ctx.sessao.perfil === 'funcionario' ? euPessoa(ctx) : p.pessoaId
   const cfg = await lerConfig(ctx)
   const cot = await cotacoesAtuais(ctx)
-  const conv = (v: number, m: string) => {
-    try {
-      return converter(v, m, cfg.moedaPrincipal, cot)
-    } catch {
-      return 0
-    }
-  }
+  const conv = conversorPara(cfg.moedaPrincipal, cot)
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x]))
   const noPeriodo = (d: string) => (!p.de || d >= p.de) && (!p.ate || d <= p.ate)
   const ganhos = (await ctx.repos.transacoes.listar({ tipo: 'venda' }))

@@ -6,6 +6,7 @@
 
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { Botao, Entrada, Vazio, cx } from './base'
+import { dataCurta } from '../core/domain/datas'
 import { type Preset, calcularPeriodo } from './filtros'
 import { useT } from './i18n'
 import { useApp } from './contexto'
@@ -90,28 +91,6 @@ export function GrupoFiltro({ titulo, icone, children }: { titulo: string; icone
       {/* items-end: um rótulo que quebra em 2 linhas não desalinha a caixa do vizinho */}
       <div className="grid grid-cols-2 items-end gap-2 lg:grid-cols-4">{children}</div>
     </fieldset>
-  )
-}
-
-/**
- * ATALHOS (chips de um toque, fora do painel): o mesmo visual para período, situação etc. Cada tela diz o que cada
- * opção quer dizer (o atalho só mostra e devolve o id). Celular: rola de lado; computador: quebra a linha.
- */
-export function AtalhosChips({ rotulo, icone, valor, opcoes, onChange, umaLinha }: { rotulo: string; icone?: string; valor: string; opcoes: { id: string; nome: string }[]; onChange(id: string): void; umaLinha?: boolean }) {
-  const t = useT()
-  return (
-    <div className={cx("flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]", umaLinha ? "lg:flex-wrap" : "sm:flex-wrap")} role="group" aria-label={t(rotulo)}>
-      {icone && <span aria-hidden className="inline-flex min-h-10 shrink-0 items-center text-xs font-semibold text-[var(--suave)]">{icone}</span>}
-      {opcoes.map((x) => {
-        const on = x.id === valor
-        return (
-          <button key={x.id || 'tudo'} type="button" aria-pressed={on} onClick={() => onChange(x.id)}
-            className={cx('min-h-10 shrink-0 rounded-full border px-3 text-sm font-semibold', on ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)] hover:border-[var(--marca)]')}>
-            {t(x.nome)}
-          </button>
-        )
-      })}
-    </div>
   )
 }
 
@@ -225,8 +204,7 @@ export function BotaoPeriodo({ de, ate, onChange, presets = ['hoje', '7d', '30d'
   const NOME: Record<string, string> = { hoje: 'Hoje', '7d': '7 dias', '30d': '30 dias', mes: 'Este mês', mesPassado: 'Mês passado', ano: 'Este ano' }
   const opcoes = [...(obrigatorio ? [] : [{ id: '', nome: 'Tudo', p: undefined as ReturnType<typeof calcularPeriodo> | undefined }]), ...presets.map((id) => ({ id: id as string, nome: NOME[id], p: calcularPeriodo(id) as ReturnType<typeof calcularPeriodo> | undefined }))]
   const atual = opcoes.find((x) => (x.p ? x.p.de === de && x.p.ate === ate : !de && !ate))
-  const curta = (d: string) => d.slice(5).split('-').reverse().join('/')
-  return <BotaoEscolha icone="📅" rotulo="Período" valor={atual?.id ?? '__livre'} ligadoSempre={obrigatorio} nomeLivre={`${de ? curta(de) : '…'}–${ate ? curta(ate) : '…'}`} opcoes={opcoes} onChange={(id) => { const x = opcoes.find((o) => o.id === id); onChange(x?.p?.de, x?.p?.ate) }}
+  return <BotaoEscolha icone="📅" rotulo="Período" valor={atual?.id ?? '__livre'} ligadoSempre={obrigatorio} nomeLivre={`${de ? dataCurta(de) : '…'}–${ate ? dataCurta(ate) : '…'}`} opcoes={opcoes} onChange={(id) => { const x = opcoes.find((o) => o.id === id); onChange(x?.p?.de, x?.p?.ate) }}
     rodape={(fechar) => <DatasLivres de={de} ate={ate} onAplicar={(d, a) => (onChange(d, a), fechar())} />} />
 }
 

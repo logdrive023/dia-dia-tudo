@@ -7,7 +7,6 @@ import type { DadosPainel, ModuloDef, Secao } from '../core/modulos'
 import { custoDe } from '../core/services/estoque'
 
 export const CATEGORIAS_CABELO = ['Normal', 'Tinte', 'CH', 'CH+', 'Rojo', 'Quemado', 'Menudo', 'Entresaque']
-export const MEDIDAS_CABELO = [30, 35, 38, 40, 45, 50, 55, 60, 65, 70, 80, 90, 100]
 
 function faixa(cm: unknown): string {
   const n = Number(cm)

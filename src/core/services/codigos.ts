@@ -6,6 +6,7 @@
 // digitado que já existe é recusado dizendo QUAL registro já usa ("Já existe: compra P-0003 · Helena · 04/10/2026").
 // Trocar o código depois (admin) fica no log com antes → depois e o antigo continua achando o registro na busca.
 
+import { dataComAno } from '../domain/datas'
 import { exigir } from '../domain/erros'
 import type { Id, Item, Pessoa, Transacao } from '../domain/tipos'
 import { auditar, type Ctx, novo, tocar } from './contexto'
@@ -73,7 +74,6 @@ export const normalizarCodigo = (c?: string) => (c ?? '').trim().toUpperCase()
 
 export const formatarSequencia = (s: Sequencia, n: number) => `${s.prefixo}${String(n).padStart(Math.max(0, s.digitos), '0')}`
 
-const dataBR = (d: string) => d.slice(0, 10).split('-').reverse().join('/')
 const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 /** Código digitado: 1 a 30 caracteres, começa com letra ou número; aceita - + . / _ (sem espaço no meio). */
@@ -139,14 +139,14 @@ async function descrever(ctx: Ctx, tipo: TipoCodigo, id: Id, anterior: boolean, 
     const i = await ctx.repos.itens.obter(id)
     if (!i) return undefined
     const codigo = i.codigo ?? procurado
-    const quando = i.saldo > 0 ? `no estoque desde ${dataBR(i.criadoEm)}` : `sem saldo; entrou em ${dataBR(i.criadoEm)}`
+    const quando = i.saldo > 0 ? `no estoque desde ${dataComAno(i.criadoEm)}` : `sem saldo; entrou em ${dataComAno(i.criadoEm)}`
     return { id, codigo, tela: 'lote', anterior, resumo: `${codigo}${anterior ? ` (antes ${procurado})` : ''} · ${i.nome} (${quando})` }
   }
   const t = await ctx.repos.transacoes.obter(id)
   if (!t) return undefined
   const pessoa = t.pessoaId ? (await ctx.repos.pessoas.obter(t.pessoaId))?.nome : undefined
   const codigo = t.codigo ?? procurado
-  return { id, codigo, tela: 'pedido', anterior, resumo: `compra ${codigo}${anterior ? ` (antes ${procurado})` : ''} · ${pessoa ?? 'sem fornecedor'} · ${dataBR(t.data)}` }
+  return { id, codigo, tela: 'pedido', anterior, resumo: `compra ${codigo}${anterior ? ` (antes ${procurado})` : ''} · ${pessoa ?? 'sem fornecedor'} · ${dataComAno(t.data)}` }
 }
 
 /** Quem já usa este código (atual ou anterior), fora o próprio registro (ignorarId). */

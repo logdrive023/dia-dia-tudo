@@ -1,24 +1,12 @@
 // RELATÓRIOS contábeis e gerenciais. Tudo na moeda principal (convertido pela cotação guardada em cada lançamento;
 // caixa e saldos de hoje pela cotação atual). Cada relatório volta em linhas prontas para tabela/CSV.
 
-import { MOEDAS, converter } from '../domain/dinheiro'
+import { MOEDAS } from '../domain/dinheiro'
 import type { Id } from '../domain/tipos'
-import { type Ctx, cotacoesAtuais, lerConfig } from './contexto'
+import { type Ctx, conversorPrincipal, lerConfig } from './contexto'
 import { contas } from './contas'
 import { situacaoDe } from './emprestimos'
 import { custoDe } from './estoque'
-
-async function conversor(ctx: Ctx) {
-  const cfg = await lerConfig(ctx)
-  const cot = await cotacoesAtuais(ctx)
-  return (v: number, m: string) => {
-    try {
-      return converter(v, m, cfg.moedaPrincipal, cot)
-    } catch {
-      return 0
-    }
-  }
-}
 
 /**
  * DRE simplificado (resultado do período) + divisão entre sócios.
@@ -28,7 +16,7 @@ async function conversor(ctx: Ctx) {
  */
 export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
   const cfg = await lerConfig(ctx)
-  const conv = await conversor(ctx)
+  const conv = await conversorPrincipal(ctx)
   const vendas = (await ctx.repos.transacoes.listar({ tipo: 'venda' })).filter((t) => t.etapa === 'concluido' && t.data >= p.de && t.data <= p.ate)
   // receita = líquida (o total da venda já é com desconto); descontos guardados em cada linha (vendas antigas: 0)
   const receita = vendas.reduce((s, t) => s + t.totalPrincipal, 0)
@@ -137,7 +125,7 @@ export async function inventario(ctx: Ctx, p: { moduloId?: string } = {}) {
 /** Balanço: o que o negócio tem (caixa, estoque, a receber) menos o que deve = patrimônio. */
 export async function balanco(ctx: Ctx, _p: object = {}) {
   const cfg = await lerConfig(ctx)
-  const conv = await conversor(ctx)
+  const conv = await conversorPrincipal(ctx)
   const caixa = await ctx.repos.movCaixa.listar()
   const porMoeda = MOEDAS.map((m) => {
     const v = caixa.filter((x) => x.moeda === m.codigo).reduce((s, x) => s + x.delta, 0)

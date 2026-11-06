@@ -7,6 +7,7 @@ import { BarraPartes } from './barras'
 import type { StatusLote } from '../core/services/estoque'
 import { Botao, Janela, Pilula, cx, gramasTexto } from './base'
 import { useT } from './i18n'
+import { useMidia } from './midia'
 import { useApp } from './contexto'
 import { lerEnderecoQr } from './etiquetas'
 
@@ -26,26 +27,9 @@ export function StatusBadge({ status }: { status: StatusLote }) {
 }
 
 /** true em tela de 1024 px ou mais (sem matchMedia, como nos testes, conta como larga). */
+/** tela de 1024 px ou mais */
 export function useTelaLarga() {
-  const ler = () => {
-    try {
-      return window.matchMedia?.('(min-width: 1024px)').matches ?? true
-    } catch {
-      return true
-    }
-  }
-  const [larga, setLarga] = useState(ler)
-  useEffect(() => {
-    try {
-      const m = window.matchMedia('(min-width: 1024px)')
-      const f = () => setLarga(m.matches)
-      m.addEventListener('change', f)
-      return () => m.removeEventListener('change', f)
-    } catch {
-      return undefined
-    }
-  }, [])
-  return larga
+  return useMidia('(min-width: 1024px)', true)
 }
 
 /** Barra comprado → vendido → separado → perda → em estoque (gramas). */
@@ -88,9 +72,6 @@ type Detector = { detect(v: HTMLVideoElement): Promise<{ rawValue: string }[]> }
 
 /** o navegador lê QR/código de barras pela câmera (Chrome no Android, por exemplo) */
 export const temDetectorCodigo = () => typeof window !== 'undefined' && 'BarcodeDetector' in window
-
-/** O botão da câmera aparece SEMPRE: o leitor próprio (jsQR) lê em qualquer navegador com câmera. */
-export const temLeitorCodigo = () => true
 
 /** o que a câmera deste aparelho deixa controlar (lanterna e zoom), quando deixa */
 type Capacidades = { torch?: boolean; zoom?: { min: number; max: number; step?: number } }

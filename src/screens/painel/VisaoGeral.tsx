@@ -13,13 +13,14 @@ import type { ResultadoConsulta } from '../../core/services'
 import { Info, cx, fmt, gramasTexto, moedaPadrao } from '../../ui/base'
 import { useApp, useConsulta } from '../../ui/contexto'
 import { useT } from '../../ui/i18n'
+import { variacaoPct } from './calculos'
 
 type DadosPainel = NonNullable<ResultadoConsulta<'painel'>>
 
 /** "↑ 12%" / "↓ 8%" (comparado ao período anterior); sem base anterior, nada */
 function variacao(atual: number, anterior?: number) {
-  if (anterior === undefined || anterior <= 0) return undefined
-  const v = Math.round(((atual - anterior) / anterior) * 100)
+  const v = variacaoPct(atual, anterior)
+  if (v === undefined) return undefined
   return { sobe: v >= 0, texto: `${v >= 0 ? '↑' : '↓'} ${Math.abs(v) > 500 ? '>500' : Math.abs(v)}%` }
 }
 

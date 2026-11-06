@@ -2,7 +2,7 @@
 // cada passo é movimento de estoque + linha no log (quem, quando, quanto). As COLUNAS são do negócio (Configurações ›
 // Etapas da triagem): nome, ordem, cor, explicação e o que cada uma faz. "Vendido" é sempre a última e é calculada.
 
-import { diasEntre, inicioDoMes, somarDias } from '../domain/datas'
+import { dataComAno, diasEntre, inicioDoMes, somarDias } from '../domain/datas'
 import { mapaViagens, type ViagemCurta } from './viagemCurta'
 import { multiplicarFator } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
@@ -537,7 +537,6 @@ export async function triarLotes(ctx: Ctx, d: { id: Id; ids: Id[]; quantidadeUsa
 export interface Ligacao { id: Id; codigo?: string; g: number; tipo: 'compra' | 'triagem' | 'lote' | 'venda' }
 
 /** chave da triagem de um lote (lotes separados antes do id de triagem usam a separação) */
-const dataCurta = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')
 const chaveTriagem = (i: Item) => (i.campos.triagemDesfeita ? undefined : i.triagem?.id ?? (i.origem?.tipo === 'transformacao' ? (i.campos.separacaoId as string | undefined) : undefined))
 
 /**
@@ -576,7 +575,7 @@ export async function desfazerTriagem(ctx: Ctx, d: { triagemId: Id; motivo: stri
     if (ids.has(m.itemId) || !liquido.get(m.itemId)) continue
     await moverEstoque(ctx, { itemId: m.itemId, delta: -m.delta, motivo: 'cancelamento', origemId: d.triagemId, descricao: texto })
   }
-  const desfeita = `${codigo} · ${dataCurta(ctx.relogio.agora())} · ${ctx.sessao.nome} · ${motivo}`
+  const desfeita = `${codigo} · ${dataComAno(ctx.relogio.agora())} · ${ctx.sessao.nome} · ${motivo}`
   for (const i of S) {
     const atual = (await ctx.repos.itens.obter(i.id))!
     if (atual.saldo) await moverEstoque(ctx, { itemId: i.id, delta: -atual.saldo, motivo: 'cancelamento', origemId: d.triagemId, descricao: texto })

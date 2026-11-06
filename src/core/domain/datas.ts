@@ -36,6 +36,11 @@ export function dataCurta(data: string, comAno = false): string {
   return comAno ? `${d}/${m}/${a}` : `${d}/${m}`
 }
 
+/** "05/11/2026" de uma data ou instante ISO (usa só os 10 primeiros caracteres: "2026-11-05T14:00Z" → "05/11/2026") */
+export function dataComAno(iso: string): string {
+  return iso.slice(0, 10).split('-').reverse().join('/')
+}
+
 export function diaDaSemana(data: string): string {
   const [a, m, d] = data.split('-').map(Number)
   return DIAS[new Date(a, m - 1, d, 12).getDay()]

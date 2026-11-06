@@ -10,7 +10,7 @@ import { aoConcluirVenda } from './vendasAbertas'
 import { dataDeInstante } from '../domain/datas'
 import type { Id, Item, Linha, RegraComissao, Transacao } from '../domain/tipos'
 import { dividir, pct, resolverComissao } from '../domain/comissao'
-import { auditar, cotacoesAtuais, type Ctx, exigirInteiroPositivo, formaPagamento, lerConfig, novo, paraPrincipal, tocar, marcarDiaFechado, garantirDiaAberto } from './contexto'
+import { auditar, cotacoesAtuais, type Ctx, exigirInteiroPositivo, formaPagamento, lerConfig, novo, paraPrincipal, tocar, marcarDiaFechado, garantirDiaAberto, euPessoa } from './contexto'
 import { moverCaixa } from './caixa'
 import { comprasDe, custoDe, moverEstoque, proximoCodigo } from './estoque'
 import { montarPagamentos, type PagamentoEntrada } from './pagamentos'
@@ -283,7 +283,7 @@ export async function concluirVenda(ctx: Ctx, d: VendaEntrada) {
     pessoaId: d.pessoaId,
     localId: d.localId,
     // VENDEDORA: a escolhida na tela; a funcionária que vende sem escolher fica como a vendedora (nunca vazio para ela)
-    profissionalId: d.profissionalId ?? (ctx.sessao.perfil === 'funcionario' ? ctx.sessao.pessoaId ?? ctx.sessao.usuarioId : undefined),
+    profissionalId: d.profissionalId ?? (ctx.sessao.perfil === 'funcionario' ? euPessoa(ctx) : undefined),
     agendadoPara: d.agendadoPara,
     linhas,
     pagamentos: [],
@@ -357,7 +357,7 @@ export async function cancelarVenda(ctx: Ctx, d: { id: Id; motivo: string }) {
   exigir(d.motivo?.trim(), 'Diga o motivo do cancelamento.', 'motivo')
   // funcionária só desmarca agendamento dela; cancelar venda feita é com o administrador
   if (ctx.sessao.perfil === 'funcionario') {
-    const eu = ctx.sessao.pessoaId ?? ctx.sessao.usuarioId
+    const eu = euPessoa(ctx)
     exigir(t.etapa === 'agendado' && (t.profissionalId === eu || t.linhas.some((l) => l.profissionalId === eu)), 'Só o administrador cancela vendas. Você pode desmarcar os seus agendamentos.')
   }
   if (t.etapa === 'concluido') {
@@ -622,7 +622,7 @@ export async function vendas(ctx: Ctx, f: FiltroVendas = {}) {
 
 /** Agenda: atendimentos agendados num intervalo (por profissional e local). */
 export async function agenda(ctx: Ctx, p: { de: string; ate: string; profissionalId?: Id; localId?: Id }) {
-  if (ctx.sessao.perfil === 'funcionario') p = { ...p, profissionalId: ctx.sessao.pessoaId ?? ctx.sessao.usuarioId }
+  if (ctx.sessao.perfil === 'funcionario') p = { ...p, profissionalId: euPessoa(ctx) }
   const todas = await ctx.repos.transacoes.listar({ tipo: 'venda' })
   const pessoas = new Map((await ctx.repos.pessoas.listar()).map((x) => [x.id, x]))
   const locais = new Map((await ctx.repos.locais.listar()).map((x) => [x.id, x]))

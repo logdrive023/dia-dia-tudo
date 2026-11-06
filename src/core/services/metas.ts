@@ -9,7 +9,7 @@ import { exigir } from '../domain/erros'
 import { diasEntre } from '../domain/datas'
 import { novoId } from '../domain/ids'
 import type { Id, Transacao } from '../domain/tipos'
-import { type Ctx, lerConfig } from './contexto'
+import { type Ctx, lerConfig, euPessoa } from './contexto'
 
 export type IndicadorMeta = 'faturamento' | 'vendas' | 'atendimentos'
 export interface Meta {
@@ -66,7 +66,7 @@ export async function metas(ctx: Ctx, _p: object = {}) {
   const de = `${ano}-${String(mes).padStart(2, '0')}-01`
   const ate = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia(ano, mes)).padStart(2, '0')}`
   const diasRestantes = Math.max(0, diasEntre(hoje, ate))
-  const eu = ctx.sessao.pessoaId ?? ctx.sessao.usuarioId
+  const eu = euPessoa(ctx)
   const visivel = (m: Meta) => m.ativa && (admin || (conf.funcionaria && ((m.alvo === 'pessoa' && m.alvoId === eu) || (m.alvo === 'unidade' && !!ctx.sessao.localId && m.alvoId === ctx.sessao.localId))))
   const lista = conf.itens.filter(visivel)
   const verValor = admin ? conf.mostrarValor : conf.funcionariaValor

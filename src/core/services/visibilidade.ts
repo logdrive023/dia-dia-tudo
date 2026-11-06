@@ -12,7 +12,7 @@
 import type { Id, Pessoa, Transacao } from '../domain/tipos'
 import { visiveis } from './agenda'
 import { exigir } from '../domain/erros'
-import { type Ctx, lerConfig } from './contexto'
+import { type Ctx, ehAdmin, ehEquipe, euPessoa, lerConfig } from './contexto'
 
 /** campos que a funcionária nunca recebe (em qualquer nível da resposta) */
 const SENSIVEIS = new Set([
@@ -48,9 +48,6 @@ function limpar(v: unknown, manter: Set<string>, vistos = new WeakSet<object>())
   return o
 }
 
-const ehAdmin = (ctx: Ctx) => ctx.sessao.perfil === 'admin'
-const euPessoa = (ctx: Ctx) => ctx.sessao.pessoaId ?? ctx.sessao.usuarioId
-const ehEquipe = (p?: Pessoa) => !!p?.papeis.some((x) => x === 'funcionario' || x === 'profissional')
 const ehCliente = (p?: Pessoa) => !!p?.papeis.includes('cliente')
 const SEM = 'Sem permissão para ver isso.'
 

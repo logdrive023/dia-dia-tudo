@@ -2,10 +2,10 @@
 // Cada número leva à lista que o forma (detalhe) e a soma dessa lista é o número (testado).
 
 import { MOEDAS, converter } from '../domain/dinheiro'
-import { diasEntre, listaDeDias, somarDias } from '../domain/datas'
+import { dataComAno, diasEntre, listaDeDias, somarDias } from '../domain/datas'
 import type { Id, Transacao } from '../domain/tipos'
 import type { Cartao, DadosPainel, Secao } from '../modulos'
-import { type Ctx, cotacoesAtuais, lerConfig } from './contexto'
+import { type Ctx, conversorPara, cotacoesAtuais, lerConfig } from './contexto'
 import { situacaoDe } from './emprestimos'
 import { filaTriagem } from './compras'
 import { COLUNA_VENDIDO, triagem } from './triagem'
@@ -53,13 +53,7 @@ export async function carregarDados(ctx: Ctx, f: FiltrosPainel): Promise<DadosPa
     emprestimos: await ctx.repos.emprestimos.listar(),
     movDivida: await ctx.repos.movDivida.listar(),
     moduloDoItem: (id) => (id ? modDoItem.get(id) : undefined),
-    paraPrincipal: (valor, moeda) => {
-      try {
-        return converter(valor, moeda, cfg.moedaPrincipal, cot)
-      } catch {
-        return 0
-      }
-    },
+    paraPrincipal: conversorPara(cfg.moedaPrincipal, cot),
     localId: f.localId,
     profissionalId: f.profissionalId,
   }
@@ -225,8 +219,6 @@ export interface Alerta {
   texto?: string
 }
 
-const brData = (d: string) => d.slice(0, 10).split('-').reverse().join('/')
-
 async function alertasGerais(ctx: Ctx, d: DadosPainel): Promise<Alerta[]> {
   const cfg = await lerConfig(ctx)
   const compras = await filaTriagem(ctx, { incluirEncerradas: true })
@@ -234,13 +226,13 @@ async function alertasGerais(ctx: Ctx, d: DadosPainel): Promise<Alerta[]> {
   const com = (id: string) => compras.filter((t) => t.pendencias.some((x) => x.id === id))
   const itemCompra = (t: (typeof compras)[number], id?: string) => ({
     texto: t.pessoa ?? 'Sem fornecedor',
-    sub: `${brData(t.data)} · ${t.nomeEtapa}${t.etapa !== 'concluido' && t.diasParada ? ` · ${t.diasParada} d parada` : ''}`,
+    sub: `${dataComAno(t.data)} · ${t.nomeEtapa}${t.etapa !== 'concluido' && t.diasParada ? ` · ${t.diasParada} d parada` : ''}`,
     valor: id ? t.pendencias.find((x) => x.id === id)?.valor : undefined,
     detalhe: { tela: 'pedido', filtro: { id: t.id } },
   })
   const itemVenda = (v: (typeof vendasPend)[number], id: string) => ({
     texto: v.cliente ?? 'Sem nome',
-    sub: `${brData(v.data)} · ${v.linhas.map((l) => l.descricao).join(', ')}`,
+    sub: `${dataComAno(v.data)} · ${v.linhas.map((l) => l.descricao).join(', ')}`,
     valor: v.pendencias.find((x) => x.id === id)?.valor ?? v.totalPrincipal,
     detalhe: { tela: 'venda', filtro: { id: v.id } },
   })
@@ -257,9 +249,9 @@ async function alertasGerais(ctx: Ctx, d: DadosPainel): Promise<Alerta[]> {
   for (const e of d.emprestimos.filter((x) => x.situacao === 'aberto' && x.direcao === 'dado')) {
     const s = await situacaoDe(ctx, e)
     for (const p of s.parcelas.filter((x) => x.status === 'atrasada' || x.status === 'vencendo')) {
-      const it = { texto: pessoas.get(e.pessoaId)?.nome ?? '—', sub: `Parcela ${p.numero} · venceu ${brData(p.vencimento)}${p.status === 'atrasada' ? ` · ${diasEntre(p.vencimento, d.hoje)} d de atraso` : ''}`, valor: d.paraPrincipal(p.falta, e.moeda), detalhe: { tela: 'emprestimo', filtro: { id: e.id } } }
+      const it = { texto: pessoas.get(e.pessoaId)?.nome ?? '—', sub: `Parcela ${p.numero} · venceu ${dataComAno(p.vencimento)}${p.status === 'atrasada' ? ` · ${diasEntre(p.vencimento, d.hoje)} d de atraso` : ''}`, valor: d.paraPrincipal(p.falta, e.moeda), detalhe: { tela: 'emprestimo', filtro: { id: e.id } } }
       if (p.status === 'atrasada') atrasadas.push(it)
-      else vencendo.push({ ...it, sub: `Parcela ${p.numero} · vence ${brData(p.vencimento)}` })
+      else vencendo.push({ ...it, sub: `Parcela ${p.numero} · vence ${dataComAno(p.vencimento)}` })
     }
   }
   const baixos = d.itens.filter((i) => i.controlaEstoque && i.ativo && i.estoqueIdeal && i.saldo < i.estoqueIdeal)
@@ -284,7 +276,7 @@ async function alertasGerais(ctx: Ctx, d: DadosPainel): Promise<Alerta[]> {
     { id: 'semFotos', nivel: 'info', titulo: 'Compras na triagem sem fotos', acao: 'Tire fotos do cabelo/pedido ao conferir.', quantidade: semFotos.length, itens: semFotos.map((t) => itemCompra(t)), detalhe: { tela: 'comprar', filtro: { pendencia: 'semFotos' } } },
     { id: 'vencendo', nivel: 'info', titulo: 'Parcelas vencendo em 7 dias', acao: 'Lembre a pessoa antes do vencimento.', quantidade: vencendo.length, itens: vencendo, detalhe: { tela: 'emprestimos', filtro: { status: 'vencendo' } } },
     { id: 'estoqueBaixo', nivel: 'info', titulo: 'Itens abaixo do estoque ideal', acao: 'Reponha ou ajuste o estoque ideal.', quantidade: baixos.length, itens: baixos.map((i) => ({ texto: i.nome, sub: `tem ${i.saldo} · ideal ${i.estoqueIdeal}`, detalhe: { tela: 'lote', filtro: { id: i.id } } })), detalhe: { tela: 'estoque', filtro: { repor: true, modulo: baixos[0]?.moduloId } } },
-    { id: 'diaAberto', nivel: 'info', titulo: 'Dias anteriores sem encerrar no caixa', acao: 'Confira o dinheiro e encerre o dia.', quantidade: abertosAntigos.length, itens: abertosAntigos.map((x) => ({ texto: brData(x.data), detalhe: { tela: 'caixa', filtro: { data: x.data } } })), detalhe: { tela: 'caixa', filtro: { data: abertosAntigos[0]?.data } } },
+    { id: 'diaAberto', nivel: 'info', titulo: 'Dias anteriores sem encerrar no caixa', acao: 'Confira o dinheiro e encerre o dia.', quantidade: abertosAntigos.length, itens: abertosAntigos.map((x) => ({ texto: dataComAno(x.data), detalhe: { tela: 'caixa', filtro: { data: x.data } } })), detalhe: { tela: 'caixa', filtro: { data: abertosAntigos[0]?.data } } },
     {
       id: 'viagemOrcamento',
       nivel: 'atencao',
@@ -305,10 +297,10 @@ async function alertasGerais(ctx: Ctx, d: DadosPainel): Promise<Alerta[]> {
       titulo: 'Adiantamentos: diferença a pagar ao parceiro',
       acao: 'O cabelo entregue passou do adiantado: pague a diferença.',
       quantidade: adiantamentosAPagar.length,
-      itens: adiantamentosAPagar.map((x) => ({ texto: `${x.codigo} · ${x.pessoa}`, sub: brData(x.ultimo), valor: x.aPagarParceiro, detalhe: { tela: 'financiamento', filtro: { id: x.id } } })),
+      itens: adiantamentosAPagar.map((x) => ({ texto: `${x.codigo} · ${x.pessoa}`, sub: dataComAno(x.ultimo), valor: x.aPagarParceiro, detalhe: { tela: 'financiamento', filtro: { id: x.id } } })),
       detalhe: { tela: 'adiantamentos', filtro: { status: 'aPagar' } },
     },
-    { id: 'cotacao', nivel: 'atencao', titulo: 'Câmbio sem atualizar', acao: `Busque a cotação (mais de ${cfg.diasCotacaoVelha} dias).`, quantidade: velhas.length, itens: velhas.map((m) => ({ texto: m, sub: cot[m] ? `última ${brData(cot[m]!.data)}` : 'sem cotação', detalhe: { tela: 'config', filtro: { aba: 'moedas' } } })), detalhe: { tela: 'config', filtro: { aba: 'moedas' } } },
+    { id: 'cotacao', nivel: 'atencao', titulo: 'Câmbio sem atualizar', acao: `Busque a cotação (mais de ${cfg.diasCotacaoVelha} dias).`, quantidade: velhas.length, itens: velhas.map((m) => ({ texto: m, sub: cot[m] ? `última ${dataComAno(cot[m]!.data)}` : 'sem cotação', detalhe: { tela: 'config', filtro: { aba: 'moedas' } } })), detalhe: { tela: 'config', filtro: { aba: 'moedas' } } },
   ]
   return lista.map((a) => ({ ...a, valor: a.itens.some((i) => i.valor !== undefined) && a.nivel === 'urgente' ? soma(a.itens) : undefined }))
 }

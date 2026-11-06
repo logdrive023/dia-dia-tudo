@@ -12,7 +12,7 @@ import { AJUSTES_PADRAO, type CategoriaFeriado, feriadosEntre } from '../dados/f
 import { dataDeInstante, horaCurta, somarDias } from '../domain/datas'
 import { exigir } from '../domain/erros'
 import type { Evento, Id, Transacao } from '../domain/tipos'
-import { auditar, type Ctx, cotacoesAtuais, lerConfig, novo, tocar } from './contexto'
+import { auditar, type Ctx, cotacoesAtuais, lerConfig, novo, tocar, ehAdmin, euPessoa } from './contexto'
 import { registrarAcerto } from './contas'
 import { pendenciasVenda } from './pendencias'
 import { situacaoDe } from './emprestimos'
@@ -69,12 +69,10 @@ export interface FiltroCalendario {
   tipos?: TipoCalendario[]
 }
 
-const eu = (ctx: Ctx) => ctx.sessao.pessoaId ?? ctx.sessao.usuarioId
-const admin = (ctx: Ctx) => ctx.sessao.perfil === 'admin'
 
 /** O compromisso é da sessão? (criou ou é para ela) */
 function ehMeu(ctx: Ctx, e: Evento) {
-  return e.criadoPor === ctx.sessao.usuarioId || (!!e.pessoaId && e.pessoaId === eu(ctx))
+  return e.criadoPor === ctx.sessao.usuarioId || (!!e.pessoaId && e.pessoaId === euPessoa(ctx))
 }
 
 /** hora "HH:MM" + minutos (vira o dia seguinte? fica 23:59) */
@@ -101,8 +99,8 @@ function ocorrencias(e: Evento, de: string, ate: string): string[] {
  * as colegas da unidade (funcionárias/profissionais; sem unidade = a equipe toda).
  */
 export async function visiveis(ctx: Ctx, pessoas: Map<Id, import('../domain/tipos').Pessoa>): Promise<Set<Id> | undefined> {
-  if (admin(ctx)) return undefined
-  const euId = eu(ctx)
+  if (ehAdmin(ctx)) return undefined
+  const euId = euPessoa(ctx)
   const euP = pessoas.get(euId)
   const s = new Set<Id>([euId])
   if (euP?.verAgendaEquipe)
@@ -118,19 +116,19 @@ export async function agendaFiltros(ctx: Ctx, _p: object = {}) {
   const equipe = [...pessoas.values()].filter((p) => p.papeis.some((x) => x === 'profissional' || x === 'funcionario' || x === 'socio'))
   const podeVer = vis ? equipe.filter((p) => vis.has(p.id)) : equipe
   return {
-    admin: admin(ctx),
+    admin: ehAdmin(ctx),
     /** os tipos de evento que a sessão vê (legenda e "Marcar" mostram só estes) */
-    tipos: admin(ctx) ? (['atendimento', 'viagem', 'compromisso', 'emprestimo'] as TipoCalendario[]) : ((await lerConfig(ctx)).funcionariaAgenda as TipoCalendario[]),
+    tipos: ehAdmin(ctx) ? (['atendimento', 'viagem', 'compromisso', 'emprestimo'] as TipoCalendario[]) : ((await lerConfig(ctx)).funcionariaAgenda as TipoCalendario[]),
     /** a funcionária vê a equipe? (sem isso, a agenda é só dela e não há filtro de pessoa) */
     equipe: !vis || vis.size > 1,
     pessoas: podeVer.map((p) => ({ id: p.id, nome: p.nome, localId: p.localId })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
-    unidades: admin(ctx) ? (await ctx.repos.locais.listar()).filter((l) => l.tipo === 'salao').map((l) => ({ id: l.id, nome: l.nome })) : [],
+    unidades: ehAdmin(ctx) ? (await ctx.repos.locais.listar()).filter((l) => l.tipo === 'salao').map((l) => ({ id: l.id, nome: l.nome })) : [],
   }
 }
 
 export async function calendario(ctx: Ctx, f: FiltroCalendario): Promise<ItemCalendario[]> {
   exigir(f.de && f.ate && f.de <= f.ate, 'Período inválido.')
-  const func = !admin(ctx)
+  const func = !ehAdmin(ctx)
   const tipos = new Set<TipoCalendario>(f.tipos?.length ? f.tipos : ['atendimento', 'viagem', 'compromisso', 'emprestimo'])
   // funcionária: só o que o admin liberou (Configurações › O que a funcionária faz)
   if (func) { const ok = new Set<string>((await lerConfig(ctx)).funcionariaAgenda); for (const x of [...tipos]) if (!ok.has(x)) tipos.delete(x) }
@@ -229,8 +227,8 @@ export async function calendario(ctx: Ctx, f: FiltroCalendario): Promise<ItemCal
         const daEquipe = !!e.pessoaId && !!alvo?.has(e.pessoaId)
         if (!dela && !daEquipe) continue
         // filtrou uma colega: só o que é para ela (o dela mesma, quando filtrou a si)
-        if (filtroOk && filtroOk !== eu(ctx) && e.pessoaId !== filtroOk) continue
-        if (filtroOk === eu(ctx) && !dela) continue
+        if (filtroOk && filtroOk !== euPessoa(ctx) && e.pessoaId !== filtroOk) continue
+        if (filtroOk === euPessoa(ctx) && !dela) continue
       }
       if (!func && pessoaId && e.pessoaId !== pessoaId) continue
       if (f.localId && e.localId !== f.localId) continue
@@ -253,7 +251,7 @@ export async function calendario(ctx: Ctx, f: FiltroCalendario): Promise<ItemCal
           localId: e.localId,
           local: e.localId ? locais.get(e.localId)?.nome : undefined,
           status: (e.feitos ?? []).includes(d) ? 'feito' : 'agendado',
-          meu: admin(ctx) || e.criadoPor === ctx.sessao.usuarioId,
+          meu: ehAdmin(ctx) || e.criadoPor === ctx.sessao.usuarioId,
           semanal: e.semanal,
           ref: { tela: 'evento', id: e.id },
         })
@@ -303,7 +301,7 @@ export async function calendario(ctx: Ctx, f: FiltroCalendario): Promise<ItemCal
 export async function evento(ctx: Ctx, p: { id: Id }) {
   const e = await ctx.repos.eventos.obter(p.id)
   exigir(e && !e.apagadoEm, 'Compromisso não encontrado.')
-  exigir(admin(ctx) || ehMeu(ctx, e), 'Esse compromisso não é seu.')
+  exigir(ehAdmin(ctx) || ehMeu(ctx, e), 'Esse compromisso não é seu.')
   return e
 }
 
@@ -335,7 +333,7 @@ export async function salvarEvento(ctx: Ctx, d: EventoEntrada) {
   if (hora) exigir(HORA.test(hora), 'Hora inválida. Ex.: 15:00.', 'hora')
   if (d.duracaoMin !== undefined) exigir(Number.isSafeInteger(d.duracaoMin) && d.duracaoMin > 0 && d.duracaoMin <= 24 * 60, 'Duração inválida.', 'duracaoMin')
   if (d.repetirAte) exigir(DIA.test(d.repetirAte) && d.repetirAte >= d.data, 'Repetir até: dia depois do começo.', 'repetirAte')
-  const pessoaId = admin(ctx) ? d.pessoaId || undefined : ctx.sessao.pessoaId
+  const pessoaId = ehAdmin(ctx) ? d.pessoaId || undefined : ctx.sessao.pessoaId
   if (pessoaId) exigir(await ctx.repos.pessoas.obter(pessoaId), 'Pessoa não encontrada.', 'pessoaId')
   if (d.localId) exigir(await ctx.repos.locais.obter(d.localId), 'Unidade não encontrada.', 'localId')
   const campos = {
@@ -351,7 +349,7 @@ export async function salvarEvento(ctx: Ctx, d: EventoEntrada) {
   }
   const antes = await ctx.repos.eventos.obter(d.id)
   if (antes && !antes.apagadoEm) {
-    exigir(admin(ctx) || antes.criadoPor === ctx.sessao.usuarioId, 'Só quem marcou (ou o administrador) muda este compromisso.')
+    exigir(ehAdmin(ctx) || antes.criadoPor === ctx.sessao.usuarioId, 'Só quem marcou (ou o administrador) muda este compromisso.')
     await ctx.repos.eventos.salvar(tocar(ctx, { ...antes, ...campos }))
     await auditar(ctx, 'salvarEvento', d.id, `${titulo} · ${d.data}${hora ? ' ' + hora : ''} (alterado)`, [pessoaId!])
     return { id: d.id }
@@ -367,7 +365,7 @@ export async function excluirEvento(ctx: Ctx, d: { id: Id }) {
   const e = await ctx.repos.eventos.obter(d.id)
   exigir(e, 'Compromisso não encontrado.')
   if (e.apagadoEm) return { id: e.id }
-  exigir(admin(ctx) || e.criadoPor === ctx.sessao.usuarioId, 'Só quem marcou (ou o administrador) exclui este compromisso.')
+  exigir(ehAdmin(ctx) || e.criadoPor === ctx.sessao.usuarioId, 'Só quem marcou (ou o administrador) exclui este compromisso.')
   await ctx.repos.eventos.salvar(tocar(ctx, { ...e, apagadoEm: ctx.relogio.agora() }))
   await auditar(ctx, 'excluirEvento', e.id, `${e.titulo} · ${e.data}`, [e.pessoaId!])
   return { id: e.id }
@@ -377,7 +375,7 @@ export async function excluirEvento(ctx: Ctx, d: { id: Id }) {
 export async function concluirEvento(ctx: Ctx, d: { id: Id; data?: string; desfazer?: boolean }) {
   const e = await ctx.repos.eventos.obter(d.id)
   exigir(e && !e.apagadoEm, 'Compromisso não encontrado.')
-  exigir(admin(ctx) || ehMeu(ctx, e), 'Esse compromisso não é seu.')
+  exigir(ehAdmin(ctx) || ehMeu(ctx, e), 'Esse compromisso não é seu.')
   const dia = d.data ?? e.data
   exigir(DIA.test(dia) && (e.semanal ? ocorrencias(e, dia, dia).length > 0 : dia === e.data), 'Esse compromisso não cai nesse dia.')
   const feitos = new Set(e.feitos ?? [])
@@ -396,7 +394,7 @@ export async function receberAtendimento(ctx: Ctx, d: { id: Id; vendaId: Id; for
   if ((await ctx.repos.movConta.listar({ origemId: d.id })).length) return { id: d.id }
   const t = await ctx.repos.transacoes.obter(d.vendaId)
   exigir(t && t.tipo === 'venda' && t.etapa === 'concluido' && t.pessoaId, 'Atendimento não encontrado ou ainda não feito.')
-  if (!admin(ctx)) exigir(t.profissionalId === eu(ctx) || t.linhas.some((l) => l.profissionalId === eu(ctx)), 'Esse atendimento não é seu.')
+  if (!ehAdmin(ctx)) exigir(t.profissionalId === euPessoa(ctx) || t.linhas.some((l) => l.profissionalId === euPessoa(ctx)), 'Esse atendimento não é seu.')
   const cfg = await lerConfig(ctx)
   const vivas = new Set(cfg.formas.filter((x) => x.vivo).map((x) => x.id))
   const saldo = (await ctx.repos.movConta.listar({ pessoaId: t.pessoaId })).reduce((s, m) => s + m.delta, 0)

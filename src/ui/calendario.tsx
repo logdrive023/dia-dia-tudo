@@ -1,12 +1,13 @@
 // CALENDÁRIO da agenda: Mês (grade com bolinhas/chips), Semana (colunas com horário no computador; lista no celular)
 // e Dia (linha do tempo por hora). Só desenha: os dados vêm da consulta "calendario" (core/services/agenda.ts).
 
-import { useEffect, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { formatar } from '../core/domain/dinheiro'
 import { dataLocal, diaDaSemana, somarDias } from '../core/domain/datas'
 import type { ItemCalendario, TipoCalendario } from '../core/services/agenda'
 import { Pilula, Vazio, cx, dataBR } from './base'
 import { useT } from './i18n'
+import { useMidia } from './midia'
 import type { FeriadoNoDia } from '../core/dados/feriados'
 import { AvisoFeriado, CAT_FERIADO, FaixaFeriado, MarcaFeriado, dicaFeriado } from './feriadosAgenda'
 
@@ -38,26 +39,9 @@ export function gradeMes(data: string) {
 export const noDia = (i: ItemCalendario, d: string) => i.data <= d && d <= i.ateData
 
 /** true em tela de 768 px ou mais (sem matchMedia, como nos testes, conta como larga). */
+/** tela de 768 px ou mais (computador/tablet deitado) */
 export function useLargo() {
-  const ler = () => {
-    try {
-      return window.matchMedia?.('(min-width: 768px)').matches ?? true
-    } catch {
-      return true
-    }
-  }
-  const [largo, setLargo] = useState(ler)
-  useEffect(() => {
-    try {
-      const m = window.matchMedia('(min-width: 768px)')
-      const f = () => setLargo(m.matches)
-      m.addEventListener('change', f)
-      return () => m.removeEventListener('change', f)
-    } catch {
-      return undefined
-    }
-  }, [])
-  return largo
+  return useMidia('(min-width: 768px)', true)
 }
 
 const SEMANA = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']

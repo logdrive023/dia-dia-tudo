@@ -7,446 +7,74 @@
 //  3. COMO ESTÁ INDO? — vendas e lucro do período, com a comparação ao período anterior, e a evolução;
 //  4. o resto (dinheiro, de onde vem, viagens, áreas) em seções que abrem e fecham — as secundárias começam fechadas.
 // Cor só com função: vermelho = urgente/travado, âmbar = atenção, verde = em dia. Nada simulado: sem dado, não aparece.
+//
+// Este arquivo só ORGANIZA a tela: o estado e as consultas ficam em painel/usePainel.ts, as contas em
+// painel/calculos.ts e cada seção no seu arquivo em painel/.
 
-import { type ReactNode, useState } from 'react'
-import { MetasDoMes } from '../ui/metas'
-import { CodigoTexto } from '../ui/codigos'
-import { BarraLimite } from '../ui/barras'
-import { MOEDAS, formatar } from '../core/domain/dinheiro'
-import type { Cartao as CartaoDados } from '../core/modulos'
-import type { Alerta } from '../core/services/painel'
-import { Abas, Campo, Carregando, Cartao, Erro, Info, Selecao, Titulo, cx, fmt, moedaPadrao, Pilula, Vazio, Escolha } from '../ui/base'
-import { BotaoFiltros, BotaoPeriodo, ChipsFiltros, type FiltroAtivo, GrupoFiltro, PainelFiltros } from '../ui/filtroPadrao'
-import { VisaoGeral } from './painel/VisaoGeral'
-import { diasEntre, somarDias } from '../core/domain/datas'
-import { NumeroGrande, type Selo } from '../ui/numeroGrande'
-import { useApp, useConsulta } from '../ui/contexto'
-import { calcularPeriodo, type Periodo, type Preset, useLembrado, usePeriodo } from '../ui/filtros'
-import { Barras, Linha, SecaoView } from '../ui/graficos'
+import { Abas, Carregando, Erro, Titulo } from '../ui/base'
+import { useApp } from '../ui/contexto'
 import { useT } from '../ui/i18n'
-
-// ---------- filtros (FILTRO PADRÃO do sistema, sem busca) ----------
-
-const PRESETS: { id: Exclude<Preset, 'livre'>; nome: string }[] = [{ id: 'hoje', nome: 'Hoje' }, { id: '7d', nome: '7 dias' }, { id: '30d', nome: '30 dias' }, { id: 'mes', nome: 'Este mês' }, { id: 'mesPassado', nome: 'Mês passado' }, { id: 'ano', nome: 'Ano' }]
-
-/**
- * O mesmo jeito das outras telas: atalhos de período (chips de um toque) · Comparar · "⚙ Filtros · N" → painel em grupos
- * (datas livres, moeda, unidade) com "Limpar · Pronto" → os filtros ligados em chips ✕. Datas livres = "Escolher datas".
- */
-function Filtros(p: {
-  periodo: Periodo
-  setPeriodo(x: Periodo): void
-  moeda: string
-  setMoeda(x: string): void
-  localId: string
-  setLocalId(x: string): void
-  comparar: boolean
-  setComparar(x: boolean): void
-  moedas: string[]
-  principal: string
-  locais: { id: string; nome: string }[]
-  /** impostos ligados em Configurações › Fiscal: escolher ver antes ou depois dos impostos */
-  impostos?: { valor: 'antes' | 'depois'; onChange(v: 'antes' | 'depois'): void }
-}) {
-  const t = useT()
-  const [aberto, setAberto] = useState(false)
-  const ativos: FiltroAtivo[] = [
-    ...(p.moeda !== 'convertido' ? [{ k: 'moeda', rotulo: `💱 ${t('Só')} ${p.moeda}` }] : []),
-    ...(p.localId ? [{ k: 'local', rotulo: `📍 ${p.locais.find((l) => l.id === p.localId)?.nome ?? ''}` }] : []),
-    ...(p.impostos?.valor === 'depois' ? [{ k: 'impostos', rotulo: `🧾 ${t('Depois dos impostos')}` }] : []),
-  ]
-  const tirar = (k: string) => (k === 'moeda' ? p.setMoeda('convertido') : k === 'impostos' ? p.impostos?.onChange('antes') : p.setLocalId(''))
-  const limpar = () => (p.setMoeda('convertido'), p.setLocalId(''), p.impostos?.onChange('antes'))
-  return (
-    <div className="mb-4 space-y-2">
-      <div className="flex items-center gap-2">
-        <BotaoPeriodo obrigatorio de={p.periodo.de} ate={p.periodo.ate} presets={PRESETS.map((x) => x.id)} onChange={(de, ate) => {
-          if (!de || !ate) return
-          const pr = PRESETS.find((x) => { const c = calcularPeriodo(x.id); return c.de === de && c.ate === ate })
-          p.setPeriodo(pr ? calcularPeriodo(pr.id) : { preset: 'livre', de, ate })
-        }} />
-        <span className="min-w-0 flex-1" />
-        <button type="button" role="switch" aria-checked={p.comparar} onClick={() => p.setComparar(!p.comparar)} title={t('Comparar com o período anterior')} className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-1 text-sm">
-          <span className="hidden text-[var(--suave)] sm:inline">{t('Comparar')}</span>
-          <span aria-hidden className={cx('relative h-6 w-11 rounded-full transition-colors', p.comparar ? 'bg-[var(--marca)]' : 'bg-[var(--borda)]')}>
-            <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', p.comparar ? 'left-[22px]' : 'left-0.5')} />
-          </span>
-          <span className="sr-only sm:hidden">{t('Comparar')}</span>
-        </button>
-        <BotaoFiltros ativos={ativos.length} aberto={aberto} onAlternar={() => setAberto(!aberto)} />
-      </div>
-      {aberto && (
-        <PainelFiltros temAtivos={ativos.length > 0} onLimpar={limpar} onFechar={() => setAberto(false)}>
-          <GrupoFiltro titulo="Dinheiro e lugar" icone="💱">
-            <Campo rotulo="Moeda"><Selecao valor={p.moeda === 'convertido' ? '' : p.moeda} onChange={(v) => p.setMoeda(v || 'convertido')} vazio={`${t('Tudo em')} ${p.principal}`} opcoes={p.moedas.map((m) => ({ id: m, nome: `${t('Só')} ${m}` }))} /></Campo>
-            {p.locais.length > 0 && <Campo rotulo="Unidade"><Selecao valor={p.localId} onChange={p.setLocalId} vazio="Todas" opcoes={p.locais.map((l) => ({ id: l.id, nome: l.nome }))} /></Campo>}
-          </GrupoFiltro>
-          {p.impostos && (
-            <GrupoFiltro titulo="Impostos" icone="🧾">
-              <Campo rotulo="Mostrar o resultado" comoDiv><Escolha<'antes' | 'depois'> rotulo="Mostrar o resultado" valor={p.impostos.valor} onChange={p.impostos.onChange} opcoes={[{ id: 'antes', nome: 'Antes dos impostos' }, { id: 'depois', nome: 'Depois dos impostos' }]} /></Campo>
-            </GrupoFiltro>
-          )}
-        </PainelFiltros>
-      )}
-      <ChipsFiltros itens={ativos} onTirar={tirar} onLimpar={limpar} />
-    </div>
-  )
-}
-
-// ---------- seção que abre e fecha ----------
-
-/** `fechadaPadrao`: seção secundária, começa fechada (abre e fica lembrado). `subtitulo`: uma linha do que ela responde. */
-function Secao({ id, titulo, subtitulo, resumo, children, acao, fechadaPadrao }: { id: string; titulo: string; subtitulo?: string; resumo?: ReactNode; children: ReactNode; acao?: ReactNode; fechadaPadrao?: boolean }) {
-  const t = useT()
-  const [fechadas, setFechadas] = useLembrado<string[]>('painel.fechadas', [])
-  const [abertas, setAbertas] = useLembrado<string[]>('painel.abertas', [])
-  const aberta = fechadaPadrao ? abertas.includes(id) : !fechadas.includes(id)
-  const alternar = () => (fechadaPadrao
-    ? setAbertas(aberta ? abertas.filter((x) => x !== id) : [...abertas, id])
-    : setFechadas(aberta ? [...fechadas, id] : fechadas.filter((x) => x !== id)))
-  return (
-    <section className="mb-6">
-      <div className="mb-3 flex items-center gap-2">
-        <button type="button" onClick={alternar} aria-expanded={aberta} className="flex min-h-10 min-w-0 items-center gap-2 rounded-lg pr-2 text-left">
-          <span className={cx('inline-block text-[var(--suave)] transition-transform', aberta ? 'rotate-90' : '')} aria-hidden>›</span>
-          <span className="min-w-min">
-            <h2 className="text-base font-bold">{t(titulo)}</h2>
-            {aberta && subtitulo && <span className="block text-xs text-[var(--suave)]">{t(subtitulo)}</span>}
-          </span>
-        </button>
-        {!aberta && resumo && <span className="num truncate text-sm text-[var(--suave)]">{resumo}</span>}
-        <span className="ml-auto">{acao}</span>
-      </div>
-      {aberta && children}
-    </section>
-  )
-}
-
-// ---------- número ----------
-
-/** Variação em selo, só quando a base existe e é comparável; acima de ±500% vira "muito acima/abaixo". */
-function seloVariacao(t: ReturnType<typeof useT>, atual: number, anterior?: number): Selo | undefined {
-  if (anterior === undefined) return undefined
-  if (anterior <= 0) return { texto: t('sem base anterior') }
-  const v = Math.round(((atual - anterior) / anterior) * 100)
-  const sobe = v >= 0
-  return { texto: `${sobe ? '↑' : '↓'} ${Math.abs(v) > 500 ? t(sobe ? 'muito acima' : 'muito abaixo') : `${Math.abs(v)}%`}`, tom: sobe ? 'bom' : 'ruim' }
-}
-
-/** Um número do painel no cartão padrão do sistema (NumeroGrande): ⓘ, valor, variação e detalhe em selos; tocar abre a lista. */
-/** `neutro`: subir ou descer não é bom nem ruim (ex.: compras) → a variação fica cinza */
-function Numero({ c, sub, icone, neutro }: { c?: CartaoDados; sub?: string; icone?: string; neutro?: boolean }) {
-  const t = useT()
-  const { ir } = useApp()
-  if (!c) return null
-  const v = seloVariacao(t, c.valor, c.anterior)
-  const variacao = v && neutro ? { texto: v.texto } : v
-  const selos = [...(variacao ? [variacao] : []), ...(sub ? [{ texto: sub }] : [])]
-  return (
-    <NumeroGrande rotulo={c.nome} icone={icone} ajuda={c.ajuda} valor={fmt(c.valor, c.formato, c.moeda)} selos={selos}
-      tom={c.destaque === 'ruim' ? 'ruim' : c.destaque === 'alerta' ? 'alerta' : undefined}
-      onClick={c.detalhe ? () => ir(c.detalhe!.tela, c.detalhe!.filtro) : undefined} />
-  )
-}
-
-// ---------- atenção agora ----------
-
-const NIVEL = {
-  urgente: { cor: 'var(--ruim)', nome: 'Urgente' },
-  atencao: { cor: 'var(--alerta)', nome: 'Atenção' },
-  info: { cor: 'var(--suave)', nome: 'Para acompanhar' },
-} as const
-
-function AtencaoAgora({ alertas, moeda }: { alertas: Alerta[]; moeda: string }) {
-  const t = useT()
-  const { ir } = useApp()
-  // tudo fechado numa linha cada (contagem · o quê · o que fazer); tocar abre os registros. Até 3 à vista; o resto em "Mais"
-  const [aberto, setAberto] = useState<string>()
-  const [todos, setTodos] = useState(false)
-  if (!alertas.length)
-    return <p className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 text-sm text-[var(--bom)]">✓ {t('Nada pendente. Tudo em dia.')}</p>
-  const visiveis = todos ? alertas : alertas.slice(0, MAX_ALERTAS)
-  return (
-    <>
-    <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
-      {visiveis.map((a) => {
-        const abrir = aberto === a.id
-        return (
-          <li key={a.id} className="relative">
-            <span className="absolute inset-y-0 left-0 w-1" style={{ background: NIVEL[a.nivel].cor }} aria-hidden />
-            <button type="button" onClick={() => setAberto(abrir ? undefined : a.id)} aria-expanded={abrir} className="flex w-full items-center gap-3 py-3 pl-5 pr-4 text-left hover:bg-[var(--fundo)]">
-              <span className="num flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-bold" style={{ background: `color-mix(in srgb, ${NIVEL[a.nivel].cor} 15%, transparent)`, color: NIVEL[a.nivel].cor }}>{a.quantidade}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold">{t(a.titulo)}</span>
-                {a.acao && <span className="block text-sm text-[var(--suave)]">{t(a.acao)}</span>}
-              </span>
-              {a.valor !== undefined && <span className="num hidden shrink-0 font-semibold sm:block">{formatar(a.valor, moeda)}</span>}
-              <span className={cx('text-[var(--suave)] transition-transform', abrir && 'rotate-90')} aria-hidden>›</span>
-            </button>
-            {abrir && (
-              <div className="pb-3 pl-5 pr-4">
-                {a.itens.length > 0 && (
-                  <ul className="mb-2 overflow-hidden rounded-xl border border-[var(--borda)]">
-                    {a.itens.slice(0, 5).map((i, k) => (
-                      <li key={k}>
-                        <button type="button" onClick={() => ir(i.detalhe.tela, i.detalhe.filtro)} className="flex w-full items-center gap-3 border-t border-[var(--borda)] px-3 py-2 text-left text-sm first:border-t-0 hover:bg-[var(--marca-suave)]">
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate font-medium">{i.texto}</span>
-                            {i.sub && <span className="block truncate text-xs text-[var(--suave)]">{i.sub}</span>}
-                          </span>
-                          {i.valor !== undefined && <span className="num shrink-0">{formatar(i.valor, moeda)}</span>}
-                          <span className="shrink-0 text-[var(--marca)]" aria-hidden>→</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {a.detalhe && (
-                  <button type="button" onClick={() => ir(a.detalhe!.tela, a.detalhe!.filtro)} className="text-sm font-semibold text-[var(--marca)]">
-                    {a.quantidade > 5 ? t('Ver todos ({n}) →', { n: a.quantidade }) : t('Abrir a lista →')}
-                  </button>
-                )}
-              </div>
-            )}
-          </li>
-        )
-      })}
-    </ul>
-    {alertas.length > MAX_ALERTAS && (
-      <button type="button" onClick={() => setTodos(!todos)} aria-expanded={todos} className="mt-1 min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">
-        {todos ? t('Mostrar menos') : t('Mais {n} pendência(s)', { n: alertas.length - MAX_ALERTAS })}
-      </button>
-    )}
-    </>
-  )
-}
-const MAX_ALERTAS = 3
-
-/** "2 urgentes · 3 atenção" (o título da seção fechada e a linha de cima) */
-function resumoAlertas(t: ReturnType<typeof useT>, alertas: Alerta[]) {
-  const n = (nivel: Alerta['nivel']) => alertas.filter((a) => a.nivel === nivel).reduce((s, a) => s + a.quantidade, 0)
-  const u = n('urgente')
-  const a = n('atencao')
-  return [u && t('{n} urgente(s)', { n: u }), a && t('{n} de atenção', { n: a })].filter(Boolean).join(' · ') || t('{n} pendência(s)', { n: n('info') })
-}
-
-// ---------- tela ----------
+import { MetasDoMes } from '../ui/metas'
+import { AtencaoAgora, resumoAlertas } from './painel/AtencaoAgora'
+import { textoPeriodo } from './painel/calculos'
+import { FiltrosPainel } from './painel/FiltrosPainel'
+import { Secao } from './painel/Secao'
+import { AreasPainel, DeOndeVem, DinheiroPainel, EvolucaoPainel, ResultadoImpostos } from './painel/SecoesPainel'
+import { usePainel } from './painel/usePainel'
+import { ViagensPainel } from './painel/ViagensPainel'
+import { VisaoGeral } from './painel/VisaoGeral'
 
 export function Painel() {
   const t = useT()
-  const { ir, nav, ajustarParams } = useApp()
-  const [periodo, setPeriodo] = usePeriodo()
-  const [comparar, setComparar] = useLembrado('painel.comparar', true)
-  const [moeda, setMoeda] = useLembrado('painel.moeda', 'convertido')
-  const [area, setArea] = useLembrado<string>('painel.area', '')
-  const [localId, setLocalId] = useLembrado<string>('painel.local', '')
-  const [visaoImposto, setVisaoImposto] = useLembrado<'antes' | 'depois'>('painel.impostos', 'antes')
-  const areaAtual = (nav.params.area as string | undefined) ?? area
-  const escolherArea = (id: string) => (setArea(id), ajustarParams({ area: id || undefined }))
-  const { dados: cfg } = useConsulta('configuracoes', {})
-  const { dados: locais } = useConsulta('locais', {})
-  const moedaFiltro = moeda !== 'convertido' && !cfg?.config.moedasAtivas.includes(moeda) ? 'convertido' : moeda
-  const { dados: p, erro } = useConsulta('painel', { de: periodo.de, ate: periodo.ate, comparar, moeda: moedaFiltro, area: areaAtual && areaAtual !== 'viagens' ? areaAtual : undefined, localId: localId || undefined })
-  // IMPOSTOS (Configurações › Fiscal): ligado → o Painel mostra o resultado antes e depois dos impostos estimados
-  const impostosLigados = !!cfg?.config.fiscal?.mostrarNasOperacoes
-  const { dados: rel } = useConsulta('relatorioContabil', { de: periodo.de, ate: periodo.ate }, impostosLigados)
-  const ativos = cfg ? cfg.modulos.filter((m) => cfg.config.modulosAtivos.includes(m.id) && (m.temVenda || m.telaPropria)) : []
-  const principal = cfg?.config.moedaPrincipal ?? moedaPadrao()
-  const c = (id: string) => p?.cartoes.find((x) => x.id === id)
-  const fmtC = (id: string) => (c(id) ? fmt(c(id)!.valor, c(id)!.formato, c(id)!.moeda) : '')
-  const dm = (d: string) => d.slice(5).split('-').reverse().join('/')
-  const nDias = diasEntre(periodo.de, periodo.ate) + 1
-  const periodoTexto = `${periodo.de === periodo.ate ? dm(periodo.de) : `${dm(periodo.de)} – ${dm(periodo.ate)}`}${comparar ? ` · ${t('vs.')} ${dm(somarDias(periodo.de, -nDias))} – ${dm(somarDias(periodo.de, -1))}` : ''}`
+  const { ir } = useApp()
+  const d = usePainel()
+  const { p, periodo, areaAtual } = d
+  const visaoGeral = !areaAtual
 
   return (
     <div>
       <Titulo subtitulo={t('O que pede você, a operação e as vendas. Toque num número para ver de onde vem.')}>{t('Painel')}</Titulo>
 
-      <Filtros
-        periodo={periodo}
-        setPeriodo={setPeriodo}
-        moeda={moedaFiltro}
-        setMoeda={setMoeda}
-        localId={localId}
-        setLocalId={setLocalId}
-        comparar={comparar}
-        setComparar={setComparar}
-        moedas={(cfg?.config.moedasAtivas ?? []).filter((m) => MOEDAS.some((x) => x.codigo === m))}
-        principal={principal}
-        locais={(locais ?? []).filter((l) => l.tipo === 'salao').map((l) => ({ id: l.id, nome: l.nome }))}
-        impostos={impostosLigados ? { valor: visaoImposto, onChange: setVisaoImposto } : undefined}
+      <FiltrosPainel
+        periodo={periodo} setPeriodo={d.setPeriodo}
+        moeda={d.moedaFiltro} setMoeda={d.setMoeda}
+        localId={d.localId} setLocalId={d.setLocalId}
+        comparar={d.comparar} setComparar={d.setComparar}
+        moedas={d.moedas} principal={d.principal} locais={d.saloes}
+        impostos={d.impostosLigados ? { valor: d.visaoImposto, onChange: d.setVisaoImposto } : undefined}
       />
 
       {/* áreas: abas simples */}
-      <Abas variante="sublinhado" atual={areaAtual} onChange={escolherArea} abas={[{ id: '', nome: 'Visão geral' }, ...ativos.map((m) => ({ id: m.id, nome: `${m.icone} ${t(m.nome)}` })), { id: 'viagens', nome: '✈️ Viagens' }]} />
+      <Abas variante="sublinhado" atual={areaAtual} onChange={d.escolherArea} abas={[{ id: '', nome: 'Visão geral' }, ...d.modulos.map((m) => ({ id: m.id, nome: `${m.icone} ${t(m.nome)}` })), { id: 'viagens', nome: '✈️ Viagens' }]} />
 
-      <Erro texto={erro} />
+      <Erro texto={d.erro} />
       {!p ? (
         <Carregando />
       ) : (
         <>
           {/* 1. O QUE PRECISA DE VOCÊ (só na visão geral) */}
-          {!areaAtual && (
+          {visaoGeral && (
             <Secao id="atencao" titulo="Precisa de você" subtitulo="O que está atrasado ou travado. Toque para ver os registros." resumo={resumoAlertas(t, p.alertas)}>
-              <AtencaoAgora alertas={p.alertas} moeda={principal} />
+              <AtencaoAgora alertas={p.alertas} moeda={d.principal} />
             </Secao>
           )}
 
           {/* 2. VISÃO GERAL — o período (vendas, lucro, compras) e AGORA (o caminho do cabelo + o caixa) numa composição só */}
           <MetasDoMes className="mb-4" />
-          <VisaoGeral p={p} comparar={comparar} periodoTexto={periodoTexto} comCabelo={!areaAtual || areaAtual === 'cabelo'} />
+          <VisaoGeral p={p} comparar={d.comparar} periodoTexto={textoPeriodo(periodo.de, periodo.ate, d.comparar, t('vs.'))} comCabelo={visaoGeral || areaAtual === 'cabelo'} />
 
           {/* 3. ANÁLISES COMPLEMENTARES: o detalhe que não precisa disputar atenção com a visão geral (abre e fecha) */}
           <h2 className="mb-3 mt-2 text-xs font-bold uppercase tracking-wider text-[var(--suave)]">{t('Análises complementares')}</h2>
-          {impostosLigados && rel && (
-            <Secao id="impostos" fechadaPadrao titulo="Resultado e impostos" subtitulo="Estimativa do período (todas as unidades, moeda principal), pela lista de impostos de Configurações › Fiscal." resumo={`${visaoImposto === 'antes' ? t('antes dos impostos') : t('depois dos impostos')} ${fmt(visaoImposto === 'antes' ? rel.numeros.resultado + rel.numeros.impostos : rel.numeros.resultado, 'dinheiro', rel.moeda)}`}>
-              <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3">
-                <NumeroGrande rotulo="Rendimento bruto (antes dos impostos)" icone="💼" cor="var(--marca)" ativo={visaoImposto === 'antes'} onClick={() => setVisaoImposto('antes')} valor={fmt(rel.numeros.resultado + rel.numeros.impostos, 'dinheiro', rel.moeda)} />
-                <NumeroGrande rotulo="Impostos estimados" icone="🧾" cor="var(--alerta)" colorirValor valor={fmt(rel.numeros.impostos, 'dinheiro', rel.moeda)} selos={[{ texto: rel.regimeNome }]} onClick={() => ir('relatorios', { relatorio: 'estados' })} />
-                <NumeroGrande rotulo="Rendimento líquido (depois dos impostos)" icone="🏁" cor={rel.numeros.resultado < 0 ? 'var(--ruim)' : 'var(--bom)'} colorirValor ativo={visaoImposto === 'depois'} onClick={() => setVisaoImposto('depois')} valor={fmt(rel.numeros.resultado, 'dinheiro', rel.moeda)} />
-              </div>
-            </Secao>
-          )}
-
-          <Secao id="evolucao" titulo="Evolução no período" subtitulo="Faturamento por dia; a linha clara é o período anterior." fechadaPadrao>
-            <Cartao>
-              <Linha serie={p.serie} anterior={p.serieAnterior} formato="dinheiro" moeda={p.moedaVis} />
-            </Cartao>
-          </Secao>
+          {d.impostosLigados && d.rel && <ResultadoImpostos rel={d.rel} visao={d.visaoImposto} onVisao={d.setVisaoImposto} onAbrirEstados={() => ir('relatorios', { relatorio: 'estados' })} />}
+          <EvolucaoPainel p={p} />
 
           {/* 4. O RESTO, sob demanda */}
-          <Secao id="dinheiro" titulo="Dinheiro" subtitulo="O que falta receber ou pagar e o caixa em cada moeda (não depende do período)." resumo={`${t('a receber')} ${fmtC('receber')} · ${t('a pagar')} ${fmtC('pagar')}`} fechadaPadrao>
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-[1fr_1fr_1fr_1.3fr]">
-              {areaAtual && areaAtual !== 'cabelo' && <Numero c={c('caixa')} icone="💵" />}
-              <Numero c={c('receber')} icone="⬇️" />
-              <Numero c={c('pagar')} icone="⬆️" />
-              <Cartao className="col-span-2 lg:col-span-1" titulo={t('Por moeda')} ajuda="Dinheiro na mão (efectivo) e no banco (QR, Pix, cartão), em cada moeda.">
-                <ul className="space-y-2 text-sm">
-                  {p.caixa.map((m) => (
-                    <li key={m.moeda} className="flex items-center justify-between gap-2">
-                      <span className="shrink-0 font-semibold">{m.moeda}</span>
-                      <span className="num text-right">
-                        <b>{formatar(m.total, m.moeda)}</b>
-                        <span className="block text-xs text-[var(--suave)]">{t('mão')} {formatar(m.mao, m.moeda)} · {t('banco')} {formatar(m.banco, m.moeda)}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </Cartao>
-            </div>
-          </Secao>
-
-          {!areaAtual && (
-            <Secao id="divisoes" titulo="De onde vem o dinheiro" subtitulo="Por área, forma de pagamento e moeda." fechadaPadrao>
-              <div className="grid gap-3 md:grid-cols-3">
-                <Cartao titulo={t('Por área')}>
-                  <Barras formato="dinheiro" moeda={p.moedaVis} itens={p.porArea.map((a) => ({ rotulo: `${a.icone} ${t(a.nome)}`, valor: a.valor, onClick: () => escolherArea(a.id) }))} />
-                </Cartao>
-                <Cartao titulo={t('Por forma de pagamento')}>
-                  <Barras formato="dinheiro" moeda={p.moedaVis} itens={p.porForma.map((f) => ({ rotulo: t(f.nome), valor: f.valor, onClick: () => ir('vendas', { de: periodo.de, ate: periodo.ate, forma: f.id }) }))} />
-                </Cartao>
-                <Cartao titulo={t('Por moeda recebida')} ajuda="Quanto entrou em cada moeda e quanto isso vale convertido.">
-                  <ul className="space-y-1 text-sm">
-                    {p.porMoeda.map((m) => (
-                      <li key={m.moeda} className="flex justify-between border-b border-[var(--borda)] py-1 last:border-0">
-                        <span className="num">{formatar(m.valor, m.moeda)}</span>
-                        <span className="num text-[var(--suave)]">≈ {formatar(m.principal, principal)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </Cartao>
-              </div>
-            </Secao>
-          )}
-
-          {(!areaAtual || areaAtual === 'viagens') && <PainelViagens de={periodo.de} ate={periodo.ate} completo={areaAtual === 'viagens'} />}
-
-          {p.areas.map((a) => (
-            <Secao key={a.id} id={`area-${a.id}`} titulo={`${a.icone} ${t(a.nome)}`} fechadaPadrao={!areaAtual}>
-              <div className="grid gap-3 lg:grid-cols-2">
-                {a.secoes.map((s, i) => (
-                  <div key={i} className={s.tipo === 'cartoes' ? 'lg:col-span-2' : ''}>
-                    <SecaoView s={s} moeda={principal} />
-                  </div>
-                ))}
-              </div>
-            </Secao>
-          ))}
+          <DinheiroPainel p={p} cartao={d.cartao} mostrarCaixa={!!areaAtual && areaAtual !== 'cabelo'} />
+          {visaoGeral && <DeOndeVem p={p} principal={d.principal} onArea={d.escolherArea} onForma={(forma) => ir('vendas', { de: periodo.de, ate: periodo.ate, forma })} />}
+          {(visaoGeral || areaAtual === 'viagens') && <ViagensPainel de={periodo.de} ate={periodo.ate} completo={areaAtual === 'viagens'} />}
+          <AreasPainel p={p} principal={d.principal} fechadas={visaoGeral} />
         </>
       )}
     </div>
-  )
-}
-
-// ---------- viagens de compra (custo da logística em destaque) ----------
-
-function PainelViagens({ de, ate, completo }: { de: string; ate: string; completo?: boolean }) {
-  const t = useT()
-  const { ir } = useApp()
-  const { dados } = useConsulta('viagens', {})
-  if (!dados) return null
-  if (!dados.linhas.length && !completo) return null
-  const m = dados.moeda
-  // viagens que tocam o período do painel (as abertas sempre entram)
-  const doPeriodo = dados.linhas.filter((v) => v.status === 'aberta' || (v.inicio <= ate && (v.fim ?? v.inicio) >= de))
-  const abertas = doPeriodo.filter((v) => v.status === 'aberta')
-  const gasto = doPeriodo.reduce((s, v) => s + v.gasto, 0)
-  const cabelo = doPeriodo.reduce((s, v) => s + v.custoCabelo, 0)
-  const gramas = doPeriodo.reduce((s, v) => s + v.gramas, 0)
-  const resultado = doPeriodo.reduce((s, v) => s + v.resultado, 0)
-  const comRoi = doPeriodo.filter((v) => v.roiBp !== undefined)
-  const roi = comRoi.length ? Math.round(comRoi.reduce((s, v) => s + (v.roiBp ?? 0), 0) / comRoi.length) : undefined
-  const pct = (bp?: number) => (bp === undefined ? '—' : `${(bp / 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`)
-  const cartoes: { nome: string; valor: string; ajuda: string; cor?: string; destaque?: boolean }[] = [
-    { nome: 'Gasto das viagens', valor: formatar(gasto, m), ajuda: 'Logística das viagens do período: combustível, hospedagem, comida… (não inclui o cabelo).', destaque: true },
-    { nome: 'Custo/kg real', valor: gramas ? formatar(Math.round(((cabelo + gasto) * 1000) / gramas), m) : '—', ajuda: '(Cabelo + gastos da viagem) ÷ kg comprados. Ex.: (14.000 + 800) ÷ 4 kg = Bs 3.700/kg.', destaque: true },
-    { nome: 'Logística por kg', valor: gramas ? formatar(Math.round((gasto * 1000) / gramas), m) : '—', ajuda: 'Quanto a viagem somou em cada kg comprado.' },
-    { nome: 'Resultado', valor: formatar(resultado, m), ajuda: 'Receita do cabelo das viagens − (cabelo + gastos). Enquanto há estoque tende a ser negativo.', cor: resultado < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]' },
-    { nome: 'ROI médio', valor: pct(roi), ajuda: 'Média do retorno das viagens com compra.' },
-    { nome: 'Abertas', valor: String(abertas.length), ajuda: 'Viagens em andamento.' },
-  ]
-  return (
-    <Secao id="viagens" titulo={`✈️ ${t('Viagens de compra')}`} fechadaPadrao={!completo} resumo={`${t('Gasto das viagens')}: ${formatar(gasto, m)}`} acao={<button type="button" onClick={() => ir('viagens')} className="min-h-10 rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t('Abrir')} →</button>}>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        {cartoes.map((c) => (
-          <button key={c.nome} type="button" onClick={() => ir('viagens')} className={cx('rounded-2xl border bg-[var(--cartao)] p-3 text-left hover:border-[var(--marca)]', c.destaque ? 'border-[var(--alerta)]' : 'border-[var(--borda)]')}>
-            <div className="flex items-center text-xs font-semibold text-[var(--suave)]">{t(c.nome)}<Info texto={c.ajuda} /></div>
-            <div className={cx('num mt-1 text-xl font-bold', c.cor)}>{c.valor}</div>
-          </button>
-        ))}
-      </div>
-      {abertas.length > 0 && (
-        <ul className="mt-3 space-y-2">
-          {abertas.map((v) => {
-            const usado = v.orcamento ? Math.min(100, Math.round((v.gasto / v.orcamento) * 100)) : undefined
-            return (
-              <li key={v.id}>
-                <button type="button" onClick={() => ir('viagem', { id: v.id })} className="w-full rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left hover:border-[var(--marca)]">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-semibold"><CodigoTexto codigo={v.codigo} className="text-xs" /> {v.nome} {v.acimaOrcamento && <Pilula tom="ruim" className="ml-1">{t('Acima do orçamento')}</Pilula>}</span>
-                    <span className="num text-sm"><b>{formatar(v.gasto, m)}</b>{v.orcamento ? <span className="text-[var(--suave)]"> / {formatar(v.orcamento, m)}</span> : null}</span>
-                  </div>
-                  <div className="text-xs text-[var(--suave)]">{v.viajantes.map((x) => x.nome).join(', ')} · {v.gramas ? `${(v.gramas / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} kg` : t('sem compra ainda')}</div>
-                  {usado !== undefined && <BarraLimite className="mt-2" altura="h-2" usado={v.gasto} previsto={v.orcamento} />}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-      {completo && dados.comparativo.length > 0 && (
-        <Cartao titulo={t('Por viajante')} className="mt-3">
-          <ul className="divide-y divide-[var(--borda)] text-sm">
-            {dados.comparativo.map((c) => (
-              <li key={c.id} className="flex flex-wrap justify-between gap-2 py-2">
-                <span className="font-semibold">{c.nome} <span className="font-normal text-[var(--suave)]">· {t('{n} viagem(ns)', { n: c.viagens })}</span></span>
-                <span className="num">{t('Custo/kg real')}: <b>{c.custoKgReal !== undefined ? formatar(c.custoKgReal, m) : '—'}</b> · ROI {pct(c.roiMedioBp)}</span>
-              </li>
-            ))}
-          </ul>
-        </Cartao>
-      )}
-      {completo && !dados.linhas.length && <Vazio compacto texto="Nenhuma viagem por aqui." />}
-    </Secao>
   )
 }

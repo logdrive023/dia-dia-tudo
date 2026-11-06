@@ -6,8 +6,8 @@ import { formasEmUso } from '../core/domain/formas'
 import { CampoTelefone } from './campoTelefone'
 import { MOEDAS, type Cotacao, converter, formatar, moeda as moedaDe, type TabelaCotacoes, valorDeUm } from '../core/domain/dinheiro'
 import { novoId } from '../core/domain/ids'
-import type { CategoriaAnexo, Id, Pagamento, Papel } from '../core/domain/tipos'
-import { Botao, Campo, Entrada, Janela, Pilula, Selecao, ValorInput, cx, loc, moedaPadrao } from './base'
+import type { CategoriaAnexo, Id, Papel } from '../core/domain/tipos'
+import { Botao, Campo, Entrada, Janela, Pilula, Selecao, ValorInput, cx, moedaPadrao } from './base'
 import { useApp, useComando, useConsulta } from './contexto'
 import { useT } from './i18n'
 import { VisorFotos, useEnviarFotos } from './fotos'
@@ -105,20 +105,6 @@ export function textoCotacaoPagamento(p: Pick<PagamentoTela, 'moeda' | 'cotacao'
   if (sugeridas[p.moeda]) return sugeridas[p.moeda]
   const v = valorDeUm(p.moeda, principal, cot)
   return v ? cotacaoTexto(v) : ''
-}
-
-/** "1 US$ = 6,96 Bs" de um pagamento gravado (pela cotação guardada nele). Vazio na moeda principal. */
-export function cotacaoDoPagamento(p: Pick<Pagamento, 'moeda' | 'valor' | 'valorPrincipal' | 'cotacao'>, principal: string) {
-  if (p.moeda === principal) return ''
-  const c = p.cotacao
-  let n: number | undefined
-  if (c && c.moeda === p.moeda && (c.contra ?? principal) === principal) {
-    const v = Number(String(c.valor).replace(',', '.'))
-    if (v > 0) n = c.sentido === 'moedaPorBase' ? 1 / v : v
-  }
-  if (n === undefined && p.valor) n = p.valorPrincipal / 10 ** moedaDe(principal).casas / (p.valor / 10 ** moedaDe(p.moeda).casas)
-  if (!n) return ''
-  return `1 ${moedaDe(p.moeda).simbolo} = ${n.toLocaleString(loc(), { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${moedaDe(principal).simbolo}`
 }
 
 /** Câmbio em uso: 'venda' (recebo em outra moeda), 'compra' (pago em outra moeda) ou 'base' (mercado). */

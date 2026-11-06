@@ -12,7 +12,7 @@
 import type { CodigoMoeda } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
 import type { Id } from '../domain/tipos'
-import { auditar, type Ctx, lerConfig, novo } from './contexto'
+import { auditar, type Ctx, lerConfig, novo, ehAdmin } from './contexto'
 
 const CHAVE = 'turno:'
 
@@ -33,7 +33,6 @@ export interface Turno {
   obs?: string
 }
 
-const ehAdmin = (ctx: Ctx) => ctx.sessao.perfil === 'admin'
 
 async function todos(ctx: Ctx): Promise<Turno[]> {
   return (await ctx.repos.config.listar()).filter((r) => r.id.startsWith(CHAVE) && !r.apagadoEm).map((r) => r.valor as Turno)

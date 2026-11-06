@@ -14,20 +14,16 @@ import { fatorValido, moeda } from '../core/domain/dinheiro'
 import { dataLocal } from '../core/domain/datas'
 import { novoId } from '../core/domain/ids'
 import type { TabelaPreco } from '../core/domain/tipos'
-import { Abas, Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, Escolha, Info, Janela, Pilula, Selecao, cx, moedaPadrao, diaCurto } from '../ui/base'
+import { Abas, Botao, Carregando, Confirmar, Entrada, ErroTela, Escolha, Info, Pilula, cx, moedaPadrao, diaCurto } from '../ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../ui/contexto'
 import { useT } from '../ui/i18n'
 import { Trilha } from '../ui/trilha'
 import { MenuAcoes, type Acao } from '../ui/menuAcoes'
 import { Historico } from './PrecosHistorico'
-import {
-  type Alvo, adicionarColuna, adicionarMedidas, ajustarPct, chave, comValor, contarMudancas, copiarColuna, invalidos, moverColuna,
-  precosDaColuna, precosDaMedida, preencherVazios, tirarColuna, tirarMedida, trocarMedida,
-} from '../ui/tabelaPrecoEdicao'
-
-type Rascunho = Pick<TabelaPreco, 'id' | 'moduloId' | 'nome' | 'categoria' | 'validaDesde' | 'moeda' | 'unidadeMedida' | 'fatorPor' | 'linhas' | 'colunas' | 'valores'>
-type T = ReturnType<typeof useT>
-const CATEGORIAS = ['Tinte', 'CH', 'CH+', 'Rojo', 'Quemado', 'Menudo', 'Entresaque']
+import { type Alvo, adicionarColuna, adicionarMedidas, chave, comValor, contarMudancas, invalidos, moverColuna, precosDaColuna, precosDaMedida, tirarColuna, tirarMedida, trocarMedida } from '../ui/tabelaPrecoEdicao'
+import { type Direcao, type Ferramenta, type Rascunho, type T } from './precos/tipos'
+import { Celula, GradeEditavel } from './precos/GradeEditavel'
+import { Ferramentas, JanelaComprador, JanelaDetalhes, JanelaMedida } from './precos/janelas'
 
 /** como o preço sai da tabela (tooltip com exemplos variados) */
 const AJUDA_CONTA =
@@ -52,9 +48,6 @@ export function Precos() {
 }
 
 // ---------- tela da tabela ----------
-
-type Direcao = 'direita' | 'esquerda' | 'baixo' | 'cima'
-type Ferramenta = { tipo: 'pct' | 'copiar' | 'preencher'; alvo?: Alvo; para?: string }
 
 function TabelaTela() {
   const t = useT()
@@ -361,253 +354,6 @@ function ferr(tipo: Ferramenta['tipo'], alvo?: Alvo, para?: string): Ferramenta 
 
 // ---------- célula ----------
 
-interface CelulaCtl {
-  edit?: { k: string; texto: string }
-  setTexto(t: string): void
-  abrir(k: string): void
-  tecla(e: React.KeyboardEvent<HTMLInputElement>): void
-  sair(k: string): void
-}
-
-/** Um preço: mostra o número (ou "–"); toque → campo. Mudou em relação à versão publicada → destaque + "era 15". */
-function Celula({ k, rotulo, valor, antes, comBase, c }: { k: string; rotulo: string; valor?: string; antes?: string; comBase: boolean; c: CelulaCtl }) {
-  const t = useT()
-  const mudou = comBase && (antes ?? '') !== (valor ?? '')
-  const ruim = !!valor && !fatorValido(valor)
-  if (c.edit?.k === k)
-    return (
-      <input
-        autoFocus
-        aria-label={rotulo}
-        inputMode="decimal"
-        enterKeyHint="next"
-        value={c.edit.texto}
-        onFocus={(e) => e.currentTarget.select()}
-        onChange={(e) => c.setTexto(e.target.value)}
-        onKeyDown={c.tecla}
-        onBlur={() => c.sair(k)}
-        className={cx('num h-12 w-[4.75rem] rounded-lg bg-[var(--cartao)] text-center text-base font-bold outline-none ring-2', c.edit.texto.trim() && !fatorValido(c.edit.texto.trim()) ? 'ring-[var(--ruim)]' : 'ring-[var(--marca)]')}
-      />
-    )
-  return (
-    <button
-      type="button"
-      aria-label={`${rotulo}: ${valor || t('sem preço')}${mudou ? ` (${t('era {v}', { v: antes || '–' })})` : ''}`}
-      onClick={() => c.abrir(k)}
-      className={cx('num flex h-12 w-[4.75rem] flex-col items-center justify-center rounded-lg leading-tight hover:ring-1 hover:ring-[var(--marca)]', mudou && 'bg-[var(--marca-suave)]', ruim && 'bg-[var(--ruim)]/10')}
-    >
-      <span className={cx(!valor ? 'text-[var(--suave)] opacity-40' : mudou ? 'font-bold text-[var(--marca)]' : 'font-semibold', ruim && 'text-[var(--ruim)]')}>{valor || '–'}</span>
-      {mudou && <span className="text-[10px] text-[var(--suave)]">{t('era {v}', { v: antes || '–' })}</span>}
-    </button>
-  )
-}
-
 // ---------- grade editável ----------
 
-function GradeEditavel({ g, base, baixa, celula, acoesMedida, acoesColuna, onMedida, onComprador }: { g: Rascunho; base?: Rascunho; baixa?: boolean; celula: CelulaCtl; acoesMedida(l: number): Acao[]; acoesColuna(id: string): Acao[]; onMedida(): void; onComprador(): void }) {
-  const t = useT()
-  return (
-    // altura limitada: o cabeçalho (compradores) fica grudado ao rolar; com a barra de publicar aberta, fica mais baixa
-    <div className={cx('sem-barra overflow-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] [background:linear-gradient(to_right,var(--cartao)_30%,transparent),linear-gradient(to_left,var(--cartao)_30%,transparent)_100%_0,radial-gradient(farthest-side_at_100%_50%,rgba(0,0,0,.25),transparent)_100%_0] [background-attachment:local,local,scroll] [background-repeat:no-repeat] [background-size:40px_100%,40px_100%,14px_100%]', baixa ? 'max-h-[calc(100dvh-22rem)] min-h-[16rem] md:max-h-[calc(100dvh-19rem)]' : 'max-h-[calc(100dvh-15rem)] md:max-h-[calc(100dvh-13rem)]')}>
-      <table className="border-separate border-spacing-0 text-sm">
-        <thead>
-          <tr>
-            <th className="sticky left-0 top-0 z-30 border-b border-r border-[var(--borda)] bg-[var(--fundo)] px-2 py-2 text-left text-xs font-semibold text-[var(--suave)]">{t('cm')}</th>
-            {g.colunas.map((c) => (
-              <th key={c.id} scope="col" className={cx('sticky top-0 z-20 min-w-[5.25rem] border-b border-[var(--borda)] bg-[var(--fundo)] py-1 pl-2 pr-0 text-left text-xs font-semibold', base && !base.colunas.some((x) => x.id === c.id) && 'text-[var(--bom)]')}>
-                <div className="flex items-center justify-between gap-0.5">
-                  <span className="max-w-[7rem] truncate" title={c.nome}>{c.nome}{c.pessoaId ? <span aria-hidden className="ml-0.5 text-[var(--suave)]">·👤</span> : null}</span>
-                  <MenuAcoes acoes={acoesColuna(c.id)} rotulo={t('Comprador {nome}', { nome: c.nome })} />
-                </div>
-              </th>
-            ))}
-            <th className="sticky top-0 z-20 border-b border-[var(--borda)] bg-[var(--fundo)] px-1">
-              <button type="button" onClick={onComprador} aria-label={t('Adicionar comprador')} title={t('Adicionar comprador')} className="h-10 w-10 rounded-xl text-lg font-bold text-[var(--marca)] hover:bg-[var(--marca-suave)]">+</button>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {g.linhas.map((l) => (
-            <tr key={l}>
-              <th scope="row" className={cx('sticky left-0 z-10 border-b border-r border-[var(--borda)] bg-[var(--cartao)] py-0 pl-2 pr-0 text-left', base && !base.linhas.includes(l) && 'text-[var(--bom)]')}>
-                <div className="flex items-center gap-0.5">
-                  <span className="num min-w-[2.25rem] text-base font-bold">{l}</span>
-                  <MenuAcoes acoes={acoesMedida(l)} rotulo={t('Medida {n} cm', { n: l })} />
-                </div>
-              </th>
-              {g.colunas.map((c) => {
-                const k = chave(l, c.id)
-                return (
-                  <td key={c.id} className="border-b border-[var(--borda)] p-0.5 text-center">
-                    <Celula k={k} rotulo={`${l} cm · ${c.nome}`} valor={g.valores[k]} antes={base?.valores[k]} comBase={!!base} c={celula} />
-                  </td>
-                )
-              })}
-              <td className="border-b border-[var(--borda)]" />
-            </tr>
-          ))}
-          <tr>
-            <th className="sticky left-0 z-10 bg-[var(--cartao)] p-1 text-left">
-              <button type="button" onClick={onMedida} className="min-h-10 rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">+ {t('Medida')}</button>
-            </th>
-            <td colSpan={g.colunas.length + 1} />
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
 // ---------- janelas ----------
-
-function JanelaMedida({ titulo, inicial, uma, onFechar, onOk }: { titulo: string; inicial?: string; uma?: boolean; onFechar(): void; onOk(txt: string): string | void }) {
-  const t = useT()
-  const [txt, setTxt] = useState(inicial ?? '')
-  const [erro, setErro] = useState<string>()
-  const ok = () => {
-    const e = onOk(txt)
-    if (e) return setErro(e)
-    onFechar()
-  }
-  return (
-    <Janela aberta titulo={titulo} onFechar={onFechar} rodape={<div className="flex justify-end gap-2"><Botao variante="leve" onClick={onFechar}>{t('Voltar')}</Botao><Botao disabled={!txt.trim()} onClick={ok}>{t(uma ? 'Trocar' : 'Adicionar')}</Botao></div>}>
-      <Campo rotulo="Nova medida (cm)" ajuda={uma ? 'Os preços desta medida vão junto.' : 'Pode digitar várias: 65, 75, 85.'}>
-        <Entrada autoFocus inputMode="decimal" placeholder="65" value={txt} onChange={(e) => (setTxt(e.target.value), setErro(undefined))} onKeyDown={(e) => e.key === 'Enter' && txt.trim() && ok()} />
-      </Campo>
-      {erro && <p className="mt-2 text-sm text-[var(--ruim)]">{erro}</p>}
-    </Janela>
-  )
-}
-
-function JanelaComprador({ coluna, numero, onFechar, onOk }: { coluna?: TabelaPreco['colunas'][number]; numero: number; onFechar(): void; onOk(c: { nome: string; pessoaId?: string }): void }) {
-  const t = useT()
-  const { dados: pessoas } = useConsulta('pessoas', {})
-  const [nome, setNome] = useState(coluna?.nome ?? '')
-  const [pessoaId, setPessoaId] = useState(coluna?.pessoaId)
-  const ok = () => {
-    onOk({ nome: nome.trim() || t('Coluna {n}', { n: numero }), pessoaId })
-    onFechar()
-  }
-  return (
-    <Janela aberta titulo={t(coluna ? 'Comprador' : 'Novo comprador')} onFechar={onFechar} rodape={<div className="flex justify-end gap-2"><Botao variante="leve" onClick={onFechar}>{t('Voltar')}</Botao><Botao onClick={ok}>{t(coluna ? 'Pronto' : 'Adicionar')}</Botao></div>}>
-      <div className="space-y-3">
-        <Campo rotulo="Nome do comprador"><Entrada autoFocus value={nome} placeholder="Helena" onChange={(e) => setNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ok()} /></Campo>
-        <Campo rotulo="Ligar a pessoa (opcional)" ajuda="Ligada a uma pessoa, ao vender para ela esta coluna vem sozinha." comoDiv>
-          <Selecao valor={pessoaId} vazio="Ligar a pessoa…" onChange={(v) => {
-            setPessoaId(v || undefined)
-            const p = pessoas?.find((x) => x.id === v)
-            if (p && !nome.trim()) setNome(p.nome)
-          }} opcoes={(pessoas ?? []).map((p) => ({ id: p.id, nome: p.nome }))} />
-        </Campo>
-      </div>
-    </Janela>
-  )
-}
-
-function JanelaDetalhes({ g, onFechar, onOk }: { g: Rascunho; onFechar(): void; onOk(d: Pick<Rascunho, 'nome' | 'categoria' | 'validaDesde'>): void }) {
-  const t = useT()
-  const [d, setD] = useState({ nome: g.nome, categoria: g.categoria, validaDesde: g.validaDesde })
-  // categoria nova (não está na lista): digita e vira uma opção
-  const [outra, setOutra] = useState(g.categoria && !CATEGORIAS.includes(g.categoria) ? g.categoria : '')
-  const opcoes = ['', ...CATEGORIAS, ...(outra.trim() && !CATEGORIAS.includes(outra.trim()) ? [outra.trim()] : [])]
-  return (
-    <Janela aberta titulo={t('Categoria e vale desde')} onFechar={onFechar} rodape={<div className="flex justify-end gap-2"><Botao variante="leve" onClick={onFechar}>{t('Voltar')}</Botao><Botao disabled={!d.nome.trim()} onClick={() => (onOk({ ...d, nome: d.nome.trim() }), onFechar())}>{t('Pronto')}</Botao></div>}>
-      <div className="space-y-3">
-        <Campo rotulo="Nome"><Entrada value={d.nome} onChange={(e) => setD({ ...d, nome: e.target.value })} /></Campo>
-        <div className="rounded-xl border border-[var(--marca)]/30 bg-[var(--marca-suave)] px-3 py-2 text-sm">
-          💡 {t('A categoria diz para qual tipo de cabelo esta tabela vale. Na venda e na compra, o sistema usa a tabela da categoria do pacote.')}
-          <span className="num mt-1 block text-xs font-semibold text-[var(--marca)]">{t('Ex.: pacote 60 cm Tinte → usa a tabela "Tinte"; sem tabela Tinte, usa a Normal (geral).')}</span>
-        </div>
-        <Campo rotulo="Categoria" comoDiv>
-          <div className="flex flex-wrap gap-1">
-            {opcoes.map((c) => (
-              <button key={c || 'normal'} type="button" aria-pressed={(d.categoria ?? '') === c} onClick={() => setD({ ...d, categoria: c || undefined })} className={cx('min-h-10 rounded-full border px-3 text-sm font-semibold', (d.categoria ?? '') === c ? 'border-[var(--marca)] bg-[var(--marca-suave)] text-[var(--marca)]' : 'border-[var(--borda)]')}>{c ? t(c) : `${t('Normal')} (${t('geral')})`}</button>
-            ))}
-          </div>
-        </Campo>
-        <Campo rotulo="Criar outra categoria">
-          <div className="flex gap-2">
-            <Entrada value={outra} placeholder={t('Ex.: Platinado')} onChange={(e) => setOutra(e.target.value)} />
-            <Botao variante="secundario" disabled={!outra.trim()} onClick={() => setD({ ...d, categoria: outra.trim() })}>+ {t('Usar')}</Botao>
-          </div>
-        </Campo>
-        <Campo rotulo="Vale desde"><Entrada type="date" value={d.validaDesde ?? ''} onChange={(e) => setD({ ...d, validaDesde: e.target.value })} /></Campo>
-      </div>
-    </Janela>
-  )
-}
-
-/** ⋯ Ferramentas: aumentar/diminuir %, copiar coluna, preencher vazios. Tudo vai para o rascunho (nada publica sozinho). */
-function Ferramentas({ g, inicial, onFechar, onAplicar }: { g: Rascunho; inicial: Ferramenta; onFechar(): void; onAplicar(grade: Rascunho, n: number): void }) {
-  const t = useT()
-  const [tipo, setTipo] = useState<Ferramenta['tipo']>(inicial.tipo)
-  const [alvo, setAlvo] = useState<Alvo>(inicial.alvo ?? { tipo: 'tudo' })
-  const [pct, setPct] = useState('5')
-  const [passo, setPasso] = useState('0')
-  const [de, setDe] = useState(g.colunas.find((c) => c.id !== inicial.para)?.id ?? g.colunas[0]?.id)
-  const [para, setPara] = useState(inicial.para ?? g.colunas[1]?.id ?? g.colunas[0]?.id)
-  const [soVazios, setSoVazios] = useState(false)
-  const [valor, setValor] = useState('')
-  const p = Number(pct.replace(',', '.'))
-  const res =
-    tipo === 'pct' ? (Number.isFinite(p) && p !== 0 && p > -100 ? ajustarPct(g, alvo, p, Number(passo)) : { grade: g, mudou: 0 })
-    : tipo === 'copiar' ? copiarColuna(g, de, para, soVazios)
-    : preencherVazios(g, alvo, valor)
-  const nome = (id: string) => g.colunas.find((c) => c.id === id)?.nome ?? ''
-  const onde = alvo.tipo === 'tudo' ? t('em toda a tabela') : alvo.tipo === 'medidas' ? (alvo.de === alvo.ate ? t('em {a} cm', { a: alvo.de }) : t('em {a}–{b} cm', { a: Math.min(alvo.de, alvo.ate), b: Math.max(alvo.de, alvo.ate) })) : t('em {nome}', { nome: nome(alvo.colunaId) })
-  const resumo =
-    tipo === 'pct' ? `${p > 0 ? '+' : ''}${pct}% ${onde}` : tipo === 'copiar' ? t('{de} → {para}', { de: nome(de), para: nome(para) }) : `${valor || '…'} ${t('nos vazios')} ${onde}`
-  const medidas = g.linhas.map((l) => ({ id: String(l), nome: `${l} cm` }))
-  const escolherAlvo = (
-    <div className="space-y-2">
-      <Escolha<Alvo['tipo']> rotulo="Onde" valor={alvo.tipo} onChange={(v) => setAlvo(v === 'tudo' ? { tipo: 'tudo' } : v === 'medidas' ? { tipo: 'medidas', de: g.linhas[0], ate: g.linhas[g.linhas.length - 1] } : { tipo: 'coluna', colunaId: g.colunas[0].id })} opcoes={[{ id: 'tudo', nome: 'Tudo' }, { id: 'medidas', nome: 'Medidas' }, { id: 'coluna', nome: 'Comprador' }]} />
-      {alvo.tipo === 'medidas' && (
-        <div className="flex items-center gap-2 text-sm">
-          <span>{t('de')}</span><Selecao className="w-auto" valor={String(alvo.de)} onChange={(v) => setAlvo({ ...alvo, de: Number(v) })} opcoes={medidas} />
-          <span>{t('até')}</span><Selecao className="w-auto" valor={String(alvo.ate)} onChange={(v) => setAlvo({ ...alvo, ate: Number(v) })} opcoes={medidas} />
-        </div>
-      )}
-      {alvo.tipo === 'coluna' && <Selecao valor={alvo.colunaId} onChange={(v) => setAlvo({ tipo: 'coluna', colunaId: v })} opcoes={g.colunas.map((c) => ({ id: c.id, nome: c.nome }))} />}
-    </div>
-  )
-  return (
-    <Janela aberta titulo={t('Ferramentas')} onFechar={onFechar} rodape={
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <span className="mr-auto text-sm text-[var(--suave)]">{res.mudou ? t('Vai mudar {n} preço(s)', { n: res.mudou }) : t('Nada para mudar')}</span>
-        <Botao variante="leve" onClick={onFechar}>{t('Voltar')}</Botao>
-        <Botao disabled={!res.mudou} onClick={() => (onAplicar(res.grade, res.mudou), onFechar())}>{t('Aplicar')}: {resumo}</Botao>
-      </div>
-    }>
-      <div className="space-y-4">
-        <Escolha<Ferramenta['tipo']> rotulo="Ferramenta" valor={tipo} onChange={setTipo} opcoes={[{ id: 'pct', nome: '± %' }, { id: 'copiar', nome: 'Copiar coluna' }, { id: 'preencher', nome: 'Preencher vazios' }]} />
-        {tipo === 'pct' && (
-          <>
-            <Campo rotulo="Aumentar/diminuir (%)" ajuda="Use menos para baixar. Ex.: 5 = +5%; -10 = −10%. Só mexe nos preços preenchidos.">
-              <div className="flex flex-wrap gap-2">
-                {['-10', '-5', '5', '10'].map((x) => <Botao key={x} className="px-3" variante={pct === x ? 'primario' : 'secundario'} onClick={() => setPct(x)}>{Number(x) > 0 ? '+' : ''}{x}%</Botao>)}
-                <Entrada className="w-20" aria-label={t('Outro %')} inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)} />
-              </div>
-            </Campo>
-            {escolherAlvo}
-            <Campo rotulo="Arredondar" comoDiv>
-              <Selecao valor={passo} onChange={setPasso} opcoes={[{ id: '0', nome: t('Não (2 casas)') }, { id: '0.1', nome: '0,1' }, { id: '0.5', nome: '0,5' }, { id: '1', nome: '1' }]} />
-            </Campo>
-          </>
-        )}
-        {tipo === 'copiar' && (
-          <div className="space-y-3">
-            <Campo rotulo="Copiar de" comoDiv><Selecao valor={de} onChange={setDe} opcoes={g.colunas.map((c) => ({ id: c.id, nome: c.nome }))} /></Campo>
-            <Campo rotulo="Para" comoDiv><Selecao valor={para} onChange={setPara} opcoes={g.colunas.map((c) => ({ id: c.id, nome: c.nome }))} /></Campo>
-            <label className="flex min-h-10 items-center gap-2 text-sm"><input type="checkbox" checked={soVazios} onChange={(e) => setSoVazios(e.target.checked)} /> {t('Só nos vazios (não apaga o que já tem)')}</label>
-          </div>
-        )}
-        {tipo === 'preencher' && (
-          <>
-            <Campo rotulo="Fator para os vazios"><Entrada autoFocus inputMode="decimal" placeholder="3,5" value={valor} onChange={(e) => setValor(e.target.value)} /></Campo>
-            {escolherAlvo}
-          </>
-        )}
-      </div>
-    </Janela>
-  )
-}

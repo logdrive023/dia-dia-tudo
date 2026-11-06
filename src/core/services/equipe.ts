@@ -1,26 +1,13 @@
 // EQUIPE E UNIDADES: organograma por salão, resumo rápido do funcionário e "ponta do lápis" de cada unidade
 // (entradas dos atendimentos × saídas: salários + despesas da unidade + comissões).
 
-import { converter, proporcao } from '../domain/dinheiro'
+import { proporcao } from '../domain/dinheiro'
 import { diasEntre } from '../domain/datas'
 import type { Id, Pessoa } from '../domain/tipos'
 import { exigir } from '../domain/erros'
-import { auditar, type Ctx, cotacoesAtuais, exigirInteiroPositivo, lerConfig } from './contexto'
+import { auditar, type Ctx, conversorPrincipal, exigirInteiroPositivo, lerConfig, ehEquipe, euPessoa } from './contexto'
 import { moverCaixa } from './caixa'
 
-async function conversor(ctx: Ctx) {
-  const cfg = await lerConfig(ctx)
-  const cot = await cotacoesAtuais(ctx)
-  return (v: number, m: string) => {
-    try {
-      return converter(v, m, cfg.moedaPrincipal, cot)
-    } catch {
-      return 0
-    }
-  }
-}
-
-const ehEquipe = (p: Pessoa) => p.papeis.includes('funcionario') || p.papeis.includes('profissional')
 
 const DIAS_DO_PERIODO = { mes: 30, semana: 7, dia: 1 } as const
 
@@ -62,7 +49,7 @@ export interface NoOrganograma {
 /** Organograma: árvore da equipe (por superior), filtrada por unidade. Quem não tem chefe na unidade fica no topo. */
 export async function organograma(ctx: Ctx, p: { localId?: Id; de: string; ate: string }) {
   const localId = ctx.sessao.perfil === 'funcionario' ? ctx.sessao.localId : p.localId
-  const conv = await conversor(ctx)
+  const conv = await conversorPrincipal(ctx)
   const todos = (await ctx.repos.pessoas.listar()).filter(ehEquipe)
   const equipe = todos.filter((x) => !localId || x.localId === localId)
   const ids = new Set(equipe.map((x) => x.id))
@@ -82,10 +69,10 @@ export async function organograma(ctx: Ctx, p: { localId?: Id; de: string; ate: 
 /** Resumo rápido (cartão ao tocar no funcionário): nome, cargo, salário, unidade, desempenho. */
 export async function resumoFuncionario(ctx: Ctx, p: { id: Id; de: string; ate: string }) {
   // funcionária só vê o resumo dela
-  if (ctx.sessao.perfil !== 'admin') exigir(p.id === (ctx.sessao.pessoaId ?? ctx.sessao.usuarioId), 'Sem permissão para ver isso.')
+  if (ctx.sessao.perfil !== 'admin') exigir(p.id === euPessoa(ctx), 'Sem permissão para ver isso.')
   const pessoa = await ctx.repos.pessoas.obter(p.id)
   if (!pessoa) return undefined
-  const conv = await conversor(ctx)
+  const conv = await conversorPrincipal(ctx)
   const des = (await desempenho(ctx, p.de, p.ate)).get(pessoa.id) ?? { atendimentos: 0, faturamento: 0, comissao: 0 }
   const local = pessoa.localId ? await ctx.repos.locais.obter(pessoa.localId) : undefined
   const superior = pessoa.superiorId ? await ctx.repos.pessoas.obter(pessoa.superiorId) : undefined
@@ -110,7 +97,7 @@ export async function resumoFuncionario(ctx: Ctx, p: { id: Id; de: string; ate: 
  */
 export async function unidades(ctx: Ctx, p: { de: string; ate: string }) {
   const cfg = await lerConfig(ctx)
-  const conv = await conversor(ctx)
+  const conv = await conversorPrincipal(ctx)
   // período ao contrário (de depois de até) não tem dia nenhum: nada de salário "negativo"
   const dias = Math.max(0, diasEntre(p.de, p.ate) + 1)
   const locais = (await ctx.repos.locais.listar()).filter((l) => ctx.sessao.perfil !== 'funcionario' || l.id === ctx.sessao.localId)

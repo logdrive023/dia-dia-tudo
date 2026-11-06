@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { dataLocal, inicioDoMes, somarDias, somarMeses, fimDoMes } from '../core/domain/datas'
-import { Entrada, Selecao } from './base'
-import { useT } from './i18n'
 
 export type Preset = 'hoje' | '7d' | '30d' | 'mes' | 'mesPassado' | 'ano' | 'livre'
 
@@ -61,28 +59,4 @@ export function usePeriodo(chave = 'periodo', padrao: Preset = '30d') {
   const [salvo, setSalvo] = useLembrado<{ preset: Preset; de?: string; ate?: string }>(chave, { preset: padrao })
   const periodo = calcularPeriodo(salvo.preset, salvo.de, salvo.ate)
   return [periodo, (p: Periodo) => setSalvo({ preset: p.preset, de: p.de, ate: p.ate })] as const
-}
-
-export function SeletorPeriodo({ periodo, onChange }: { periodo: Periodo; onChange(p: Periodo): void }) {
-  const t = useT()
-  const opcoes: { id: Preset; nome: string }[] = [
-    { id: 'hoje', nome: t('Hoje') },
-    { id: '7d', nome: t('7 dias') },
-    { id: '30d', nome: t('30 dias') },
-    { id: 'mes', nome: t('Este mês') },
-    { id: 'mesPassado', nome: t('Mês passado') },
-    { id: 'ano', nome: t('Ano') },
-    { id: 'livre', nome: t('Escolher datas') },
-  ]
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Selecao className="w-auto" opcoes={opcoes} valor={periodo.preset} onChange={(v) => onChange(calcularPeriodo(v as Preset, periodo.de, periodo.ate))} />
-      {periodo.preset === 'livre' && (
-        <>
-          <Entrada type="date" className="w-auto" value={periodo.de} onChange={(e) => onChange({ ...periodo, de: e.target.value })} />
-          <Entrada type="date" className="w-auto" value={periodo.ate} onChange={(e) => onChange({ ...periodo, ate: e.target.value })} />
-        </>
-      )}
-    </div>
-  )
 }

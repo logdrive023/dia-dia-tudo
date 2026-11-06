@@ -11,11 +11,6 @@ export async function mapaViagens(ctx: Ctx) {
   return new Map<Id, ViagemCurta>((await ctx.repos.viagens.listar()).filter((v) => !v.apagadoEm).map((v) => [v.id, { id: v.id, codigo: v.codigo, nome: v.nome }]))
 }
 
-/** as viagens (sem repetir) de uma lista de compras */
-export function viagensDe(compras: { viagem?: ViagemCurta }[]): ViagemCurta[] {
-  return [...new Map(compras.filter((c) => c.viagem).map((c) => [c.viagem!.id, c.viagem!])).values()]
-}
-
 /** até quantos dias depois de encerrada a viagem ainda conta como "encerrada recentemente" (laranja) */
 export const DIAS_ENCERRADA_RECENTE = 30
 

@@ -6,7 +6,7 @@ import type { ModeloDocumentoId } from '../dados/documentos'
 import { AJUSTES_PADRAO, type AjusteFeriado } from '../dados/feriados'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { novoId } from '../domain/ids'
-import type { Base, Dia, Id } from '../domain/tipos'
+import type { Base, Dia, Id, Pessoa } from '../domain/tipos'
 import type { RegistroModulos } from '../modulos'
 import type { Relogio, Repos, Sessao } from '../ports/portas'
 
@@ -243,6 +243,36 @@ export async function cotacoesAtuais(ctx: Ctx, uso: UsoCambio = 'base'): Promise
     }
   }
   return tabela
+}
+
+// ---------- quem está usando (as checagens de sessão que vários serviços fazem) ----------
+
+/** Quem está usando é administrador. (Para EXIGIR, use `exigir(ehAdmin(ctx), 'mensagem')`.) */
+export const ehAdmin = (ctx: Ctx) => ctx.sessao.perfil === 'admin'
+/** A pessoa de quem está usando; usuário sem pessoa ligada → o próprio id do usuário. */
+export const euPessoa = (ctx: Ctx) => ctx.sessao.pessoaId ?? ctx.sessao.usuarioId
+/** É da equipe (funcionário ou profissional). Sem pessoa → não. */
+export const ehEquipe = (p?: Pessoa) => !!p?.papeis.some((x) => x === 'funcionario' || x === 'profissional')
+
+/**
+ * Conversor para RELATÓRIO/RESUMO: valor numa moeda → moeda principal pela tabela dada; moeda sem cotação vale 0 (não
+ * derruba a tela). Para gravar operação use `paraPrincipal` (que exige a cotação e devolve a usada).
+ */
+export function conversorPara(principal: CodigoMoeda, cot: TabelaCotacoes) {
+  return (v: number, m: string) => {
+    try {
+      return converter(v, m, principal, cot)
+    } catch {
+      return 0
+    }
+  }
+}
+
+/** `conversorPara` já com a moeda principal e as cotações de base de agora. */
+export async function conversorPrincipal(ctx: Ctx) {
+  const cfg = await lerConfig(ctx)
+  const cot = await cotacoesAtuais(ctx)
+  return conversorPara(cfg.moedaPrincipal, cot)
 }
 
 /** Converte para a moeda principal pela taxa do uso e devolve também a cotação usada (para guardar). */

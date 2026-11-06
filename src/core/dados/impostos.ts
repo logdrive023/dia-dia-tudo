@@ -140,9 +140,6 @@ export function impostosDoRegime(f: Pick<ConfigFiscal, 'pais' | 'regimeBO' | 're
 /** valor × taxa (pontos-base), arredondado ao centavo */
 export const aplicar = (valor: number, bp: number) => Math.round((valor * bp) / 10000)
 
-/** IVA "por dentro" (Bolívia): do preço faturado, quanto é imposto (13% do total) */
-export const ivaDoFaturado = (faturado: number, ivaBp: number) => aplicar(faturado, ivaBp)
-
 // ---------- IMPOSTOS NAS OPERAÇÕES (compra e venda): a lista vigente, toda configurável ----------
 // Cada imposto diz onde se aplica: venda de produto (cabelo, mercadoria), venda de serviço (salão) e compra
 // (na compra o normal é ser CRÉDITO fiscal, que abate o imposto da venda). O sistema só INFORMA quanto iria para o

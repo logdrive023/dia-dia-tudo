@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { PAI } from '../app/rotas'
 import { Icone, temIcone } from './icones'
 import { type ReactNode, useEffect, useId, useState, useLayoutEffect, useRef } from 'react'
+import { dataComAno } from '../core/domain/datas'
 import { formatar, lerValor, moeda as moedaDe } from '../core/domain/dinheiro'
 import type { Cartao as CartaoDados, Formato } from '../core/modulos'
 import { useApp } from './contexto'
@@ -47,7 +48,7 @@ export function fmt(valor: number, formato: Formato['tipo'] | undefined, moeda =
 }
 
 export function dataBR(d?: string) {
-  return d ? d.slice(0, 10).split('-').reverse().join('/') : ''
+  return d ? dataComAno(d) : ''
 }
 
 // FORMATADORES DE TELA (um só lugar; seguem o idioma): data curta, hora, data e hora, gramas com sinal, %.

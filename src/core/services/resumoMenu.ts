@@ -1,7 +1,7 @@
 // Números ao vivo do menu: o menu diz direto o que importa agora (vendido hoje, triagem, agenda, quem deve…).
 
-import { converter, MOEDAS } from '../domain/dinheiro'
-import { type Ctx, cotacoesAtuais, lerConfig } from './contexto'
+import { MOEDAS } from '../domain/dinheiro'
+import { type Ctx, conversorPara, cotacoesAtuais, lerConfig, euPessoa } from './contexto'
 import { situacaoDe } from './emprestimos'
 import { viagensAbertas } from './viagens'
 import { resumoFinanciamentos } from './financiamentos'
@@ -10,15 +10,9 @@ export async function resumoMenu(ctx: Ctx, _p: object = {}) {
   const hoje = ctx.relogio.hoje()
   const cfg = await lerConfig(ctx)
   const cot = await cotacoesAtuais(ctx)
-  const conv = (v: number, m: string) => {
-    try {
-      return converter(v, m, cfg.moedaPrincipal, cot)
-    } catch {
-      return 0
-    }
-  }
+  const conv = conversorPara(cfg.moedaPrincipal, cot)
   const func = ctx.sessao.perfil === 'funcionario'
-  const eu = ctx.sessao.pessoaId ?? ctx.sessao.usuarioId
+  const eu = euPessoa(ctx)
   const trans = await ctx.repos.transacoes.listar()
   const vendasHoje = trans.filter((t) => t.tipo === 'venda' && t.etapa === 'concluido' && t.data === hoje && (!func || t.criadoPor === ctx.sessao.usuarioId || t.profissionalId === eu))
   const agendadosHoje = trans.filter((t) => t.tipo === 'venda' && t.etapa === 'agendado' && t.agendadoPara && t.data === hoje && (!func || t.profissionalId === eu))

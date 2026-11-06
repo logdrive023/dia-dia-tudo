@@ -8,12 +8,11 @@
 import { formatar } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
 import type { Id, ParteDivisao, Transacao } from '../domain/tipos'
-import { auditar, type Ctx, exigirVersao, lerConfig, novo, tocar } from './contexto'
+import { auditar, type Ctx, exigirVersao, lerConfig, novo, tocar, ehAdmin } from './contexto'
 import { impostosDaOperacao, impostosDoRegime } from '../dados/impostos'
 import { venda } from './vendas'
 import { calcularDivisao } from '../domain/divisao'
 
-const admin = (ctx: Ctx) => ctx.sessao.perfil === 'admin'
 
 /**
  * OS IMPOSTOS ESTIMADOS DA VENDA — a mesma conta para a nota e para a divisão: o registro do dia da venda
@@ -145,7 +144,7 @@ export function detalheDeValores(t: Transacao, verCusto: boolean, imp: ImpostosD
 export async function divisaoVenda(ctx: Ctx, p: { id: Id }) {
   const d = await venda(ctx, p)
   const t = d.venda
-  const verCusto = admin(ctx)
+  const verCusto = ehAdmin(ctx)
   const det = detalheDeValores(t, verCusto, await impostosDaVenda(ctx, t))
   const bases = { total: det.totais.cobrado, liquido: det.totais.liquido, lucro: det.totais.lucro ?? 0 }
   const div = calcularDivisao(t.divisao?.partes ?? [], bases)
@@ -154,7 +153,7 @@ export async function divisaoVenda(ctx: Ctx, p: { id: Id }) {
 
 /** grava a divisão do valor (só registro). Lista vazia = sem divisão. Fica no histórico da venda. */
 export async function salvarDivisaoVenda(ctx: Ctx, d: { id: Id; partes: ParteDivisao[]; versaoBase?: number }) {
-  exigir(admin(ctx), 'Só o administrador divide o valor da venda.')
+  exigir(ehAdmin(ctx), 'Só o administrador divide o valor da venda.')
   const t = await ctx.repos.transacoes.obter(d.id)
   exigir(t && t.tipo === 'venda', 'Venda não encontrada.')
   exigir(t.etapa !== 'cancelado', 'Venda cancelada não se divide.')

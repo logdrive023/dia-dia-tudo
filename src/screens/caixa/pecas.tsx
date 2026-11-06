@@ -84,27 +84,7 @@ export function useLargura() {
 }
 
 /** media query no JS (sem matchMedia, como nos testes, vale o padrão) */
-export function useMidia(q: string, padrao: boolean) {
-  const ler = () => {
-    try {
-      return window.matchMedia ? window.matchMedia(q).matches : padrao
-    } catch {
-      return padrao
-    }
-  }
-  const [v, setV] = useState(ler)
-  useEffect(() => {
-    try {
-      const m = window.matchMedia(q)
-      const f = () => setV(m.matches)
-      m.addEventListener('change', f)
-      return () => m.removeEventListener('change', f)
-    } catch {
-      return undefined
-    }
-  }, [q])
-  return v
-}
+export { useMidia } from '../../ui/midia'
 
 /** ainda não separado: pode vender (nunca trava), com um aviso; o preço é digitado se a tabela não tiver */
 export const NAO_SEPARADO = new Set(['bruto', 'naoIdentificado', 'preparando'])
