@@ -3015,6 +3015,7 @@ export const ES: Record<string, string> = {
   'gerou': 'generó',
   'imprimiu': 'imprimió',
   'Lote (ou lote de origem)': 'Lote (o lote de origen)',
+  'Acha o pacote pelo código dele, por um código antigo ou pelo lote de onde saiu. Ex.: L-0012 mostra o L-0012 e os pacotes separados dele.': 'Encuentra el paquete por su código, por un código anterior o por el lote del que salió. Ej.: L-0012 muestra el L-0012 y los paquetes separados de él.',
   'Ex.: L-0012': 'Ej.: L-0012',
   'Fornecedor / cliente': 'Proveedor / cliente',
   'Quem gerou o pacote': 'Quién generó el paquete',

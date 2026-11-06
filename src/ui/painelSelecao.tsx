@@ -102,13 +102,13 @@ export function PainelSelecao({ itens, unidade = 'pacote', fatos = [], aviso, to
     {/* o lugar reservado: mede a coluna e guarda o espaço do painel no fim da página */}
     <div ref={lugar} aria-hidden style={{ height: altura ? altura + 12 : 0 }} />
     <section ref={painel} role="region" aria-label={t('Selecionados')} style={caixa ? { left: caixa.left, width: caixa.width } : undefined}
-      className={cx('fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] z-30 overflow-y-auto border-2 border-[var(--marca)] bg-[var(--cartao)] shadow-2xl md:bottom-4', aberto ? 'max-h-[60vh] rounded-3xl' : 'rounded-2xl', !caixa && 'inset-x-2')}>
+      className={cx('fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] z-30 overflow-y-auto overscroll-contain border-2 border-[var(--marca)] bg-[var(--cartao)] shadow-2xl md:bottom-4', aberto ? 'max-h-[60vh] rounded-3xl' : 'rounded-2xl', !caixa && 'inset-x-2')}>
       {!aberto ? (
         // BARRA MINIMIZADA: o número em destaque · o que é e quanto pesa · UM botão para escolher o que fazer · ✕
         <div className="flex items-center gap-3 p-2 pl-2.5">
           <span aria-hidden className="flex h-12 min-w-12 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,var(--marca),color-mix(in_srgb,var(--marca)_70%,#ec4899))] px-2 text-2xl font-black text-white shadow-md">{itens.length}</span>
           <span className="min-w-0 flex-1">
-            <b className="block truncate text-sm sm:text-base">{t(nome, { n: itens.length })}</b>
+            <b className="line-clamp-2 text-sm leading-tight sm:block sm:truncate sm:text-base">{t(nome, { n: itens.length })}</b>
             <span className="num block truncate text-xs text-[var(--suave)]"><b className="text-[var(--texto)]">{gramasTexto(g)}</b>{fatos[0] && <span className="hidden sm:inline"> · {fatos[0].texto}</span>}</span>
             <span aria-hidden className="mt-1 flex h-1.5 w-full max-w-60 gap-px overflow-hidden rounded-full bg-[var(--fundo)]">
               {itens.map((i, k) => <span key={i.id} className="h-full min-w-[3px]" style={{ flexGrow: Math.max(i.peso, 1), flexBasis: 0, background: cor(k) }} />)}

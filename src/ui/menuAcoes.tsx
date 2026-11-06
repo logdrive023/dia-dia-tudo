@@ -118,7 +118,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
           aria-label={t(rotulo)}
           onKeyDown={andar}
           style={{ top: pos.top, bottom: pos.bottom, right: pos.right, left: pos.left, maxHeight: Math.max(160, pos.maxH) }}
-          className="fixed z-50 w-[min(18.75rem,calc(100vw-16px))] overflow-y-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-1.5 text-left shadow-[0_12px_32px_-8px_rgba(16,24,40,.25)]"
+          className="fixed z-50 w-[min(18.75rem,calc(100vw-16px))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-1.5 text-left shadow-[0_12px_32px_-8px_rgba(16,24,40,.25)]"
         >
           {emGrupos(acoes).map((g, k) => (
             <div key={k} role="group" aria-label={g.grupo ? t(g.grupo) : undefined} className={cx(k > 0 && 'mt-1 border-t border-[var(--borda)] pt-1')}>

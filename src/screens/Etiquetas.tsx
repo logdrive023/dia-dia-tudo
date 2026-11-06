@@ -152,8 +152,8 @@ export function Etiquetas() {
         resultados={dados ? lista.length : undefined} total={dados ? dados.filter((i) => passaEtiqueta(i, filtro)).length : undefined} unidade="pacote(s)"
         painel={<>
             <GrupoFiltro titulo="De onde veio" icone="🛒">
-              <Campo rotulo="Compra (código)"><Entrada placeholder={t('Ex.: P-0003')} value={p('compra')} onChange={(e) => setP('compra', e.target.value)} /></Campo>
-              <Campo rotulo="Lote (ou lote de origem)"><Entrada placeholder={t('Ex.: L-0012')} value={p('lote')} onChange={(e) => setP('lote', e.target.value)} /></Campo>
+              <Campo rotulo="Compra"><Entrada placeholder={t('Ex.: P-0003')} value={p('compra')} onChange={(e) => setP('compra', e.target.value)} /></Campo>
+              <Campo rotulo="Lote" ajuda="Acha o pacote pelo código dele, por um código antigo ou pelo lote de onde saiu. Ex.: L-0012 mostra o L-0012 e os pacotes separados dele."><Entrada placeholder={t('Ex.: L-0012')} value={p('lote')} onChange={(e) => setP('lote', e.target.value)} /></Campo>
               <Campo rotulo="Fornecedor / cliente"><Selecao valor={p('pessoa')} onChange={(v) => setP('pessoa', v)} vazio="Todos" opcoes={todasPessoas.map((x) => ({ id: x, nome: x }))} /></Campo>
               <CampoFaixa rotulo="Entrada (período)">
                 <Entrada type="date" aria-label={t('De')} value={p('de')} onChange={(e) => setP('de', e.target.value)} />

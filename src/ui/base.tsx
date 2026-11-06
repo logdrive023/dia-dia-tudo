@@ -548,11 +548,40 @@ export function GramasInput({ valor, onChange, placeholder }: { valor?: number; 
   )
 }
 
+// ---------- trava do fundo (janela aberta = a tela de trás não rola) ----------
+
+let travas = 0
+let antes: { html: string; body: string } | undefined
+/**
+ * Enquanto `ativo`, a página de trás não rola nem "puxa" junto (no celular, arrastar dentro da folha rolava a tela
+ * de baixo). Conta as travas: janela dentro de janela só destrava quando a última fecha.
+ */
+export function useTravarFundo(ativo = true) {
+  useEffect(() => {
+    if (!ativo || typeof document === 'undefined') return
+    const html = document.documentElement
+    const body = document.body
+    if (travas++ === 0) {
+      antes = { html: html.style.overflow, body: body.style.overflow }
+      html.style.overflow = 'hidden'
+      body.style.overflow = 'hidden'
+    }
+    return () => {
+      if (--travas === 0 && antes) {
+        html.style.overflow = antes.html
+        body.style.overflow = antes.body
+        antes = undefined
+      }
+    }
+  }, [ativo])
+}
+
 // ---------- janela (folha que sobe no celular, centralizada no desktop) ----------
 
 export function Janela({ aberta, titulo, onFechar, children, rodape, larga }: { aberta: boolean; titulo: ReactNode; onFechar(): void; children: ReactNode; rodape?: ReactNode; larga?: boolean }) {
   const id = useId()
   const t = useT()
+  useTravarFundo(aberta)
   useEffect(() => {
     if (!aberta) return
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && onFechar()
@@ -581,7 +610,7 @@ export function Janela({ aberta, titulo, onFechar, children, rodape, larga }: { 
             ×
           </button>
         </div>
-        <div className={cx('min-h-0 flex-1 overflow-y-auto p-4', !rodape && 'pb-[max(1rem,env(safe-area-inset-bottom))]')}>{children}</div>
+        <div className={cx('min-h-0 flex-1 overflow-y-auto overscroll-contain p-4',!rodape && 'pb-[max(1rem,env(safe-area-inset-bottom))]')}>{children}</div>
         {rodape && <div className="border-t border-[var(--borda)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{rodape}</div>}
       </div>
     </div>,

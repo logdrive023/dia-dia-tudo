@@ -162,5 +162,7 @@ body.imprimindo-relatorio { overflow: hidden; }
 
 /* ENTRADA DE TELA (src/ui/Shell.tsx): ao trocar de tela, o conteúdo aparece e sobe um pouco (dá a sensação de carregar) */
 .entrada-tela { animation: entrada-tela 0.32s ease-out both; }
-@keyframes entrada-tela { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* só opacidade: um transform (mesmo o "none" que a animação deixa preso) vira a referência dos position:fixed de dentro
+   da tela — o painel da seleção e as barras fixas iam parar no fim da página em vez do rodapé da tela */
+@keyframes entrada-tela { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .entrada-tela { animation: none; } }

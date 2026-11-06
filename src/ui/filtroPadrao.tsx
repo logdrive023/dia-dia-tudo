@@ -87,7 +87,8 @@ export function GrupoFiltro({ titulo, icone, children }: { titulo: string; icone
     <fieldset className="rounded-xl bg-[var(--fundo)] p-3">
       <legend className="sr-only">{t(titulo)}</legend>
       <p aria-hidden className="mb-2 flex items-center gap-1.5 text-sm font-bold"><span>{icone}</span>{t(titulo)}</p>
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">{children}</div>
+      {/* items-end: um rótulo que quebra em 2 linhas não desalinha a caixa do vizinho */}
+      <div className="grid grid-cols-2 items-end gap-2 lg:grid-cols-4">{children}</div>
     </fieldset>
   )
 }

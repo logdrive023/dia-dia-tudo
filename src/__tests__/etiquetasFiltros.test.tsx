@@ -76,7 +76,7 @@ describe('etiquetas: filtros', () => {
 
     // lote de origem: o código do bruto da Maria acha os pacotes que saíram dele
     fireEvent.click(within(screen.getByRole('region', { name: 'Filtros' })).getByRole('button', { name: 'Limpar filtros' }))
-    fireEvent.change(screen.getByLabelText('Lote (ou lote de origem)'), { target: { value: brutoM.codigo } })
+    fireEvent.change(screen.getByPlaceholderText('Ex.: L-0012'), { target: { value: brutoM.codigo } })
     await waitFor(() => expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(2))
 
     // quem gerou / quem imprimiu: os filtros existem (as opções vêm dos usuários cadastrados)

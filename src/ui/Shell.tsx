@@ -9,7 +9,7 @@
 // "Configurações" abre uma sublista com os grupos e as seções (vêm da mesma lista da tela: configSecoes.ts).
 
 import { type ReactNode, useState } from 'react'
-import { Botao, Janela, cx } from './base'
+import { Botao, Janela, cx, useTravarFundo } from './base'
 import { useApp, useConsulta } from './contexto'
 import { useLembrado } from './filtros'
 import { useT } from './i18n'
@@ -160,6 +160,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const menu = useMenu()
   const { c: contadores } = useContadores()
   const [mais, setMais] = useState(false)
+  useTravarFundo(mais)
   const [recolhido, setRecolhido] = useLembrado('menu.recolhido', false)
   const [oculto, setOculto] = useLembrado('menu.oculto', false)
   const [gruposAbertos, setGruposAbertos] = useLembrado<string[]>('menu.gruposAbertos', [])
@@ -360,7 +361,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
       {mais && (
         <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setMais(false)}>
-          <div role="dialog" aria-label={t('Menu')} className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-3xl bg-[var(--cartao)] px-4 pb-8 pt-3" onClick={(e) => e.stopPropagation()}>
+          <div role="dialog" aria-label={t('Menu')} className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto overscroll-contain rounded-t-3xl bg-[var(--cartao)] px-4 pb-8 pt-3" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-[var(--borda)]" />
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--marca-suave)] font-bold text-[var(--marca)]">{iniciais}</div>
