@@ -4,21 +4,32 @@
 > Ele junta o que não está óbvio no código: como o dono quer as coisas, o que foi feito por último e o que falta.
 > Detalhes de regra de negócio e arquitetura estão em [SISTEMA.md](SISTEMA.md) (fonte principal);
 > visão do fluxo compra → triagem → venda em [PROMPT-compra-triagem-venda.md](PROMPT-compra-triagem-venda.md);
-> desenho original em [DESENHO.md](DESENHO.md).
+> desenho original em [DESENHO.md](DESENHO.md) (§11: peças padrão das telas);
+> impostos e relatórios em [CONTABILIDADE.md](CONTABILIDADE.md) e [IMPOSTO-RENDA.md](IMPOSTO-RENDA.md);
+> auditoria de usabilidade em [AUDITORIA-USABILIDADE.md](AUDITORIA-USABILIDADE.md).
+> O plano da API (banco, rotas, login, perfis, QR) está em `DIAGNOSTICO-API.md` — **fica só neste computador**
+> (está no `.gitignore`); copie à mão se for trabalhar em outro.
 >
-> Atualizado em 03/11/2026 (tarde).
+> Atualizado em 05/11/2026.
 
 ---
 
 ## 1. O que é
 
 **Tudo**: sistema de gestão para comércio de cabelo **por gramas** (compra, triagem/separação, estoque, venda pela
-tabela de preço), salão (agenda, equipe, comissões), caixa, contas de pessoas, empréstimos, viagens de compra e produtos.
+tabela de preço), salão (agenda, equipe, comissões), caixa e turnos, contas de pessoas, empréstimos, viagens de compra, produtos,
+relatórios no padrão boliviano (IVA, IT, IUE) e a vitrine para compradores. O negócio é na **Bolívia** (moeda Bs);
+vai ser usado pela família da namorada do dono — funcionárias falam espanhol.
 
 - React 18 + TypeScript strict + Vite 5 + Tailwind 3 + PWA (vite-plugin-pwa, `registerType: 'prompt'`).
 - Local-first: IndexedDB com Dexie 4 (schema v5). Pronto para virar API trocando `VITE_STORAGE=api` + `VITE_API_URL`
   (envelope criptografado `/v1/k` e `/v1/r`; contrato em `api-contract/openapi.yaml`).
-- Testes: Vitest + fake-indexeddb + Testing Library (33 arquivos, 150 testes em 03/11/2026).
+- Testes: Vitest + fake-indexeddb + Testing Library (85 arquivos, 390 testes em 05/11/2026).
+- Contrato: 92 comandos e 104 consultas (`node scripts/contrato.mjs` regenera `api-contract/`).
+- **Simular internet**: o backend no aparelho espera 500 ms por chamada (`src/app/simularApi.ts`, `ATRASO_PADRAO`;
+  Configurações › Dados › Simular internet) para as telas já se comportarem como com o servidor.
+- **Senha de acesso da demonstração** (o site é público): só o hash SHA-256 fica em `src/app/acesso.ts`.
+  Senhas de usuários: só hash com sal — nem o admin vê a senha de ninguém (ele usa "Gerar senha").
 - Publicação: push na `main` → GitHub Actions roda `npm test` e `npm run build` → GitHub Pages
   (`https://logdrive023.github.io/dia-dia-tudo/`). Se um teste falhar, não publica.
 
@@ -67,11 +78,30 @@ npm run build
   quando faz sentido, ex.: busca).
 - Modais só para coisas curtas; formulário grande vira página.
 - Idiomas: português e espanhol.
+- **Celular é obrigatório**: lista = linha curta (quem · valor · código · situação) que abre no lugar; botão principal
+  com a largura toda embaixo; nada de vários selos na mesma linha. O dono manda print quando fica "muita coisa junto".
+- **Peças padrão, nunca à mão**: lista = `Titulo` + `GrupoNumeros`/`NumeroGrande` + `FiltroLista` + `TabelaDados`
+  (no celular a prop `celular={{ titulo, valor, codigo, situacao, … }}`). Cadastro = `JanelaCadastro` + `GrupoCampos`.
+  Liga/desliga = `Interruptor`/`Chave`. Carregar = `Carregando`. Faltou algo → aumentar a peça central (DESENHO.md §11).
+- **Cada informação aparece uma vez**; recomendar primeiro (dizer a opção recomendada antes das outras); não inventar
+  dado (taxa de imposto nunca inventada: vem de fonte em `CONTABILIDADE.md`, configurável).
+- **Lógica nos serviços** (`src/core/services/`), a tela só mostra.
+- **Novidades em PT e ES**: ao fechar uma rodada, entrada no topo de `src/app/novidades.ts` com cada texto `{ pt, es }`
+  já escrito nas duas línguas (`novidades.test.ts` falha se o espanhol faltar).
 
 **Papéis:**
-- **Funcionária**: papel bem pequeno, focado em vender cabelo (modo caixa, ver o pacote para vender, sem custo).
-  Estoque, triagem, compras, custos e configurações são do **administrador**. Tela/consulta nova **não** é liberada para
-  funcionária por padrão (`src/core/services/permissoes.ts`: `COMANDOS_FUNCIONARIO` / `CONSULTAS_FUNCIONARIO`).
+- **Funcionária**: papel bem pequeno, focado em vender cabelo. Entra em **espanhol** (`funcionariaIdioma`, padrão `es`)
+  e vê no padrão só **Vender, Agenda, Equipe e Configurações básicas**; o resto o admin liga em
+  Configurações › O que a funcionária faz (`funcionariaTelas`, `funcionariaConfig`, `funcionariaAgenda`,
+  `funcionariaNaoVende`). Pode trocar tema e idioma no aparelho dela.
+- **"A funcionária NÃO PODE DE NENHUMA FORMA ver o que não pode"**: além de quais consultas ela chama
+  (`permissoes.ts`: `COMANDOS_FUNCIONARIO` / `CONSULTAS_FUNCIONARIO`), o filtro central `visibilidade.ts`
+  (`antesDaConsulta` / `depoisDaConsulta` / `antesDoComando`, `SENSIVEIS`, `exigirTelaLiberada`) decide **de quem** é o
+  registro e **que campos** saem (sem custo, lucro, fornecedor, salário, comissão das colegas). Gerente vê os subordinados.
+  Teste: `funcionariaNaoVe.test.ts`. Tela/consulta nova **não** é liberada para funcionária por padrão. Tudo o que ela
+  faz (e o que é recusado) vai para a auditoria.
+- Limite conhecido: sem servidor, a sessão fica no `localStorage` e os dados ficam só no aparelho (nada é compartilhado
+  entre aparelhos). Proteção de verdade e sincronização só com a API.
 
 **Git:**
 - O dono faz os commits ele mesmo (mensagem "att"). O Claude **não** faz commit/push sem ser pedido.
@@ -91,14 +121,61 @@ npm run build
 - CSS global em `src/index.css` usa `:where()` (especificidade zero) para não brigar com o Tailwind.
 - Testes de tela: `src/__tests__/setup.ts` usa `asyncUtilTimeout: 10000` porque a CI é lenta (já quebrou por isso).
 
-## 5. Menu (03/11/2026)
+## 5. Menu (05/11/2026)
 
-- **Computador — Dia a dia** (segue o caminho do cabelo): Painel, Comprar, Triagem, Estoque, Vender, Caixa, Agenda.
-  **Estoque e compras**: Etiquetas, Viagens, Livro do cabelo, Tabelas de preço. Depois Pessoas e Gestão.
-- **Celular**: Painel, Comprar, Triagem, Vender, Caixa + Mais (Agenda e o resto no "Mais"; 7 botões não cabem em 360px).
-  Definido em `src/ui/Shell.tsx` (`MENU` e `CELULAR`).
+Definido em `src/ui/Shell.tsx` (`MENU` e `CELULAR`), em blocos por área, cada um com a sua cor:
+- **Principal** (sempre aberto): Painel, Comprar, Triagem, Estoque, Etiquetas, Vender.
+- **Dinheiro e agenda**: Caixa, Agenda. **Cabelo**: Viagens, Minha vitrine, Livro do cabelo, Tabelas de preço.
+- **Pessoas**: Pessoas e contas, Equipe e unidades, Empréstimos, Adiantamentos.
+- **Gestão**: Relatórios, Configurações (abre a sublista das 6 áreas: Negócio, Pessoas e acesso, Dinheiro e impostos,
+  Compras, Estoque e triagem, Sistema), Auditoria, Novidades.
+- **Celular**: Painel · Comprar · Triagem · Estoque · Vender + Mais.
+- Endereços sem tela caem na **tela 404** (`NaoEncontrada.tsx`). `#/loja` = página pública da vitrine; `#/q/<código>` =
+  QR da etiqueta.
 
-## 6. Feito nas últimas rodadas (nov/2026, ainda sem commit no momento desta nota)
+## 6. Feito nas últimas rodadas
+
+### Rodadas de 04 e 05/11/2026 (a última ainda sem commit no momento desta nota)
+
+O texto para quem usa está em Novidades (`src/app/novidades.ts`); aqui vai o que importa para quem mexe no código.
+
+- **Impostos e relatórios no padrão boliviano** (`CONTABILIDADE.md`, taxas em `src/core/dados/impostos.ts`, motor
+  `src/core/services/contabilidade.ts`): IVA e IT informativos na venda e na compra (nunca mudam o preço), gravados no
+  histórico; estados financeiros com folha A4; DRE do Brasil como opção. Configurações › Fiscal em abas.
+- **Imposto de Renda** (aba em Relatórios, `IMPOSTO-RENDA.md`): exercício fiscal inteiro, retenção de 8% (IUE 5% + IT 3%)
+  na compra sem factura, documento anual e fechamento que congela os números.
+- **Nota de venta**: o Resumo da venda é a nota (folha ou rolo 80 mm), sem validade fiscal; o caminho do cabelo foi para
+  o Histórico.
+- **Auditoria** (Gestão, só admin): log bruto de toda ação, com tentativas recusadas.
+- **Configurações**: 6 áreas; cadastros no mesmo formato (`JanelaCadastro`); formas de pagamento que desligam
+  (`FormaPagamento.desligada`: some da venda/compra/caixa, histórico fica); moedas e câmbio numa tela; tema e idioma
+  num seletor só no cabeçalho (`PreferenciasCabecalho`).
+- **Entrar** novo: "Esqueceu a senha?", modo de teste separado, senha com regra (8+, letra e número/especial) e olho
+  (`SenhaInput`); o admin gera senha, não vê.
+- **O que a funcionária faz** (Configurações): interruptores por tela, venda, agenda, seções de configuração (ver §3).
+  O filtro respeita os papéis (gerente vê os subordinados).
+- **Viagens**: 340 cidades da Bolívia, aviso de viagem repetida, Relatórios › Viagens (custo do kg por viagem e uma
+  contra a outra).
+- **Turno com conferência cega** (`turnos.ts`, `screens/caixa/Turno.tsx`): cada pessoa conta o efectivo sem ver o
+  esperado; diferença no nome dela; Caixa › Turnos para o admin.
+- **Alerta de venda abaixo do custo** (`custoDaVenda` em `vendas.ts`, `AvisoAbaixoDoCusto`/`useAbaixoDoCusto`): pede
+  confirmação e audita `vendaAbaixoDoCusto`; a funcionária vê o aviso, não o custo. Venda grava a vendedora.
+- **Reposição** (Relatórios, `reposicao.ts`): por medida, quanto tem, vende por dia, quando acaba, quanto comprar.
+- **Metas do mês** (`metas.ts`, `ui/metas.tsx`, `config/Metas.tsx`): empresa/unidade/pessoa, totalmente configuráveis.
+- **Minha vitrine** (`vitrine.ts`, `Vitrine.tsx`, `Loja.tsx`): pacotes prontos com etiqueta numa página de loja com
+  "Quero este" no WhatsApp; só dados públicos (nunca custo/fornecedor). Hoje abre no aparelho; com a API vira link público.
+- **Bruto que juntou com outro**: `pacotesFinais` (`leitura.ts`) segue a cadeia da triagem até os pacotes finais
+  ("passou por L-…") no caixa e no estoque.
+- **QR da etiqueta seguro** (`DIAGNOSTICO-API.md` §12): o QR leva só um código aleatório de 16 caracteres (`Item.qr`,
+  `novoCodigoQr`), endereço `#/q/<código>` → `AbrirQr.tsx` → `pacoteDoQr`. Sem login: página neutra
+  (`EtiquetaInterna`), sem usuários de teste e sem montar dados de exemplo. **Reimprimir (nova via) troca o código**
+  e o QR velho para de abrir; imprimir de novo a mesma etiqueta mantém. O código nasce em `prepararQrEtiquetas` ao
+  abrir a janela de imprimir (admin). QR antigo `#/lotes/<id>` continua abrindo para quem entrou. Testes:
+  `qrEtiqueta.test.ts`, `qrSemLogin.test.tsx`. **Ainda sem entrada em Novidades e sem conferir no navegador.**
+- **Dados de exemplo** cobrem todos os cenários (viagens, turnos, vitrine, metas, QR novo…); `Carregando` animado e
+  telas com transição suave; tela 404.
+
+### Rodadas de 03/11/2026
 
 - **Aviso "Nova versão disponível"**: foi para o canto de baixo; "Atualizar" força recarregar (no computador não fazia nada).
 - **Teclado abrindo sozinho no celular**: corrigido em todo o sistema (`Entrada` + `ehToque()`), com teste.
@@ -109,7 +186,8 @@ npm run build
 - **Etiquetas** (`#/etiquetas`): tela própria com filtros (Sem etiqueta / Já impressa / Todas, compra, medida, data, busca),
   acessível do menu, do lote, do ⋯ de qualquer lote, da compra, da Triagem e do Estoque. Marca quem imprimiu e quando.
   Depois de separar aparece um cartão "N pacotes novos · sem etiqueta" (Imprimir / Depois).
-  **Errou? Gerar nova**: cancela a antiga com motivo, grava no histórico e imprime a "2ª via" (mesmo código, leitura continua).
+  **Errou? Gerar nova**: cancela a antiga com motivo, grava no histórico e imprime a "2ª via" (mesmo código L-…; desde
+  05/11 o QR da 2ª via é novo e o da cancelada para de abrir).
   **Na Triagem**: selo "🏷 Sem etiqueta" / "✓ Etiqueta" em cada pacote, "N sem etiqueta" + "Imprimir N",
   e em Triagens feitas "1 de 2 com etiqueta".
 - **Nova compra (Cabelo e Produtos)**: seções numeradas 1 De quem · 2 O que veio · 3 Detalhes; peso e valor lado a lado;
@@ -198,18 +276,29 @@ npm run build
 
 ## 7. O que falta (fila)
 
-1. **Aplicar o filtro padrão** também em Triagens feitas, Livro do cabelo, Estoque, Vendas e na Linha do tempo.
-2. **Tabelas de preço**: listagem mais clara e filtros no "Usada em" (tipo venda/compra, período, pessoa, versão, busca).
-3. **Configurações**: explicar em cada seção o que muda na prática quando altera (como foi feito no ⚙ da Triagem).
-4. **Relatórios no padrão contábil** ("livro caixa" de verdade: abertura, entradas, saídas, saldo, por conta/moeda,
-   conferência que bate com caixa/estoque/contas, filtros padrão) para passar confiança nos valores.
+Já feito da fila antiga: filtro padrão nas listas (Estoque, Livro, Vendas, Triagem, Tabelas de preço e "Usada em"…),
+Tabelas de preço refeitas e relatórios no padrão contábil boliviano.
+
+1. **QR seguro**: escrever a entrada em Novidades (PT + ES) e conferir no navegador: ler o QR sem login (página
+   neutra), logado (abre o pacote), reimprimir (QR velho dá "etiqueta antiga") e o caixa achando pelo QR novo e antigo.
+2. **Commit** da rodada de 05/11 (o dono faz, mensagem "att").
+3. **Funcionária na Compra e na Triagem**: hoje não tem interruptor para liberar (não foi pedido; avisar se pedirem).
+4. **Configurações**: explicar em cada seção o que muda na prática quando altera (como foi feito no ⚙ da Triagem).
 5. **Conferir num Android de verdade**: fonte grande do sistema e o "Separar" com o dedo.
-6. Pendências maiores (de [SISTEMA.md](SISTEMA.md) §7): servidor/API e sincronização entre aparelhos, segurança no servidor,
-   devolução parcial de produto, leitura de QR própria para iPhone/Firefox, testes de longa duração.
+6. **Servidor/API** (plano em `DIAGNOSTICO-API.md`: tabelas, rotas, login e perfis vindos do banco §10–11, QR §12):
+   sincronização entre aparelhos, vitrine com link público, segurança de verdade. O front já chama tudo pelo contrato;
+   entra um adaptador novo (`src/adapters/api/backendHttp.ts`, plano no §6.1), ao lado do atual `backendApi.ts`.
+7. Pendências menores de [SISTEMA.md](SISTEMA.md) §7: devolução parcial de produto, leitura de QR própria para
+   iPhone/Firefox, testes de longa duração.
 
 ## 8. Para o Claude numa conversa nova
 
 - Comece lendo este arquivo e o [SISTEMA.md](SISTEMA.md).
 - As anotações de memória do Claude ficam só no computador antigo; o essencial delas está na seção 3 acima.
-- Ao terminar uma mudança: `npx tsc --noEmit -p .`, `npx vitest run`, `npm run build` e conferir a tela em 360px e 1280px.
+- **Conferir rápido** (o dono reclamou do build e da suíte a cada passo): enquanto mexe, `npm run tipos` (~30 s) e
+  `npm run test:rapido` (~45 s, só serviços); a suíte toda (`npx vitest run`) e `npm run build` **uma vez no fim** da
+  entrega. Celular: uma chamada a `varredura.html?rotas=<telas>&larguras=320,360,390&so=problemas` (resultado em
+  `window.__resultado`) + no máximo 1–2 capturas.
+- Não gravar nos dados de demonstração do navegador do dono: usar outra aba/porta (ex.: `http://127.0.0.1:5174`).
+- Comando ou consulta novo: `node scripts/contrato.mjs` para regenerar o contrato.
 - Ao mudar o sistema, atualizar o [SISTEMA.md](SISTEMA.md) e este arquivo (seções 6 e 7).
