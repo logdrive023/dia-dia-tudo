@@ -314,8 +314,9 @@ Tabelas de preço refeitas e relatórios no padrão contábil boliviano.
      para "que dia é hoje" e "de que dia é este horário" usando esse fuso; apontar os ~40 lugares para ela (20
      `dataLocal()`, 61 `relogio.hoje()` passam pelo relógio, 8 `toISOString().slice(0, 10)`, 18 `toLocale…`). Combina
      com o DDL da API, que já usa `America/La_Paz`.
-9. **Botão ⓘ dentro do botão do faturamento** no Painel (`painel/VisaoGeral.tsx`): HTML inválido, avisa no console.
-   Simples (~10 min): tirar o ⓘ de dentro do botão e deixar ao lado, sem mudar o visual.
+9. ~~Botão ⓘ dentro do botão do faturamento no Painel~~ — **feito em 05/11/2026**: o bloco do faturamento
+   (`painel/VisaoGeral.tsx`) virou `div` com papel de botão (o mesmo padrão do `NumeroGrande`), abre com Enter/Espaço;
+   o ⓘ abre a explicação sem navegar.
 10. **4 ciclos de import antigos** (simples, ~30–60 min): `estoque ↔ fotos`, `comissoes ↔ financiamentos`,
     `Config ↔ configSecoes ↔ config/Funcionaria`, `precos/CartaoTabela ↔ precos/ListaTabelas`. Em cada um, levar a peça
     que os dois dividem para um terceiro arquivo.

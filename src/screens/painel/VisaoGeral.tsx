@@ -63,6 +63,7 @@ export function VisaoGeral({ p, comparar, periodoTexto, comCabelo }: { p: DadosP
   const c = (id: string) => p.cartoes.find((x) => x.id === id)
   const fat = c('faturamento')
   const v = fat && variacao(fat.valor, fat.anterior)
+  const abrirFat = () => fat?.detalhe && ir(fat.detalhe.tela, fat.detalhe.filtro)
   const m = moedaPadrao()
   return (
     <section aria-label={t('Visão geral')} className="mb-6 overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
@@ -72,11 +73,12 @@ export function VisaoGeral({ p, comparar, periodoTexto, comCabelo }: { p: DadosP
           <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--suave)]">{t('No período')} · <span className="num font-semibold normal-case tracking-normal">{periodoTexto}</span></p>
           {fat && (
             <div className="mt-2 flex flex-wrap items-end gap-x-6 gap-y-2">
-              <button type="button" onClick={fat.detalhe ? () => ir(fat.detalhe!.tela, fat.detalhe!.filtro) : undefined} className="min-w-0 text-left">
+              {/* div com papel de botão (o mesmo padrão do NumeroGrande): o ⓘ também é botão, e botão dentro de botão não vale */}
+              <div role="button" tabIndex={0} onClick={abrirFat} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), abrirFat())} className="min-w-0 cursor-pointer text-left">
                 <span className="flex items-center text-sm text-[var(--suave)]">{t('Faturamento')}<Info texto={fat.ajuda ?? ''} /></span>
                 <span className="num block text-3xl font-black leading-tight sm:text-4xl">{fmt(fat.valor, fat.formato, fat.moeda)}</span>
                 {comparar && <span className={cx('num text-sm font-semibold', !v ? 'text-[var(--suave)]' : v.sobe ? 'text-[var(--bom)]' : 'text-[var(--ruim)]')}>{v ? `${v.texto} ${t('vs. período anterior')}` : t('sem base anterior')}</span>}
-              </button>
+              </div>
               <div className="min-w-[8rem] flex-1"><Tendencia serie={p.serie} anterior={comparar ? p.serieAnterior : undefined} /></div>
             </div>
           )}
