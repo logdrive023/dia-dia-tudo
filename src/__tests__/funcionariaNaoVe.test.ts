@@ -3,7 +3,7 @@
 // unidade, a linha do tempo (caixa e registro de todos) e a origem do pacote nunca chegam até ela.
 import { describe, expect, it } from 'vitest'
 import type { BackendNoAparelho } from '../adapters/noAparelho'
-import { SENHA_DEMO, carregarDemo } from '../app/demo'
+import { SENHA_DEMO, carregarDemo } from '../adapters/demo'
 import { criarBackend } from '../app/criarBackend'
 import { dataLocal, somarDias } from '../core/domain/datas'
 

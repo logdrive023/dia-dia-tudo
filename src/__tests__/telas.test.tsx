@@ -2,9 +2,9 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import Dexie from 'dexie'
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import App from '../App'
-import { ES } from '../ui/es'
-import { MENU } from '../ui/Shell'
+import App from '../app/App'
+import { ES } from '../shared/ui/es'
+import { MENU } from '../app/Shell'
 
 // cada teste com um banco novo (o app abre o banco "tudo" do aparelho)
 beforeEach(() => {

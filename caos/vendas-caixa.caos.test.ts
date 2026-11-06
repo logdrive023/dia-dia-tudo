@@ -4,7 +4,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it } from 'vitest'
 import { bs, novoBackend } from '../src/__tests__/ajuda'
-import { carregarDemo, SENHA_DEMO } from '../src/app/demo'
+import { carregarDemo, SENHA_DEMO } from '../src/adapters/demo'
 import { criarBackend } from '../src/app/criarBackend'
 import { BackendApi } from '../src/adapters/api/backendApi'
 import { criarFetchSimulado } from '../src/adapters/api/apiSimulada'

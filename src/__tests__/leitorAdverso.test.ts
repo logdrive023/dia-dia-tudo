@@ -3,8 +3,8 @@
 // mancha (pedaço apagado) e QR invertido. O leitor tem de ler em todos; o realce de contraste é o que salva os piores.
 
 import { describe, expect, it } from 'vitest'
-import { gerarQR } from '../ui/qr'
-import { brilho, decodificar, realcar } from '../ui/leitorImagem'
+import { gerarQR } from '../shared/ui/qr'
+import { brilho, decodificar, realcar } from '../shared/ui/leitorImagem'
 import jsQR from 'jsqr'
 
 const TEXTO = 'https://loja.exemplo/#/lotes/01M6J1FCMWSRN4S3272X1ETV25'

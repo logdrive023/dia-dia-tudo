@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BackendNoAparelho } from '../adapters/noAparelho'
 import { criarBackend } from '../app/criarBackend'
-import { carregarDemo } from '../app/demo'
+import { carregarDemo } from '../adapters/demo'
 import { bs, novoBackend } from './ajuda'
 
 type B = Awaited<ReturnType<typeof novoBackend>>['b']

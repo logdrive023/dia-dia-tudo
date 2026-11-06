@@ -2,7 +2,7 @@
 // (antes mostrava "Compra: ainda não" porque não seguia os pacotes de origem da mistura).
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it } from 'vitest'
-import { caminhoProprio } from '../ui/caminhoCabelo'
+import { caminhoProprio } from '../shared/ui/caminhoCabelo'
 import { bs, novoBackend } from './ajuda'
 
 describe('caminho do cabelo de um pacote misturado', () => {

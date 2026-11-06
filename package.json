@@ -13,7 +13,10 @@
     "tipos": "tsc -b",
     "tipos:vigiar": "tsc -b --watch --preserveWatchOutput",
     "tipos:zerar": "tsc -b --clean",
-    "test:caos": "vitest run --config vitest.caos.config.ts"
+    "test:caos": "vitest run --config vitest.caos.config.ts",
+    "validar": "node scripts/validar.mjs",
+    "validar:plano": "node scripts/validar.mjs --plano",
+    "validar:tudo": "node scripts/validar.mjs --nivel 3"
   },
   "dependencies": {
     "dexie": "4.0.10",

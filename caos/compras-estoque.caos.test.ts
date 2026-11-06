@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BackendNoAparelho } from '../src/adapters/noAparelho'
 import { bs, novoBackend } from '../src/__tests__/ajuda'
-import { carregarDemo, SENHA_DEMO } from '../src/app/demo'
+import { carregarDemo, SENHA_DEMO } from '../src/adapters/demo'
 import { criarBackend } from '../src/app/criarBackend'
 import { ErroNegocio } from '../src/core/domain/erros'
 import { conferir, reposDe } from './integridade'

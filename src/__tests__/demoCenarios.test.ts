@@ -2,7 +2,7 @@
 // este teste avisa — a demonstração não pode ter tela vazia nem conta que não bate.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it } from 'vitest'
-import { carregarDemo } from '../app/demo'
+import { carregarDemo } from '../adapters/demo'
 import { novoBackend } from './ajuda'
 
 describe('dados de exemplo: todos os cenários da demonstração', () => {

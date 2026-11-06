@@ -1,0 +1,153 @@
+// A VITRINE COMO O COMPRADOR VÊ (#/loja): página de loja, sem o menu do sistema e sem login.
+//   topo: o nome da loja, o texto e o WhatsApp · filtros por medida, cor e categoria · os pacotes em cartões (foto,
+//   medida, cor, gramas, preço por grama e o valor do pacote inteiro) · "Quero este" abre o WhatsApp com a mensagem pronta.
+// Só dados públicos (o serviço não manda custo, fornecedor nem compra). Quem está logado vê a faixa "Prévia" para voltar.
+// Hoje abre neste aparelho (os dados estão nele); com a API, o mesmo endereço vira o link público da loja.
+import { useState } from 'react'
+import type { PacoteVitrine } from '../../../core/services/vitrine'
+import { cx, gramasTexto } from '../../../shared/ui/base'
+import { useApp, useConsulta } from '../../../shared/ui/contexto'
+import { useUrlFoto } from '../../../shared/ui/fotos'
+import { useT } from '../../../shared/ui/i18n'
+
+/** o endereço da vitrine (o mesmo app, na rota #/loja) */
+export const linkDaLoja = () => `${window.location.origin}${window.location.pathname}#/loja`
+
+const SIMBOLO: Record<string, string> = { BOB: 'Bs', USD: 'US$', BRL: 'R$', PYG: '₲' }
+const numero = (fator: string) => Number(fator.replace(/\./g, '').replace(',', '.'))
+const dinheiro = (v: number, moeda: string) => `${SIMBOLO[moeda] ?? moeda} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const kg = (g: number) => (g >= 1000 ? `${(g / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} kg` : gramasTexto(g))
+
+/** a cor do cabelo vira a cor do desenho quando não há foto */
+const TOM_COR: Record<string, string> = { Preto: '#1f1b1a', Castanho: '#5b3a29', 'Castanho claro': '#8a5a3c', Loiro: '#c9a063', Ruivo: '#9a3b1f', Misturado: '#6b4a3a' }
+
+function mensagem(p: PacoteVitrine, loja: string) {
+  return `Olá, ${loja}! Tenho interesse no pacote ${p.codigo ?? ''}: ${p.medida} cm${p.categoria !== 'Normal' ? ` ${p.categoria}` : ''}${p.cor ? ` · ${p.cor}` : ''} · ${kg(p.gramas)}. Ainda está disponível?`
+}
+
+export function CartaoPacoteVitrine({ p, whatsapp, loja, mostrarPreco }: { p: PacoteVitrine; whatsapp?: string; loja: string; mostrarPreco: boolean }) {
+  const t = useT()
+  const url = useUrlFoto(p.foto)
+  const cor = TOM_COR[p.cor ?? ''] ?? '#6d4c41'
+  const porGrama = p.preco ? numero(p.preco.fator) : undefined
+  const link = whatsapp ? `https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem(p, loja))}` : undefined
+  return (
+    <article className="group flex flex-col overflow-hidden rounded-3xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+      <div className="relative aspect-[4/5] overflow-hidden" style={{ background: `linear-gradient(160deg, ${cor}22, ${cor}55)` }}>
+        {url ? <img src={url} alt={`${p.medida} cm ${p.cor ?? ''}`} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" /> : (
+          // sem foto: mechas desenhadas na cor do cabelo
+          <svg aria-hidden viewBox="0 0 100 125" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid slice">
+            {[18, 30, 42, 54, 66, 78].map((x, k) => (
+              <path key={x} d={`M${x} -5 C ${x + (k % 2 ? 8 : -8)} 40, ${x + (k % 2 ? -10 : 10)} 80, ${x + (k % 2 ? 4 : -4)} 130`} stroke={cor} strokeWidth={9 - (k % 3)} fill="none" strokeLinecap="round" opacity={0.55 + (k % 3) * 0.15} />
+            ))}
+          </svg>
+        )}
+        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-sm font-black text-[#1f1b1a] shadow">{p.medida} cm</span>
+        {p.categoria !== 'Normal' && <span className="absolute right-3 top-3 rounded-full bg-fuchsia-600 px-2.5 py-1 text-xs font-bold text-white shadow">{t(p.categoria)}</span>}
+        <span className="absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur">⚖️ {kg(p.gramas)}</span>
+      </div>
+      <div className="flex flex-1 flex-col gap-2 p-3 sm:p-4">
+        <div>
+          <p className="font-bold leading-tight">{[p.cor && t(p.cor), p.textura && t(p.textura)].filter(Boolean).join(' · ') || t('Cabelo natural')}</p>
+          <p className="text-xs text-[var(--suave)]">{p.codigo}{p.origem ? ` · ${t(p.origem)}` : ''}</p>
+        </div>
+        <div className="mt-auto">
+          {mostrarPreco && p.preco && porGrama ? (
+            <>
+              <p className="num text-lg font-black text-[var(--marca)]">{dinheiro(porGrama, p.preco.moeda)}<span className="text-xs font-semibold text-[var(--suave)]"> /g</span></p>
+              <p className="num text-xs text-[var(--suave)]">{t('o pacote')}: {dinheiro(porGrama * p.gramas, p.preco.moeda)}</p>
+            </>
+          ) : <p className="text-sm font-semibold text-[var(--suave)]">{t('Consultar preço')}</p>}
+        </div>
+        {link ? (
+          <a href={link} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-[#25d366] px-3 text-sm font-bold text-white transition hover:brightness-105">
+            <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-3.3-.8-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .5l-.3.5-.4.5c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1.1c.2-.3.4-.2.6-.1l2 .9c.3.1.5.2.5.3.1.2.1.7-.1 1.3z" /></svg>
+            {t('Quero este')}
+          </a>
+        ) : <span className="rounded-2xl bg-[var(--fundo)] px-3 py-2 text-center text-xs text-[var(--suave)]">{t('Peça pelo WhatsApp da loja')}</span>}
+      </div>
+    </article>
+  )
+}
+
+/** botão de filtro (chip) da vitrine */
+function Chip({ ativo, onClick, children }: { ativo: boolean; onClick(): void; children: React.ReactNode }) {
+  return (
+    <button type="button" aria-pressed={ativo} onClick={onClick}
+      className={cx('min-h-10 shrink-0 rounded-full px-4 text-sm font-semibold transition', ativo ? 'bg-[var(--marca)] text-white shadow' : 'bg-[var(--cartao)] text-[var(--texto)] ring-1 ring-[var(--borda)] hover:ring-[var(--marca)]')}>
+      {children}
+    </button>
+  )
+}
+
+export function Loja() {
+  const t = useT()
+  const { sessao, ir } = useApp()
+  const { dados } = useConsulta('vitrine', { publico: true })
+  const [medida, setMedida] = useState<number>()
+  const [cor, setCor] = useState<string>()
+  const [categoria, setCategoria] = useState<string>()
+  const logado = !!sessao.usuarioId
+  const lista = (dados?.pacotes ?? []).filter((p) => (!medida || p.medida === medida) && (!cor || p.cor === cor) && (!categoria || p.categoria === categoria))
+  const zap = dados?.loja.whatsapp ? `https://wa.me/${dados.loja.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá, ${dados.loja.nome}! Vi a vitrine e quero saber mais.`)}` : undefined
+  return (
+    <div className="min-h-screen bg-[var(--fundo)] text-[var(--texto)]">
+      {logado && (
+        <div className="sticky top-0 z-20 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-[var(--texto)] px-4 py-2 text-center text-xs font-semibold text-[var(--fundo)]">
+          <span>👁 {t('Prévia: é assim que o comprador vê a sua vitrine.')}</span>
+          <button type="button" className="rounded-full bg-[var(--fundo)] px-3 py-1 text-[var(--texto)]" onClick={() => ir('vitrine')}>← {t('Voltar ao sistema')}</button>
+        </div>
+      )}
+      {/* topo da loja */}
+      <header className="relative overflow-hidden bg-[radial-gradient(120%_120%_at_0%_0%,var(--marca),#a21caf_55%,#1f1b1a)] px-4 pb-10 pt-10 text-white sm:pt-14">
+        <svg aria-hidden viewBox="0 0 400 200" className="pointer-events-none absolute -right-10 -top-6 h-64 w-[28rem] opacity-20" fill="none" stroke="white" strokeWidth="6" strokeLinecap="round">
+          {[0, 1, 2, 3, 4].map((k) => <path key={k} d={`M${40 + k * 60} -10 C ${80 + k * 60} 60, ${k * 60} 120, ${60 + k * 60} 220`} />)}
+        </svg>
+        <div className="relative mx-auto max-w-6xl">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">{t('Vitrine de cabelo')}</p>
+          <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">{dados?.loja.nome ?? '…'}</h1>
+          {dados?.loja.descricao && <p className="mt-2 max-w-xl text-white/85">{dados.loja.descricao}</p>}
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+            {dados && <span className="rounded-full bg-white/15 px-3 py-1 font-semibold backdrop-blur">{t('{n} pacote(s) disponíveis', { n: dados.pacotes.length })} · {kg(dados.gramas)}</span>}
+            {zap && <a href={zap} target="_blank" rel="noreferrer" className="rounded-full bg-[#25d366] px-4 py-1.5 font-bold text-white shadow">{t('Falar no WhatsApp')}</a>}
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto -mt-5 max-w-6xl px-4 pb-16">
+        {!dados ? (
+          <div className="rounded-3xl bg-[var(--cartao)] p-10 text-center text-[var(--suave)] shadow-sm">{t('Carregando…')}</div>
+        ) : !dados.pacotes.length ? (
+          <div className="rounded-3xl bg-[var(--cartao)] p-10 text-center shadow-sm">
+            <div aria-hidden className="text-5xl">🛍️</div>
+            <p className="mt-3 text-lg font-bold">{t(dados.loja.ativa ? 'Nenhum pacote disponível agora' : 'A vitrine está fechada no momento')}</p>
+            <p className="mt-1 text-sm text-[var(--suave)]">{t('Fale com a loja pelo WhatsApp para saber das próximas chegadas.')}</p>
+          </div>
+        ) : (
+          <>
+            {/* filtros: medida, cor e categoria */}
+            <div className="relative z-10 space-y-2 rounded-3xl bg-[var(--cartao)] p-3 shadow-md">
+              <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+                <Chip ativo={!medida} onClick={() => setMedida(undefined)}>{t('Todas as medidas')}</Chip>
+                {dados.filtros.medidas.map((m) => <Chip key={m} ativo={medida === m} onClick={() => setMedida(medida === m ? undefined : m)}>{m} cm</Chip>)}
+              </div>
+              {(dados.filtros.cores.length > 1 || dados.filtros.categorias.length > 1) && (
+                <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+                  {dados.filtros.cores.length > 1 && dados.filtros.cores.map((c) => <Chip key={c} ativo={cor === c} onClick={() => setCor(cor === c ? undefined : c)}><span aria-hidden className="mr-1 inline-block h-3 w-3 rounded-full align-middle" style={{ background: TOM_COR[c] ?? '#6d4c41' }} />{t(c)}</Chip>)}
+                  {dados.filtros.categorias.length > 1 && dados.filtros.categorias.map((c) => <Chip key={c} ativo={categoria === c} onClick={() => setCategoria(categoria === c ? undefined : c)}>{t(c)}</Chip>)}
+                </div>
+              )}
+            </div>
+            <p className="mb-3 mt-4 text-sm text-[var(--suave)]">{t('{n} resultado(s)', { n: lista.length })}</p>
+            {!lista.length ? <p className="rounded-3xl bg-[var(--cartao)] p-8 text-center text-[var(--suave)]">{t('Nada com esses filtros.')}</p> : (
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+                {lista.map((p) => <CartaoPacoteVitrine key={p.id} p={p} whatsapp={dados.loja.whatsapp} loja={dados.loja.nome} mostrarPreco={dados.loja.mostrarPreco} />)}
+              </div>
+            )}
+          </>
+        )}
+      </main>
+      <footer className="pb-8 text-center text-xs text-[var(--suave)]">{t('Preço por grama · peso conferido na balança · envio a combinar')}</footer>
+    </div>
+  )
+}

@@ -261,7 +261,7 @@ Toque no **i** de qualquer item ou número: explicação + **quadro de exemplo**
 ## 3. Modularidade (plug-and-play)
 - **Módulo = descrição** (`src/core/modulos.ts`): tipos de item e campos, etapas da triagem, pergunta do assistente de venda,
   recursos (estoque, tabela de preço, agenda), seções do painel e alertas. O núcleo não sabe o que é cabelo ou salão.
-- Módulos de código: `src/modules/` (cabelo, salão, empréstimos, produtos). **Produtos é só configuração** (prova do genérico).
+- Módulos de código: `src/core/areas/` (cabelo, salão, empréstimos, produtos). **Produtos é só configuração** (prova do genérico).
 - **Modalidade pela tela** (Configurações › Módulos › Criar nova modalidade): escolhe estoque (peças/gramas), etapas da triagem,
   lote por compra (rastreio), **preço por tabela medida × comprador** (do cabelo), **atendimento com agenda** (do salão) e campos
   próprios. Menus, assistente de venda, painel e relatórios se ajustam sozinhos (teste `modalidade criada pela tela`).
@@ -272,7 +272,7 @@ Toque no **i** de qualquer item ou número: explicação + **quadro de exemplo**
 ## 4. Arquitetura (local hoje, API amanhã)
 
 ```
-telas (screens/, ui/) ──► porta Backend (comando / consulta / anexar)
+telas (features/, shared/) ──► porta Backend (comando / consulta / anexar)
                               │
            ┌──────────────────┼────────────────────┐
    adapters/noAparelho.ts                 adapters/api/backendApi.ts
@@ -280,7 +280,7 @@ telas (screens/, ui/) ──► porta Backend (comando / consulta / anexar)
       │                │
  adapters/memory   adapters/local (IndexedDB/Dexie — ÚNICO lugar que conhece o banco)
                               │
-                core/services (regras, só usam portas) ◄── core/modulos + src/modules
+                core/services (regras, só usam portas) ◄── core/modulos + src/core/areas
 ```
 
 - **Comandos e consultas** (`src/core/services/index.ts`) são o contrato das telas e da futura API (`api-contract/openapi.yaml`).
@@ -297,11 +297,13 @@ src/core/ports       portas (repos, arquivos, sessão, relógio, Backend)
 src/core/services    caixa, estoque (separação, rastreio), compras, vendas, contas, precos, emprestimos,
                      equipe, cadastros, painel (+diagnóstico), relatorios, historico (log/linha do tempo)
 src/core/modulos*.ts contrato dos módulos e modalidades montadas pela tela
-src/modules          cabelo, salão, empréstimos, produtos (+ registro)
+src/core/areas          cabelo, salão, empréstimos, produtos (+ registro)
 src/adapters         memory, local (Dexie), api (+ simulada), noAparelho
-src/app              criarBackend (escolhe o armazenamento), câmbio automático, dados de exemplo
-src/ui               peças de tela, gráficos SVG, contexto, idioma (i18n.ts + es.ts), Shell
-src/screens          uma tela por área
+src/adapters         também: câmbio automático (cambio.ts), dados de exemplo (demo.ts), API simulada
+src/app              App (rotas → telas), Shell (menu), 404, criarBackend (escolhe o armazenamento)
+src/shared           peças comuns: ui/ (componentes, gráficos SVG, contexto, idioma i18n.ts + es.ts), navegacao/
+src/features         um domínio de negócio por pasta (pages, components, hooks, model, tests + index.ts público)
+                     — regras e mapa completo em ARQUITETURA.md
 ```
 
 ### Segurança das requisições
@@ -332,7 +334,7 @@ HTTPS (use os dois) e, sem `VITE_API_CHAVE_PUBLICA`, alguém no meio com um cert
 ---
 
 ## 5. Idioma e aparência
-- **Português ⇄ Español** em Configurações › Negócio › Geral. O texto em português é a chave; o espanhol está em `src/ui/es.ts`
+- **Português ⇄ Español** em Configurações › Negócio › Geral. O texto em português é a chave; o espanhol está em `src/shared/ui/es.ts`
   (falta tradução → aparece em português). Novo idioma = novo dicionário.
 - Cores básicas com função (marca, bom, alerta, ruim) em variáveis CSS; tema escuro automático.
 - Mobile first (320 px, barra inferior + "Mais"), desktop com menu lateral e tabelas; botão 💱 de conversão sempre à mão.
@@ -410,8 +412,8 @@ Lendo os pedidos e o caderno real (PDF de contas), apareceram coisas que nenhum 
 ---
 
 ## 8. Como criar um módulo em código
-1. `src/modules/meu.ts` exportando um `ModuloDef` (veja `produtos.ts`, que é só configuração).
-2. Uma linha em `src/modules/index.ts`.
+1. `src/core/areas/meu.ts` exportando um `ModuloDef` (veja `produtos.ts`, que é só configuração).
+2. Uma linha em `src/core/areas/index.ts`.
 3. Se precisar de regra nova, um serviço em `src/core/services/` + entrada em `index.ts` (comando/consulta) + teste.
 4. Painel: devolva `Secao[]` em `painel(dados)` — cartões, barras, tabela, mapa ou funil (desenhados por `ui/graficos.tsx`).
 

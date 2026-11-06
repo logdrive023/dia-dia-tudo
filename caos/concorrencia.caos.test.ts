@@ -2,7 +2,7 @@
 // Teste que FALHA = bug (cada um afirma o comportamento CERTO). Dados fictícios.
 import { describe, expect, it } from 'vitest'
 import { bs } from '../src/__tests__/ajuda'
-import { abrirAbas, base, compraPaga, compraAberta, venda, repos, saldo, caixaBOB, auditoriaDe, entrarComo, resultado, type B, type Q } from './abas'
+import { abrirAbas, base, compraPaga, compraAberta, venda, repos, saldo, caixaBOB, auditoriaDe, entrarComo, resultado, type B, type Q , SENHA_TESTE } from './abas'
 import { conferir } from './integridade'
 
 async function integras(...bs_: B[]) {
@@ -302,7 +302,7 @@ describe('SESSÃO e PERFIL numa aba que ficou aberta', () => {
     const lote = await compraPaga(A.b, 'c1')
     await entrarComo(Bb, 'bianca')
     // outro administrador guardado antes (a regra "fica pelo menos um administrador ativo" não deixa rebaixar o único)
-    await A.b.comando('salvarUsuario', { id: 'u-adm3', login: 'carla', nome: 'Carla Admin', perfil: 'admin', ativo: true, senha: '1234' } as Q)
+    await A.b.comando('salvarUsuario', { id: 'u-adm3', login: 'carla', nome: 'Carla Admin', perfil: 'admin', ativo: true, senha: SENHA_TESTE } as Q)
     await A.b.comando('salvarUsuario', { id: 'u-adm2', login: 'bianca', nome: 'Bianca Admin', perfil: 'funcionario', ativo: true })
     const rr = await resultado(Bb.b.comando('ajustarEstoque', { itemId: lote, novoSaldo: 0, motivo: 'perda', descricao: 'sumiu' }))
     expect(rr).not.toBe('ok')
@@ -337,9 +337,9 @@ describe('SESSÃO e PERFIL numa aba que ficou aberta', () => {
   it('C27 senha trocada pelo administrador: a senha antiga não entra mais, a nova entra', async () => {
     const { A, Bb } = await cenario()
     await entrarComo(Bb, 'sofia')
-    await A.b.comando('salvarUsuario', { id: 'u-sofia', login: 'sofia', nome: 'Sofia Ficticia', perfil: 'funcionario', pessoaId: 'p-sofia', senha: '9999' })
-    expect(await resultado(Bb.b.entrar('sofia', '1234'))).not.toBe('ok')
-    expect(await resultado(Bb.b.entrar('sofia', '9999'))).toBe('ok')
+    await A.b.comando('salvarUsuario', { id: 'u-sofia', login: 'sofia', nome: 'Sofia Ficticia', perfil: 'funcionario', pessoaId: 'p-sofia', senha: 'nova9999' })
+    expect(await resultado(Bb.b.entrar('sofia', SENHA_TESTE))).not.toBe('ok')
+    expect(await resultado(Bb.b.entrar('sofia', 'nova9999'))).toBe('ok')
   })
 })
 

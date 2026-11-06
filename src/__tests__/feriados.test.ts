@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import { bissexto, feriadosDoAno, feriadosEntre, pascoa } from '../core/dados/feriados'
 import { somarMeses } from '../core/domain/datas'
-import { gradeMes } from '../ui/calendario'
+import { gradeMes } from '../shared/ui/calendario'
 import { novoBackend } from './ajuda'
 
 const dataDe = (ano: number, id: string) => feriadosDoAno(ano).find((f) => f.id === id)?.data

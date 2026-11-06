@@ -2,7 +2,7 @@
 // ela; veio de um formulário → a lista da área (pulando até ela se está no histórico); abriu por link → a lista da área.
 
 import { describe, expect, it } from 'vitest'
-import { destinoVoltar } from '../app/rotas'
+import { destinoVoltar } from '../shared/navegacao/rotas'
 
 const n = (tela: string, params: Record<string, string> = {}) => ({ tela, params })
 

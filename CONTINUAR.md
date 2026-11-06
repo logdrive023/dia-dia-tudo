@@ -26,9 +26,9 @@ vai ser usado pela família da namorada do dono — funcionárias falam espanhol
   (envelope criptografado `/v1/k` e `/v1/r`; contrato em `api-contract/openapi.yaml`).
 - Testes: Vitest + fake-indexeddb + Testing Library (85 arquivos, 390 testes em 05/11/2026).
 - Contrato: 92 comandos e 104 consultas (`node scripts/contrato.mjs` regenera `api-contract/`).
-- **Simular internet**: o backend no aparelho espera 500 ms por chamada (`src/app/simularApi.ts`, `ATRASO_PADRAO`;
+- **Simular internet**: o backend no aparelho espera 500 ms por chamada (`src/adapters/api/simularApi.ts`, `ATRASO_PADRAO`;
   Configurações › Dados › Simular internet) para as telas já se comportarem como com o servidor.
-- **Senha de acesso da demonstração** (o site é público): só o hash SHA-256 fica em `src/app/acesso.ts`.
+- **Senha de acesso da demonstração** (o site é público): só o hash SHA-256 fica em `src/features/acesso/model/acesso.ts`.
   Senhas de usuários: só hash com sal — nem o admin vê a senha de ninguém (ele usa "Gerar senha").
 - Publicação: push na `main` → GitHub Actions roda `npm test` e `npm run build` → GitHub Pages
   (`https://logdrive023.github.io/dia-dia-tudo/`). Se um teste falhar, não publica.
@@ -86,7 +86,7 @@ npm run build
 - **Cada informação aparece uma vez**; recomendar primeiro (dizer a opção recomendada antes das outras); não inventar
   dado (taxa de imposto nunca inventada: vem de fonte em `CONTABILIDADE.md`, configurável).
 - **Lógica nos serviços** (`src/core/services/`), a tela só mostra.
-- **Novidades em PT e ES**: ao fechar uma rodada, entrada no topo de `src/app/novidades.ts` com cada texto `{ pt, es }`
+- **Novidades em PT e ES**: ao fechar uma rodada, entrada no topo de `src/features/novidades/model/novidades.ts` com cada texto `{ pt, es }`
   já escrito nas duas línguas (`novidades.test.ts` falha se o espanhol faltar).
 
 **Papéis:**
@@ -113,12 +113,12 @@ npm run build
 - Tudo que muda grava auditoria (`auditar`) e movimentos (`movEstoque` com saldoAntes/saldoDepois e porNome,
   `movCaixa` por moeda, `movConta`).
 - Estado da tela na URL (`useParamTela`) para links e "voltar" funcionarem.
-- Peças de tela em `src/ui/` (principais: `base.tsx` com Entrada/Info/Botao/Cartao/Janela/Abas/Pagina,
+- Peças de tela em `src/shared/ui/` (principais: `base.tsx` com Entrada/Info/Botao/Cartao/Janela/Abas/Pagina,
   `compartilhados.tsx` com CampoCotacao/useCotacoes/conv/ValoresConvertidos, `menuAcoes.tsx` com `acoesLote`,
   `etiquetas.tsx`, `linhaTempo.tsx`, `rastreioTotal.tsx`, `historicoPacote.tsx`, `valorMoeda.tsx`).
-- **Tradução**: textos em português são as chaves; o espanhol fica em `src/ui/es.ts`. Toda string nova precisa de
+- **Tradução**: textos em português são as chaves; o espanhol fica em `src/shared/ui/es.ts`. Toda string nova precisa de
   entrada lá (antes da chave final `}`), conferindo se a chave já existe (com e sem aspas) para não duplicar.
-- **Tela = orquestrador** (refatoração de 05/11/2026): o arquivo `src/screens/X.tsx` só organiza; as seções ficam
+- **Tela = orquestrador** (refatoração de 05/11/2026): o arquivo `src/features/<dominio>/pages/X.tsx` só organiza; as seções ficam
   na subpasta da tela (`painel/`, `triagem/`, `caixa/`, `venda/`, `viagem/`, `estoque/`, `lote/`, `precos/`,
   `compra/`), cada uma recebendo os dados por props. O que as peças de uma tela dividem fica num arquivo comum da
   subpasta (`comum.ts`, `tipos.ts`, `caixaDia.ts`). Contas que a tela mostra vão para função pura (ex.:
@@ -128,6 +128,9 @@ npm run build
   `conversorPrincipal` (relatório: moeda sem cotação vale 0; para gravar operação use `paraPrincipal`). Datas:
   `dataCurta` ("05/11") e `dataComAno` ("05/11/2026") em `core/domain/datas.ts`. Media query: `useMidia`
   (`ui/midia.ts`). Não recriar essas contas dentro de serviço ou tela.
+- **Arquitetura por domínio** (06/11/2026): `src/app` · `src/features/<dominio>` (19 domínios, `index.ts` público) ·
+  `src/shared` · `src/core` · `src/adapters` — regras e mapa em [ARQUITETURA.md](ARQUITETURA.md), testadas em
+  `src/__tests__/arquitetura.test.ts`. Validação proporcional ao risco: `npm run validar` (política no CLAUDE.md).
 - **Tipos em 3 projetos** (`tsc -b`, 06/11/2026): `tsconfig.app.json` (o app: só tipos do navegador e do Vite —
   usar `process`/Node no app dá erro), `tsconfig.test.json` (`src/__tests__` e `caos/`, usa o resultado do app),
   `tsconfig.node.json` (`vite.config.ts`, `vitest.caos.config.ts`); regras comuns em `tsconfig.base.json`, solução
@@ -137,7 +140,7 @@ npm run build
 
 ## 5. Menu (05/11/2026)
 
-Definido em `src/ui/Shell.tsx` (`MENU` e `CELULAR`), em blocos por área, cada um com a sua cor:
+Definido em `src/app/Shell.tsx` (`MENU` e `CELULAR`), em blocos por área, cada um com a sua cor:
 - **Principal** (sempre aberto): Painel, Comprar, Triagem, Estoque, Etiquetas, Vender.
 - **Dinheiro e agenda**: Caixa, Agenda. **Cabelo**: Viagens, Minha vitrine, Livro do cabelo, Tabelas de preço.
 - **Pessoas**: Pessoas e contas, Equipe e unidades, Empréstimos, Adiantamentos.
@@ -151,7 +154,7 @@ Definido em `src/ui/Shell.tsx` (`MENU` e `CELULAR`), em blocos por área, cada u
 
 ### Rodadas de 04 e 05/11/2026 (a última ainda sem commit no momento desta nota)
 
-O texto para quem usa está em Novidades (`src/app/novidades.ts`); aqui vai o que importa para quem mexe no código.
+O texto para quem usa está em Novidades (`src/features/novidades/model/novidades.ts`); aqui vai o que importa para quem mexe no código.
 
 - **Impostos e relatórios no padrão boliviano** (`CONTABILIDADE.md`, taxas em `src/core/dados/impostos.ts`, motor
   `src/core/services/contabilidade.ts`): IVA e IT informativos na venda e na compra (nunca mudam o preço), gravados no
@@ -170,7 +173,7 @@ O texto para quem usa está em Novidades (`src/app/novidades.ts`); aqui vai o qu
   O filtro respeita os papéis (gerente vê os subordinados).
 - **Viagens**: 340 cidades da Bolívia, aviso de viagem repetida, Relatórios › Viagens (custo do kg por viagem e uma
   contra a outra).
-- **Turno com conferência cega** (`turnos.ts`, `screens/caixa/Turno.tsx`): cada pessoa conta o efectivo sem ver o
+- **Turno com conferência cega** (`turnos.ts`, `features/caixa/components/Turno.tsx`): cada pessoa conta o efectivo sem ver o
   esperado; diferença no nome dela; Caixa › Turnos para o admin.
 - **Alerta de venda abaixo do custo** (`custoDaVenda` em `vendas.ts`, `AvisoAbaixoDoCusto`/`useAbaixoDoCusto`): pede
   confirmação e audita `vendaAbaixoDoCusto`; a funcionária vê o aviso, não o custo. Venda grava a vendedora.
@@ -254,7 +257,7 @@ O texto para quem usa está em Novidades (`src/app/novidades.ts`); aqui vai o qu
   Detalhes; bruto só separado não mostra "vendido 0 / lucro 0".
 - **Etiquetas**: filtros por compra, lote (ou de origem), fornecedor/cliente, quem gerou, quem imprimiu, medida, atributos
   do cabelo (listas) e peso; `estoque` devolve `criadoPorNome`.
-- **Filtro padrão** (`src/ui/filtroPadrao.tsx`): `BarraFiltros` (busca + ⚙ Filtros · N), `ChipsFiltros` (✕ por filtro),
+- **Filtro padrão** (`src/shared/ui/filtroPadrao.tsx`): `BarraFiltros` (busca + ⚙ Filtros · N), `ChipsFiltros` (✕ por filtro),
   `PainelFiltros` + `GrupoFiltro` (blocos com título/ícone, 2 por linha no celular) + `CampoFaixa`, rodapé "Ver N resultados".
   **Já usado em Etiquetas.** Toda lista nova deve usar.
 - **Tooltip (`Info`) com formato padrão**: frases em linhas ("Termo: descrição" com termo em negrito); exemplo em caixa
@@ -262,20 +265,20 @@ O texto para quem usa está em Novidades (`src/app/novidades.ts`); aqui vai o qu
 - **Livro do cabelo**: cada dia é um bloco (fecha/abre), "Fechar todos os dias", modo **Compacto** (lembrado), fechamento
   por compra recolhível.
 - **Comprar**: tabela com "O que falta" resumido ("○ 2 pendências ›") que abre uma linha embaixo; celular já era lista.
-- **Tema claro/escuro/automático** em Configurações (ao lado do idioma), por aparelho (`src/ui/tema.ts`, `data-tema` no `<html>`).
+- **Tema claro/escuro/automático** em Configurações (ao lado do idioma), por aparelho (`src/shared/ui/tema.ts`, `data-tema` no `<html>`).
 
 ### Rodada de 03/11/2026 (madrugada)
 
 - **Menu**: grupo **Principal** sempre aberto (Painel, Comprar, Triagem, Estoque, Etiquetas, Vender); Dinheiro e agenda ·
   Cabelo · Pessoas · Gestão começam fechados (`menu.gruposAbertos`). Celular: Painel · Comprar · Triagem · Estoque · Vender + Mais.
-- **Novidades** (`#/novidades`, menu Gestão): changelog para quem usa. Conteúdo em `src/app/novidades.ts` —
+- **Novidades** (`#/novidades`, menu Gestão): changelog para quem usa. Conteúdo em `src/features/novidades/model/novidades.ts` —
   **a cada rodada, uma entrada nova no topo**.
 - **Compra "Sem valor"** (checkbox em "O que veio"): registra só o peso (total 0, `campos.semValor`) e fica a pendência
   `semValor` ("Sem valor") até pôr o valor.
 - **Pedido em abas**: Resumo (`ItensCompra` + `DestinoCompra`: barra, números e pacotes), Pagamento (etapas; cancelar
   concluída vira confirmação com motivo), Conta do fornecedor, Anexos, Histórico.
 - **Pacote em abas**: Resumo = `VidaDoPacote` (🛒 → ✂️ → 🏷 → 💰, cada passo clicável) + números; Detalhes = Linha da vida
-  (`src/ui/linhaVida.tsx`, timeline com gramas por passo) + atributos; Histórico (dias em blocos, ícone/cor por tipo,
+  (`src/shared/ui/linhaVida.tsx`, timeline com gramas por passo) + atributos; Histórico (dias em blocos, ícone/cor por tipo,
   referência obrigatória à vista); Arquivos. ⓘ ao lado da situação explica Bruto · Preparando · Não identificado ·
   Disponível · Parcial · Esgotado.
 - **Venda em abas**: total e ações no alto; Resumo · Linha do tempo · Arquivos · Correções. Linha do tempo (todas) mostra
@@ -321,14 +324,14 @@ Tabelas de preço refeitas e relatórios no padrão contábil boliviano.
 9. ~~Botão ⓘ dentro do botão do faturamento no Painel~~ — **feito em 05/11/2026**: o bloco do faturamento
    (`painel/VisaoGeral.tsx`) virou `div` com papel de botão (o mesmo padrão do `NumeroGrande`), abre com Enter/Espaço;
    o ⓘ abre a explicação sem navegar.
-10. **4 ciclos de import antigos** (simples, ~30–60 min): `estoque ↔ fotos`, `comissoes ↔ financiamentos`,
-    `Config ↔ configSecoes ↔ config/Funcionaria`, `precos/CartaoTabela ↔ precos/ListaTabelas`. Em cada um, levar a peça
-    que os dois dividem para um terceiro arquivo.
+10. **3 ciclos de import antigos** (listados em `src/__tests__/arquitetura.test.ts`, que barra ciclo novo):
+    `core/services/estoque ↔ fotos`, `core/services/comissoes ↔ financiamentos` e o registro das Configurações
+    (`features/config`: `configSecoes` aponta para os componentes e `Funcionaria` lista o registro — separar os dados
+    da seção do componente). O de `precos` foi resolvido em 06/11 (`precos/model/situacao.ts`).
 11. **ESLint enxuto** (vale a pena): só as regras dos hooks (ordem dos hooks como erro; dependências dos efeitos como
     aviso). Teria pego o bug de hooks de Comprar; a Venda rápida já tem 2 `eslint-disable`. Sem regras de estilo.
     Precisa baixar 2–3 pacotes de desenvolvimento do npm: pedir confirmação ao dono antes.
-12. **Divisão por dentro** de `compra/NovaCompra.tsx` (~30 estados ligados) e de `ModoCaixa` em `VendaRapida.tsx`
-    (7 efeitos que guardam/retomam a venda): só com mais testes de caracterização antes.
+12. ~~Divisão por dentro de Nova compra e Venda rápida~~ — **feito em 06/11/2026**: `compra/hooks/useNovaCompra` + `compra/components/LinhaCompra`; `caixa/hooks/useModoCaixa` + `caixa/components/VendasEmAberto`.
 
 ## 8. Para o Claude numa conversa nova
 

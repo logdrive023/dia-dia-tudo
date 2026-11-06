@@ -1,7 +1,7 @@
 // No celular/tablet nenhum campo recebe o cursor sozinho (abriria o teclado e cobriria a tela).
 import { render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Entrada } from '../ui/base'
+import { Entrada } from '../shared/ui/base'
 
 const original = window.matchMedia
 const toque = (sim: boolean) => {

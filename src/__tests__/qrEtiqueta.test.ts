@@ -3,9 +3,9 @@
 // continuam funcionando para quem entrou; o caixa acha o pacote pelos dois.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it } from 'vitest'
-import { hashParaNav, navParaHash } from '../app/rotas'
-import { enderecoDoQr, lerEnderecoQr } from '../ui/etiquetas'
-import { acharPorCodigo } from '../ui/leitorPistola'
+import { hashParaNav, navParaHash } from '../shared/navegacao/rotas'
+import { enderecoDoQr, lerEnderecoQr } from '../shared/ui/etiquetas'
+import { acharPorCodigo } from '../shared/ui/leitorPistola'
 import { bs, novoBackend } from './ajuda'
 
 async function cenario() {

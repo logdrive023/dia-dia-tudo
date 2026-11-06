@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import Dexie from 'dexie'
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import App from '../App'
+import App from '../app/App'
 
 beforeEach(() => {
   Dexie.dependencies.indexedDB = new IDBFactory()

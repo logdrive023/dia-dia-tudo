@@ -12,7 +12,7 @@ mudando uma configuração (seção 2). **Cabelo**: ajustado pela pesquisa de me
 ## 1. Visão em uma página
 
 ```
-             ┌───────────── telas (screens/, components/) ─────────────┐
+             ┌──────── telas (features/<domínio>, shared/ui) ──────────┐
              │  Início · Comprar · Vender · Estoque · Caixa · Agenda   │
              │  Empréstimos · Pessoas · Locais · Relatórios · Config   │
              └───────────────┬────────────────────────────────────────┘
@@ -399,7 +399,7 @@ comparação de períodos e moedas com relógio fixo; telas em 320 px e 1440 px.
 
 ## 11. Regras permanentes de tela (valem para toda tela nova)
 
-### 11.1 Cabeçalho de tela (PageHeader = `Titulo` em `src/ui/base.tsx`)
+### 11.1 Cabeçalho de tela (PageHeader = `Titulo` em `src/shared/ui/base.tsx`)
 
 Um só componente; a estrutura nunca muda entre telas, só o conteúdo (título, descrição, ações).
 
@@ -416,14 +416,14 @@ Um só componente; a estrutura nunca muda entre telas, só o conteúdo (título,
 - **Pesquisa e filtros**: `FiltroLista` (busca · ⚙ Filtros → painel em grupos · resultado "N de M" + chips ✕ · "Limpar filtros"); listas longas com `Paginacao`; vazio de filtro com `VazioFiltro`.
 - **Situação e período** (props do `FiltroLista`, nunca feitos à mão): `situacao={{ opcoes: [{ id, nome, n, tom? }], valor, onChange }}` → `AbasSituacao` (trilho com a escolhida branca e o número num selo; `tom: 'alerta'` pinta o número de quem pede atenção) e `periodo={{ de, ate, onChange }}` → `BotaoPeriodo` ("📅 Tudo ▾" ao lado da busca; no celular, sem filtro, só o ícone). Outra escolha de um toque ao lado da busca: `BotaoEscolha`. Usados em Comprar, Vender, Triagem (triagens) e Livro do cabelo.
 
-### 11.3 Listagens (`TabelaDados` em `src/ui/tabelaDados.tsx` + `usePaginacao`/`Paginacao`/`Paginada` em `src/ui/paginacao.tsx`)
+### 11.3 Listagens (`TabelaDados` em `src/shared/ui/tabelaDados.tsx` + `usePaginacao`/`Paginacao`/`Paginada` em `src/shared/ui/paginacao.tsx`)
 
 Uma listagem nova é CONFIGURAÇÃO, não uma tabela nova:
 
 - **Colunas** (`{ id, titulo, celula, direita?, ordenar?, classe? }`), **linhas** e `chave`; **onAbrir** (tocar na linha / Enter abre o registro); **acoes** (o ⋯, sempre na última coluna) e `acaoRapida` (um botão antes do ⋯); **ordem/onOrdenar**; **selecao** (caixas + "todos os filtrados"); `realce` (linha apagada: cancelada, esgotado); `detalhe` (linha extra embaixo); `compacta` (linhas baixas, com foto).
 - **Celular — a LINHA PADRÃO**: `celular={{ titulo, valor, valorSub, codigo, situacao: {texto, tom}, alerta: {texto, tom}, progresso, fatos: [...], aberto }}`. Fechada: título · valor / [CÓDIGO] ● situação · selo do alerta / o detalhe do valor (3 kg). Aberta: progresso, os fatos em selos (📅 · 📦 · ⏱), o extra da tela e "Abrir →" + ⋯. Os mesmos selos (`SeloCodigo`, `SeloSituacao`, `SeloAlerta`) nas colunas da tabela do computador. Sem `celular`, a tabela rola de lado.
 - **Foto na linha**: `celular.midia` (a miniatura do pacote, fora do botão da linha — ela é um botão próprio). Usado no Estoque.
-- **Ver como (tabela × cartões)**: `cartoes={vis.cartoes}` com `const vis = useVisaoLista('tela')` (`src/ui/visaoLista.tsx`). Os cartões são a MESMA linha padrão do celular em grade — nenhuma tela desenha cartão próprio. A escolha fica no ⚙ Filtros, no grupo `<GrupoVisao>` ("Como mostrar"; a tela pode juntar ali o que for de exibição, ex.: as colunas do Estoque). Lembrada por tela, no aparelho. No celular é sempre a linha padrão. Usado em Comprar, Triagem, Estoque e Vender.
+- **Ver como (tabela × cartões)**: `cartoes={vis.cartoes}` com `const vis = useVisaoLista('tela')` (`src/shared/ui/visaoLista.tsx`). Os cartões são a MESMA linha padrão do celular em grade — nenhuma tela desenha cartão próprio. A escolha fica no ⚙ Filtros, no grupo `<GrupoVisao>` ("Como mostrar"; a tela pode juntar ali o que for de exibição, ex.: as colunas do Estoque). Lembrada por tela, no aparelho. No celular é sempre a linha padrão. Usado em Comprar, Triagem, Estoque e Vender.
 - **Situação em abas**: toda lista com situações usa `FiltroLista situacao={{ opcoes: [{ id, nome, n, tom? }] }}` (o trilho do Vender), nunca um select de status no painel (seria a mesma coisa duas vezes). Estoque: Com saldo · Disponível · Parcial · Para separar · Esgotado · Todos. Triagem (fila): Todos · Parados · Juntados · Sem juntar.
 - **O que é normal não aparece** na linha: nada de "✓ Completa" em toda compra nem "Sem etiqueta" em cabelo bruto (que ainda não tem etiqueta).
 - **Estados**: `carregando` (linhas piscando), `erro`, `vazio` (`Vazio` = ainda não há nada; `VazioFiltro` = o filtro não achou, com "Limpar filtros").
@@ -431,7 +431,7 @@ Uma listagem nova é CONFIGURAÇÃO, não uma tabela nova:
 - **Fica no módulo**: a consulta, as regras, os filtros (`FiltroLista`) e o que cada coluna mostra. Os dados são locais (paginação na tela); com a API, a mesma `usePaginacao` passa `pagina/porPagina` para a consulta.
 - **Não são listagens de registros** (ficam como estão): tabelas de relatório, grade de preços, comparativos e tabelas de detalhe dentro de uma ficha.
 
-### 11.4 Seleção em lista (`PainelSelecao` em `src/ui/painelSelecao.tsx`)
+### 11.4 Seleção em lista (`PainelSelecao` em `src/shared/ui/painelSelecao.tsx`)
 
 Toda tela que deixa marcar itens usa o mesmo painel (Triagem, Estoque, Etiquetas…):
 
@@ -440,7 +440,7 @@ Toda tela que deixa marcar itens usa o mesmo painel (Triagem, Estoque, Etiquetas
 - **Opções** em cartões (ícone, nome, uma linha do que faz, ⓘ com exemplo; a principal em destaque; as que não valem ficam apagadas dizendo por quê). **Outras ações** à vista, cada uma com a explicação embaixo, e um ⓘ do grupo.
 - Fica preso ao rodapé, na largura da coluna de conteúdo, e reserva o mesmo espaço no fim da página (nunca cobre a lista).
 
-### 11.5 Caminho do cabelo (`CaminhoDoCabelo` em `src/ui/caminhoCabelo.tsx`) — o ÚNICO histórico
+### 11.5 Caminho do cabelo (`CaminhoDoCabelo` em `src/shared/ui/caminhoCabelo.tsx`) — o ÚNICO histórico
 
 Pedido, Pacote, Venda e Triagem feita usam só este (nada de "histórico" + "linha do tempo" repetidos):
 

@@ -79,7 +79,7 @@ export default defineConfig(({ command, mode }) => {
     test: {
       environment: 'jsdom',
       // testes de regra (.test.ts) rodam em Node puro (sem simular navegador): sobem bem mais rápido
-      environmentMatchGlobs: [['src/__tests__/**/*.test.ts', 'node']],
+      environmentMatchGlobs: [['src/__tests__/**/*.test.ts', 'node'], ['src/features/**/*.test.ts', 'node']],
       setupFiles: ['src/__tests__/setup.ts'],
       // a Operação Caos (estresse e concorrência) roda à parte: npx vitest run --config vitest.caos.config.ts
       exclude: ['**/node_modules/**', 'caos/**'],

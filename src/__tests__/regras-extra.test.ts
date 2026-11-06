@@ -318,8 +318,8 @@ describe('fronteira da arquitetura', () => {
     andar(raiz)
     const violam = arquivos.filter((f) => /from 'dexie'/.test(readFileSync(f, 'utf8')) && !f.replace(/\\/g, '/').includes('/adapters/local/'))
     expect(violam).toEqual([])
-    // as regras (core) não importam nada de telas nem de adaptadores
+    // as regras (core) não importam telas, peças, app nem adaptadores (todas as camadas: arquitetura.test.ts)
     const core = arquivos.filter((f) => f.replace(/\\/g, '/').includes('/core/'))
-    expect(core.filter((f) => /from '\.\.\/\.\.\/(adapters|ui|screens)|from '\.\.\/(adapters|ui|screens)/.test(readFileSync(f, 'utf8')))).toEqual([])
+    expect(core.filter((f) => /from '(\.\.\/)+(adapters|shared|features|app)\//.test(readFileSync(f, 'utf8')))).toEqual([])
   })
 })

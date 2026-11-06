@@ -1,7 +1,7 @@
 // confere que o ambiente da Operação Caos funciona: demo carregada, conferidor de integridade limpo
 import { describe, expect, it } from 'vitest'
 import type { BackendNoAparelho } from '../src/adapters/noAparelho'
-import { carregarDemo } from '../src/app/demo'
+import { carregarDemo } from '../src/adapters/demo'
 import { criarBackend } from '../src/app/criarBackend'
 import { conferir } from './integridade'
 

@@ -1,6 +1,6 @@
 // Regras da paginação padrão: nunca fica numa página vazia nem passa do fim; o intervalo "Exibindo X–Y de N" bate.
 import { describe, expect, it } from 'vitest'
-import { paginar } from '../ui/paginacao'
+import { paginar } from '../shared/ui/paginacao'
 
 const cem = Array.from({ length: 248 }, (_, k) => k + 1)
 

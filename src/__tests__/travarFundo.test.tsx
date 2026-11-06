@@ -2,7 +2,7 @@
 // Janela dentro de janela (ex.: Confirmar sobre um formulário) só destrava quando a última fecha.
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { useTravarFundo } from '../ui/base'
+import { useTravarFundo } from '../shared/ui/base'
 
 function Trava({ ativo }: { ativo: boolean }) {
   useTravarFundo(ativo)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { acharPorCodigo, buscarPacotes } from '../ui/leitorPistola'
+import { acharPorCodigo, buscarPacotes } from '../shared/ui/leitorPistola'
 
 const pacotes = [
   { id: 'a', codigo: 'P4', nome: '60 cm · Castanho', codigosAnteriores: ['L-0007'] },

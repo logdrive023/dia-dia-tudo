@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PADROES_128, caminhoCode128, modulosCode128, textoCode128, valoresCode128 } from '../ui/code128'
+import { PADROES_128, caminhoCode128, modulosCode128, textoCode128, valoresCode128 } from '../shared/ui/code128'
 
 describe('Code 128 (conjunto B)', () => {
   it('tabela: 107 padrões distintos, 11 módulos cada (stop 13) e barras com largura par', () => {

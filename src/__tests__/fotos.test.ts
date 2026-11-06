@@ -4,8 +4,8 @@
 import { describe, expect, it } from 'vitest'
 import type { CategoriaAnexo } from '../core/domain/tipos'
 import { COLUNAS_PADRAO, COLUNA_LAVAGEM } from '../core/services/triagem'
-import { enderecoDoLote, loteDoCodigoLido } from '../ui/etiquetas'
-import { bitsFormato, correcaoRS, gerarQR } from '../ui/qr'
+import { enderecoDoLote, loteDoCodigoLido } from '../shared/ui/etiquetas'
+import { bitsFormato, correcaoRS, gerarQR } from '../shared/ui/qr'
 import { bs, novoBackend } from './ajuda'
 
 type B = Awaited<ReturnType<typeof novoBackend>>['b']

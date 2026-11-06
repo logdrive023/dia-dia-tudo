@@ -1,6 +1,9 @@
 // OPERAÇÃO CAOS — CONCORRÊNCIA: duas "abas" (dois BackendNoAparelho, cada um com a SUA fila) no MESMO IndexedDB.
 import { criarBackend } from '../src/app/criarBackend'
 import type { BackendNoAparelho } from '../src/adapters/noAparelho'
+
+/** senha dos usuários de teste (precisa passar na regra de senha forte: 8+ caracteres, letra e número) */
+export const SENHA_TESTE = 'caos1234'
 import { bs, relogioFixo } from '../src/__tests__/ajuda'
 
 export type B = BackendNoAparelho
@@ -23,8 +26,8 @@ export async function base(b: B) {
   await b.comando('salvarPessoa', { id: 'forn', nome: 'Fornecedora Ficticia', papeis: ['fornecedor'], telefone: '111' })
   await b.comando('salvarPessoa', { id: 'cli', nome: 'Cliente Ficticia', papeis: ['cliente'], telefone: '222' })
   await b.comando('salvarPessoa', { id: 'p-sofia', nome: 'Sofia Ficticia', papeis: ['funcionario'] })
-  await b.comando('salvarUsuario', { id: 'u-sofia', login: 'sofia', nome: 'Sofia Ficticia', perfil: 'funcionario', pessoaId: 'p-sofia', senha: '1234' })
-  await b.comando('salvarUsuario', { id: 'u-adm2', login: 'bianca', nome: 'Bianca Admin', perfil: 'admin', senha: '1234' })
+  await b.comando('salvarUsuario', { id: 'u-sofia', login: 'sofia', nome: 'Sofia Ficticia', perfil: 'funcionario', pessoaId: 'p-sofia', senha: SENHA_TESTE })
+  await b.comando('salvarUsuario', { id: 'u-adm2', login: 'bianca', nome: 'Bianca Admin', perfil: 'admin', senha: SENHA_TESTE })
 }
 
 const linhaBruta = (id: string, g: number, total: number) => ({ id, quantidade: g, moeda: 'BOB', total, campos: { estado: 'Bruto', categoria: 'Normal' } })
@@ -53,6 +56,6 @@ export const saldo = async (b: B, itemId: string) => (await repos(b).itens.obter
 export const caixaBOB = async (b: B, data: string) => ((await b.consulta('caixaDoDia', { data })) as Q).contas.find((c: Q) => c.moeda === 'BOB')?.total ?? 0
 export const auditoriaDe = async (b: B, acao: string) => ((await repos(b).auditoria.listar()) as Q[]).filter((a) => a.acao === acao)
 export async function entrarComo(a: { b: B; sessao: Q }, login: string) {
-  Object.assign(a.sessao, await a.b.entrar(login, '1234'))
+  Object.assign(a.sessao, await a.b.entrar(login, SENHA_TESTE))
 }
 export const resultado = (p: Promise<unknown>) => p.then(() => 'ok', (e: Error) => `erro: ${e.message}`)

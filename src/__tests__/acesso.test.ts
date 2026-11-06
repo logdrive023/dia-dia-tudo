@@ -1,6 +1,6 @@
 // SENHA DE ACESSO da demonstração: só o resumo fica no código; a certa libera, a errada não.
 import { describe, expect, it } from 'vitest'
-import { HASH_ACESSO, liberarAcesso, resumo } from '../app/acesso'
+import { HASH_ACESSO, liberarAcesso, resumo } from '../features/acesso/model/acesso'
 
 describe('senha de acesso', () => {
   it('confere pelo resumo (a senha não fica no código)', async () => {

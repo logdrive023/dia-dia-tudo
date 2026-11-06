@@ -1,6 +1,6 @@
 # Contabilidade e impostos — a base dos relatórios
 
-**O padrão BOLIVIANO é o motor.** O brasileiro existe e a pessoa escolhe (Configurações › Fiscal e relatórios). Os valores e as taxas ficam em `src/core/dados/impostos.ts`; o motor está em `src/core/services/contabilidade.ts`; a tela em `src/screens/Relatorios.tsx` e a impressão em `src/screens/relatorio/`.
+**O padrão BOLIVIANO é o motor.** O brasileiro existe e a pessoa escolhe (Configurações › Fiscal e relatórios). Os valores e as taxas ficam em `src/core/dados/impostos.ts`; o motor está em `src/core/services/contabilidade.ts`; a tela em `src/features/relatorio/pages/Relatorios.tsx` e a impressão em `src/features/relatorio/`.
 
 > Não sou contador: este é o modelo que o sistema segue. Antes de entregar algo ao SIN ou à Receita, o contador da empresa deve conferir uma vez.
 

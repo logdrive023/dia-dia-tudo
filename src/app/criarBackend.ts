@@ -8,8 +8,8 @@ import { BackendNoAparelho } from '../adapters/noAparelho'
 import { dataLocal } from '../core/domain/datas'
 import type { TipoArmazenamento } from '../core/ports/backend'
 import type { Relogio, Sessao } from '../core/ports/portas'
-import { criarRegistro } from '../modules'
-import { lerAtraso } from './simularApi'
+import { criarRegistro } from '../core/areas'
+import { lerAtraso } from '../adapters/api/simularApi'
 
 export const relogioReal: Relogio = { agora: () => new Date().toISOString(), hoje: () => dataLocal() }
 

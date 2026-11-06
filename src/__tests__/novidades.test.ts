@@ -1,8 +1,8 @@
 // NOVIDADES nas duas línguas: toda rodada nova já nasce com o espanhol (o tipo exige `es`; aqui confere que não está
 // vazio nem é cópia do português) e as áreas e rótulos da tela têm tradução.
 import { describe, expect, it } from 'vitest'
-import { NOVIDADES, type Texto2 } from '../app/novidades'
-import { ES } from '../ui/es'
+import { NOVIDADES, type Texto2 } from '../features/novidades/model/novidades'
+import { ES } from '../shared/ui/es'
 
 const confere = (x: Texto2 | undefined, onde: string) => {
   if (!x) return

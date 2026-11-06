@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { TabelaCotacoes } from '../core/domain/dinheiro'
-import { converterDigitado, cotacaoSistema, moedasDoCampo } from '../ui/valorMoeda'
+import { converterDigitado, cotacaoSistema, moedasDoCampo } from '../shared/ui/valorMoeda'
 
 const cot: TabelaCotacoes = {
   USD: { moeda: 'USD', valor: '6,96', sentido: 'basePorMoeda', contra: 'BOB', data: '' },

@@ -2,7 +2,7 @@
 // afetado e os ligados) e as tentativas recusadas. A funcionária não vê.
 import { describe, expect, it } from 'vitest'
 import type { BackendNoAparelho } from '../adapters/noAparelho'
-import { SENHA_DEMO, carregarDemo } from '../app/demo'
+import { SENHA_DEMO, carregarDemo } from '../adapters/demo'
 import { criarBackend } from '../app/criarBackend'
 
 describe('auditoria (só administrador)', () => {

@@ -3,7 +3,7 @@
 // recalculado a partir dos repositórios crus e comparado. Teste que FALHA = bug (o esperado é a regra correta).
 import { beforeAll, describe, expect, it } from 'vitest'
 import { novoBackend } from '../src/__tests__/ajuda'
-import { carregarDemo, SENHA_DEMO } from '../src/app/demo'
+import { carregarDemo, SENHA_DEMO } from '../src/adapters/demo'
 import { dataLocal, somarDias } from '../src/core/domain/datas'
 import { achar, conferir, reposDe } from './integridade'
 
