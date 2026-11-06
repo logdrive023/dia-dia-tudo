@@ -37,5 +37,12 @@ export async function conferir(b: BackendNoAparelho): Promise<string[]> {
   return problemas
 }
 
+/** o item que TEM de existir na lista: não achou → o teste falha dizendo o quê (e o tipo deixa de ser "talvez undefined") */
+export function achar<T>(lista: readonly T[], pred: (x: T) => boolean, oQue: string): T {
+  const x = lista.find(pred)
+  if (x === undefined) throw new Error(`não achou: ${oQue}`)
+  return x
+}
+
 /** os repositórios crus (para a bateria investigar além da tela) */
 export const reposDe = (b: BackendNoAparelho) => (b as unknown as { repos: Qualquer }).repos

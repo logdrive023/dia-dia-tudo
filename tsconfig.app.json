@@ -1,0 +1,13 @@
+{
+  // O APP (o que vai para o navegador): só os tipos do navegador e do Vite — nada de Node nem de teste.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "outDir": "node_modules/.cache/tsc/app",
+    "tsBuildInfoFile": "node_modules/.cache/tsc/app.tsbuildinfo",
+    "types": ["vite/client", "vite-plugin-pwa/client"]
+  },
+  "include": ["src"],
+  "exclude": ["src/__tests__"]
+}

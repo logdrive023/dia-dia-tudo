@@ -3,7 +3,7 @@
 // filtros contraditórios; estorno de lançamentos nas unidades. Teste que FALHA = bug.
 import { describe, expect, it } from 'vitest'
 import { bs, novoBackend } from '../src/__tests__/ajuda'
-import { conferir, reposDe } from './integridade'
+import { achar, conferir, reposDe } from './integridade'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Q = any
@@ -149,7 +149,7 @@ describe('períodos e filtros', () => {
   it('unidades com de > ate: salários estimados não podem ficar negativos (nem a margem "inventada")', async () => {
     const { b } = await base()
     const u = await b.consulta('unidades', { de: '2026-11-30', ate: '2026-11-01' })
-    const x = u.lista.find((l: Q) => l.local.id === 'loc')
+    const x = achar(u.lista, (l) => l.local.id === 'loc', 'unidade loc')
     expect({ salarios: x.salarios, margem: x.margem, dias: u.dias }).toEqual({ salarios: 0, margem: 0, dias: 0 })
   })
 })
@@ -160,7 +160,7 @@ describe('unidades × estornos (repro isolada)', () => {
     await b.comando('pagarSalario', { id: 's1', pessoaId: 'prof', valor: bs(3000), moeda: 'BOB', forma: 'dinheiro' })
     await b.comando('estornarLancamento', { lancamentoId: 's1', motivo: 'errado' })
     const u = await b.consulta('unidades', { de: r.hoje, ate: r.hoje })
-    expect(u.lista.find((l: Q) => l.local.id === 'loc').salariosPagos).toBe(0)
+    expect(achar(u.lista, (l) => l.local.id === 'loc', 'unidade loc').salariosPagos).toBe(0)
   })
 
   it('despesa da unidade SEM categoria desfeita: despesas da unidade = 0', async () => {
@@ -168,7 +168,7 @@ describe('unidades × estornos (repro isolada)', () => {
     await b.comando('lancarCaixa', { id: 'd1', tipo: 'despesa', moeda: 'BOB', forma: 'dinheiro', valor: bs(500), descricao: 'engano', localId: 'loc' })
     await b.comando('estornarLancamento', { lancamentoId: 'd1', motivo: 'engano' })
     const u = await b.consulta('unidades', { de: r.hoje, ate: r.hoje })
-    expect(u.lista.find((l: Q) => l.local.id === 'loc').despesas).toBe(0)
+    expect(achar(u.lista, (l) => l.local.id === 'loc', 'unidade loc').despesas).toBe(0)
     // o DRE acerta o mesmo caso (comparação)
     const dre = await b.consulta('dre', { de: r.hoje, ate: r.hoje })
     expect(dre.despesas).toBe(0)
@@ -179,7 +179,7 @@ describe('unidades × estornos (repro isolada)', () => {
     await b.comando('lancarCaixa', { id: 'e1', tipo: 'entrada', moeda: 'BOB', forma: 'dinheiro', valor: bs(700), descricao: 'aporte', categoria: 'Aporte', localId: 'loc' })
     await b.comando('estornarLancamento', { lancamentoId: 'e1', motivo: 'engano' })
     const u = await b.consulta('unidades', { de: r.hoje, ate: r.hoje })
-    expect(u.lista.find((l: Q) => l.local.id === 'loc').despesas).toBe(0)
+    expect(achar(u.lista, (l) => l.local.id === 'loc', 'unidade loc').despesas).toBe(0)
   })
 
   it('comissão paga e DESFEITA: volta a "a pagar" (comissões) e o DRE não conta', async () => {

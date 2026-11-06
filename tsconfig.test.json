@@ -1,0 +1,11 @@
+{
+  // TESTES (suíte normal e Operação Caos): usam o resultado do app (referência) em vez de verificá-lo de novo.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsc/test.tsbuildinfo",
+    "types": ["vite/client", "vite-plugin-pwa/client", "node"]
+  },
+  "include": ["src/__tests__", "caos"],
+  "references": [{ "path": "./tsconfig.app.json" }]
+}

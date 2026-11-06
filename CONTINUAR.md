@@ -128,6 +128,10 @@ npm run build
   `conversorPrincipal` (relatório: moeda sem cotação vale 0; para gravar operação use `paraPrincipal`). Datas:
   `dataCurta` ("05/11") e `dataComAno` ("05/11/2026") em `core/domain/datas.ts`. Media query: `useMidia`
   (`ui/midia.ts`). Não recriar essas contas dentro de serviço ou tela.
+- **Tipos em 3 projetos** (`tsc -b`, 06/11/2026): `tsconfig.app.json` (o app: só tipos do navegador e do Vite —
+  usar `process`/Node no app dá erro), `tsconfig.test.json` (`src/__tests__` e `caos/`, usa o resultado do app),
+  `tsconfig.node.json` (`vite.config.ts`, `vitest.caos.config.ts`); regras comuns em `tsconfig.base.json`, solução
+  em `tsconfig.json`. Cache em `node_modules/.cache/tsc` (`npm run tipos:zerar` limpa). O deploy guarda esse cache.
 - CSS global em `src/index.css` usa `:where()` (especificidade zero) para não brigar com o Tailwind.
 - Testes de tela: `src/__tests__/setup.ts` usa `asyncUtilTimeout: 10000` porque a CI é lenta (já quebrou por isso).
 
@@ -330,8 +334,9 @@ Tabelas de preço refeitas e relatórios no padrão contábil boliviano.
 
 - Comece lendo este arquivo e o [SISTEMA.md](SISTEMA.md).
 - As anotações de memória do Claude ficam só no computador antigo; o essencial delas está na seção 3 acima.
-- **Conferir rápido** (o dono reclamou do build e da suíte a cada passo): enquanto mexe, `npm run tipos` (~30 s) e
-  `npm run test:rapido` (~45 s, só serviços); a suíte toda (`npx vitest run`) e `npm run build` **uma vez no fim** da
+- **Conferir rápido** (o dono reclamou do build e da suíte a cada passo): enquanto mexe, `npm run tipos` (`tsc -b` com
+  cache: ~2–8 s; frio ou mexendo em `core/domain/tipos.ts` ~30 s; `npm run tipos:vigiar` reconfere em ~3 s a cada
+  salvar) e `npm run test:rapido` (~45 s, só serviços); a suíte toda (`npx vitest run`) e `npm run build` **uma vez no fim** da
   entrega. Celular: uma chamada a `varredura.html?rotas=<telas>&larguras=320,360,390&so=problemas` (resultado em
   `window.__resultado`) + no máximo 1–2 capturas.
 - Não gravar nos dados de demonstração do navegador do dono: usar outra aba/porta (ex.: `http://127.0.0.1:5174`).

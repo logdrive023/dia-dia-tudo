@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { novoBackend } from '../src/__tests__/ajuda'
 import { carregarDemo, SENHA_DEMO } from '../src/app/demo'
 import { dataLocal, somarDias } from '../src/core/domain/datas'
-import { conferir, reposDe } from './integridade'
+import { achar, conferir, reposDe } from './integridade'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Q = any
@@ -318,7 +318,9 @@ describe('mês simulado (30 dias, 9 usuários)', () => {
     const itens = ((await reposDe(b).itens.listar()) as Q[]).filter((i) => i.moduloId === 'cabelo' && i.controlaEstoque && i.saldo > 0)
     const esperado = soma(itens.map((i) => (!i.custoPrincipal || !i.quantidadeInicial ? 0 : Math.round((i.custoPrincipal * i.saldo) / i.quantidadeInicial))))
     const p = await b.consulta('painel', { de: inicio, ate: fim })
-    const cab = p.areas.find((a: Q) => a.id === 'cabelo')!.secoes[0].cartoes.find((x: Q) => x.id === 'cab.valor').valor
+    const secao = achar(p.areas, (a) => a.id === 'cabelo', 'área cabelo no painel').secoes[0]
+    if (secao.tipo !== 'cartoes') throw new Error(`a 1ª seção do cabelo devia ser de cartões, veio "${secao.tipo}"`)
+    const cab = achar(secao.cartoes, (x) => x.id === 'cab.valor', 'cartão cab.valor').valor
     const inv = await b.consulta('inventario', { moduloId: 'cabelo' })
     expect(inv.valor).toBe(cab)
     expect(Math.abs(cab - esperado)).toBeLessThanOrEqual(itens.length) // arredondamento por lote
@@ -372,7 +374,7 @@ describe('mês simulado (30 dias, 9 usuários)', () => {
       if (p.ganhoTotal !== ganho || p.pagoTotal !== pago || p.aPagar !== ganho - pago) erros.push(`${p.nome}: ganho ${p.ganhoTotal}/${ganho} pago ${p.pagoTotal}/${pago}`)
     }
     expect(erros).toEqual([])
-    const admSofia = c.porPessoa.find((x: Q) => x.pessoaId === 'p-vero')
+    const admSofia = achar(c.porPessoa, (x) => x.pessoaId === 'p-vero', 'comissão da p-vero (visão do admin)')
     await como(b, 'sofia')
     const dela = await b.consulta('comissoes', {})
     await como(b, 'admin')

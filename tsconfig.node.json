@@ -1,0 +1,10 @@
+{
+  // FERRAMENTAS que rodam no Node (configuração do Vite e do Vitest).
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsc/node.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts", "vitest.caos.config.ts"]
+}

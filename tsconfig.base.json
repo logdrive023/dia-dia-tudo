@@ -1,0 +1,19 @@
+{
+  // Regras de tipagem comuns aos três projetos (app, testes, ferramentas). Mudou aqui = vale para todos.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    // cache da checagem (só o que mudou é verificado de novo); fica fora do repositório
+    "incremental": true
+  }
+}

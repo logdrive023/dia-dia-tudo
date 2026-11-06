@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "tsc --noEmit -p . && vite build",
+    "build": "tsc -b && vite build",
     "preview": "vite preview --host",
     "test": "vitest run",
     "test:rapido": "vitest run --exclude \"**/*.test.tsx\" --exclude \"**/node_modules/**\" --exclude \"caos/**\"",
     "test:mudou": "vitest run --changed",
-    "tipos": "tsc --noEmit -p .",
+    "tipos": "tsc -b",
+    "tipos:vigiar": "tsc -b --watch --preserveWatchOutput",
+    "tipos:zerar": "tsc -b --clean",
     "test:caos": "vitest run --config vitest.caos.config.ts"
   },
   "dependencies": {

@@ -29,6 +29,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # cache da checagem de tipos (tsc -b): depois do npm ci (que apaga o node_modules). Seguro mesmo velho: o tsc
+      # compara o conteúdo de cada arquivo e verifica de novo tudo o que mudou e o que depende dele.
+      - name: Cache da checagem de tipos
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/tsc
+          key: tsc-${{ runner.os }}-${{ hashFiles('package-lock.json', 'tsconfig*.json') }}-${{ github.sha }}
+          restore-keys: tsc-${{ runner.os }}-${{ hashFiles('package-lock.json', 'tsconfig*.json') }}-
       - name: Testes (regras, contrato local × API, telas)
         run: npm test
       - name: Tipos + build de produção
