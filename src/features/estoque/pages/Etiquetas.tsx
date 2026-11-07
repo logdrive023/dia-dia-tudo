@@ -128,7 +128,8 @@ export function Etiquetas() {
       <Titulo subtitulo={t('Imprima, reimprima e veja quais pacotes ainda não têm etiqueta.')}>{t('Etiquetas')}</Titulo>
 
       {/* três NÚMEROS GRANDES (mesmo padrão de Compras, Triagem e Estoque): tocar troca a lista; selos dizem o peso e o que pede atenção */}
-      <GrupoNumeros colunas={3} celular={3} abas rotulo="Etiqueta">
+      {/* os cartões dizem os números e trocam a lista com um toque; o papel de ABAS (leitor de tela) fica com o filtro padrão abaixo */}
+      <GrupoNumeros colunas={3} celular={3} rotulo="Etiqueta">
           {CARTOES_ETIQUETA.map((c) => {
             const n = conta(c.f)
             const g = base.filter((i) => passaEtiqueta(i, c.f)).reduce((s, i) => s + i.saldo, 0)
@@ -140,13 +141,17 @@ export function Etiquetas() {
               const hoje = base.filter((i) => i.etiquetaImpressaEm?.slice(0, 10) === new Date().toISOString().slice(0, 10)).length
               if (hoje) selos.push({ texto: t('{n} hoje', { n: hoje }), tom: 'marca' })
             }
-            return <NumeroGrande key={c.f} role="tab" rotulo={c.rotulo} icone={c.icone} cor={c.cor} valor={String(n)} selos={selos} colorirValor={c.f === 'sem' && n > 0} ativo={filtro === c.f} onClick={() => setFiltro(c.f)} ajuda={c.f === 'sem' ? AJUDA_SEM : undefined} carregando={!dados} />
+            return <NumeroGrande key={c.f} rotulo={c.rotulo} icone={c.icone} cor={c.cor} valor={String(n)} selos={selos} colorirValor={c.f === 'sem' && n > 0} ativo={filtro === c.f} onClick={() => setFiltro(c.f)} ajuda={c.f === 'sem' ? AJUDA_SEM : undefined} carregando={!dados} />
           })}
       </GrupoNumeros>
 
       {/* FILTRO PADRÃO: busca + ⚙ Filtros · N → chips ✕ → painel em grupos com "Ver N resultados" */}
+      {/* FILTRO PADRÃO (o mesmo de Vender): abas da situação com o número · 📅 período de entrada · busca · ⚙ Filtros.
+          As abas e os cartões acima mudam o MESMO filtro (?f=) — tocar em qualquer um troca a lista */}
       <FiltroLista
         className="mb-2"
+        situacao={{ valor: filtro, onChange: (id) => setFiltro(id as Filtro), opcoes: CARTOES_ETIQUETA.map((c) => ({ id: c.f, nome: c.rotulo, n: dados ? conta(c.f) : undefined, tom: c.f === 'sem' ? 'alerta' as const : undefined })) }}
+        periodo={{ de: p('de'), ate: p('ate'), onChange: (de, ate) => ajustarParams({ de, ate }) }}
         busca={p('busca')} onBusca={(v) => setP('busca', v)} placeholder="Buscar código, nome ou compra"
         ativos={ativos} onTirar={tirar} onLimpar={limpar} temAtivos={avancados > 0}
         resultados={dados ? lista.length : undefined} total={dados ? dados.filter((i) => passaEtiqueta(i, filtro)).length : undefined} unidade="pacote(s)"
@@ -155,10 +160,6 @@ export function Etiquetas() {
               <Campo rotulo="Compra"><Entrada placeholder={t('Ex.: P-0003')} value={p('compra')} onChange={(e) => setP('compra', e.target.value)} /></Campo>
               <Campo rotulo="Lote" ajuda="Acha o pacote pelo código dele, por um código antigo ou pelo lote de onde saiu. Ex.: L-0012 mostra o L-0012 e os pacotes separados dele."><Entrada placeholder={t('Ex.: L-0012')} value={p('lote')} onChange={(e) => setP('lote', e.target.value)} /></Campo>
               <Campo rotulo="Fornecedor / cliente"><Selecao valor={p('pessoa')} onChange={(v) => setP('pessoa', v)} vazio="Todos" opcoes={todasPessoas.map((x) => ({ id: x, nome: x }))} /></Campo>
-              <CampoFaixa rotulo="Entrada (período)">
-                <Entrada type="date" aria-label={t('De')} value={p('de')} onChange={(e) => setP('de', e.target.value)} />
-                <Entrada type="date" aria-label={t('Até')} value={p('ate')} onChange={(e) => setP('ate', e.target.value)} />
-              </CampoFaixa>
             </GrupoFiltro>
             <GrupoFiltro titulo="Quem" icone="👤">
               <Campo rotulo="Quem gerou o pacote"><Selecao valor={p('quem')} onChange={(v) => setP('quem', v)} vazio="Todos" opcoes={quemGerou.map((x) => ({ id: x, nome: x }))} /></Campo>

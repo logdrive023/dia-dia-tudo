@@ -13,7 +13,7 @@ import { useApp, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { type PagamentoTela, conv, cotacaoDigitada, cotacaoTexto, textoCotacaoPagamento, useCotacoes } from '../../../shared/ui/compartilhados'
 import { useT } from '../../../shared/ui/i18n'
 import { buscarPacotes, usePistola } from '../../../shared/ui/leitorPistola'
-import { type Feita, type LinhaCaixa, type Pacote, type Preco, CHAVE_MOEDA_COBRANCA, NAO_SEPARADO, bipe, lerCotacao, lerModoDesconto, lerMoedaCobranca, lerPct, pctTexto, useLargura, useMidia } from '../components/pecas'
+import { type Feita, type LinhaCaixa, type Pacote, type Preco, CHAVE_MOEDA_COBRANCA, NAO_SEPARADO, bipe, prepararBipe, lerCotacao, lerModoDesconto, lerMoedaCobranca, lerPct, pctTexto, useLargura, useMidia } from '../components/pecas'
 
 export function useModoCaixa() {
   const t = useT()
@@ -70,6 +70,8 @@ export function useModoCaixa() {
   }, [])
   useEffect(() => {
     focar()
+    // o áudio do bipe nasce agora, ocioso — nunca dentro do toque que põe o pacote na venda (travava ~0,2 s)
+    prepararBipe()
   }, [focar])
 
   // só itens de módulos ativos com venda

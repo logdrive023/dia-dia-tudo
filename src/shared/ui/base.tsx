@@ -76,13 +76,20 @@ export const pctBp = (bp?: number) => (bp === undefined ? '—' : `${(bp / 100).
 
 // ---------- botões e blocos ----------
 
+/**
+ * Botão padrão. TOQUE: afunda na hora (`active:scale`), sem o atraso de toque duplo (`touch-manipulation`).
+ * `carregando`: mostra o giro, fica `aria-busy` e não aceita outro toque — para ação que espera o servidor
+ * (pagar, salvar), a pessoa vê que o toque pegou e não toca duas vezes.
+ */
 export function Botao({
   children,
   variante = 'primario',
   grande,
+  carregando,
   className,
+  disabled,
   ...p
-}: { variante?: 'primario' | 'secundario' | 'perigo' | 'leve'; grande?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+}: { variante?: 'primario' | 'secundario' | 'perigo' | 'leve'; grande?: boolean; carregando?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const estilos = {
     primario: 'bg-[var(--marca)] text-white hover:brightness-110',
     secundario: 'bg-[var(--marca-suave)] text-[var(--marca)] hover:brightness-95',
@@ -93,9 +100,16 @@ export function Botao({
     <button
       type="button"
       {...p}
-      className={cx('rounded-xl font-semibold transition disabled:opacity-50', !/(^|s)min-w-/.test(className ?? '') && 'min-w-min', grande ? 'min-h-12 px-5 py-3 text-base' : 'min-h-10 px-4 py-2 text-sm', estilos, className)}
+      disabled={disabled || carregando}
+      aria-busy={carregando || undefined}
+      className={cx('touch-manipulation rounded-xl font-semibold transition duration-100 enabled:active:scale-[0.97] disabled:opacity-50 motion-reduce:transform-none', carregando && 'cursor-wait', !/(^|s)min-w-/.test(className ?? '') && 'min-w-min', grande ? 'min-h-12 px-5 py-3 text-base' : 'min-h-10 px-4 py-2 text-sm', estilos, className)}
     >
-      {children}
+      {carregando ? (
+        <span className="inline-flex items-center justify-center gap-2">
+          <span aria-hidden className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          {children}
+        </span>
+      ) : children}
     </button>
   )
 }

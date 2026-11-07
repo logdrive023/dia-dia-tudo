@@ -309,10 +309,14 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
       <style>{`${ativa ? pagina : ''}
 @media print{
   body.imprimindo-etiquetas>*:not(.etiquetas-ativa){display:none!important}
-  .etiquetas-ativa{position:static!important;background:#fff!important;overflow:visible!important;display:block!important}
+  html:has(body.imprimindo-etiquetas),body.imprimindo-etiquetas{margin:0!important;padding:0!important;height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important}
+  .etiquetas-ativa{position:static!important;inset:auto!important;height:auto!important;background:#fff!important;overflow:visible!important;display:block!important}
   .etiquetas-ativa .nao-imprimir{display:none!important}
+  .etiquetas-ativa .folha>div{display:block!important;padding:0!important;margin:0!important;gap:0!important;max-width:none!important}
+  .etiquetas-ativa .pequena{display:block!important}
+  .etiquetas-ativa .pequena .etiqueta{height:${(medRolo.h - 0.3).toFixed(1)}mm!important;break-inside:avoid}
   .etiquetas-ativa .folha,.etiquetas-ativa .previa{padding:0!important;margin:0!important;overflow:visible!important;border:none!important;background:none!important;box-shadow:none!important;display:block!important}
-  .etiquetas-ativa .escala{width:auto!important;height:auto!important;overflow:visible!important}
+  .etiquetas-ativa .escala{width:auto!important;height:auto!important;overflow:visible!important;margin:0!important}
   .etiquetas-ativa .escala>div{transform:none!important}
   .etiquetas-ativa .grade{gap:0!important}
   .etiquetas-ativa .etiqueta{border:none!important}

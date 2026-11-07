@@ -129,7 +129,7 @@ export function Pagamento({ total, moeda, cotacoes, comCliente, ocupado, onPagar
                 disabled={ocupado}
                 aria-pressed={dinheiro === f.id}
                 onClick={() => escolher(f.id)}
-                className={cx('min-h-16 rounded-2xl border-2 px-3 text-lg font-bold disabled:opacity-50', dinheiro === f.id ? 'border-[var(--marca)] bg-[var(--marca)] text-white' : 'border-[var(--borda)] hover:border-[var(--marca)]')}
+                className={cx('min-h-16 touch-manipulation rounded-2xl border-2 px-3 text-lg font-bold transition duration-100 enabled:active:scale-[0.97] disabled:opacity-50 motion-reduce:transform-none', dinheiro === f.id ? 'border-[var(--marca)] bg-[var(--marca)] text-white' : 'border-[var(--borda)] hover:border-[var(--marca)]')}
               >
                 <span className="mr-1 text-xs opacity-60">{i + 1}</span> {t(f.nome)}
               </button>
@@ -153,7 +153,7 @@ export function Pagamento({ total, moeda, cotacoes, comCliente, ocupado, onPagar
                   {comCliente ? t('Faltam {v}: fica na conta da pessoa (fiado).', { v: formatar(falta, moeda) }) : t('Faltam {v}. Fiado só com cliente (em "+ mais").', { v: formatar(falta, moeda) })}
                 </p>
               )}
-              <Botao grande className="min-h-14 w-full text-lg" disabled={ocupado || !podeDinheiro} onClick={confirmarDinheiro}>
+              <Botao grande className="min-h-14 w-full text-lg" carregando={ocupado} disabled={!podeDinheiro} onClick={confirmarDinheiro}>
                 {recebido === undefined || recebido === total ? t('Valor exato ✓') : t('Confirmar ✓')}
               </Botao>
             </div>
@@ -166,7 +166,7 @@ export function Pagamento({ total, moeda, cotacoes, comCliente, ocupado, onPagar
         <div className="space-y-3">
           {/* cada pagamento em outra moeda tem a sua cotação ("1 US$ = [6,96] Bs"), sugerida pela já digitada ou a do sistema */}
           <EditorPagamentos total={total} moedaTotal={moeda} pagamentos={pags} onChange={setPags} permiteFiado={comCliente} cotacaoEditavel cotacoesSugeridas={cotacoes} />
-          <Botao grande className="min-h-14 w-full text-lg" disabled={ocupado} onClick={() => onPagar(pags)}>{t('Confirmar venda')}</Botao>
+          <Botao grande className="min-h-14 w-full text-lg" carregando={ocupado} onClick={() => onPagar(pags)}>{t('Confirmar venda')}</Botao>
           <button type="button" className="min-h-10 text-sm font-semibold text-[var(--marca)]" onClick={() => setDividir(false)}>← {t('Uma forma só')}</button>
         </div>
       )}

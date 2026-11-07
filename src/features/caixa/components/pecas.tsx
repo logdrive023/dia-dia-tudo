@@ -41,12 +41,45 @@ export interface Feita {
 
 // ---------- bipe (WebAudio, sem arquivo) + vibração ----------
 
+// DESEMPENHO NO TOQUE: criar o AudioContext liga o áudio do aparelho e TRAVA a tela (medido: 232 ms com CPU de celular,
+// dentro do toque que põe o pacote na venda). Por isso: (1) prepararBipe() cria o áudio quando a tela abre, num
+// momento ocioso; (2) bipe() vibra na hora e toca o som DEPOIS do próximo quadro — a lista atualiza primeiro.
 let audio: AudioContext | undefined
+const ClasseAudio = () => window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+
+/** cria o áudio fora do toque (ocioso); o navegador deixa "suspenso" até o 1º toque, e o bipe só retoma */
+export function prepararBipe() {
+  if (audio) return
+  const criar = () => {
+    try {
+      const C = ClasseAudio()
+      if (C && !audio) audio = new C()
+    } catch {
+      /* sem som: segue */
+    }
+  }
+  const ocioso = (window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback
+  if (ocioso) ocioso(criar, { timeout: 3000 })
+  else setTimeout(criar, 600)
+}
+
 export function bipe(ok: boolean) {
   try {
-    const C = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    navigator.vibrate?.(ok ? 40 : [90, 60, 90])
+  } catch {
+    /* sem vibração */
+  }
+  // o som sai depois do próximo quadro: o pacote aparece na lista sem esperar o áudio
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(() => tocar(ok), 0))
+  else setTimeout(() => tocar(ok), 0)
+}
+
+function tocar(ok: boolean) {
+  try {
+    const C = ClasseAudio()
     if (C) {
       audio ??= new C()
+      if (audio.state === 'suspended') void audio.resume()
       const o = audio.createOscillator()
       const g = audio.createGain()
       const dur = ok ? 0.09 : 0.28
@@ -60,11 +93,6 @@ export function bipe(ok: boolean) {
     }
   } catch {
     /* sem som: segue */
-  }
-  try {
-    navigator.vibrate?.(ok ? 40 : [90, 60, 90])
-  } catch {
-    /* sem vibração */
   }
 }
 
