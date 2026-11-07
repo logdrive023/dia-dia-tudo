@@ -376,8 +376,12 @@ export function Vazio({ texto, children, compacto, icone }: { texto: string; chi
  * mesma altura aproximada, que só aparece depois de 150 ms (resposta rápida não pisca) e some sem empurrar nada.
  * `tela`: a abertura do app (logo + barra), para a tela inteira. O texto fica para leitor de tela (e para os testes).
  */
-export function Carregando({ texto = 'Carregando…', tela, linhas = 3, formato = 'bloco', colunas, acoes }: {
+export function Carregando({ texto = 'Carregando…', tela, linhas = 3, formato = 'bloco', colunas, acoes, progresso, detalhe }: {
   texto?: string; tela?: boolean; linhas?: number
+  /** tela: a porcentagem JÁ FEITA (0–100) → cartão com barra de progresso de verdade; sem = barra que corre (sem fim certo) */
+  progresso?: number
+  /** tela com progresso: a etapa atual, embaixo do título (ex.: "Cadastrando pessoas") */
+  detalhe?: string
   /** o CONTORNO do que vai chegar (sem salto): bloco de texto, tabela (com as colunas) ou a grade de números grandes */
   formato?: 'bloco' | 'tabela' | 'cartoes'
   /** tabela: quantas colunas e se tem a coluna de ações · cartoes: quantos cartões (em `linhas`) */
@@ -389,6 +393,7 @@ export function Carregando({ texto = 'Carregando…', tela, linhas = 3, formato 
     if (formato === 'cartoes') return <EsqueletoCartoes quantos={linhas} />
     return <EsqueletoBloco linhas={linhas} />
   }
+  if (progresso !== undefined) return <CarregandoProgresso texto={t(texto)} detalhe={detalhe ? t(detalhe) : ''} progresso={progresso} />
   return (
     <div role="status" aria-live="polite" className={cx('flex flex-col items-center justify-center gap-3 p-8 text-center', tela && 'min-h-[60vh]')}>
       <span aria-hidden className="relative flex h-12 w-12 items-center justify-center">
@@ -397,6 +402,36 @@ export function Carregando({ texto = 'Carregando…', tela, linhas = 3, formato 
       </span>
       <span aria-hidden className="carregando-barra relative h-1 w-32 overflow-hidden rounded-full bg-[var(--marca-suave)]" />
       <span className="text-sm font-semibold text-[var(--suave)]">{t(texto)}</span>
+    </div>
+  )
+}
+
+/**
+ * ABERTURA COM PROGRESSO: um cartão só, de tamanho fixo (nada pula quando a etapa troca), com a marca pulsando, o
+ * título, a etapa e a barra que ENCHE de verdade (largura com transição suave + um brilho que passa por cima).
+ * A barra nunca começa vazia (4%): o primeiro quadro já mostra que algo está andando.
+ */
+function CarregandoProgresso({ texto, detalhe, progresso }: { texto: string; detalhe: string; progresso: number }) {
+  const pct = Math.round(Math.min(100, Math.max(0, progresso)))
+  return (
+    <div className="flex min-h-[60vh] w-full items-center justify-center p-4">
+      <div className="carregando-cartao flex w-full max-w-sm flex-col items-center gap-5 rounded-3xl border border-[var(--borda)] bg-[var(--cartao)] px-6 py-8 text-center shadow-2xl shadow-[var(--marca)]/15">
+        <span aria-hidden className="relative flex h-16 w-16 items-center justify-center">
+          <span className="absolute inset-0 rounded-2xl bg-[var(--marca)] opacity-25 motion-safe:animate-ping" />
+          <span className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--marca)] to-fuchsia-500 text-2xl font-black text-white shadow-lg shadow-[var(--marca)]/40">T</span>
+        </span>
+        <div className="w-full">
+          <p className="font-bold">{texto}</p>
+          {/* altura reservada: a etapa troca sem empurrar a barra */}
+          <p role="status" aria-live="polite" className="mt-1 min-h-[1.25rem] truncate text-sm text-[var(--suave)]">{detalhe}</p>
+        </div>
+        <div className="w-full">
+          <div role="progressbar" aria-label={texto} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} className="h-3 w-full overflow-hidden rounded-full bg-[var(--marca-suave)] p-0.5">
+            <div className="progresso-preenche relative h-full overflow-hidden rounded-full bg-gradient-to-r from-[var(--marca)] via-fuchsia-500 to-pink-500 shadow-[0_0_12px_rgba(217,70,239,0.55)]" style={{ width: `${Math.max(4, pct)}%` }} />
+          </div>
+          <p className="num mt-2 text-right text-xs font-bold text-[var(--marca)]">{pct}%</p>
+        </div>
+      </div>
     </div>
   )
 }

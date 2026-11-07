@@ -40,8 +40,37 @@ export const SENHA_DEMO = 'demo1234'
 /** a senha dos dados de exemplo carregados antes da regra de senha (8 caracteres): o botão de entrar tenta as duas */
 export const SENHA_DEMO_ANTIGA = '1234'
 
+/**
+ * PROGRESSO DA MONTAGEM (a tela de abertura mostra a barra): a porcentagem vem dos comandos JÁ FEITOS sobre o total
+ * (PASSOS_DEMO, conferido no teste demoCenarios) e a etapa é o bloco que está sendo montado. Nada de barra de mentira.
+ */
+export interface ProgressoDemo { pct: number; etapa: string }
+/** quantos comandos a montagem faz — mudou a demonstração, o teste demoCenarios avisa o número novo */
+export const PASSOS_DEMO = 165
+const ouvintesProgresso = new Set<(p: ProgressoDemo | undefined) => void>()
+let progresso: ProgressoDemo | undefined
+let feitos = 0
+export function aoProgressoDemo(fn: (p: ProgressoDemo | undefined) => void) {
+  ouvintesProgresso.add(fn)
+  fn(progresso)
+  return () => void ouvintesProgresso.delete(fn)
+}
+/** quantos comandos a última montagem fez (para o teste conferir PASSOS_DEMO) */
+export const passosDaUltimaMontagem = () => feitos
+function avisarProgresso(etapa = progresso?.etapa ?? '', fim = false) {
+  progresso = { pct: fim ? 100 : Math.min(99, Math.round((feitos * 100) / Math.max(1, PASSOS_DEMO))), etapa }
+  ouvintesProgresso.forEach((f) => f(progresso))
+}
+
 export async function carregarDemo(b: BackendNoAparelho) {
-  await b.comoSistema(() => montar(b))
+  feitos = 0
+  avisarProgresso('Configurando moedas e unidades')
+  try {
+    await b.comoSistema(() => montar(b))
+    avisarProgresso('Pronto', true)
+  } finally {
+    progresso = undefined
+  }
 }
 
 async function montar(b: BackendNoAparelho) {
@@ -51,7 +80,9 @@ async function montar(b: BackendNoAparelho) {
     const [a, m, d] = somarDias(hoje, -diasAtras).split('-').map(Number)
     return new Date(a, m - 1, d, hora, 0, 0).toISOString()
   }
-  const c = <N extends NomeComando>(diasAtras: number, nome: N, dados: DadosComando<N>, hora?: number) => b.comandoEm(em(diasAtras, hora), nome, dados)
+  const c = <N extends NomeComando>(diasAtras: number, nome: N, dados: DadosComando<N>, hora?: number) =>
+    b.comandoEm(em(diasAtras, hora), nome, dados).then((r) => (feitos++, avisarProgresso(), r))
+  const fase = (etapa: string) => avisarProgresso(etapa)
   const id = () => novoId()
 
   // ---------- configuração, moedas, sócias ----------
@@ -81,6 +112,7 @@ async function montar(b: BackendNoAparelho) {
   await c(45, 'salvarLocal', { id: 'loc-deposito', nome: 'Depósito de cabelo', tipo: 'ponto', cidade: 'Santa Cruz', pais: 'Bolívia' })
 
   // ---------- pessoas ----------
+  fase('Cadastrando pessoas')
   const P = async (pid: string, d: Omit<DadosComando<'salvarPessoa'>, 'id'>) => {
     await c(45, 'salvarPessoa', { id: pid, ...d })
     return pid
@@ -112,6 +144,7 @@ async function montar(b: BackendNoAparelho) {
   const papa = await P('p-papa', { nome: 'Investidor', papeis: ['credor'] })
 
   // ---------- tabelas de preço ----------
+  fase('Montando tabelas de preço e serviços')
   const valores: Record<string, string> = {}
   for (const [linha, vs] of Object.entries(VALORES)) vs.forEach((v, k) => v && (valores[`${linha}|${COLUNAS[k].id}`] = v))
   const tabGeral = 'tab-geral'
@@ -164,6 +197,7 @@ async function montar(b: BackendNoAparelho) {
   await c(45, 'salvarItem', { id: 'pr-presilha', moduloId: 'produtos', tipoItem: 'peca', nome: 'Presilha · Dourada', precoSugerido: { moeda: 'BOB', valor: bs(25) }, estoqueIdeal: 20, saldoInicial: 14, campos: { grupo: 'Presilha', cor: 'Dourada' } })
 
   // ---------- caixa inicial ----------
+  fase('Registrando compras e triagem')
   await c(45, 'lancarCaixa', { id: id(), tipo: 'saldoInicial', moeda: 'BOB', forma: 'dinheiro', valor: bs(150000), descricao: 'Saldo inicial (efectivo)' })
   await c(45, 'lancarCaixa', { id: id(), tipo: 'saldoInicial', moeda: 'BOB', forma: 'qr', valor: bs(120000), descricao: 'Saldo inicial (banco/QR)' })
   await c(45, 'lancarCaixa', { id: id(), tipo: 'saldoInicial', moeda: 'USD', forma: 'dinheiro', valor: 200000, descricao: 'Saldo inicial em dólar' })
@@ -244,6 +278,7 @@ async function montar(b: BackendNoAparelho) {
   const loteDe = async (compraId: Id, medida: number) => (await b.consulta('estoque', { moduloId: 'cabelo' })).find((i) => i.origem?.id === compraId && Number(i.campos.comprimento) === medida)!.id
 
   // ---------- vendas de cabelo (vendas parciais da mesma compra) ----------
+  fase('Registrando vendas e atendimentos')
   const venda = (lote: Id, medida: number, g: number, coluna: string, fator: string, categoria?: string) => ({
     id: id(),
     itemId: lote,
@@ -313,6 +348,7 @@ async function montar(b: BackendNoAparelho) {
   // agendados (de hoje em diante)
   const agendar = async (diasDepois: number, hora: number, cliente: Id, local: Id, prof: Id, sid: Id, preco: number) => {
     const [a, m, d] = somarDias(hoje, diasDepois).split('-').map(Number)
+    feitos++
     await b.comando('concluirVenda', { id: id(), pessoaId: cliente, localId: local, profissionalId: prof, agendadoPara: new Date(a, m - 1, d, hora).toISOString(), linhas: [{ id: id(), itemId: sid, quantidade: 1, moeda: 'BOB', total: bs(preco), profissionalId: prof }], pagamentos: [] })
   }
   await agendar(0, 15, ana, centro, vero, corte, 80)
@@ -321,6 +357,7 @@ async function montar(b: BackendNoAparelho) {
   await agendar(2, 10, bia, centro, vero, manut, 250)
 
   // ---------- despesas por unidade, retiradas das sócias ----------
+  fase('Fechando contas, viagens e metas')
   await c(30, 'lancarCaixa', { id: 'd-aluguel-centro', tipo: 'despesa', moeda: 'BOB', forma: 'qr', valor: bs(3500), descricao: 'Aluguel', categoria: 'Aluguel', localId: centro })
   await c(30, 'lancarCaixa', { id: id(), tipo: 'despesa', moeda: 'BOB', forma: 'qr', valor: bs(2800), descricao: 'Aluguel', categoria: 'Aluguel', localId: norte })
   await c(10, 'lancarCaixa', { id: id(), tipo: 'despesa', moeda: 'BOB', forma: 'dinheiro', valor: bs(400), descricao: 'Luz', categoria: 'Luz e água', localId: centro })
@@ -468,6 +505,7 @@ async function montar(b: BackendNoAparelho) {
   }
 
   // ---------- usuários (senha demo1234) ----------
+  fase('Criando os usuários de teste')
   const U = (login: string, nome: string, perfil: 'admin' | 'funcionario', pessoaId?: string, localId?: string) =>
     c(0, 'salvarUsuario', { id: `u-${login}`, login, nome, perfil, pessoaId, localId, senha: SENHA_DEMO })
   await U('admin', 'Administrador', 'admin')

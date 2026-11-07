@@ -2,7 +2,7 @@
 // este teste avisa — a demonstração não pode ter tela vazia nem conta que não bate.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it } from 'vitest'
-import { carregarDemo } from '../adapters/demo'
+import { PASSOS_DEMO, aoProgressoDemo, carregarDemo, passosDaUltimaMontagem } from '../adapters/demo'
 import { novoBackend } from './ajuda'
 
 describe('dados de exemplo: todos os cenários da demonstração', () => {
@@ -60,4 +60,20 @@ describe('dados de exemplo: a vitrine', () => {
     expect(pub.pacotes.some((x: any) => x.categoria === 'Tinte')).toBe(true)
     expect(pub.pacotes.filter((x: any) => x.preco).length).toBeGreaterThan(0)
   }, 120000)
+})
+
+describe('dados de exemplo: a barra de progresso da abertura', () => {
+  it('a porcentagem é de verdade (comandos feitos / PASSOS_DEMO): só sobe, troca de etapa e termina em 100', async () => {
+    const { b } = await novoBackend()
+    const vistos: { pct: number; etapa: string }[] = []
+    const parar = aoProgressoDemo((p) => p && vistos.push(p))
+    await carregarDemo(b)
+    parar()
+    // mudou a demonstração? atualize PASSOS_DEMO (adapters/demo.ts) com o número abaixo
+    expect(Math.abs(passosDaUltimaMontagem() - PASSOS_DEMO)).toBeLessThanOrEqual(Math.ceil(PASSOS_DEMO * 0.1))
+    expect(vistos.every((p, i) => i === 0 || p.pct >= vistos[i - 1].pct)).toBe(true)
+    expect(vistos.at(-1)).toEqual({ pct: 100, etapa: 'Pronto' })
+    expect(Math.max(...vistos.slice(0, -1).map((p) => p.pct))).toBeGreaterThanOrEqual(90)
+    expect(new Set(vistos.map((p) => p.etapa)).size).toBeGreaterThanOrEqual(7)
+  }, 120_000)
 })

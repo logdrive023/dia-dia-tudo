@@ -5091,4 +5091,12 @@ export const ES: Record<string, string> = {
   'Baixar backup antes': 'Descargar respaldo antes',
   'Para confirmar, digite {p}': 'Para confirmar, escriba {p}',
   'O modo teste só funciona com os dados neste aparelho. No servidor, nada é apagado por aqui.': 'El modo prueba solo funciona con los datos en este dispositivo. En el servidor, nada se borra desde aquí.',
+  // abertura: etapas da montagem dos dados de exemplo (adapters/demo.ts)
+  'Configurando moedas e unidades': 'Configurando monedas y unidades',
+  'Cadastrando pessoas': 'Registrando personas',
+  'Montando tabelas de preço e serviços': 'Armando tablas de precio y servicios',
+  'Registrando compras e triagem': 'Registrando compras y clasificación',
+  'Registrando vendas e atendimentos': 'Registrando ventas y atenciones',
+  'Fechando contas, viagens e metas': 'Cerrando cuentas, viajes y metas',
+  'Criando os usuários de teste': 'Creando los usuarios de prueba',
 }

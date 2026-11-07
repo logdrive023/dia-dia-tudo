@@ -6,7 +6,7 @@
 //   Recuperacao  — erro numa tela vira aviso com "Tentar de novo" (nunca tela branca)
 import { Component, type ReactNode, useEffect, useRef, useState } from 'react'
 import type { BackendNoAparelho } from '../adapters/noAparelho'
-import { carregarDemo } from '../adapters/demo'
+import { type ProgressoDemo, aoProgressoDemo, carregarDemo } from '../adapters/demo'
 import { montandoCenario } from '../adapters/cenarios'
 import { PacoteVenda } from '../features/lote'
 import { Agenda } from '../features/agenda'
@@ -59,12 +59,14 @@ export function Tela() {
  * Depois mostra a tela de entrar. (Com a API não faz nada: quem tem os dados é o servidor.)
  */
 export function Preparar({ children }: { children: ReactNode }) {
-  const t = useT()
   const { backend, avisar, nav } = useApp()
   // QR de etiqueta ou vitrine aberta num aparelho de fora: não monta dados de exemplo (nada do negócio aparece)
   const publico = nav.tela === 'qr' || nav.tela === 'loja'
   const { dados } = useConsulta('usuariosDemo', {}, backend.tipo !== 'api' && !publico)
   const [montando, setMontando] = useState(false)
+  // a barra da abertura: o que a montagem (esta ou a do Modo teste) já fez, de verdade
+  const [progresso, setProgresso] = useState<ProgressoDemo>()
+  useEffect(() => aoProgressoDemo(setProgresso), [])
   const montou = useRef(false)
   useEffect(() => {
     // Modo teste trocando os dados (sem usuários por um instante): não é o primeiro uso, não monta por cima
@@ -77,10 +79,9 @@ export function Preparar({ children }: { children: ReactNode }) {
   }, [backend, dados, montando, avisar, publico])
   if (!publico && backend.tipo !== 'api' && (!dados || !dados.length))
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center">
-        <div className="text-5xl">💇‍♀️✂️🤝</div>
-        <p className="font-semibold">{t('Preparando a demonstração com dados de exemplo…')}</p>
-        {!dados && <Carregando tela />}
+      <div className="flex min-h-screen items-center justify-center">
+        {/* ainda conferindo se há dados: a abertura simples; montando: o cartão com a barra que enche */}
+        {progresso ? <Carregando tela texto="Preparando a demonstração com dados de exemplo…" progresso={progresso.pct} detalhe={progresso.etapa} /> : <Carregando tela texto={dados ? 'Preparando a demonstração com dados de exemplo…' : 'Carregando…'} />}
       </div>
     )
   return <>{children}</>

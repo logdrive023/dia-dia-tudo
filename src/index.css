@@ -160,6 +160,15 @@ body.imprimindo-relatorio { overflow: hidden; }
 @keyframes carregando-corre { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
 @media (prefers-reduced-motion: reduce) { .carregando-barra::after { animation: none; width: 100%; opacity: 0.5; } }
 
+/* ABERTURA COM PROGRESSO (Carregando tela + progresso): o cartão entra subindo de leve, a barra enche com transição
+   suave (nunca salta) e um brilho passa por cima o tempo todo — mesmo parada, a tela mostra que está viva */
+.carregando-cartao { animation: carregando-cartao 0.35s ease-out both; }
+@keyframes carregando-cartao { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+.progresso-preenche { transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.progresso-preenche::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent); transform: translateX(-100%); animation: progresso-brilho 1.4s ease-in-out infinite; }
+@keyframes progresso-brilho { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .carregando-cartao, .progresso-preenche::after { animation: none; } .progresso-preenche { transition: none; } }
+
 /* ESQUELETO (Carregando padrão, em abas e cartões): aparece só depois de 150 ms — resposta rápida não pisca — e as
    barras brilham de leve da esquerda para a direita */
 .carregando-esqueleto { animation: esqueleto-aparece 0.2s ease-out 0.15s both; }
