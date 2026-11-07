@@ -116,6 +116,57 @@ async function exigirMesmaEtapa(ctx: Ctx, ids: Id[]) {
   exigir(fases.size <= 1, `Esses pacotes estão em etapas diferentes (${[...fases].map((f) => colunas.find((c) => c.id === f)?.nome ?? f).join(' e ')}). Junte só os da mesma etapa — ou desligue a regra no ⚙ Mudar regras da Triagem.`)
 }
 
+/**
+ * JUNTAR COM UM PACOTE JÁ MISTURADO: nunca mistura dentro de mistura. A mistura antiga (intacta desde que juntou) é
+ * desfeita — cada pacote de origem volta com as gramas e o custo que pôs — e as partes entram uma a uma na nova.
+ * Ex.: L-0031 (limpo) + L-0035 (= L-0033 + L-0034) → desfaz L-0035 → junta L-0031 + L-0033 + L-0034 ("Misturado de 3").
+ * Mistura já mexida (venda, separação, ajuste) não dá para abrir: entra como um pacote só, como qualquer bruto.
+ * Fica no histórico: o "desfazer" da mistura antiga e a nova junção (que cita a mistura desfeita).
+ */
+async function abrirMisturas(ctx: Ctx, ids: Id[]) {
+  // o que foi PEDIDO é conferido antes de abrir qualquer mistura (ex.: a mistura + um pacote que está dentro dela,
+  // já sem saldo, continua recusado — abrir a mistura não pode "ressuscitar" o pedido errado)
+  for (const id of ids) {
+    const i = await ctx.repos.itens.obter(id)
+    exigir(i, 'Lote não encontrado.')
+    exigir(i.controlaEstoque && i.saldo > 0, `${i.codigo ?? i.nome} está sem saldo.`)
+  }
+  const saida: Id[] = []
+  const desfeitas: { codigo: string; partes: string[] }[] = []
+  let porId: Map<Id, Item> | undefined
+  let movs: MovsDe | undefined
+  let canceladas: Set<Id> | undefined
+  for (const id of ids) {
+    const u = await ctx.repos.itens.obter(id)
+    if (!u || u.origem?.tipo !== 'unificacao' || !u.triagem || u.triagem.papel !== 'saida') {
+      saida.push(id)
+      continue
+    }
+    porId ??= new Map((await ctx.repos.itens.listar({ moduloId: u.moduloId })).map((i) => [i.id, i]))
+    movs ??= await ctx.repos.movEstoque.listar()
+    canceladas ??= await canceladasVenda(ctx)
+    const { fontes, porque } = lerMisturaDe(u, porId, movs, canceladas)
+    if (porque) {
+      saida.push(id)
+      continue
+    }
+    const cod = u.codigo ?? u.nome
+    await desfazerTriagem(ctx, { triagemId: u.triagem.id, motivo: `Mistura ${cod} desfeita para juntar de novo` })
+    for (const f of fontes) {
+      const atual = await ctx.repos.itens.obter(f.item.id)
+      if (atual && !atual.ativo) await ctx.repos.itens.salvar(tocar(ctx, { ...atual, ativo: true }))
+      saida.push(f.item.id)
+    }
+    desfeitas.push({ codigo: cod, partes: fontes.map((f) => f.item.codigo ?? f.item.nome) })
+    // o estoque mudou: a próxima mistura da lista é lida de novo
+    movs = undefined
+    porId = undefined
+  }
+  return { ids: [...new Set(saida)], desfeitas }
+}
+
+const textoDesfeitas = (ds: { codigo: string; partes: string[] }[]) => (ds.length ? ` · mistura desfeita: ${ds.map((x) => `${x.codigo} (${x.partes.join(' + ')})`).join(', ')}` : '')
+
 export async function unificarLotes(ctx: Ctx, d: { id: Id; ids: Id[]; motivo?: string; codigo?: string }) {
   exigir(ctx.sessao.perfil === 'admin', 'Só o administrador unifica lotes.')
   const ja = await ctx.repos.itens.obter(d.id)
@@ -126,10 +177,13 @@ export async function unificarLotes(ctx: Ctx, d: { id: Id; ids: Id[]; motivo?: s
   }
   exigir(new Set(d.ids ?? []).size >= 2, 'Escolha pelo menos 2 lotes brutos para unificar.')
   await exigirMesmaEtapa(ctx, [...new Set(d.ids)])
-  return unificarNaTriagem(ctx, d, await novaTriagem(ctx, d.id), 'saida')
+  const tg = await novaTriagem(ctx, d.id)
+  const { ids, desfeitas } = await abrirMisturas(ctx, [...new Set(d.ids)])
+  const r = await unificarNaTriagem(ctx, { ...d, ids, historico: textoDesfeitas(desfeitas) }, tg, 'saida')
+  return { ...r, misturasDesfeitas: desfeitas.map((x) => x.codigo) }
 }
 
-async function unificarNaTriagem(ctx: Ctx, d: { id: Id; ids: Id[]; motivo?: string; codigo?: string; reservados?: Set<string> }, tg: Omit<Triagem, 'papel'>, papel: Triagem['papel'], qualquerLote = false) {
+async function unificarNaTriagem(ctx: Ctx, d: { id: Id; ids: Id[]; motivo?: string; codigo?: string; reservados?: Set<string>; historico?: string }, tg: Omit<Triagem, 'papel'>, papel: Triagem['papel'], qualquerLote = false) {
   const ids = [...new Set(d.ids ?? [])]
   exigir(ids.length >= 2, 'Escolha pelo menos 2 lotes brutos para unificar.')
   const lotes: Item[] = []
@@ -176,7 +230,7 @@ async function unificarNaTriagem(ctx: Ctx, d: { id: Id; ids: Id[]; motivo?: stri
   await ctx.repos.itens.salvar(lote)
   for (const i of lotes) await moverEstoque(ctx, { itemId: i.id, delta: -i.saldo, motivo: 'unificacao', origemId: lote.id, descricao: `Unificado em ${codigo}` })
   await moverEstoque(ctx, { itemId: lote.id, delta: total, motivo: 'unificacao', origemId: lote.id, descricao: `Unificação de ${lista}` })
-  await auditar(ctx, 'unificarLotes', lote.id, `${tg.codigo} · ${codigo} ← ${lista} = ${unidadeTexto(lote.unidade, total)}${motivo ? ` · ${motivo}` : ''}`, ids)
+  await auditar(ctx, 'unificarLotes', lote.id, `${tg.codigo} · ${codigo} ← ${lista} = ${unidadeTexto(lote.unidade, total)}${motivo ? ` · ${motivo}` : ''}${d.historico ?? ''}`, ids)
   return { id: lote.id, codigo, triagem: tg.codigo }
 }
 
@@ -521,15 +575,20 @@ export async function triarLotes(ctx: Ctx, d: { id: Id; ids: Id[]; quantidadeUsa
   await exigirIdsLivres(ctx, [...(juntadoId ? [juntadoId] : []), ...(d.saidas ?? []).map((x) => x.id), ...(d.paraDepois?.quantidade ? [d.paraDepois.id] : [])])
   const tg = await novaTriagem(ctx, d.id)
   let loteId = ids[0]
+  let desfeitas: { codigo: string; partes: string[] }[] = []
   if (ids.length > 1) {
     loteId = juntadoId!
-    await unificarNaTriagem(ctx, { id: loteId, ids, motivo: d.motivo, codigo: d.codigo, reservados: new Set([...reservados].filter((c) => c !== (d.codigo ?? '').trim().toUpperCase())) }, tg, separa ? 'intermediario' : 'saida', true)
+    // pacote já misturado na seleção: a mistura antiga é desfeita e as partes entram uma a uma (abrirMisturas)
+    const aberto = await abrirMisturas(ctx, ids)
+    desfeitas = aberto.desfeitas
+    await unificarNaTriagem(ctx, { id: loteId, ids: aberto.ids, historico: textoDesfeitas(desfeitas), motivo: d.motivo, codigo: d.codigo, reservados: new Set([...reservados].filter((c) => c !== (d.codigo ?? '').trim().toUpperCase())) }, tg, separa ? 'intermediario' : 'saida', true)
   }
-  if (!separa) return { id: d.id, codigo: tg.codigo, lotes: [loteId] }
+  const misturasDesfeitas = desfeitas.map((x) => x.codigo)
+  if (!separa) return { id: d.id, codigo: tg.codigo, lotes: [loteId], misturasDesfeitas }
   const lote = await ctx.repos.itens.obter(loteId)
   exigir(lote, 'Lote não encontrado.')
   const r = await separarNaTriagem(ctx, { id: d.id, loteId, quantidadeUsada: d.quantidadeUsada ?? lote.saldo, saidas: d.saidas ?? [], paraDepois: d.paraDepois, custoExtraPrincipal: d.custoExtraPrincipal, descricao: d.motivo?.trim() || undefined }, tg)
-  return { id: d.id, codigo: tg.codigo, lotes: r.lotes }
+  return { id: d.id, codigo: tg.codigo, lotes: r.lotes, misturasDesfeitas }
 }
 
 // ---------- genealogia: o rastreio total, em gramas ----------

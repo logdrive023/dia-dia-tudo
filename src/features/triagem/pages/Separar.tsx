@@ -43,6 +43,7 @@ export function Separar({ ids, onFechar, onSeparou, voltarRotulo }: { ids: Id[];
   const { dados: todos } = useConsulta('estoque', { moduloId: primeiro?.item.moduloId ?? '' }, !!primeiro)
   const campos = useCamposModulo(primeiro?.item.moduloId ?? '', primeiro?.item.tipoItem)
   const { executar, ocupado } = useComando()
+  const { avisar } = useApp()
   const [id] = useState(() => novoId())
   const [usada, setUsada] = useState<number>()
   const [pesado, setPesado] = useState<number>()
@@ -100,7 +101,9 @@ export function Separar({ ids, onFechar, onSeparou, voltarRotulo }: { ids: Id[];
       quantidadeUsada: comPartes ? usar : undefined,
       saidas: comPartes ? partes.filter((p) => p.quantidade).map((p) => ({ id: p.id, quantidade: p.quantidade!, campos: p.campos, valorReferencia: porValor ? refDe(p) : undefined, codigo: digitar ? p.codigo?.trim() || undefined : undefined })) : undefined,
       paraDepois: comPartes && gDepois ? { id: depois.id, quantidade: gDepois, codigo: digitar ? depois.codigo?.trim() || undefined : undefined } : undefined,
-    }, comPartes ? t('Triagem feita.') : t('Lotes juntados.'))
+    })
+    // o aviso de feito vem da resposta: se juntou com um pacote já misturado, diz que a mistura antiga foi desfeita
+    if (r) avisar(r.misturasDesfeitas?.length ? t('Mistura {c} desfeita, partes juntadas e histórico atualizado.', { c: r.misturasDesfeitas.join(', ') }) : comPartes ? t('Triagem feita.') : t('Lotes juntados.'), 'ok')
     if (r) onSeparou(r.lotes)
   }
   const falta = !soma ? t('Digite o peso de pelo menos uma parte.') : passou ? t('As partes passam do que entrou em {g}.', { g: gramasTexto(soma - usar) }) : !codigosValidos ? t('Confira os códigos digitados.') : undefined

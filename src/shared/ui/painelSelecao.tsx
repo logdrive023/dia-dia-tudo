@@ -50,8 +50,8 @@ export function PainelSelecao({ itens, unidade = 'pacote', fatos = [], aviso, to
   unidade?: 'pacote' | 'lote' | 'compra'
   /** os dados da seleção em selos padronizados, depois do peso: [{ icone: '🛒', texto: 'de 2 compras' }] */
   fatos?: { icone: string; texto: string }[]
-  /** uma linha de aviso embaixo dos chips (ex.: misturando compras) */
-  aviso?: ReactNode
+  /** aviso embaixo dos chips (ex.: misturando compras); uma lista = uma linha por aviso (nunca um parágrafo emendado) */
+  aviso?: ReactNode | string[]
   /** botão extra no alto (ex.: "Selecionar todos os 20 filtrados") */
   topo?: ReactNode
   opcoes: OpcaoSelecao[]
@@ -159,7 +159,7 @@ export function PainelSelecao({ itens, unidade = 'pacote', fatos = [], aviso, to
             </li>
           ))}
         </ul>}
-        {aviso && <p className="mt-2 text-xs text-[var(--suave)]">{aviso}</p>}
+        {Array.isArray(aviso) ? aviso.length > 0 && <ul className="mt-2 space-y-1 text-xs text-[var(--suave)]">{aviso.map((x) => <li key={x}>{x}</li>)}</ul> : aviso && <p className="mt-2 text-xs text-[var(--suave)]">{aviso}</p>}
       </div>
       {/* 2. O QUE DÁ PARA FAZER */}
       <div className={cx('grid gap-2 p-3 sm:p-4', opcoes.length >= 3 ? 'md:grid-cols-3' : opcoes.length === 2 ? 'sm:grid-cols-2' : '')}>

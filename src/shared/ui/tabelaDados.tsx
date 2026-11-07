@@ -201,7 +201,7 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
                           {celular.codigo && <span className="font-mono font-semibold text-[var(--suave)]">{cod ?? '—'}</span>}
                           {sit && <SeloSituacao {...sit} />}
                           {celular.marca?.(l)}
-                          {al && <span className="inline-flex min-w-0 items-center gap-1 font-semibold" style={{ color: COR_TOM[al.tom] }}><span aria-hidden>{al.tom === 'bom' ? '✓' : '⚠'}</span><span className="truncate">{t(al.texto.replace(/^✓\s*/, ''))}</span></span>}
+                          {al && <span className="inline-flex min-w-0 items-center gap-1 font-semibold" style={{ color: COR_TOM[al.tom] }}><span aria-hidden>{al.tom === 'bom' ? '✓' : '⚠'}</span><span className="truncate">{inicialMaiuscula(t(al.texto.replace(/^✓\s*/, '')))}</span></span>}
                         </span>
                       )
                     })()}

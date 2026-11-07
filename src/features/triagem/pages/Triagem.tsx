@@ -41,6 +41,7 @@ import { ProntoParaVender } from '../components/ProntoParaVender'
 import { CartaoLote, Coluna, PesoDepois, VerVendidos } from '../components/Quadro'
 import { ListaTriagens } from '../components/ListaTriagens'
 import { RegrasJuntar } from '../components/RegrasJuntar'
+import { avisoJuntar, planoJuntar } from '../model/juntarMisturas'
 
 /** ainda precisa separar: bruto ou "não identificado" (ficou para depois) */
 const precisaSeparar = (l: { campos: { estado?: unknown } }) => l.campos.estado === 'Bruto' || l.campos.estado === NAO_ID
@@ -543,7 +544,9 @@ export function Triagem() {
             aviso={[
               ...(selecionados.some(sobraPequena) ? [`⚠️ ${t('Sobra pequena em {c}: junte com outro ou ajuste como perda.', { c: selecionados.filter(sobraPequena).map((l) => `${l.codigo ?? ''} (${gramasTexto(l.saldo)})`).join(', ') })}`] : []),
               ...(varios && compras.length > 1 ? [`🧬 ${t('Misturando compras: cada grama guarda de qual compra veio (aparece no pacote novo e na venda).')}`] : []),
-            ].join('  ') || undefined}
+              // pacote JÁ MISTURADO na seleção: o que acontece com a mistura antiga, antes de tocar em "Juntar"
+              ...(varios ? avisoJuntar(planoJuntar(selecionados), t) : []),
+            ]}
             ocupado={ocupado}
             onTirar={(id) => marcar(id, false)}
             onLimpar={() => (limparSel(), setSelecionando(false))}

@@ -5099,4 +5099,9 @@ export const ES: Record<string, string> = {
   'Registrando vendas e atendimentos': 'Registrando ventas y atenciones',
   'Fechando contas, viagens e metas': 'Cerrando cuentas, viajes y metas',
   'Criando os usuários de teste': 'Creando los usuarios de prueba',
+  // juntar com pacote já misturado (features/triagem/model/juntarMisturas.ts)
+  '{c} já é uma mistura ({p}): ao juntar, ela é desfeita e as partes entram uma a uma. Fica no histórico.': '{c} ya es una mezcla ({p}): al juntar, se deshace y las partes entran una por una. Queda en el historial.',
+  '{c} já foi mexida depois de juntar: entra como um pacote só.': '{c} ya se tocó después de juntar: entra como un solo paquete.',
+  'O pacote novo fica “Misturado de {n}”.': 'El paquete nuevo queda “Mezclado de {n}”.',
+  'Mistura {c} desfeita, partes juntadas e histórico atualizado.': 'Mezcla {c} deshecha, partes juntadas e historial actualizado.',
 }

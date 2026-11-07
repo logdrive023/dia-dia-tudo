@@ -90,6 +90,9 @@ export function Funcionaria() {
               onChange={(v) => salvar({ funcionariaTelas: v ? [...telas, x.id] : telas.filter((y) => y !== x.id) }, { funcionariaTelas: telas })} />
           ))}
         </Bloco>
+        {/* os 2 cartões CURTOS (turno e idioma) empilhados numa célula só: sozinhos, a grade de 2 colunas os esticava até a
+            altura da lista vizinha (cartão com um botão e um vazio enorme embaixo) */}
+        <div className="space-y-4">
         {/* CONTROLE DE TURNO (opcional): ligado, ela abre o turno com o troco antes de vender; o turno vai da abertura ao fechamento */}
         <Cartao titulo={t('Turno')} ajuda="Ligado: a funcionária ABRE o turno (com o troco que recebeu) antes de vender ou lançar dinheiro, e fecha contando o dinheiro. No Caixa › Turnos você vê de que horas a que horas ela trabalhou, as vendas e a média por hora. Desligado: o turno começa sozinho e vender não depende dele. Ex.: abre às 08:00 com Bs 100 de troco, fecha às 14:00.">
           <Interruptor ligado={c.controleTurno} onChange={(v) => salvar({ controleTurno: v }, { controleTurno: c.controleTurno })}
@@ -98,6 +101,7 @@ export function Funcionaria() {
         <Cartao titulo={t('Idioma de quem entra como funcionária')} ajuda="A maioria da equipe é boliviana: espanhol no padrão. Cada aparelho ainda pode trocar no cabeçalho de Configurações.">
           <Escolha<'pt' | 'es'> rotulo="Idioma de quem entra como funcionária" valor={c.funcionariaIdioma} onChange={(v) => salvar({ funcionariaIdioma: v }, { funcionariaIdioma: c.funcionariaIdioma })} opcoes={[{ id: 'es', nome: 'Español' }, { id: 'pt', nome: 'Português' }]} />
         </Cartao>
+        </div>
         <Bloco titulo="Configurações que ela vê" resumo={`${verConfig.length}/${secoes.length}`} ajuda="Além de tema, idioma e a própria senha. Usuários, Dados, Módulos e esta tela ficam sempre só do admin. O que ela não pode mudar continua protegido: só o admin salva.">
           {secoes.map((s) => (
             <Linha key={s.id} icone={s.icone} nome={s.nome} dica={s.descricao} ligado={verConfig.includes(s.id)} travado={ocupado}

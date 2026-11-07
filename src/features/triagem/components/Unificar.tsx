@@ -15,6 +15,7 @@ import { useApp, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import type { useCamposModulo } from '../../estoque'
 import { CartaoPacote, CartaoResultado, Sinal, SomaPacotes } from './pecasMistura'
+import { avisoFeito, avisoJuntar, planoJuntar } from '../model/juntarMisturas'
 
 type Lote = ResultadoConsulta<'triagem'>['lotes'][number]
 
@@ -43,9 +44,12 @@ export function Unificar({ lotes, campos, onFechar, onFeito }: { lotes: Lote[]; 
   const custo = lotes.reduce((s, l) => s + (l.custo ?? 0), 0)
   const resultado = resumoCampos(campos, camposUnificados(campos, lotes.map((l) => l.campos)))
   const codigoNovo = (digitarCodigo ? codigo.trim().toUpperCase() : '') || sugestao?.sugestao || undefined
+  // já misturado na seleção: a mistura antiga é desfeita e as partes entram uma a uma (o aviso vem antes do botão)
+  const plano = planoJuntar(lotes)
+  const aviso = avisoJuntar(plano, t)
   const juntar = async () => {
-    const r = await executar('triarLotes', { id, ids: lotes.map((l) => l.id), motivo, codigo: digitarCodigo ? codigo.trim() || undefined : undefined }, t('Lotes juntados.'))
-    if (r) (onFeito(), setFeito({ id: r.lotes[0] ?? id, codigo: codigoNovo, g: total, de: lotes.map((l) => l.codigo).join(' + ') }))
+    const r = await executar('triarLotes', { id, ids: lotes.map((l) => l.id), motivo, codigo: digitarCodigo ? codigo.trim() || undefined : undefined }, avisoFeito(plano, t, t('Lotes juntados.')))
+    if (r) (onFeito(), setFeito({ id: r.lotes[0] ?? id, codigo: codigoNovo, g: total, de: lotes.flatMap((l) => plano.abrir.find((x) => x.codigo === l.codigo)?.partes ?? [l.codigo ?? '?']).join(' + ') }))
   }
 
   // ---------- feito: o próximo passo ----------
@@ -89,6 +93,11 @@ export function Unificar({ lotes, campos, onFechar, onFeito }: { lotes: Lote[]; 
             resultado.length ? resultado.map((a) => t(a.valor)).join(' · ') : undefined,
           ]}
         />
+        {aviso.length > 0 && (
+          <ul role="note" className="space-y-1 rounded-xl border border-[var(--marca)]/40 bg-[var(--marca-suave)] p-3 text-sm">
+            {aviso.map((x) => <li key={x}>{x}</li>)}
+          </ul>
+        )}
         <p className="text-xs text-[var(--suave)]">{t('Cada grama continua sabendo de qual compra veio. Dá para desfazer enquanto ninguém mexer no pacote novo.')}</p>
         <BotaoExpandir aberto={mais} onClick={() => setMais(!mais)} className="-ml-2">{t('+ mais')} <span className="font-normal text-[var(--suave)]">({t('código e observação')})</span></BotaoExpandir>
         {mais && (
