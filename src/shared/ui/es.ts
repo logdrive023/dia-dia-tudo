@@ -2746,6 +2746,7 @@ export const ES: Record<string, string> = {
   'Nova tabela · vai publicar a v1': 'Tabla nueva · publicará la v1',
   'vale desde {d}': 'vale desde {d}',
   'Ferramentas': 'Herramientas',
+  'Como ler a tabela': 'Cómo leer la tabla',
   'Toque no número para mudar': 'Toque el número para cambiarlo',
   'Toque no número para mudar. Ex.: 60 cm × Helena = 16 → valor = gramas × 16.': 'Toque el número para cambiarlo. Ej.: 60 cm × Helena = 16 → valor = gramos × 16.',
   'Ver': 'Ver',

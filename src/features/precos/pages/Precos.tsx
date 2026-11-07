@@ -19,11 +19,14 @@ import { Abas, Botao, Carregando, Confirmar, Entrada, ErroTela, Escolha, Info, P
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { Trilha } from '../../../shared/ui/trilha'
-import { MenuAcoes, type Acao } from '../../../shared/ui/menuAcoes'
+import { type Acao } from '../../../shared/ui/menuAcoes'
 import { Historico } from './PrecosHistorico'
 import { type Alvo, adicionarColuna, adicionarMedidas, chave, comValor, contarMudancas, invalidos, moverColuna, precosDaColuna, precosDaMedida, tirarColuna, tirarMedida, trocarMedida } from '../../../shared/ui/tabelaPrecoEdicao'
 import { type Direcao, type Ferramenta, type Rascunho, type T } from '../model/tipos'
-import { Celula, GradeEditavel } from '../components/GradeEditavel'
+import { GradeEditavel } from '../components/GradeEditavel'
+import { BarraGrade, LegendaGrade } from '../components/BarraGrade'
+import { PorMedida } from '../components/PorMedida'
+import { BarraRascunho } from '../components/BarraRascunho'
 import { Ferramentas, JanelaComprador, JanelaDetalhes, JanelaMedida } from '../components/janelas'
 
 /** como o preço sai da tabela (tooltip com exemplos variados) */
@@ -240,23 +243,8 @@ function TabelaTela() {
 
       {aba === 'tabela' && (
         <div className="space-y-3">
-          {/* barra de ferramentas da grade */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Botao variante="secundario" onClick={() => setJanela({ tipo: 'medida' })}>+ {t('Medida')}</Botao>
-            <Botao variante="secundario" onClick={() => setJanela({ tipo: 'comprador' })}>+ {t('Comprador')}</Botao>
-            <Botao variante="leve" onClick={() => setJanela({ tipo: 'ferramenta', f: ferr('pct') })}>⋯ {t('Ferramentas')}</Botao>
-            <span className="ml-auto inline-flex items-center text-xs text-[var(--suave)]">
-              <span className="hidden sm:inline">{t('Toque no número para mudar · como calcula')}</span>
-              <Info texto={AJUDA_CONTA} />
-            </span>
-          </div>
-          {/* como ler a grade (uma linha): medida na esquerda, comprador em cima, o número é o fator */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-[var(--fundo)] px-3 py-2 text-xs text-[var(--suave)]">
-            <span>↓ <b className="text-[var(--texto)]">{t('Medida')}</b> ({tb?.unidadeMedida ?? 'cm'})</span>
-            <span>→ <b className="text-[var(--texto)]">{t('Comprador')}</b> <span aria-hidden>👤</span> = {t('ligado a uma pessoa')}</span>
-            <span><b className="text-[var(--texto)]">{t('Número')}</b> = {t('fator')} ({moeda(g.moeda).simbolo} {t(g.fatorPor === 'grama' ? 'por grama' : 'por unidade')})</span>
-            <span><b className="text-[var(--texto)]">–</b> = {t('sem preço')}</span>
-          </div>
+          <BarraGrade ajudaConta={AJUDA_CONTA} onMedida={() => setJanela({ tipo: 'medida' })} onComprador={() => setJanela({ tipo: 'comprador' })} onFerramentas={() => setJanela({ tipo: 'ferramenta', f: ferr('pct') })} />
+          <LegendaGrade unidade={tb?.unidadeMedida} moeda={g.moeda} fatorPor={g.fatorPor} ajudaConta={AJUDA_CONTA} />
           {g.colunas.length > 2 && (
             <div className="md:hidden">
               <Escolha<'grade' | 'medida'> rotulo="Ver" valor={ver} onChange={setVer} opcoes={[{ id: 'grade', nome: 'Grade' }, { id: 'medida', nome: 'Por medida' }]} />
@@ -267,25 +255,7 @@ function TabelaTela() {
             <GradeEditavel g={g} base={base} baixa={sujo} celula={celula} acoesMedida={acoesMedida} acoesColuna={acoesColuna} onMedida={() => setJanela({ tipo: 'medida' })} onComprador={() => setJanela({ tipo: 'comprador' })} />
           </div>
           {ver === 'medida' && g.colunas.length > 2 && (
-            <div className="space-y-3 md:hidden">
-              {g.linhas.map((l) => (
-                <section key={l} className={cx('rounded-2xl border bg-[var(--cartao)] p-3', base && !base.linhas.includes(l) ? 'border-[var(--bom)]' : 'border-[var(--borda)]')}>
-                  <div className="mb-1 flex items-center justify-between">
-                    <h2 className="text-lg font-bold">{l} cm <span className="text-xs font-normal text-[var(--suave)]">· {precosDaMedida(g, l)}/{g.colunas.length}</span></h2>
-                    <MenuAcoes acoes={acoesMedida(l)} rotulo={t('Medida {n} cm', { n: l })} />
-                  </div>
-                  <ul className="divide-y divide-[var(--borda)]">
-                    {g.colunas.map((c) => (
-                      <li key={c.id} className="flex items-center justify-between gap-2 py-0.5">
-                        <span className="min-w-0 truncate text-sm">{c.nome}</span>
-                        <Celula k={chave(l, c.id)} rotulo={`${l} cm · ${c.nome}`} valor={g.valores[chave(l, c.id)]} antes={base?.valores[chave(l, c.id)]} comBase={!!base} c={celula} />
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ))}
-              <Botao variante="secundario" className="w-full" onClick={() => setJanela({ tipo: 'medida' })}>+ {t('Medida')}</Botao>
-            </div>
+            <PorMedida g={g} base={base} celula={celula} acoesMedida={acoesMedida} onMedida={() => setJanela({ tipo: 'medida' })} />
           )}
 
         </div>
@@ -297,18 +267,7 @@ function TabelaTela() {
 
       {/* barra do rascunho: só aparece quando algo mudou */}
       {(sujo || ocupado) && (
-        <div className="sticky bottom-[calc(4.75rem_+_env(safe-area-inset-bottom))] z-20 mt-4 rounded-2xl border border-[var(--marca)] bg-[var(--cartao)] p-3 shadow-lg md:bottom-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span role="status" className="mr-auto text-sm font-semibold text-[var(--marca)]">
-              ● {novo ? t('Tabela nova') : t('{n} mudança(s)', { n: m.total })}
-              {ruins.length > 0 && <span className="block text-xs font-normal text-[var(--ruim)]">{t('{n} valor(es) inválido(s): use números como 3,5.', { n: ruins.length })}</span>}
-            </span>
-            <Botao variante="leve" disabled={!est.pilha.length} onClick={desfazer}>↶ {t('Desfazer')}</Botao>
-            {!novo && <Botao variante="leve" className="hidden sm:inline-block" onClick={descartar}>{t('Descartar tudo')}</Botao>}
-            <Botao disabled={ocupado || ruins.length > 0 || (!novo && !m.total)} onClick={publicar}>{novo ? t('Criar tabela') : t('Publicar v{n}', { n: atual + 1 })}</Botao>
-          </div>
-          <Entrada className="mt-2" aria-label={t('O que mudou e por quê (opcional)')} placeholder={t('O que mudou e por quê (opcional)')} value={nota} onChange={(e) => setNota(e.target.value)} />
-        </div>
+        <BarraRascunho novo={novo} mudancas={m.total} invalidos={ruins.length} podeDesfazer={est.pilha.length > 0} ocupado={ocupado} atual={atual} nota={nota} onNota={setNota} onDesfazer={desfazer} onDescartar={descartar} onPublicar={publicar} />
       )}
 
       {janela?.tipo === 'medida' && (

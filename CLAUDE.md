@@ -7,7 +7,8 @@ React 18 + TypeScript + Tailwind + Dexie (IndexedDB) + Vitest. Contexto completo
 ## Regras do dono (sempre)
 
 - **Não commitar nem dar push** sem pedido: o dono commita (mensagem "att").
-- **Celular primeiro**: toda tela tem de ficar boa em 360 px; lista = linha curta que abre no lugar.
+- **Celular primeiro em TODO front-end** (tela, peça, CSS, ajuda, janela): pensar e desenhar primeiro para o celular;
+  o computador é o acréscimo. Regras na seção "Front-end: celular primeiro".
 - **Peças padrão, nunca à mão**: `Titulo`, `GrupoNumeros`/`NumeroGrande`, `FiltroLista`, `TabelaDados`,
   `JanelaCadastro`, `Interruptor`, `Carregando`, `PainelSelecao`, `MenuAcoes` (ver [DESENHO.md](docs/architecture/DESENHO.md) §11).
   Faltou algo → aumentar a peça central, não criar variação local.
@@ -69,6 +70,21 @@ Arquitetura por domínio — **ler [ARQUITETURA.md](docs/architecture/ARQUITETUR
   em `model/` com teste); regra de negócio em `core/services`. Peças comuns dos serviços em `core/services/contexto.ts`
   (`ehAdmin`, `euPessoa`, `ehEquipe`, `conversorPara`); datas em `core/domain/datas.ts`.
 - Tipos em 3 projetos (`tsconfig.app/test/node.json`, `tsc -b`): o app não enxerga Node nem testes.
+
+## Front-end: celular primeiro (sempre)
+
+Vale para qualquer pedido de front, mesmo quando o pedido não fala em celular (refatorar, criar tela, ajustar peça).
+
+- **Ordem de pensar:** 320–390 px, toque, uma mão → depois tablet e computador. Classe Tailwind sem prefixo = celular;
+  `sm:`/`md:` só acrescentam para telas maiores. Nunca desenhar no computador e "esconder" no celular.
+- **Lista** = linha curta que abre no lugar. **Tabela larga** rola dentro do próprio quadro ou vira cartões (ex.: "Ver:
+  Por medida" nos preços); a página nunca rola para o lado.
+- **Barra de ações:** no celular, só a ação principal à vista e o resto no `MenuAcoes` (⋯); nada de botão sozinho
+  numa linha com espaço sobrando, nem ícone "i" solto na ponta.
+- **Ajuda e legenda:** texto longo vira `Info` (abre no toque, nunca depende de passar o mouse); legenda cabe numa
+  linha no celular ou fica recolhida.
+- **Toque:** alvo confortável para o dedo e espaço entre botões vizinhos; campo numérico com `inputMode` certo.
+- **Ao entregar tela mexida:** conferir em 320/360/390 com a varredura (ver "Validação") e dizer como ficou no celular.
 
 ## Como atender cada pedido (especialista por tipo)
 

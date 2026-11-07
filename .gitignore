@@ -5,3 +5,6 @@ dist
 
 # diagnóstico de arquitetura da API (documento local, fora do repositório)
 DIAGNOSTICO-API.md
+
+# fotos da conferência responsiva (npm run responsivo:fotos)
+.responsivo/
