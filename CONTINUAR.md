@@ -152,6 +152,17 @@ Definido em `src/app/Shell.tsx` (`MENU` e `CELULAR`), em blocos por área, cada 
 
 ## 6. Feito nas últimas rodadas
 
+### Rodada de 07/11/2026 — servidor Go (começo)
+
+- **Backend** em `../dia-dia-tudo-backend` (Go, Clean Architecture): fala o MESMO canal cifrado do app (`/v1/k`,
+  `/v1/r`); SQLite ou Postgres (Docker), migrações automáticas; só **Unidades** portada (o modelo). Gerador de
+  funcionalidade nova e scripts prontos — ver `README.md` e `CLAUDE.md` de lá.
+- **Chave de teste** Configurações › Dados › *Onde ficam os dados* (só em desenvolvimento ou com
+  `VITE_PERMITIR_TROCAR_DADOS=1`): aparelho × servidor (`src/adapters/modoDados.ts`, lida em `app/criarBackend.ts`).
+- **Ponta a ponta** (`ponta-a-ponta/`, `npm run test:ponta`): o `BackendApi` de verdade contra o servidor Go.
+- **Falta** (fila do backend): rodar o ponta a ponta no Postgres (precisa do Docker Desktop aberto), portar as outras
+  funcionalidades, backup/arquivos, visibilidade da funcionária, sessões/idempotência fora da memória.
+
 ### Rodadas de 04 e 05/11/2026 (a última ainda sem commit no momento desta nota)
 
 O texto para quem usa está em Novidades (`src/features/novidades/model/novidades.ts`); aqui vai o que importa para quem mexe no código.

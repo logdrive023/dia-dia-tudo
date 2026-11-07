@@ -55,6 +55,9 @@ Regras:
 - Operação Caos (`caos/`, ~5 min) não roda na suíte normal nem no `validar` automático (tem 1 reprovação conhecida de
   propósito, CAOS-D-05, em `caos/RELATORIO.md`): quando mexer em estoque, caixa, vendas, compras ou concorrência, rodar
   `node scripts/validar.mjs --caos` (o plano avisa) e comparar com o relatório — reprovação nova = bug.
+- **Servidor Go** (`../dia-dia-tudo-backend`, ver o CLAUDE.md de lá): mexeu no canal (`core/seguranca/envelope.ts`,
+  `adapters/api/`) ou numa funcionalidade já portada (hoje: Unidades) → rodar lá `scripts\ponta-a-ponta.ps1` (sobe o
+  servidor e roda `npm run test:ponta` daqui). Fora da suíte normal: precisa do servidor no ar.
 
 ## Arquitetura (onde cada coisa fica)
 
