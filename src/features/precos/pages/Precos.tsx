@@ -29,9 +29,6 @@ import { PorMedida } from '../components/PorMedida'
 import { BarraRascunho } from '../components/BarraRascunho'
 import { Ferramentas, JanelaComprador, JanelaDetalhes, JanelaMedida } from '../components/janelas'
 
-/** como o preço sai da tabela (tooltip com exemplos variados) */
-const AJUDA_CONTA =
-  'Como calcula: valor = gramas × fator. O fator é o número da tabela no cruzamento da medida (linha) com o comprador (coluna). Ex.: 40 cm, 2.000 g × 3,5 = Bs 7.000. Ex.: 60 cm para Helena (fator 16), 500 g × 16 = Bs 8.000. Ex.: 80 cm para Henrique (fator 20), 1,2 kg = 1.200 g × 20 = Bs 24.000. Ex.: 50 cm, 150 g × 6 = Bs 900. Célula com “–” = sem preço: digite o valor na hora da venda.'
 /** versões: toda mudança publica uma nova e dá para comparar */
 const AJUDA_VERSOES =
   'A tabela tem VERSÕES. Toda vez que você muda e publica, nasce uma versão nova (v1, v2, v3…) e a anterior fica guardada. Em Histórico você compara quaisquer duas e vê o que mudou: o que subiu, desceu, entrou ou saiu. Vendas e compras guardam o fator e a versão que usaram, então mudar a tabela não muda o passado. Ex.: v1 tinha 60 cm × Henrique = 17; a v2 subiu para 17,5 → as vendas antigas continuam com 17.'
@@ -48,7 +45,7 @@ export function Precos() {
   const { nav } = useApp()
   // key: trocar de tabela (ou ir para "novo") recomeça o rascunho do zero
   if (nav.params.id || nav.tela === 'tabelaPreco') return <TabelaTela key={String(nav.params.id)} />
-  return <ListaTabelas ajudaConta={AJUDA_CONTA} ajudaVersoes={AJUDA_VERSOES} />
+  return <ListaTabelas ajudaVersoes={AJUDA_VERSOES} />
 }
 
 // ---------- tela da tabela ----------
@@ -243,8 +240,8 @@ function TabelaTela() {
 
       {aba === 'tabela' && (
         <div className="space-y-3">
-          <BarraGrade ajudaConta={AJUDA_CONTA} onMedida={() => setJanela({ tipo: 'medida' })} onComprador={() => setJanela({ tipo: 'comprador' })} onFerramentas={() => setJanela({ tipo: 'ferramenta', f: ferr('pct') })} />
-          <LegendaGrade unidade={tb?.unidadeMedida} moeda={g.moeda} fatorPor={g.fatorPor} ajudaConta={AJUDA_CONTA} />
+          <BarraGrade moeda={g.moeda} onMedida={() => setJanela({ tipo: 'medida' })} onComprador={() => setJanela({ tipo: 'comprador' })} onFerramentas={() => setJanela({ tipo: 'ferramenta', f: ferr('pct') })} />
+          <LegendaGrade unidade={tb?.unidadeMedida} moeda={g.moeda} fatorPor={g.fatorPor} />
           {g.colunas.length > 2 && (
             <div className="md:hidden">
               <Escolha<'grade' | 'medida'> rotulo="Ver" valor={ver} onChange={setVer} opcoes={[{ id: 'grade', nome: 'Grade' }, { id: 'medida', nome: 'Por medida' }]} />

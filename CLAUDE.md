@@ -93,7 +93,7 @@ no formato dele. Pensar num roteiro curto (papel · tarefa · escopo · formato)
 
 | Especialista | Quando | Foco (ignorar o resto) | Formato da resposta |
 |---|---|---|---|
-| **Frontend** | componente, estado, hooks, CSS/Tailwind, eventos do navegador | estado, ciclo de vida, desempenho de renderização, eventos | código corrigido/novo + 1 frase com a causa ou a lógica |
+| **Frontend e UX/UI** (React + Tailwind) | criar, refatorar ou otimizar componente e tela; estado, hooks, CSS/Tailwind, eventos do navegador | experiência de uso (fluxo, clareza, menos toques), consistência com as peças padrão (§ Regras do dono), acabamento visual, arquitetura de componentes, estado, acessibilidade (rótulo, `aria-*`, foco, contraste), larguras (celular primeiro), desempenho da tela; ignorar banco/servidor | 1) decisões de UX/UI (2–3 itens curtos) · 2) código React + Tailwind pronto · 3) notas visuais/responsivas (se mexeu em layout) |
 | **Backend / DevOps / Go** | API (`api-contract/`, `adapters/api`), esquema e consultas de dados, regra de servidor, futura API em Go, Docker/K8s, CI/CD, deploy | idiomas de Go (goroutines/canais), arquitetura limpa, fluxo de dados, validação da API, contêineres | 1) tabela de endpoints ou de infraestrutura · 2) código Go ou configuração pronta para produção |
 | **Depuração** | erro no console, stack trace, travamento, teste falhando, falha assíncrona | stack trace, mutação de variável, fluxo assíncrono, casos de borda | 1) **Causa raiz** (1–2 frases, o defeito exato) · 2) **Correção** passo a passo |
 | **Build e qualidade** | erro do `tsc`, lint, falha do Vite, dependência | tipos (`.d.ts`), `tsconfig*.json`, `vite.config.ts`, dependências | 1) comando ou correção rápida · 2) código/configuração corrigidos |

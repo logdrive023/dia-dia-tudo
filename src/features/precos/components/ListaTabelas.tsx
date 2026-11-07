@@ -2,6 +2,7 @@
 // (situação em abas com o número · busca por nome, categoria ou comprador · categoria) e uma LISTA LIMPA: uma linha por
 // tabela, sem cartões nem mapa — nome + situação, a versão em uso (quando, quem, nota), a faixa de preço e os usos.
 import { moeda } from '../../../core/domain/dinheiro'
+import { AjudaConta } from './AjudaConta'
 import { CartaoTabela } from './CartaoTabela'
 import { SITUACAO_TABELA, type Situacao } from '../model/situacao'
 import { useLembrado } from '../../../shared/ui/filtros'
@@ -14,7 +15,7 @@ import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
 
 const semAcento = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
-export function ListaTabelas({ ajudaConta, ajudaVersoes }: { ajudaConta: string; ajudaVersoes: string }) {
+export function ListaTabelas({ ajudaVersoes }: { ajudaVersoes: string }) {
   const t = useT()
   const { ir } = useApp()
   const { dados } = useConsulta('listaTabelasPreco', {})
@@ -38,7 +39,7 @@ export function ListaTabelas({ ajudaConta, ajudaVersoes }: { ajudaConta: string;
     <div>
       <Titulo
         subtitulo={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="inline-flex items-center">🧮 {t('Como calcula o preço')}<Info texto={ajudaConta} /></span>
+          <span className="inline-flex items-center">🧮 {t('Como calcula o preço')}<AjudaConta /></span>
           <span className="inline-flex items-center">🕓 {t('Versões e comparação')}<Info texto={ajudaVersoes} /></span>
         </span>}
         acao={<Botao onClick={nova}>+ {t('Tabela')}</Botao>}

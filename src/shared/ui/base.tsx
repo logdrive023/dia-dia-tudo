@@ -132,7 +132,11 @@ function posicaoBalao(botao: DOMRect, alturaBalao: number) {
   return { left, top, width: largura }
 }
 
-export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
+/**
+ * ⓘ que abre um balão no toque. Padrão: `texto` (frases viram itens; "Ex.:" viram exemplos). Quando uma explicação
+ * precisa de desenho (fórmula, mini-tabela), passe `conteudo` pronto — o botão, a posição e o fechar continuam os mesmos.
+ */
+export function Info({ texto = '', exemplo, conteudo }: { texto?: string; exemplo?: string; conteudo?: ReactNode }) {
   const [aberto, setAberto] = useState(false)
   const [pos, setPos] = useState<{ left: number; top: number; width: number }>()
   const botao = useRef<HTMLButtonElement>(null)
@@ -185,8 +189,10 @@ export function Info({ texto, exemplo }: { texto: string; exemplo?: string }) {
           style={pos ? { position: 'fixed', left: pos.left, top: pos.top, width: pos.width } : { position: 'fixed', left: -9999, top: 0, width: 288 }}
           className="z-[80] max-h-[70vh] overflow-y-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 text-left text-sm font-normal normal-case leading-relaxed text-[var(--texto)] shadow-xl"
         >
-          <Explicacao texto={explicacao} />
-          {ex && <ExemploDica texto={ex} rotulo={t('Exemplo')} />}
+          {conteudo ?? <>
+            <Explicacao texto={explicacao} />
+            {ex && <ExemploDica texto={ex} rotulo={t('Exemplo')} />}
+          </>}
         </span>
         , document.body)}
     </span>
@@ -232,7 +238,22 @@ function ExemploDica({ texto, rotulo }: { texto: string; rotulo: string }) {
     if (primeira) exemplos.push(primeira)
     dicas.push(...resto)
   }
-  const umExemplo = (ex: string) => {
+  const umExemplo = (ex: string): ReactNode => {
+    // "rótulo: conta = resultado" (ex.: "60 cm · Helena: 500 g × 16 = Bs 8.000"): o rótulo pequeno em cima e a conta
+    // embaixo, com o resultado alinhado à direita — vários exemplos ficam em colunas, fáceis de comparar
+    const rot = /^([^:=]{1,30}):\s+(.+ = .{1,18})$/.exec(ex)
+    if (rot) {
+      const i = rot[2].lastIndexOf(' = ')
+      return (
+        <span className="num block">
+          <span className="block text-xs font-semibold opacity-75">{rot[1]}</span>
+          <span className="flex flex-wrap items-baseline justify-between gap-x-3 font-semibold">
+            <span>{rot[2].slice(0, i)}</span>
+            <span className="whitespace-nowrap">= <b className="text-[var(--texto)]">{rot[2].slice(i + 3)}</b></span>
+          </span>
+        </span>
+      )
+    }
     const partes = ex.split(' · ')
     // "… = X" só vira conta quando X é curto (um número: "Bs 7.000"); frase longa depois do "=" fica como texto
     const idxIgual = ex.lastIndexOf(' = ')
@@ -253,7 +274,7 @@ function ExemploDica({ texto, rotulo }: { texto: string; rotulo: string }) {
         <b className="mb-1.5 block text-[11px] uppercase tracking-wide opacity-80">{exemplos.length > 1 ? t('{n} exemplos', { n: exemplos.length }) : rotulo}</b>
         {exemplos.length > 1 ? (
           <span className="block divide-y divide-[var(--marca)]/15">
-            {exemplos.map((ex, k) => <span key={k} className="flex gap-2 py-1.5 first:pt-0 last:pb-0"><span aria-hidden className="num shrink-0 text-xs font-bold opacity-60">{k + 1}</span><span className="min-w-0">{umExemplo(ex)}</span></span>)}
+            {exemplos.map((ex, k) => <span key={k} className="flex gap-2 py-1.5 first:pt-0 last:pb-0"><span aria-hidden className="num shrink-0 text-xs font-bold opacity-60">{k + 1}</span><span className="min-w-0 flex-1">{umExemplo(ex)}</span></span>)}
           </span>
         ) : exemplos[0] ? umExemplo(exemplos[0]) : null}
       </span>
