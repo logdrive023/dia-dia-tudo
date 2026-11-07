@@ -1,4 +1,4 @@
-// RELATÓRIOS › IMPOSTO DE RENDA — o exercício fiscal boliviano inteiro numa tela (diagnóstico: IMPOSTO-RENDA.md).
+// RELATÓRIOS › IMPOSTO DE RENDA — o exercício fiscal boliviano inteiro numa tela (diagnóstico: docs/business/FISCAL.md).
 // Em cima: o ano, a situação do exercício e a identificação (período, cierre, versão das regras, NIT/CAEB). Embaixo, em
 // abas: Visão geral (cada número com a sua ORIGEM) · Impostos (cada obrigação abre os meses, o formulário, o prazo, a
 // fonte e o registro do que foi declarado/pago) · Mês a mês (com o caminho até as operações) · Documentos (o respaldo de

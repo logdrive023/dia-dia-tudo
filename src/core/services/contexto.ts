@@ -160,7 +160,7 @@ export interface Configuracoes {
   vitrine?: import('./vitrine').ConfigVitrine
   /** as seções de Configurações que a funcionária vê (além de tema, idioma e a própria senha) */
   funcionariaConfig: string[]
-  /** RELATÓRIOS CONTÁBEIS: país do padrão (Bolívia é o motor), regime, NIT, faturas e taxas — CONTABILIDADE.md */
+  /** RELATÓRIOS CONTÁBEIS: país do padrão (Bolívia é o motor), regime, NIT, faturas e taxas — docs/business/FISCAL.md */
   fiscal: ConfigFiscal
 }
 

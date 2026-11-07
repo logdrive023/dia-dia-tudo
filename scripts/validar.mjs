@@ -21,8 +21,9 @@ import { execSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync, appendFileSync } from 'node:fs'
 import { dirname, join, normalize, relative, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const RAIZ = resolve(dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..')
+const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 process.chdir(RAIZ)
 const CACHE = join('node_modules', '.cache', 'validar')
 const args = process.argv.slice(2)

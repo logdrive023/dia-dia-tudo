@@ -1,5 +1,7 @@
 # Ecossistema de gerenciamento: desenho antes do código
 
+**Atualizado:** 06/11/2026 · **Situação:** histórico (desenho inicial), exceto o §11 (peças padrão), que é vigente
+
 > Entrega da etapa "antes de escrever código" do prompt: modelo de dados, contrato dos módulos, mapa de telas,
 > fluxo do assistente de venda e as dúvidas que precisam da sua resposta.
 > **Nada foi programado ainda.** Depois da sua aprovação começa a Fase 1.
@@ -11,7 +13,7 @@ mudando uma configuração (seção 2). **Cabelo**: ajustado pela pesquisa de me
 
 ## 1. Visão em uma página
 
-```
+```text
              ┌──────── telas (features/<domínio>, shared/ui) ──────────┐
              │  Início · Comprar · Vender · Estoque · Caixa · Agenda   │
              │  Empréstimos · Pessoas · Locais · Relatórios · Config   │
@@ -112,7 +114,7 @@ Convenções: **dinheiro** = inteiro na menor unidade da moeda; **quantidade** =
 - compra só gera estoque na etapa final da triagem.
 
 ### 3.4 Conversão de moeda (regra exata)
-```
+```text
 taxa = quantas unidades de PARA valem 1 unidade de DE, guardada como inteiro × 10^8
 valorPara = arredonda( valorDe × taxa × 10^(casasPara − casasDe) / 10^8 )   (BigInt; meio para o par)
 ```
@@ -206,7 +208,7 @@ export default defineModulo({
 
 ## 6. Fluxo do assistente de venda
 
-```
+```text
 [O que você está vendendo?]  (opções vindas dos módulos ativos)
    ├─ É cabelo? ── lote (sugere o mais antigo, dá para trocar) → gramas → preço/g ou total → cliente
    ├─ É serviço? ─ qual serviço? (um ou vários)

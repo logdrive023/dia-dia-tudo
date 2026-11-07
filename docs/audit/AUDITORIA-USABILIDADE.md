@@ -1,5 +1,7 @@
 # Auditoria de usabilidade — compras × viagens (04/11/2026)
 
+**Atualizado:** 04/11/2026 · **Situação:** histórico (retrato da auditoria nessa data)
+
 Como foi feita: li as regras no código, rodei cada cenário contra o servidor de verdade (um teste temporário, já apagado) e percorri as telas como alguém que nunca usou o sistema (celular, 375 px). **Nada foi alterado no sistema.**
 Legenda: ✅ comprovado (rodei) · 🔎 lido no código · ❓ hipótese (precisa validar).
 

@@ -21,7 +21,7 @@ const RELATORIOS = [
   { id: 'estados', nome: 'Estados financeiros' },
   { id: 'dre', nome: 'Divisão entre sócias' },
   { id: 'servicos', nome: 'Serviços: receita × insumos' },
-  // o exercício fiscal boliviano (IVA, IT, IUE, retenções), com o documento anual — IMPOSTO-RENDA.md
+  // o exercício fiscal boliviano (IVA, IT, IUE, retenções), com o documento anual — docs/business/FISCAL.md
   // comparar as viagens de compra (custo por kg com a viagem, resultado, A × B)
   { id: 'viagens', nome: 'Viagens' },
   // sugestão de compra: o que mais vende × o que tem em estoque, por medida (quando acaba, quanto comprar)

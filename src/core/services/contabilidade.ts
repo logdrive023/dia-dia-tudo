@@ -1,4 +1,4 @@
-// MOTOR CONTÁBIL — o relatório "simples por fora, completo por dentro" (CONTABILIDADE.md). O padrão BOLIVIANO é o
+// MOTOR CONTÁBIL — o relatório "simples por fora, completo por dentro" (docs/business/FISCAL.md). O padrão BOLIVIANO é o
 // motor; o brasileiro muda só o que é diferente (a ordem do resultado e os impostos). Tudo na moeda principal.
 //   resumo:    Estado de Resultados (🇧🇴) ou DRE (🇧🇷) — cada linha diz de que anexo vem
 //   balanco:   Activo · Pasivo (inclui os impostos do período a pagar) · Patrimonio

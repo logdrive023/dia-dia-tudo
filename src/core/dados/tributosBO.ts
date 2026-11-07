@@ -1,4 +1,4 @@
-// REGRAS TRIBUTÁRIAS DA BOLÍVIA (Régimen General) — VERSIONADAS. Diagnóstico e fontes: IMPOSTO-RENDA.md.
+// REGRAS TRIBUTÁRIAS DA BOLÍVIA (Régimen General) — VERSIONADAS. Diagnóstico e fontes: docs/business/FISCAL.md.
 // Nada de alíquota, prazo ou formulário espalhado pelas telas: tudo sai daqui. Mudou a lei → entra uma VERSÃO NOVA com
 // a data de início e a fonte (a antiga fica, para os exercícios antigos continuarem iguais). Cada mês usa a versão
 // vigente no último dia do mês; o IUE usa a vigente no cierre. Certeza: 'O' texto oficial · 'S' secundária · 'N' a confirmar.

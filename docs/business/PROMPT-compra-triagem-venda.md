@@ -1,5 +1,7 @@
 # Evolução da lógica — Compra → Triagem → Venda (o "livro do cabelo")
 
+**Atualizado:** 03/11/2026 · **Situação:** histórico (pedido original do fluxo)
+
 Evolua o sistema que já existe. **Não comece do zero, não recrie o que já funciona e não mude a estrutura sem necessidade.**
 Antes de mexer, leia o que já existe e diga onde cada item abaixo se encaixa. Só depois implemente, reaproveitando o que está pronto.
 
@@ -21,7 +23,7 @@ qualquer compra: **"para onde foi cada grama?"** (em quais pacotes, em quais ven
 
 Exemplo (o caso típico):
 
-```
+```text
 Compra C1 · Maria · 10 kg bruto
         │
    Triagem T-1 (separou)
@@ -78,7 +80,7 @@ apagado.
 
 **Cada pacote tem seu próprio histórico de movimentações**, no mesmo formato do caixa do dia:
 
-```
+```text
 Pacote P4 · 50 cm · Castanho                        agora 4.500 g
 
 03/11/26  aberto

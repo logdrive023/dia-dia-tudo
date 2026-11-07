@@ -1,5 +1,5 @@
 // IMPOSTOS E PADRÕES CONTÁBEIS — a base do motor dos relatórios (o que vale, de onde vem). Texto completo, com as
-// fontes e o porquê de cada regra: docs/CONTABILIDADE.md. Taxas em pontos-base (1300 = 13%).
+// fontes e o porquê de cada regra: docs/business/FISCAL.md. Taxas em pontos-base (1300 = 13%).
 //
 // 🇧🇴 BOLÍVIA (o padrão do sistema) — Normas de Contabilidad (CTNAC/CAUB), Código de Comercio art. 37 (Diario, Mayor,
 //    Inventarios y Balances) e Ley 843 (impostos):
@@ -158,7 +158,7 @@ export interface ImpostoOperacao {
   vendaServico: boolean
   /** na compra: não se aplica · é crédito fiscal (abate o da venda) · é custo (não recupera) */
   compra: 'nao' | 'credito' | 'custo'
-  /** a ALÍQUOTA VIGENTE: de onde vem (lei/artigo), desde quando e quando foi conferida (CONTABILIDADE.md › Sincronização) */
+  /** a ALÍQUOTA VIGENTE: de onde vem (lei/artigo), desde quando e quando foi conferida (docs/business/FISCAL.md › §7 Sincronização) */
   fonte?: string
   vigenteDesde?: string
   conferidoEm?: string

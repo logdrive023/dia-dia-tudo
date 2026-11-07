@@ -1,4 +1,4 @@
-// CONFIGURAÇÕES › FISCAL E RELATÓRIOS — em 3 partes (abas), uma coisa por vez (CONTABILIDADE.md):
+// CONFIGURAÇÕES › FISCAL E RELATÓRIOS — em 3 partes (abas), uma coisa por vez (docs/business/FISCAL.md):
 //   🧾 Impostos      o que aparece na compra e na venda: ligar/desligar, como mostrar (embutido · somado), onde mostrar
 //                    (embaixo do total · quadro embaixo dos itens) e a LISTA de impostos vigentes (um cartão por imposto)
 //   ⚖️ Regime        o padrão do relatório (🇧🇴 Bolívia = do sistema · 🇧🇷 Brasil) e o regime do país escolhido

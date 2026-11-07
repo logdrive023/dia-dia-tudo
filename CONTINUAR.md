@@ -2,11 +2,11 @@
 
 > Leia este arquivo primeiro ao abrir o projeto em outro computador ou numa conversa nova com o Claude.
 > Ele junta o que não está óbvio no código: como o dono quer as coisas, o que foi feito por último e o que falta.
-> Detalhes de regra de negócio e arquitetura estão em [SISTEMA.md](SISTEMA.md) (fonte principal);
-> visão do fluxo compra → triagem → venda em [PROMPT-compra-triagem-venda.md](PROMPT-compra-triagem-venda.md);
-> desenho original em [DESENHO.md](DESENHO.md) (§11: peças padrão das telas);
-> impostos e relatórios em [CONTABILIDADE.md](CONTABILIDADE.md) e [IMPOSTO-RENDA.md](IMPOSTO-RENDA.md);
-> auditoria de usabilidade em [AUDITORIA-USABILIDADE.md](AUDITORIA-USABILIDADE.md).
+> Detalhes de regra de negócio e arquitetura estão em [SISTEMA.md](docs/architecture/SISTEMA.md) (fonte principal);
+> visão do fluxo compra → triagem → venda em [PROMPT-compra-triagem-venda.md](docs/business/PROMPT-compra-triagem-venda.md);
+> desenho original em [DESENHO.md](docs/architecture/DESENHO.md) (§11: peças padrão das telas);
+> impostos e relatórios em [FISCAL.md](docs/business/FISCAL.md);
+> auditoria de usabilidade em [AUDITORIA-USABILIDADE.md](docs/audit/AUDITORIA-USABILIDADE.md).
 > O plano da API (banco, rotas, login, perfis, QR) está em `DIAGNOSTICO-API.md` — **fica só neste computador**
 > (está no `.gitignore`); copie à mão se for trabalhar em outro.
 >
@@ -82,9 +82,9 @@ npm run build
   com a largura toda embaixo; nada de vários selos na mesma linha. O dono manda print quando fica "muita coisa junto".
 - **Peças padrão, nunca à mão**: lista = `Titulo` + `GrupoNumeros`/`NumeroGrande` + `FiltroLista` + `TabelaDados`
   (no celular a prop `celular={{ titulo, valor, codigo, situacao, … }}`). Cadastro = `JanelaCadastro` + `GrupoCampos`.
-  Liga/desliga = `Interruptor`/`Chave`. Carregar = `Carregando`. Faltou algo → aumentar a peça central (DESENHO.md §11).
+  Liga/desliga = `Interruptor`/`Chave`. Carregar = `Carregando`. Faltou algo → aumentar a peça central (docs/architecture/DESENHO.md §11).
 - **Cada informação aparece uma vez**; recomendar primeiro (dizer a opção recomendada antes das outras); não inventar
-  dado (taxa de imposto nunca inventada: vem de fonte em `CONTABILIDADE.md`, configurável).
+  dado (taxa de imposto nunca inventada: vem de fonte em `docs/business/FISCAL.md`, configurável).
 - **Lógica nos serviços** (`src/core/services/`), a tela só mostra.
 - **Novidades em PT e ES**: ao fechar uma rodada, entrada no topo de `src/features/novidades/model/novidades.ts` com cada texto `{ pt, es }`
   já escrito nas duas línguas (`novidades.test.ts` falha se o espanhol faltar).
@@ -129,7 +129,7 @@ npm run build
   `dataCurta` ("05/11") e `dataComAno` ("05/11/2026") em `core/domain/datas.ts`. Media query: `useMidia`
   (`ui/midia.ts`). Não recriar essas contas dentro de serviço ou tela.
 - **Arquitetura por domínio** (06/11/2026): `src/app` · `src/features/<dominio>` (19 domínios, `index.ts` público) ·
-  `src/shared` · `src/core` · `src/adapters` — regras e mapa em [ARQUITETURA.md](ARQUITETURA.md), testadas em
+  `src/shared` · `src/core` · `src/adapters` — regras e mapa em [ARQUITETURA.md](docs/architecture/ARQUITETURA.md), testadas em
   `src/__tests__/arquitetura.test.ts`. Validação proporcional ao risco: `npm run validar` (política no CLAUDE.md).
 - **Tipos em 3 projetos** (`tsc -b`, 06/11/2026): `tsconfig.app.json` (o app: só tipos do navegador e do Vite —
   usar `process`/Node no app dá erro), `tsconfig.test.json` (`src/__tests__` e `caos/`, usa o resultado do app),
@@ -156,10 +156,10 @@ Definido em `src/app/Shell.tsx` (`MENU` e `CELULAR`), em blocos por área, cada 
 
 O texto para quem usa está em Novidades (`src/features/novidades/model/novidades.ts`); aqui vai o que importa para quem mexe no código.
 
-- **Impostos e relatórios no padrão boliviano** (`CONTABILIDADE.md`, taxas em `src/core/dados/impostos.ts`, motor
+- **Impostos e relatórios no padrão boliviano** (`docs/business/FISCAL.md`, taxas em `src/core/dados/impostos.ts`, motor
   `src/core/services/contabilidade.ts`): IVA e IT informativos na venda e na compra (nunca mudam o preço), gravados no
   histórico; estados financeiros com folha A4; DRE do Brasil como opção. Configurações › Fiscal em abas.
-- **Imposto de Renda** (aba em Relatórios, `IMPOSTO-RENDA.md`): exercício fiscal inteiro, retenção de 8% (IUE 5% + IT 3%)
+- **Imposto de Renda** (aba em Relatórios, `docs/business/FISCAL.md`): exercício fiscal inteiro, retenção de 8% (IUE 5% + IT 3%)
   na compra sem factura, documento anual e fechamento que congela os números.
 - **Nota de venta**: o Resumo da venda é a nota (folha ou rolo 80 mm), sem validade fiscal; o caminho do cabelo foi para
   o Histórico.
@@ -305,7 +305,7 @@ Tabelas de preço refeitas e relatórios no padrão contábil boliviano.
 6. **Servidor/API** (plano em `DIAGNOSTICO-API.md`: tabelas, rotas, login e perfis vindos do banco §10–11, QR §12):
    sincronização entre aparelhos, vitrine com link público, segurança de verdade. O front já chama tudo pelo contrato;
    entra um adaptador novo (`src/adapters/api/backendHttp.ts`, plano no §6.1), ao lado do atual `backendApi.ts`.
-7. Pendências menores de [SISTEMA.md](SISTEMA.md) §7: devolução parcial de produto, leitura de QR própria para
+7. Pendências menores de [SISTEMA.md](docs/architecture/SISTEMA.md) §7: devolução parcial de produto, leitura de QR própria para
    iPhone/Firefox, testes de longa duração.
 
 **Achados da refatoração de 05/11/2026 (avaliados, ainda não feitos):**
@@ -335,7 +335,7 @@ Tabelas de preço refeitas e relatórios no padrão contábil boliviano.
 
 ## 8. Para o Claude numa conversa nova
 
-- Comece lendo este arquivo e o [SISTEMA.md](SISTEMA.md).
+- Comece lendo este arquivo e o [SISTEMA.md](docs/architecture/SISTEMA.md).
 - As anotações de memória do Claude ficam só no computador antigo; o essencial delas está na seção 3 acima.
 - **Conferir rápido** (o dono reclamou do build e da suíte a cada passo): enquanto mexe, `npm run tipos` (`tsc -b` com
   cache: ~2–8 s; frio ou mexendo em `core/domain/tipos.ts` ~30 s; `npm run tipos:vigiar` reconfere em ~3 s a cada
@@ -344,4 +344,4 @@ Tabelas de preço refeitas e relatórios no padrão contábil boliviano.
   `window.__resultado`) + no máximo 1–2 capturas.
 - Não gravar nos dados de demonstração do navegador do dono: usar outra aba/porta (ex.: `http://127.0.0.1:5174`).
 - Comando ou consulta novo: `node scripts/contrato.mjs` para regenerar o contrato.
-- Ao mudar o sistema, atualizar o [SISTEMA.md](SISTEMA.md) e este arquivo (seções 6 e 7).
+- Ao mudar o sistema, atualizar o [SISTEMA.md](docs/architecture/SISTEMA.md) e este arquivo (seções 6 e 7).

@@ -97,7 +97,7 @@ body {
 :where(input[type='date'], input[type='time'], input[type='datetime-local'], select) { min-width: 0; max-width: 100%; }
 :where(section, main) { overflow-wrap: break-word; }
 
-/* LINHA COM TEXTO + PEÇA AO LADO (DESENHO.md §11.7): o texto cresce, mas nunca fica mais estreito que ~12rem
+/* LINHA COM TEXTO + PEÇA AO LADO (docs/architecture/DESENHO.md §11.7): o texto cresce, mas nunca fica mais estreito que ~12rem
    (ou a linha toda, se a tela for menor); sem espaço, a peça do lado (botão, número) desce para a linha de baixo.
    Use numa linha `flex flex-wrap`. Evita a palavra partida no meio ("Entr / ada"). */
 .linha-texto { flex: 1 1 12rem; min-width: min(12rem, 100%); }

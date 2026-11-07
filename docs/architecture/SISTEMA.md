@@ -1,5 +1,7 @@
 # Tudo · ecossistema de gerenciamento
 
+**Atualizado:** 07/11/2026 · **Situação:** vigente (fonte principal das regras)
+
 > Cabelo (compra, separação, estoque em gramas, venda pela tabela), salão (agenda, equipe, unidades), empréstimos,
 > produtos e **qualquer modalidade nova montada pela tela**. Funciona sem internet; hoje os dados ficam no aparelho
 > (demonstração) e o sistema está pronto para virar API trocando uma configuração.
@@ -271,7 +273,7 @@ Toque no **i** de qualquer item ou número: explicação + **quadro de exemplo**
 
 ## 4. Arquitetura (local hoje, API amanhã)
 
-```
+```text
 telas (features/, shared/) ──► porta Backend (comando / consulta / anexar)
                               │
            ┌──────────────────┼────────────────────┐
@@ -291,20 +293,7 @@ telas (features/, shared/) ──► porta Backend (comando / consulta / anexar)
 - Migrar a demonstração: Configurações › Dados › Baixar backup → `POST /v1/backup` no servidor.
 
 ### Pastas
-```
-src/core/domain      dinheiro (moedas, conversão, fator), datas, ids (ULID), tipos, erros
-src/core/ports       portas (repos, arquivos, sessão, relógio, Backend)
-src/core/services    caixa, estoque (separação, rastreio), compras, vendas, contas, precos, emprestimos,
-                     equipe, cadastros, painel (+diagnóstico), relatorios, historico (log/linha do tempo)
-src/core/modulos*.ts contrato dos módulos e modalidades montadas pela tela
-src/core/areas          cabelo, salão, empréstimos, produtos (+ registro)
-src/adapters         memory, local (Dexie), api (+ simulada), noAparelho
-src/adapters         também: câmbio automático (cambio.ts), dados de exemplo (demo.ts), API simulada
-src/app              App (rotas → telas), Shell (menu), 404, criarBackend (escolhe o armazenamento)
-src/shared           peças comuns: ui/ (componentes, gráficos SVG, contexto, idioma i18n.ts + es.ts), navegacao/
-src/features         um domínio de negócio por pasta (pages, components, hooks, model, tests + index.ts público)
-                     — regras e mapa completo em ARQUITETURA.md
-```
+Mapa de pastas, camadas, domínios e regras de import: [ARQUITETURA.md](ARQUITETURA.md) (uma só fonte).
 
 ### Segurança das requisições
 Com a API ligada, **nada legível passa na rede**: só dois endereços, ambos `POST` com corpo binário cifrado.

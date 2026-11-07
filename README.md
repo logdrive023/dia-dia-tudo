@@ -11,7 +11,7 @@ npm test        # regras, contrato local × API, telas
 npm run build   # produção (PWA)
 ```
 
-- Documentação completa, regras, arquitetura e gaps: [SISTEMA.md](SISTEMA.md)
-- Desenho inicial e pesquisa de mercado do cabelo: [DESENHO.md](DESENHO.md)
+- Documentação completa, regras, arquitetura e gaps: [SISTEMA.md](docs/architecture/SISTEMA.md)
+- Desenho inicial e pesquisa de mercado do cabelo: [DESENHO.md](docs/architecture/DESENHO.md)
 - Contrato da API: [api-contract/openapi.yaml](api-contract/openapi.yaml)
 - Deploy automático no GitHub Pages: [.github/workflows/deploy.yml](.github/workflows/deploy.yml)

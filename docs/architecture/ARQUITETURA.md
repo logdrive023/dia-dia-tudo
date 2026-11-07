@@ -1,12 +1,14 @@
 # Arquitetura por domínio
 
+**Atualizado:** 07/11/2026 · **Situação:** vigente
+
 Reorganizada em 06/11/2026. Objetivo: trabalhar num domínio (ex.: estoque) sem precisar entender vendas, compras ou
 financeiro, e manter uma peça compartilhada num lugar só. As regras abaixo **são testadas**
 (`src/__tests__/arquitetura.test.ts`): quebrou a regra, o teste falha.
 
 ## Camadas
 
-```
+```text
 src/
   app/         composição: App (rotas → telas), Shell (menu), 404, criarBackend (escolhe o armazenamento)
   features/    um DOMÍNIO de negócio por pasta (telas, componentes, hooks, contas e testes do domínio)
@@ -16,9 +18,26 @@ src/
   __tests__/   testes das regras (core) e do app inteiro
 ```
 
+Por dentro do `core` e dos `adapters`:
+
+```text
+core/domain       dinheiro (moedas, conversão, fator), datas, ids (ULID), tipos, erros
+core/ports        portas (repos, arquivos, sessão, relógio, Backend)
+core/services     caixa, estoque (separação, rastreio), compras, vendas, contas, precos, emprestimos,
+                  equipe, cadastros, painel (+diagnóstico), relatorios, historico (log/linha do tempo)
+core/modulos*.ts  contrato dos módulos e modalidades montadas pela tela
+core/areas        cabelo, salão, empréstimos, produtos (+ registro)
+core/dados        tabelas de referência: impostos, tributos versionados (tributosBO), cidades, feriados, documentos
+adapters/         memory, local (Dexie), api (+ simulada), noAparelho, câmbio automático (cambio.ts),
+                  dados de exemplo (demo.ts)
+shared/ui         peças padrão, gráficos SVG, contexto, idioma (i18n.ts + es.ts)
+```
+
+Fluxo de dados (porta `Backend`, outbox, troca para a API) e segurança das requisições: [SISTEMA.md](SISTEMA.md) §4.
+
 Quem pode importar quem (a seta é "pode usar"):
 
-```
+```text
 app ─► features ─► shared ─► core ◄─ adapters
 ```
 
@@ -30,7 +49,7 @@ app ─► features ─► shared ─► core ◄─ adapters
 
 ## Um domínio
 
-```
+```text
 features/<dominio>/
   index.ts      CONTRATO PÚBLICO: as telas (para o App) e o pouco que outro domínio pode usar
   pages/        telas com rota (só organizam: estado da tela + seções)

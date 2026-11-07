@@ -3,7 +3,7 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   darkMode: 'media',
   theme: {
-    // LARGURAS PADRÃO (DESENHO.md §11.7): xs 360 (celular comum) · sm 640 · md 768 (tablet) · lg 1024 · xl 1280 · 2xl 1536.
+    // LARGURAS PADRÃO (docs/architecture/DESENHO.md §11.7): xs 360 (celular comum) · sm 640 · md 768 (tablet) · lg 1024 · xl 1280 · 2xl 1536.
     // Abaixo de 360 (celular pequeno, 240–359) é o padrão sem prefixo: tudo em uma coluna.
     screens: { xs: '360px', sm: '640px', md: '768px', lg: '1024px', xl: '1280px', '2xl': '1536px' },
     extend: {

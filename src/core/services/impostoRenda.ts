@@ -1,6 +1,6 @@
 // IMPOSTO DE RENDA E OBRIGAÇÕES TRIBUTÁRIAS (Bolívia, Régimen General) — o exercício fiscal inteiro, a partir do que o
 // sistema já registra (compras, estoque, vendas, caixa), com as regras VERSIONADAS de dados/tributosBO.ts.
-// Diagnóstico e fontes: IMPOSTO-RENDA.md. É DEMONSTRATIVO INTERNO: nada é "declarado" ou "pago" sem a pessoa registrar
+// Diagnóstico e fontes: docs/business/FISCAL.md. É DEMONSTRATIVO INTERNO: nada é "declarado" ou "pago" sem a pessoa registrar
 // (sem integração com o SIN), estimativa é marcada como estimativa, e o que depende do contador vira pendência.
 // Cada número tem a sua ORIGEM: 'calculado' (das operações) · 'estimado' (imposto calculado pelo sistema) ·
 // 'confirmado' (declaração/pagamento registrado) · 'pendente' (falta validar) · 'externo' (documento de fora).

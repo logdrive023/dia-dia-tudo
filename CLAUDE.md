@@ -9,12 +9,12 @@ React 18 + TypeScript + Tailwind + Dexie (IndexedDB) + Vitest. Contexto completo
 - **Não commitar nem dar push** sem pedido: o dono commita (mensagem "att").
 - **Celular primeiro**: toda tela tem de ficar boa em 360 px; lista = linha curta que abre no lugar.
 - **Peças padrão, nunca à mão**: `Titulo`, `GrupoNumeros`/`NumeroGrande`, `FiltroLista`, `TabelaDados`,
-  `JanelaCadastro`, `Interruptor`, `Carregando`, `PainelSelecao`, `MenuAcoes` (ver [DESENHO.md](DESENHO.md) §11).
+  `JanelaCadastro`, `Interruptor`, `Carregando`, `PainelSelecao`, `MenuAcoes` (ver [DESENHO.md](docs/architecture/DESENHO.md) §11).
   Faltou algo → aumentar a peça central, não criar variação local.
 - **Textos em PT** como chave; o espanhol vai em `src/shared/ui/es.ts` (conferir se a chave já existe). Novidades:
   cada texto `{ pt, es }` já ao escrever (`src/features/novidades/model/novidades.ts`).
 - **Regra de negócio em serviço** (`src/core/services/`), nunca dentro do componente; cada informação aparece uma vez.
-- **Tudo configurável** (taxas, fuso, listas) — nunca inventar taxa de imposto ([CONTABILIDADE.md](CONTABILIDADE.md)).
+- **Tudo configurável** (taxas, fuso, listas) — nunca inventar taxa de imposto ([FISCAL.md](docs/business/FISCAL.md)).
 - **Funcionária só vê o que é dela**: decidir em `src/core/services/visibilidade.ts`; teste `funcionariaNaoVe`.
 - Senha só como resumo (hash com sal); o admin nunca vê senha de ninguém.
 - Não mexer nos dados de exemplo do dono em `localhost`: usar `http://127.0.0.1:5174` na própria aba.
@@ -57,7 +57,7 @@ Regras:
 
 ## Arquitetura (onde cada coisa fica)
 
-Arquitetura por domínio — **ler [ARQUITETURA.md](ARQUITETURA.md) antes de criar ou mover arquivo**. Resumo:
+Arquitetura por domínio — **ler [ARQUITETURA.md](docs/architecture/ARQUITETURA.md) antes de criar ou mover arquivo**. Resumo:
 
 - `src/app/` composição (App, Shell, 404, criarBackend) · `src/features/<dominio>/` cada domínio (pages, components,
   hooks, model, tests + **`index.ts` = contrato público**) · `src/shared/` só o que 2+ domínios usam (`ui/` com as
@@ -69,3 +69,34 @@ Arquitetura por domínio — **ler [ARQUITETURA.md](ARQUITETURA.md) antes de cri
   em `model/` com teste); regra de negócio em `core/services`. Peças comuns dos serviços em `core/services/contexto.ts`
   (`ehAdmin`, `euPessoa`, `ehEquipe`, `conversorPara`); datas em `core/domain/datas.ts`.
 - Tipos em 3 projetos (`tsconfig.app/test/node.json`, `tsc -b`): o app não enxerga Node nem testes.
+
+## Como atender cada pedido (especialista por tipo)
+
+Antes de agir, identificar o tipo do pedido e assumir o especialista certo: foco só no que importa para ele e resposta
+no formato dele. Pensar num roteiro curto (papel · tarefa · escopo · formato) para gastar menos contexto.
+
+| Especialista | Quando | Foco (ignorar o resto) | Formato da resposta |
+|---|---|---|---|
+| **Frontend** | componente, estado, hooks, CSS/Tailwind, eventos do navegador | estado, ciclo de vida, desempenho de renderização, eventos | código corrigido/novo + 1 frase com a causa ou a lógica |
+| **Backend / DevOps / Go** | API (`api-contract/`, `adapters/api`), esquema e consultas de dados, regra de servidor, futura API em Go, Docker/K8s, CI/CD, deploy | idiomas de Go (goroutines/canais), arquitetura limpa, fluxo de dados, validação da API, contêineres | 1) tabela de endpoints ou de infraestrutura · 2) código Go ou configuração pronta para produção |
+| **Depuração** | erro no console, stack trace, travamento, teste falhando, falha assíncrona | stack trace, mutação de variável, fluxo assíncrono, casos de borda | 1) **Causa raiz** (1–2 frases, o defeito exato) · 2) **Correção** passo a passo |
+| **Build e qualidade** | erro do `tsc`, lint, falha do Vite, dependência | tipos (`.d.ts`), `tsconfig*.json`, `vite.config.ts`, dependências | 1) comando ou correção rápida · 2) código/configuração corrigidos |
+| **Arquitetura e documentação** | descoberta do projeto, desenho de arquitetura, organizar ou padronizar `.md` | visão geral, mapa de domínios, estrutura de pastas | 1) domínios / arquitetura · 2) tabela de endpoints ou de arquivos |
+
+## Como responder
+
+- Começar direto pelo conteúdo: sem saudação nem "vou fazer…".
+- Tabelas compactas e listas para dado estruturado; texto técnico e enxuto.
+
+## Documentação (`.md`)
+
+- Na raiz só `README.md`, `CLAUDE.md` e `CONTINUAR.md` (fila de trabalho, lida antes de começar). O resto vai em
+  `docs/`: `architecture/` (arquitetura, desenho, regras do sistema) · `audit/` (auditorias) · `business/` (fiscal,
+  fluxos do negócio).
+- Cada documento em `docs/` começa com `# Título` (um só) e, logo abaixo,
+  `**Atualizado:** dd/mm/aaaa · **Situação:** vigente | histórico (motivo)`; seções a partir de `##`. Sem "Autor": o
+  git já registra.
+- Bloco de código sempre com a linguagem (`ts`, `bash`; desenho de pastas ou fluxo = `text`).
+- Uma informação num lugar só: assunto que já tem documento → completar o existente, não criar outro; achou repetição
+  entre documentos → propor juntar.
+- Mover ou renomear documento → atualizar no mesmo passo todos os links e menções (procurar pelo nome em todo o projeto).

@@ -1,4 +1,4 @@
-// ARQUITETURA POR DOMÍNIO (ARQUITETURA.md): as regras de dependência viram teste, para a estrutura não se desfazer.
+// ARQUITETURA POR DOMÍNIO (docs/architecture/ARQUITETURA.md): as regras de dependência viram teste, para a estrutura não se desfazer.
 //   app ─► features ─► shared ─► core          adapters ─► core          (a seta é "pode importar")
 //   · core (regras de negócio) não conhece tela, peça, app nem adaptador;
 //   · shared (peças comuns) não conhece domínio nem app;

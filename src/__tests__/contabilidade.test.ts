@@ -1,4 +1,4 @@
-// MOTOR CONTÁBIL (CONTABILIDADE.md): o padrão boliviano é o motor; o brasileiro muda a ordem e os impostos.
+// MOTOR CONTÁBIL (docs/business/FISCAL.md): o padrão boliviano é o motor; o brasileiro muda a ordem e os impostos.
 // Cada total do resumo fecha com o anexo dele (conferência ✓), e cada imposto é base × taxa ao centavo.
 import { describe, expect, it } from 'vitest'
 import { bs, novoBackend } from './ajuda'
