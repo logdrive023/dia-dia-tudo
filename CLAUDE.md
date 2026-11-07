@@ -104,6 +104,26 @@ no formato dele. Pensar num roteiro curto (papel · tarefa · escopo · formato)
 - Começar direto pelo conteúdo: sem saudação nem "vou fazer…".
 - Tabelas compactas e listas para dado estruturado; texto técnico e enxuto.
 
+## Vários pedidos numa mensagem (orquestrar)
+
+Quando a mensagem traz várias tarefas, correções ou requisitos misturados (lista ou texto corrido):
+
+1. **Separar** em tarefas numeradas (T1, T2…), cada uma com o seu resultado esperado — vira a lista de tarefas.
+2. **Encaminhar** cada uma ao especialista certo (tabela acima: Frontend e UX/UI, Backend/Go, Depuração, Build e
+   qualidade, Arquitetura e documentação).
+3. **Roteiro curto** por tarefa (papel · tarefa · escopo · formato) antes de agir.
+4. **Responder em português, por blocos de tarefa**, cada bloco no formato do seu especialista (código, notas de
+   UX/celular, fluxo em ASCII quando pedido); no fim, a validação de tudo junto.
+
+## Escopo fechado (lista de tarefas)
+
+1. **Não inventar nem ampliar:** fazer só o que está na lista. Viu algo a mais? Anotar como sugestão no fim, não fazer.
+2. **Na ordem pedida:** uma tarefa por vez, sem misturar a T3 enquanto resolve a T1 (exceção: o dono pedir outra
+   ordem, ou uma tarefa depender de outra — dizer qual e por quê).
+3. **Pouco texto, muito resultado:** explicação curta e direta; o esforço vai no código e na correção de estrutura.
+4. **Nada fica de fora:** cada item pedido tem resposta; se pede código, o trecho vai completo. Não deu para fazer
+   (falta decisão do dono, regra de negócio) → dizer qual item, por quê e o que falta.
+
 ## Documentação (`.md`)
 
 - Na raiz só `README.md`, `CLAUDE.md` e `CONTINUAR.md` (fila de trabalho, lida antes de começar). O resto vai em

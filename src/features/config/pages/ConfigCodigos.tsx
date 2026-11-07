@@ -27,6 +27,7 @@ const MODOS_LOTE: { id: ModoLote; nome: string; ajuda: string; exemplo: string }
 const TIPOS_ETIQUETA: { id: ModoEtiqueta; nome: string; ajuda: string; exemplo: string }[] = [
   { id: 'qrBarras', nome: 'QR + código de barras', ajuda: 'Para leitor "pistola" no balcão: ele lê as barras e digita o código na busca.', exemplo: 'Code 128 · M1-2' },
   { id: 'qr', nome: 'Só QR', ajuda: 'Para quem usa só o celular: a câmera lê o QR e abre o pacote.', exemplo: '…#/q/<código aleatório>' },
+  { id: 'barras', nome: 'Só código de barras', ajuda: 'Sem QR: só as barras e o código. Para item pequeno lido no balcão pelo leitor "pistola".', exemplo: 'Code 128 · L-0023' },
   { id: 'nenhuma', nome: 'Sem etiqueta', ajuda: 'O código aparece grande na tela para escrever à mão no pacote.', exemplo: 'P4' },
 ]
 

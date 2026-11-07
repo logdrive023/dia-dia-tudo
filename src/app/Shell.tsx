@@ -8,7 +8,7 @@
 // O menu se monta pelos módulos ativos e pelo perfil (admin vê tudo; funcionária só o dela).
 // "Configurações" abre uma sublista com os grupos e as seções (vêm da mesma lista da tela: configSecoes.ts).
 
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { Botao, Janela, cx, useTravarFundo } from '../shared/ui/base'
 import { useApp, useConsulta } from '../shared/ui/contexto'
 import { useLembrado } from '../shared/ui/filtros'
@@ -161,6 +161,13 @@ export function Shell({ children }: { children: ReactNode }) {
   const { c: contadores } = useContadores()
   const [mais, setMais] = useState(false)
   useTravarFundo(mais)
+  // gaveta do celular: Esc também fecha (além do ✕ e de tocar fora)
+  useEffect(() => {
+    if (!mais) return
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setMais(false)
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [mais])
   const [recolhido, setRecolhido] = useLembrado('menu.recolhido', false)
   const [oculto, setOculto] = useLembrado('menu.oculto', false)
   const [gruposAbertos, setGruposAbertos] = useLembrado<string[]>('menu.gruposAbertos', [])
@@ -361,8 +368,15 @@ export function Shell({ children }: { children: ReactNode }) {
 
       {mais && (
         <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setMais(false)}>
-          <div role="dialog" aria-label={t('Menu')} className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto overscroll-contain rounded-t-3xl bg-[var(--cartao)] px-4 pb-8 pt-3" onClick={(e) => e.stopPropagation()}>
-            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-[var(--borda)]" />
+          <div role="dialog" aria-modal="true" aria-label={t('Menu')} className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto overscroll-contain rounded-t-3xl bg-[var(--cartao)] px-4 pb-8" onClick={(e) => e.stopPropagation()}>
+            {/* topo preso: a alça no meio e o ✕ à direita (alvo de 44 px), sempre à vista mesmo rolando o menu */}
+            <div className="sticky top-0 z-10 -mx-4 mb-2 flex h-12 items-center justify-center bg-[var(--cartao)] px-4">
+              <span aria-hidden className="h-1.5 w-10 rounded-full bg-[var(--borda)]" />
+              <button type="button" autoFocus onClick={() => setMais(false)} aria-label={t('Fechar menu')} title={t('Fechar menu')}
+                className="absolute right-2 top-1 flex h-11 w-11 items-center justify-center rounded-full text-xl text-[var(--suave)] hover:bg-[var(--fundo)] hover:text-[var(--texto)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--marca)]">
+                <span aria-hidden>✕</span>
+              </button>
+            </div>
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--marca-suave)] font-bold text-[var(--marca)]">{iniciais}</div>
               <div className="min-w-0 flex-1">

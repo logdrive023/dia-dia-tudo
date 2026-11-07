@@ -160,6 +160,14 @@ body.imprimindo-relatorio { overflow: hidden; }
 @keyframes carregando-corre { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
 @media (prefers-reduced-motion: reduce) { .carregando-barra::after { animation: none; width: 100%; opacity: 0.5; } }
 
+/* ESQUELETO (Carregando padrão, em abas e cartões): aparece só depois de 150 ms — resposta rápida não pisca — e as
+   barras brilham de leve da esquerda para a direita */
+.carregando-esqueleto { animation: esqueleto-aparece 0.2s ease-out 0.15s both; }
+@keyframes esqueleto-aparece { from { opacity: 0; } to { opacity: 1; } }
+.esqueleto { background: linear-gradient(90deg, var(--borda) 0%, color-mix(in srgb, var(--borda) 45%, transparent) 50%, var(--borda) 100%); background-size: 200% 100%; animation: esqueleto-brilho 1.3s ease-in-out infinite; }
+@keyframes esqueleto-brilho { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .carregando-esqueleto, .esqueleto { animation: none; } }
+
 /* ENTRADA DE TELA (src/ui/Shell.tsx): ao trocar de tela, o conteúdo aparece e sobe um pouco (dá a sensação de carregar) */
 .entrada-tela { animation: entrada-tela 0.32s ease-out both; }
 /* só opacidade: um transform (mesmo o "none" que a animação deixa preso) vira a referência dos position:fixed de dentro

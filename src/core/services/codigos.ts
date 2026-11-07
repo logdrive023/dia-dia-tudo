@@ -15,8 +15,9 @@ export type ModoCompra = 'incremental' | 'porPessoa' | 'manual'
 export type ModoLote = 'incremental' | 'daCompra' | 'manual'
 export type TipoCodigo = 'compra' | 'lote'
 /** etiqueta do lote: QR + código de barras (Code 128, leitor "pistola"), só QR (celular) ou nenhuma (código grande à mão) */
-export type ModoEtiqueta = 'qrBarras' | 'qr' | 'nenhuma'
-export const MODOS_ETIQUETA: ModoEtiqueta[] = ['qrBarras', 'qr', 'nenhuma']
+/** 'barras' = só o código de barras (sem QR): item pequeno lido no balcão pelo leitor "pistola" */
+export type ModoEtiqueta = 'qrBarras' | 'qr' | 'barras' | 'nenhuma'
+export const MODOS_ETIQUETA: ModoEtiqueta[] = ['qrBarras', 'qr', 'barras', 'nenhuma']
 
 /** prefixo (pode ser vazio) + número com N casas: { 'P-', 4 } → P-0007; { '', 0 } → 7 */
 export interface Sequencia {

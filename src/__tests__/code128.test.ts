@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PADROES_128, caminhoCode128, modulosCode128, textoCode128, valoresCode128 } from '../shared/ui/code128'
+import { MAX_CODE128, PADROES_128, caminhoCode128, code128Conferido, lerCode128, modulosCode128, textoCode128, validarCode128, valoresCode128 } from '../shared/ui/code128'
 
 describe('Code 128 (conjunto B)', () => {
   it('tabela: 107 padrões distintos, 11 módulos cada (stop 13) e barras com largura par', () => {
@@ -37,5 +37,28 @@ describe('Code 128 (conjunto B)', () => {
   it('acentos viram a letra sem acento; o que não é ASCII vira "?"', () => {
     expect(textoCode128('Ção-1')).toBe('Cao-1')
     expect(textoCode128('L€1')).toBe('L?1')
+  })
+
+  it('conferência: o que vai para o papel lê de volta exatamente o mesmo código', () => {
+    for (const c of ['L-0023', 'P-0007', 'Wikipedia', 'M1-1a', 'A b~}'])
+      expect(lerCode128(modulosCode128(c)), c).toBe(c)
+    expect(code128Conferido('L-0023')).toEqual({ ok: true })
+  })
+
+  it('conferência: vazio, acento/símbolo e longo demais não viram barras (nunca "?" em silêncio)', () => {
+    expect(code128Conferido('  ')).toEqual({ ok: false, problema: 'vazio' })
+    expect(code128Conferido('Ção-1')).toEqual({ ok: false, problema: 'caractere' })
+    expect(code128Conferido('L€1')).toEqual({ ok: false, problema: 'caractere' })
+    expect(code128Conferido('X'.repeat(MAX_CODE128 + 1))).toEqual({ ok: false, problema: 'longo' })
+    expect(validarCode128('X'.repeat(MAX_CODE128))).toEqual({ ok: true })
+  })
+
+  it('leitura: barra trocada ou soma de verificação errada → não lê', () => {
+    const m = modulosCode128('L-0023')
+    const estragado = [...m]
+    estragado[30] = !estragado[30]
+    expect(lerCode128(estragado)).toBeUndefined()
+    expect(lerCode128(m.slice(0, -3))).toBeUndefined()
+    expect(lerCode128([])).toBeUndefined()
   })
 })

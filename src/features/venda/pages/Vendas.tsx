@@ -7,7 +7,7 @@ import { CaminhoDoCabelo } from '../../../shared/ui/caminhoCabelo'
 import { useCallback, useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../../../core/domain/dinheiro'
 import type { Id, Transacao } from '../../../core/domain/tipos'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, ValorInput, cx, dataBR, ErroTela, loc, Confirmar } from '../../../shared/ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Erro, GramasInput, Janela, Pagina, Pilula, Selecao, ValorInput, cx, dataBR, ErroTela, loc, Confirmar } from '../../../shared/ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { linkWhatsApp, useCotacoes } from '../../../shared/ui/compartilhados'
 import { AbaAnexos } from '../../../shared/ui/anexos'
@@ -261,16 +261,46 @@ function RastreioCompleto({ vendaId }: { vendaId: Id }) {
  * detalhe dos impostos — que só valem aqui (o padrão fica em Configurações › Geral); a prévia muda na hora e é a mesma
  * que sai no papel. Embaixo, fora do papel, a divisão interna (comissão e insumos), para quem pode ver.
  */
-function ResumoNota({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transacao['linhas']; moeda: string }) {
+function ResumoNota(p: { vendaId: Id; linhas: Transacao['linhas']; moeda: string }) {
+  const { sessao } = useApp()
+  // a NOTA (documento fiscal: NIT/CI da cliente, divisão interna) é do administrador; a funcionária vê os itens dela
+  // (as linhas já chegam filtradas pela visibilidade) — sem pedir uma consulta que o servidor recusa
+  return sessao.perfil === 'admin' ? <NotaCompleta {...p} /> : <ItensDaVenda linhas={p.linhas} moeda={p.moeda} />
+}
+
+/** RESUMO da funcionária: cada item dela nesta venda e o total — o mesmo cartão das outras abas */
+function ItensDaVenda({ linhas, moeda }: { linhas: Transacao['linhas']; moeda: string }) {
+  const t = useT()
+  const total = linhas.reduce((s, l) => s + l.totalPrincipal, 0)
+  return (
+    <Cartao titulo={t('Itens')}>
+      {linhas.length === 0 ? <p className="text-sm text-[var(--suave)]">{t('Nenhum item seu nesta venda.')}</p> : (
+        <ul className="divide-y divide-[var(--borda)]">
+          {linhas.map((l) => (
+            <li key={l.id} className="flex items-baseline justify-between gap-3 py-2">
+              <span className="min-w-0 break-words text-sm">{l.descricao}{l.quantidade > 1 && <span className="num text-[var(--suave)]"> × {l.quantidade}</span>}</span>
+              <span className="num whitespace-nowrap font-semibold">{formatar(l.totalPrincipal, moeda)}</span>
+            </li>
+          ))}
+          <li className="flex items-baseline justify-between gap-3 pt-2 font-bold"><span>{t('Total')}</span><span className="num">{formatar(total, moeda)}</span></li>
+        </ul>
+      )}
+    </Cartao>
+  )
+}
+
+function NotaCompleta({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transacao['linhas']; moeda: string }) {
   const t = useT()
   const { sessao, ir } = useApp()
-  const { dados: doc } = useConsulta('documentoVenda', { id: vendaId })
+  const { dados: doc, erro } = useConsulta('documentoVenda', { id: vendaId })
   const [modelo, setModelo] = useState<ModeloDocumentoId>()
   const [comImpostos, setComImpostos] = useState<boolean>()
   const [imprimindo, setImprimindo] = useState(false)
   // DIVISÃO NA NOTA: só aparece a escolha quando a venda tem divisão gravada; lembrada neste aparelho
   const [comDivisao, setComDivisao] = useLembrado('nota.divisao', false)
   const fimImpressao = useCallback(() => setImprimindo(false), [])
+  // erro nunca vira "Carregando…" para sempre
+  if (erro) return <Erro texto={t(erro)} />
   if (!doc) return <Carregando />
   const md = modelo ?? doc.modeloPadrao
   const includeTaxesInPrint = comImpostos ?? doc.impostosNaNota

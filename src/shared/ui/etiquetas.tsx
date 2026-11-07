@@ -10,7 +10,16 @@ import type { Id } from '../../core/domain/tipos'
 import type { Etiqueta } from '../../core/services/fotos'
 import type { ModoEtiqueta } from '../../core/services/codigos'
 import { Botao, Campo, Carregando, Entrada, Escolha, Erro, Info, Janela, cx, dataBR, fmt, loc, BotaoExpandir } from './base'
-import { caminhoCode128 } from './code128'
+import { caminhoCode128, code128Conferido, type ProblemaCode128 } from './code128'
+import { ESCALAS_BARRAS, PERFIS_ETIQUETA, configDe, perfilDe, registrarMudanca, type ConfigEtiqueta, type MudancaEtiqueta } from './etiquetaPerfis'
+
+/** por que o código não virou barras (aparece na etiqueta no lugar delas) */
+const MOTIVO_SEM_BARRAS: Record<ProblemaCode128, string> = {
+  vazio: 'código vazio',
+  caractere: 'tem acento ou símbolo',
+  longo: 'código longo demais',
+  leitura: 'não confere na leitura',
+}
 import { useApp, useComando, useConsulta } from './contexto'
 import { useT } from './i18n'
 import { caminhoQR, gerarQR } from './qr'
@@ -58,6 +67,16 @@ export function QR({ texto, className }: { texto: string; className?: string }) 
 
 /** Código de barras Code 128 do código do lote (o leitor "pistola" digita o código na busca). */
 export function Barras({ texto, className, style }: { texto: string; className?: string; style?: CSSProperties }) {
+  const t = useT()
+  // CONFERIDO ANTES DE IR PARA O PAPEL: validado e lido de volta; não serve → aviso no lugar das barras (nunca barras
+  // que o leitor leria errado). O código continua escrito na etiqueta e o QR continua funcionando.
+  const conf = code128Conferido(texto)
+  if (!conf.ok)
+    return (
+      <span role="img" aria-label={t('Sem código de barras: {m}', { m: t(MOTIVO_SEM_BARRAS[conf.problema]) })} className={cx('flex items-center justify-center border border-dashed border-black px-0.5 text-center text-[6px] font-semibold leading-tight text-black', className)} style={style}>
+        {t('sem barras')} · {t(MOTIVO_SEM_BARRAS[conf.problema])}
+      </span>
+    )
   const { d, largura, altura } = caminhoCode128(texto)
   return (
     <svg viewBox={`0 0 ${largura} ${altura}`} preserveAspectRatio="none" className={className} style={style} role="img" aria-label={`Code 128 ${texto}`} shapeRendering="crispEdges">
@@ -70,9 +89,10 @@ export function Barras({ texto, className, style }: { texto: string; className?:
 export const TIPOS_ETIQUETA: { id: ModoEtiqueta; nome: string }[] = [
   { id: 'qrBarras', nome: 'QR + barras' },
   { id: 'qr', nome: 'Só QR' },
+  { id: 'barras', nome: 'Só barras' },
   { id: 'nenhuma', nome: 'Sem etiqueta' },
 ]
-export const AJUDA_TIPO_ETIQUETA = 'QR + barras: para leitor de balcão. Só QR: para celular. Sem etiqueta: escreva o código à mão. Ex.: tag presa com elástico no pacote.'
+export const AJUDA_TIPO_ETIQUETA = 'QR + barras: para leitor de balcão e celular. Só QR: para celular. Só barras: item pequeno lido no balcão. Sem etiqueta: escreva o código à mão. Ex.: tag presa com elástico no pacote.'
 
 /** Medidas de uma etiqueta (mm). Tudo sai da largura × altura: QR, letra, foto e código de barras acompanham. */
 export interface MedidasEtiqueta { w: number; h: number; qr: number; foto: number; codigo: number; texto: number; barras: number }
@@ -89,17 +109,23 @@ const TAM: Record<'pequena' | 'a4', MedidasEtiqueta> = {
   a4: { w: 63.5, h: 38.1, qr: 26, foto: 13, codigo: 6, texto: 2.8, barras: 6 },
 }
 
-function UmaEtiqueta({ e, s, barras }: { e: Etiqueta; s: MedidasEtiqueta; barras: boolean }) {
+/** a altura das barras escolhida (% do normal), sem passar da metade da etiqueta */
+function comEscalaBarras(s: MedidasEtiqueta, pct: number): MedidasEtiqueta {
+  return { ...s, barras: Math.min(s.h * 0.5, (s.barras * pct) / 100) }
+}
+
+function UmaEtiqueta({ e, s, barras, qr = true }: { e: Etiqueta; s: MedidasEtiqueta; barras: boolean; qr?: boolean }) {
   const t = useT()
   const foto = useUrlFoto(e.foto)
   const linha = [e.medida, e.categoria ? t(e.categoria) : undefined, e.cor ? t(e.cor) : undefined].filter(Boolean).join(' · ')
   const peso = fmt(e.saldo, e.unidade === 'grama' ? 'gramas' : 'numero')
   // código grande numa linha só: diminui a letra se o código for comprido (largura do texto ≈ 0,62 × letra × n)
-  const largura = s.w - s.qr - 4.5
+  // SÓ BARRAS: sem o QR, o texto e as barras usam a largura inteira
+  const largura = qr ? s.w - s.qr - 4.5 : s.w - 3
   const tamCodigo = Math.min(s.codigo, largura / (0.62 * Math.max(1, e.codigo.length)))
   return (
     <div className="etiqueta flex overflow-hidden bg-white text-black" style={{ width: `${s.w}mm`, height: `${s.h}mm`, padding: '1.5mm', gap: '1.5mm', border: '0.2mm dashed #bbb', boxSizing: 'border-box', breakInside: 'avoid' }}>
-      <QR texto={e.qr ? enderecoDoQr(e.qr) : enderecoDoLote(e.id)} className="shrink-0" />
+      {qr && <QR texto={e.qr ? enderecoDoQr(e.qr) : enderecoDoLote(e.id)} className="shrink-0" />}
       <div className="flex min-w-0 flex-1 flex-col justify-between" style={{ fontSize: `${s.texto}mm`, lineHeight: 1.15 }}>
         <b className="font-mono" style={{ fontSize: `${tamCodigo}mm`, lineHeight: 1, whiteSpace: 'nowrap' }}>{e.codigo}</b>
         {barras && <Barras texto={e.codigo} className="barras block w-full" style={{ height: `${s.barras}mm` }} />}
@@ -137,6 +163,8 @@ const MAX_COPIAS = 50
 const AJUDA_PAPEL = 'Rolo: 1 etiqueta de 50 × 30 mm por vez (impressora de etiqueta). Folha A4: 21 por folha (3 × 7, etiquetas de 63,5 × 38,1 mm). Ex.: 25 etiquetas = 2 folhas (21 + 4).'
 const AJUDA_INICIO = 'Para usar uma folha que já foi usada: toque na primeira etiqueta livre. Ex.: sobraram 10 → comece na 12.'
 const AJUDA_COPIAS = 'Quantas etiquetas de cada pacote. Ex.: 2× para uma no pacote e outra no saco.'
+const AJUDA_PERFIL = 'Um toque acerta papel, tamanho, tipo e barras para o uso. Fica guardado neste aparelho (cada lugar tem a sua impressora). Ex.: Pacote de cabelo = 70 × 40 mm com QR e barras.'
+const AJUDA_ESCALA_BARRAS = 'Barras mais altas: o leitor de balcão lê mais fácil, mas sobra menos espaço para o texto. Ex.: 150% para etiqueta só de barras.'
 
 /** − [n] + (cópias); alvos de toque de 40 px. */
 function Contador({ valor, onChange, min = 0, max = MAX_COPIAS, rotulo }: { valor: number; onChange(n: number): void; min?: number; max?: number; rotulo: string }) {
@@ -202,8 +230,33 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   const [verLista, setVerLista] = useState(ids.length <= 6)
   const [refPrevia, largura] = useLargura()
   const modo = escolhido ?? modoInicial ?? modoPadrao ?? 'qr'
+  const comQr = modo === 'qr' || modo === 'qrBarras'
+  const comBarras = modo === 'qrBarras' || modo === 'barras'
+  // ALTURA DAS BARRAS (% do normal) — lembrada no aparelho como o tamanho
+  const [escalaBarras, setEscalaBarras] = useLembrado('etiquetas.escalaBarras', 100)
+  // PERFIL + HISTÓRICO: a configuração inteira; cada mudança fica guardada (quando, quem) e dá para voltar a ela
+  const config: ConfigEtiqueta = { papel: tamanho, w: largLivre, h: altLivre, modo, escalaBarras }
+  const perfil = perfilDe(config)
+  const [historico, setHistorico] = useLembrado<MudancaEtiqueta[]>('etiquetas.historico', [])
+  const [verHistorico, setVerHistorico] = useState(false)
+  const chaveConfig = JSON.stringify(config)
+  useEffect(() => {
+    // espera parar de digitar (1,2 s) para não guardar cada número da largura
+    const id = setTimeout(() => setHistorico(registrarMudanca(historico, JSON.parse(chaveConfig) as ConfigEtiqueta, new Date().toISOString(), sessao.nome)), 1200)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveConfig])
+  const aplicar = (c: ConfigEtiqueta) => {
+    setPapel(c.papel)
+    if (c.papel === 'livre') (setLargLivre(c.w), setAltLivre(c.h))
+    setModo(c.modo)
+    setEscalaBarras(c.escalaBarras)
+    setInicio(1)
+  }
+  const nomePapel = (c: ConfigEtiqueta) => (c.papel === 'livre' ? `${c.w} × ${c.h} mm` : t(c.papel === 'a4' ? 'Folha A4' : 'Rolo 50 × 30'))
+  const nomeModo = (m: ModoEtiqueta) => t(TIPOS_ETIQUETA.find((x) => x.id === m)?.nome ?? m)
   const a4 = modo !== 'nenhuma' && tamanho === 'a4'
-  const qrPequeno = modo !== 'nenhuma' && tamanho === 'livre' && medRolo.qr < QR_MINIMO_MM
+  const qrPequeno = comQr && tamanho === 'livre' && medRolo.qr < QR_MINIMO_MM
   const copiasDe = (id: Id) => copias[id] ?? 1
   const todasIguais = (dados ?? []).every((e) => copiasDe(e.id) === copiasDe(dados![0].id))
   const cada = dados?.length ? copiasDe(dados[0].id) : 1
@@ -285,6 +338,26 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
         <div className="mx-auto flex max-w-6xl flex-col gap-3 p-3 md:flex-row md:items-start">
           {/* o que imprimir */}
           <div className="nao-imprimir flex w-full flex-col gap-3 md:sticky md:top-0 md:w-80 md:shrink-0 lg:w-96">
+            {/* PERFIL PRONTO: um toque acerta papel, tamanho, tipo e barras para o uso (a prévia muda na hora) */}
+            <section className={secao}>
+              <h3 className="mb-2 flex items-center text-sm font-bold">{t('Perfil')}<Info texto={AJUDA_PERFIL} /></h3>
+              <div role="radiogroup" aria-label={t('Perfil')} className="grid gap-1.5">
+                {PERFIS_ETIQUETA.map((p) => (
+                  <button key={p.id} type="button" role="radio" aria-checked={perfil === p.id} onClick={() => aplicar(p.config)}
+                    className={cx('flex min-h-12 items-start gap-2 rounded-xl border p-2 text-left transition', perfil === p.id ? 'border-[var(--marca)] bg-[var(--marca-suave)]' : 'border-[var(--borda)] hover:bg-[var(--fundo)]')}>
+                    <span aria-hidden className={cx('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2', perfil === p.id ? 'border-[var(--marca)]' : 'border-[var(--borda)]')}>{perfil === p.id && <span className="h-2 w-2 rounded-full bg-[var(--marca)]" />}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-baseline justify-between gap-x-2">
+                        <b className="text-sm">{t(p.nome)}</b>
+                        <span className="num text-xs text-[var(--suave)]">{p.config.w} × {p.config.h} mm</span>
+                      </span>
+                      <span className="block text-xs text-[var(--suave)]">{t(p.uso)}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {!perfil && <p className="mt-1.5 text-xs text-[var(--suave)]">{t('Agora: do seu jeito')} · <span className="num">{nomePapel(config)} · {nomeModo(modo)}</span></p>}
+            </section>
             <section className={secao}>
               <h3 className="mb-2 flex items-center text-sm font-bold">{t('Tipo de etiqueta')}<Info texto={AJUDA_TIPO_ETIQUETA} /></h3>
               <Escolha rotulo="Tipo de etiqueta" valor={modo} onChange={(v) => setModo(v as ModoEtiqueta)} opcoes={TIPOS_ETIQUETA} />
@@ -304,7 +377,13 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
                   </div>
                 )}
                 <p className="num mt-2 text-xs text-[var(--suave)]">{t(tamanho === 'a4' ? '21 por folha (3 × 7) · até {n} por vez' : '1 por etiqueta do rolo · até {n} por vez', { n: limite })}</p>
-                {tamanho === 'livre' && (
+                {comBarras && (
+                  <div className="mt-2">
+                    <p className="mb-1 flex items-center text-sm font-semibold text-[var(--suave)]">{t('Altura das barras')}<Info texto={AJUDA_ESCALA_BARRAS} /></p>
+                    <Escolha rotulo="Altura das barras" valor={String(escalaBarras)} onChange={(v) => setEscalaBarras(Number(v))} opcoes={ESCALAS_BARRAS.map((p) => ({ id: String(p), nome: `${p}%` }))} />
+                  </div>
+                )}
+                {tamanho === 'livre' && comQr && (
                   <p role={qrPequeno ? 'alert' : undefined} className={cx('num mt-1 text-xs font-semibold', qrPequeno ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>
                     {qrPequeno ? `⚠️ ${t('QR com {n} mm: pequeno, a câmera pode não ler. Use etiqueta com pelo menos 18 mm de altura.', { n: medRolo.qr.toFixed(0) })}` : `✓ ${t('QR com {n} mm: a câmera lê.', { n: medRolo.qr.toFixed(0) })}`}
                   </p>
@@ -349,6 +428,30 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
                 </ul>
               )}
             </section>
+            {/* HISTÓRICO DO TAMANHO (neste aparelho): cada mudança com quando e quem; "Usar de novo" volta exatamente a ela */}
+            {historico.length > 1 && (
+              <section className={secao}>
+                <BotaoExpandir aberto={verHistorico} onClick={() => setVerHistorico(!verHistorico)} className="-ml-2">{t('Histórico do tamanho ({n})', { n: historico.length })}</BotaoExpandir>
+                {verHistorico && (
+                  <ul className="mt-1 divide-y divide-[var(--borda)]">
+                    {historico.map((h, k) => {
+                      const emUso = k === 0
+                      const p = perfilDe(h)
+                      return (
+                        <li key={h.em + k} className="flex items-center gap-2 py-2">
+                          <span className="min-w-0 flex-1">
+                            <span className="num block text-sm font-semibold">{nomePapel(h)} · {nomeModo(h.modo)}{h.modo !== 'qr' && h.modo !== 'nenhuma' ? ` · ${t('barras')} ${h.escalaBarras}%` : ''}</span>
+                            <span className="block text-xs text-[var(--suave)]">{new Date(h.em).toLocaleString(loc(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}{h.por ? ` · ${h.por}` : ''}{p ? ` · ${t(PERFIS_ETIQUETA.find((x) => x.id === p)!.nome)}` : ''}</span>
+                          </span>
+                          {emUso ? <span className="shrink-0 rounded-full bg-[var(--marca-suave)] px-2 py-0.5 text-xs font-semibold text-[var(--marca)]">{t('em uso')}</span>
+                            : <Botao variante="leve" className="shrink-0" onClick={() => aplicar(configDe(h))}>↶ {t('Usar de novo')}</Botao>}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </section>
+            )}
           </div>
 
           {/* prévia: como vai sair no papel */}
@@ -367,7 +470,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
                     <div style={{ transform: `scale(${escala})`, transformOrigin: 'top left', width: '210mm' }}>
                       <div className="pagina-a4 bg-white shadow-md" style={{ width: '210mm', height: '297mm', padding: '15.15mm 9.75mm', boxSizing: 'border-box' }}>
                         <div className="grade grid" style={{ gridTemplateColumns: 'repeat(3,63.5mm)', gridAutoRows: '38.1mm' }}>
-                          {vagas.map((e, j) => (e ? <UmaEtiqueta key={j} e={e} s={TAM.a4} barras={modo === 'qrBarras'} /> : <div key={j} className="vaga" style={{ border: '0.2mm dashed #e5e5e5' }} />))}
+                          {vagas.map((e, j) => (e ? <UmaEtiqueta key={j} e={e} s={comEscalaBarras(TAM.a4, escalaBarras)} barras={comBarras} qr={comQr} /> : <div key={j} className="vaga" style={{ border: '0.2mm dashed #e5e5e5' }} />))}
                         </div>
                       </div>
                     </div>
@@ -376,27 +479,31 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
               </div>
             ) : (
               <div className="pequena grade flex flex-wrap gap-2">
-                {fila.map((e, k) => <UmaEtiqueta key={k} e={e} s={medRolo} barras={modo === 'qrBarras'} />)}
+                {fila.map((e, k) => <UmaEtiqueta key={k} e={e} s={comEscalaBarras(medRolo, escalaBarras)} barras={comBarras} qr={comQr} />)}
               </div>
             )}
-            <p className="nao-imprimir mt-3 text-xs text-[var(--suave)]">{t(modo === 'nenhuma' ? 'Escreva o código no pacote: a busca acha o pacote pelo código.' : modo === 'qrBarras' ? 'O QR abre o lote pela câmera; o código de barras é lido pelo leitor de balcão, que digita o código na busca.' : 'O QR abre o lote: pelo “Ler código” do Estoque ou pela câmera de qualquer celular.')}</p>
+            <p className="nao-imprimir mt-3 text-xs text-[var(--suave)]">{t(modo === 'nenhuma' ? 'Escreva o código no pacote: a busca acha o pacote pelo código.' : modo === 'qrBarras' ? 'O QR abre o lote pela câmera; o código de barras é lido pelo leitor de balcão, que digita o código na busca.' : modo === 'barras' ? 'Sem QR: o leitor de balcão lê as barras e digita o código na busca.' : 'O QR abre o lote: pelo “Ler código” do Estoque ou pela câmera de qualquer celular.')}</p>
           </div>
         </div>
       </div>
 
       {/* rodapé: quanto sai e o botão */}
       <footer className="nao-imprimir border-t border-[var(--borda)] bg-[var(--cartao)] px-3 py-2">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1">
-          <div className="num min-w-0 flex-1 text-sm">
+        {/* CELULAR: o resumo numa linha própria e os dois botões dividindo a de baixo (antes o texto ficava espremido
+            atrás dos botões: "1 et…"); do sm para cima, tudo numa linha */}
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="num min-w-0 basis-full text-sm sm:basis-auto sm:flex-1">
             <b>{t('{n} etiqueta(s)', { n: total })}</b>
             {a4 && total > 0 && <span className="text-[var(--suave)]"> · {resumoFolhas}{sobram > 0 ? ` · ${t('sobram {n} na última', { n: sobram })}` : ''}</span>}
             {passou && <span role="alert" className="block font-semibold text-[var(--ruim)]">{t('Máximo {n} por vez: diminua as cópias ou imprima em partes.', { n: limite })}</span>}
             {impresso && <span role="status" className="block font-semibold text-[var(--bom)]">✓ {t('Marcadas como impressas')}</span>}
           </div>
           {sessao.perfil === 'admin' && !impresso && (
-            <Botao variante="secundario" className="shrink-0" disabled={!dados || !pacotes} onClick={soMarcar} title={t('Marca as etiquetas como geradas sem imprimir agora (o pacote sai de "Sem etiqueta").')}>✓ {t('Só marcar como gerada')}</Botao>
+            <Botao variante="secundario" className="min-h-12 flex-1 sm:flex-none" disabled={!dados || !pacotes} onClick={soMarcar} aria-label={t('Só marcar como gerada')} title={t('Marca as etiquetas como geradas sem imprimir agora (o pacote sai de "Sem etiqueta").')}>
+              ✓ <span className="sm:hidden">{t('Só marcar')}</span><span className="hidden sm:inline">{t('Só marcar como gerada')}</span>
+            </Botao>
           )}
-          <Botao grande className="shrink-0" disabled={!dados || !total || passou} onClick={imprimir}>🖨 {t(impresso ? 'Imprimir de novo' : 'Imprimir')}</Botao>
+          <Botao grande className="flex-1 sm:flex-none" disabled={!dados || !total || passou} onClick={imprimir}>🖨 {t(impresso ? 'Imprimir de novo' : 'Imprimir')}</Botao>
         </div>
       </footer>
     </div>
@@ -501,7 +608,7 @@ export function VerEtiqueta({ id, onFechar, admin }: { id: Id; onFechar(): void;
       </div>}>
       <div className="space-y-3">
         <div className="flex justify-center overflow-x-auto rounded-xl bg-[var(--fundo)] p-4">
-          {e ? <UmaEtiqueta e={e} s={TAM.pequena} barras={modo === 'qrBarras'} /> : <span className="text-sm text-[var(--suave)]">{t('Carregando…')}</span>}
+          {e ? <UmaEtiqueta e={e} s={TAM.pequena} barras={modo === 'qrBarras' || modo === 'barras'} qr={modo !== 'barras'} /> : <span className="text-sm text-[var(--suave)]">{t('Carregando…')}</span>}
         </div>
         {i && (
           <p className="num flex flex-wrap items-center gap-1.5 text-sm">

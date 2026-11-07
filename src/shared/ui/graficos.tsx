@@ -91,11 +91,12 @@ export function Mapa({ linhas, colunas, valores, formato }: { linhas: string[]; 
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-separate border-spacing-1 text-xs">
-        <thead><tr><th />{colunas.map((c) => <th key={c} className="px-1 text-[var(--suave)]">{c}</th>)}</tr></thead>
+        {/* rótulos vêm do módulo como chave em PT ("até 39", "Sem medida", "Normal") → traduzidos aqui */}
+        <thead><tr><th />{colunas.map((c) => <th key={c} className="px-1 text-[var(--suave)]">{t(c)}</th>)}</tr></thead>
         <tbody>
           {linhas.map((l, i) => (
             <tr key={l}>
-              <th className="whitespace-nowrap pr-1 text-left text-[var(--suave)]">{l}</th>
+              <th className="whitespace-nowrap pr-1 text-left text-[var(--suave)]">{t(l)}</th>
               {colunas.map((c, j) => {
                 const v = valores[i]?.[j] ?? 0
                 return (

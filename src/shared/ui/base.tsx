@@ -121,15 +121,20 @@ export function Cartao({ titulo, acao, children, className, ajuda }: { titulo?: 
  * "ⓘ" com explicação e EXEMPLO destacado (como no Dia a Dia). O texto pode ter "Ex.: …": a parte do exemplo vira
  * um quadro. Abre no toque, fecha no toque fora ou no Esc. Tudo traduzido (pt/es).
  */
-/** Onde o balão cabe: abaixo do ⓘ (ou acima, se não couber), sempre dentro da tela, com 8 px de folga das bordas. */
+/**
+ * Onde o balão fica: SEMPRE ABAIXO do ⓘ (o texto não pula de lado conforme o lugar), dentro da tela, com 8 px de folga.
+ * Não coube tudo embaixo → o balão fica mais baixo e rola por dentro (`alturaMax`). Só abre para cima quando embaixo
+ * sobra menos de 160 px (ⓘ colado no pé da tela).
+ */
 function posicaoBalao(botao: DOMRect, alturaBalao: number) {
   const margem = 8
   const largura = Math.min(320, window.innerWidth - margem * 2)
   const centro = botao.left + botao.width / 2
   const left = Math.min(Math.max(centro - largura / 2, margem), window.innerWidth - largura - margem)
-  const cabeAbaixo = botao.bottom + 8 + alturaBalao <= window.innerHeight - margem
-  const top = cabeAbaixo || botao.top - 8 - alturaBalao < margem ? botao.bottom + 8 : botao.top - 8 - alturaBalao
-  return { left, top, width: largura }
+  const embaixo = window.innerHeight - margem - (botao.bottom + 8)
+  if (embaixo >= Math.min(alturaBalao, 160)) return { left, top: botao.bottom + 8, width: largura, alturaMax: embaixo }
+  const emCima = botao.top - 8 - margem
+  return { left, top: Math.max(margem, botao.top - 8 - Math.min(alturaBalao, emCima)), width: largura, alturaMax: emCima }
 }
 
 /**
@@ -138,30 +143,35 @@ function posicaoBalao(botao: DOMRect, alturaBalao: number) {
  */
 export function Info({ texto = '', exemplo, conteudo }: { texto?: string; exemplo?: string; conteudo?: ReactNode }) {
   const [aberto, setAberto] = useState(false)
-  const [pos, setPos] = useState<{ left: number; top: number; width: number }>()
+  const [pos, setPos] = useState<{ left: number; top: number; width: number; alturaMax: number }>()
   const botao = useRef<HTMLButtonElement>(null)
   const balao = useRef<HTMLSpanElement>(null)
   const t = useT()
   const [meuId] = useState(() => Math.random().toString(36).slice(2))
   useEffect(() => {
     if (!aberto) return
-    const fechar = () => setAberto(false)
+    const dentro = (alvo: EventTarget | null) => alvo instanceof Node && (!!balao.current?.contains(alvo) || !!botao.current?.contains(alvo))
+    // FECHA SÓ COM TOQUE FORA (pointerdown fora do balão e do ⓘ): arrastar para selecionar o texto e soltar fora
+    // não fecha mais (antes era o "click", que dispara no fim da seleção)
+    const fora = (e: PointerEvent) => !dentro(e.target) && setAberto(false)
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && setAberto(false)
     // só um balão aberto por vez: quando outro abre, este fecha
     const outro = (e: Event) => (e as CustomEvent<string>).detail !== meuId && setAberto(false)
+    // rolou a TELA ou girou o celular: fecha (não fica solto fora do lugar) — rolar DENTRO do balão não fecha
+    const rolou = (e: Event) => !dentro(e.target) && setAberto(false)
+    const girou = () => setAberto(false)
     window.dispatchEvent(new CustomEvent('tudo:info-abriu', { detail: meuId }))
-    setTimeout(() => window.addEventListener('click', fechar), 0)
+    window.addEventListener('pointerdown', fora, true)
     window.addEventListener('keydown', esc)
     window.addEventListener('tudo:info-abriu', outro)
-    // rolou a tela ou girou o celular: o balão fecha (não fica solto fora do lugar)
-    window.addEventListener('scroll', fechar, true)
-    window.addEventListener('resize', fechar)
+    window.addEventListener('scroll', rolou, true)
+    window.addEventListener('orientationchange', girou)
     return () => {
-      window.removeEventListener('click', fechar)
+      window.removeEventListener('pointerdown', fora, true)
       window.removeEventListener('keydown', esc)
       window.removeEventListener('tudo:info-abriu', outro)
-      window.removeEventListener('scroll', fechar, true)
-      window.removeEventListener('resize', fechar)
+      window.removeEventListener('scroll', rolou, true)
+      window.removeEventListener('orientationchange', girou)
     }
   }, [aberto, meuId])
   // mede depois de desenhar: encaixa na tela (celular estreito, ⓘ encostado na borda)
@@ -186,8 +196,8 @@ export function Info({ texto = '', exemplo, conteudo }: { texto?: string; exempl
           ref={balao}
           role="tooltip"
           onClick={(e) => e.stopPropagation()}
-          style={pos ? { position: 'fixed', left: pos.left, top: pos.top, width: pos.width } : { position: 'fixed', left: -9999, top: 0, width: 288 }}
-          className="z-[80] max-h-[70vh] overflow-y-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 text-left text-sm font-normal normal-case leading-relaxed text-[var(--texto)] shadow-xl"
+          style={pos ? { position: 'fixed', left: pos.left, top: pos.top, width: pos.width, maxHeight: Math.min(pos.alturaMax, window.innerHeight * 0.7) } : { position: 'fixed', left: -9999, top: 0, width: 288 }}
+          className="z-[80] max-h-[70vh] cursor-text select-text overflow-y-auto overscroll-contain rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 text-left text-sm font-normal normal-case leading-relaxed text-[var(--texto)] shadow-xl"
         >
           {conteudo ?? <>
             <Explicacao texto={explicacao} />
@@ -334,8 +344,21 @@ export function Vazio({ texto, children, compacto }: { texto: string; children?:
  * consulta não volta — hoje é instantâneo no aparelho; com a API (ou com Configurações › Dados › Simular internet) é o
  * que a pessoa vê. `tela`: ocupa a altura da tela (abertura do app). Quem prefere menos movimento vê tudo parado.
  */
-export function Carregando({ texto = 'Carregando…', tela }: { texto?: string; tela?: boolean }) {
+/**
+ * CARREGANDO. Padrão (aba, cartão, conteúdo de tela): um ESQUELETO com o formato do conteúdo — título + linhas — na
+ * mesma altura aproximada, que só aparece depois de 150 ms (resposta rápida não pisca) e some sem empurrar nada.
+ * `tela`: a abertura do app (logo + barra), para a tela inteira. O texto fica para leitor de tela (e para os testes).
+ */
+export function Carregando({ texto = 'Carregando…', tela, linhas = 3 }: { texto?: string; tela?: boolean; linhas?: number }) {
   const t = useT()
+  if (!tela)
+    return (
+      <div role="status" aria-live="polite" className="carregando-esqueleto min-h-32 space-y-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4">
+        <span className="sr-only">{t(texto)}</span>
+        <span aria-hidden className="esqueleto block h-4 w-2/5 rounded-md" />
+        {Array.from({ length: linhas }, (_, k) => <span key={k} aria-hidden className="esqueleto block h-3 rounded-md" style={{ width: `${[100, 88, 64, 76][k % 4]}%` }} />)}
+      </div>
+    )
   return (
     <div role="status" aria-live="polite" className={cx('flex flex-col items-center justify-center gap-3 p-8 text-center', tela && 'min-h-[60vh]')}>
       <span aria-hidden className="relative flex h-12 w-12 items-center justify-center">

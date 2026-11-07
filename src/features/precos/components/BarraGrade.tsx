@@ -2,7 +2,7 @@
 // que ensina a ler a grade (medida na esquerda, comprador em cima, o número é o fator).
 // CELULAR PRIMEIRO: no celular a barra cabe numa linha (Ferramentas vira só "⋯") e a legenda fica recolhida em
 // "▸ Como ler a tabela", com o "i" da conta ao lado; do sm para cima, tudo à vista como sempre.
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { moeda } from '../../../core/domain/dinheiro'
 import { Botao, BotaoExpandir, cx } from '../../../shared/ui/base'
 import { useT } from '../../../shared/ui/i18n'
@@ -34,6 +34,19 @@ export function BarraGrade({ moeda: codMoeda, onMedida, onComprador, onFerrament
   )
 }
 
+/** um sinal da legenda: [símbolo] Título / explicação curta */
+function Sinal({ simbolo, titulo, texto, destaque }: { simbolo: string; titulo: string; texto: ReactNode; destaque?: boolean }) {
+  return (
+    <li className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--fundo)] p-1.5 sm:bg-transparent sm:p-0">
+      <span aria-hidden className={cx('num flex h-7 min-w-7 shrink-0 items-center justify-center rounded-md px-1 text-xs font-bold', destaque ? 'bg-[var(--marca-suave)] text-[var(--marca)]' : 'bg-[var(--cartao)] text-[var(--texto)] ring-1 ring-[var(--borda)]')}>{simbolo}</span>
+      <span className="min-w-0 leading-tight">
+        <b className="block text-[var(--texto)]">{titulo}</b>
+        <span className="block text-[11px]">{texto}</span>
+      </span>
+    </li>
+  )
+}
+
 export interface LegendaGradeProps {
   /** unidade da medida (linha); sem tabela publicada ainda → "cm" */
   unidade?: string
@@ -52,12 +65,14 @@ export function LegendaGrade({ unidade, moeda: codMoeda, fatorPor }: LegendaGrad
         {/* o ⓘ "como calcula": no celular fica aqui (na barra ele só aparece do sm para cima) */}
         <AjudaConta moeda={codMoeda} />
       </div>
-      <div className={cx('flex-wrap items-center gap-x-3 gap-y-1 pb-1 sm:flex sm:pb-0', aberta ? 'flex' : 'hidden')}>
-        <span>↓ <b className="text-[var(--texto)]">{t('Medida')}</b> ({unidade ?? 'cm'})</span>
-        <span>→ <b className="text-[var(--texto)]">{t('Comprador')}</b> <span aria-hidden>👤</span> = {t('ligado a uma pessoa')}</span>
-        <span><b className="text-[var(--texto)]">{t('Número')}</b> = {t('fator')} ({moeda(codMoeda).simbolo} {t(fatorPor === 'grama' ? 'por grama' : 'por unidade')})</span>
-        <span><b className="text-[var(--texto)]">–</b> = {t('sem preço')}</span>
-      </div>
+      {/* os 4 sinais da grade, cada um com o símbolo em destaque (o mesmo que aparece na grade) e uma linha curta:
+          celular = 2 × 2 cartõezinhos; do sm para cima = uma fileira só */}
+      <ul className={cx('grid-cols-2 gap-1.5 pb-2 pt-1 sm:flex sm:flex-wrap sm:gap-x-5 sm:gap-y-1 sm:p-0', aberta ? 'grid' : 'hidden')}>
+        <Sinal simbolo="↓" titulo={t('Medida')} texto={`${t('linha')} · ${unidade ?? 'cm'}`} />
+        <Sinal simbolo="→" titulo={t('Comprador')} texto={<><span aria-hidden>👤</span> = {t('ligado a uma pessoa')}</>} />
+        <Sinal simbolo="3,5" titulo={t('Número')} texto={`${t('fator')} · ${moeda(codMoeda).simbolo} ${t(fatorPor === 'grama' ? 'por grama' : 'por unidade')}`} destaque />
+        <Sinal simbolo="–" titulo={t('Sem preço')} texto={t('digite o valor na hora da venda')} />
+      </ul>
     </div>
   )
 }

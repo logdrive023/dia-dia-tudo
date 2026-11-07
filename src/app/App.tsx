@@ -327,7 +327,7 @@ function Preparar({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center">
         <div className="text-5xl">💇‍♀️✂️🤝</div>
         <p className="font-semibold">{t('Preparando a demonstração com dados de exemplo…')}</p>
-        {!dados && <Carregando />}
+        {!dados && <Carregando tela />}
       </div>
     )
   return <>{children}</>
