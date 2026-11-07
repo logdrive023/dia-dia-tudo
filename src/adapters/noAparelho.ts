@@ -14,6 +14,7 @@ import { type ModuloConfig, moduloDeConfig } from '../core/modulosConfig'
 import type { AtributosConfig, FluxoCompraConfig } from '../core/modulos'
 import { SEM_LOGIN, podeComando, podeConsulta } from '../core/services/permissoes'
 import { entrar, hashSenha, prepararSenhas } from '../core/services/usuarios'
+import { ERRO_SIMULADO } from './api/simularApi'
 
 /** comandos cuja recusa não vai para o log (senha: o aviso basta e não se guarda rastro) */
 const SEM_LOG_RECUSA = new Set(['trocarMinhaSenha', 'salvarUsuario'])
@@ -92,6 +93,8 @@ export class BackendNoAparelho implements Backend {
    * (comandoEm, com relógio próprio) não esperam.
    */
   atrasoSimulado?: () => number
+  /** % de consultas que falham de mentira (0 = desligado) — Configurações › Dados › Simular internet */
+  falhaSimulada?: () => number
   private async esperarSimulado() {
     const ms = this.atrasoSimulado?.() ?? 0
     if (ms > 0) await new Promise((r) => setTimeout(r, ms))
@@ -170,6 +173,10 @@ export class BackendNoAparelho implements Backend {
     await this.esperarSimulado()
     if (!this.sessao.usuarioId && !SEM_LOGIN.has(nome)) throw new ErroNegocio('Entre com seu usuário.')
     if (this.sessao.usuarioId && !podeConsulta(this.sessao.perfil, nome)) throw new ErroNegocio('Sem permissão para ver isso.')
+    // FALHA SIMULADA (Configurações › Dados): testar o erro e o "Tentar de novo" hoje. Nunca nas consultas que o app
+    // precisa para abrir (antes do login e as configurações) — senão nem a casca abre com 100%.
+    const falha = this.falhaSimulada?.() ?? 0
+    if (falha > 0 && !SEM_LOGIN.has(nome) && nome !== 'configuracoes' && Math.random() * 100 < falha) throw new ErroNegocio(ERRO_SIMULADO)
     await this.carregarModulos()
     // O QUE A FUNCIONÁRIA VÊ (de quem é o registro e quais campos): um lugar só, src/core/services/visibilidade.ts
     const ctx = this.ctx()

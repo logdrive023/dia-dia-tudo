@@ -15,6 +15,7 @@
 // Fica FORA daqui (é do módulo): a consulta, os filtros (FiltroLista), as regras e a paginação (usePaginacao/Paginacao).
 
 import { Fragment, type ReactNode, useState } from 'react'
+import { EsqueletoTabela } from './esqueleto'
 import { Botao, cx } from './base'
 import { useTelaLarga } from './estoqueUi'
 import { useT } from './i18n'
@@ -146,12 +147,8 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
   const alternar = (id: string) => setAbertas((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
   if (erro) return <p role="alert" className="rounded-2xl border border-[var(--ruim)] bg-[var(--ruim)]/10 p-4 text-sm font-semibold text-[var(--ruim)]">{t(erro)}</p>
-  if (carregando) return (
-    <div aria-busy className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
-      <span className="sr-only">{t('Carregando…')}</span>
-      {[0, 1, 2, 3].map((k) => <div key={k} className="flex items-center gap-3 border-t border-[var(--borda)] px-3 py-3.5 first:border-t-0"><span className="h-4 w-20 animate-pulse rounded bg-[var(--fundo)]" /><span className="h-4 flex-1 animate-pulse rounded bg-[var(--fundo)]" /><span className="h-4 w-16 animate-pulse rounded bg-[var(--fundo)]" /></div>)}
-    </div>
-  )
+  // carregando: o MESMO contorno da tabela (as colunas dela, a coluna de ações, a linha do celular) — sem salto
+  if (carregando) return <EsqueletoTabela colunas={colunas.length} acoes={!!acoes} linhas={5} />
   if (!linhas.length) return <>{vazio}</>
 
   const apagada = (l: T) => realce?.(l) === 'apagada'

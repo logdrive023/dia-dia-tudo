@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react'
 import type { BackendNoAparelho } from '../../../adapters/noAparelho'
 import { espacoUsado, protegerDados } from '../../../adapters/local/indexeddb'
 import { carregarDemo } from '../../../adapters/demo'
-import { Botao, Carregando, Cartao, Confirmar, Escolha, Pilula, loc } from '../../../shared/ui/base'
+import { Botao, Carregando, Cartao, Confirmar, Escolha, Pilula, Vazio, loc } from '../../../shared/ui/base'
+import { ErroConsulta } from '../../../shared/ui/consultando'
 import { useApp, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
-import { OPCOES_ATRASO, lerAtraso, salvarAtraso } from '../../../adapters/api/simularApi'
+import { ERRO_SIMULADO, OPCOES_ATRASO, OPCOES_FALHA, lerAtraso, lerFalha, salvarAtraso, salvarFalha } from '../../../adapters/api/simularApi'
 
 export function Dados() {
   const t = useT()
@@ -118,6 +119,7 @@ export function Dados() {
 function SimularInternet() {
   const t = useT()
   const [ms, setMs] = useState(lerAtraso)
+  const [falha, setFalha] = useState(lerFalha)
   const [previa, setPrevia] = useState(false)
   // "Desligado" · "0,3 s" · "0,8 s" · "2 s"
   const nome = (x: number) => (x === 0 ? t('Desligado') : `${(x / 1000).toLocaleString(loc(), { maximumFractionDigits: 1 })} s`)
@@ -125,8 +127,26 @@ function SimularInternet() {
     <Cartao titulo={t('Simular internet (teste)')} ajuda="Para ver como o app fica quando os dados vierem do servidor: cada tela espera o tempo escolhido antes de mostrar os dados (aparece o carregamento). Só neste aparelho; não muda nenhum dado.">
       <Escolha<string> rotulo="Simular internet (teste)" valor={String(ms)} onChange={(v) => (setMs(Number(v)), salvarAtraso(Number(v)))} opcoes={OPCOES_ATRASO.map((x) => ({ id: String(x), nome: nome(x) }))} />
       <p className="mt-2 text-xs text-[var(--suave)]">{t(ms ? 'Ligado: cada tela espera {n} antes de mostrar os dados.' : 'Desligado: os dados aparecem na hora (estão no aparelho).', { n: nome(ms) })}</p>
+      {/* FALHA SIMULADA: para ver o erro e o "Tentar de novo" das telas (só consultas; nada é gravado pela metade) */}
+      <p className="mt-3 mb-1 text-sm font-semibold">{t('Falhar de vez em quando')}</p>
+      <Escolha<string> rotulo="Falhar de vez em quando" valor={String(falha)} onChange={(v) => (setFalha(Number(v)), salvarFalha(Number(v)))} opcoes={OPCOES_FALHA.map((x) => ({ id: String(x), nome: x ? `${x}%` : t('Nunca') }))} />
+      <p className="mt-2 text-xs text-[var(--suave)]">{t(falha ? 'Ligado: {n}% das telas mostram “Não deu para carregar” com “Tentar de novo”. Só leitura: nada é gravado pela metade.' : 'Desligado: nenhuma tela falha de mentira.', { n: falha })}</p>
       <button type="button" onClick={() => setPrevia(!previa)} className="mt-1 min-h-9 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t(previa ? 'Esconder o carregamento' : 'Ver o carregamento')}</button>
-      {previa && <div className="mt-2 rounded-2xl border border-dashed border-[var(--borda)]"><Carregando /></div>}
+      {/* os 4 ESTADOS lado a lado (o que cada tela mostra enquanto espera, quando falha e quando não tem nada) */}
+      {previa && (
+        <div className="mt-2 space-y-3 rounded-2xl border border-dashed border-[var(--borda)] p-2">
+          <p className="text-xs font-semibold text-[var(--suave)]">{t('Carregando: texto')}</p>
+          <Carregando />
+          <p className="text-xs font-semibold text-[var(--suave)]">{t('Carregando: tabela')}</p>
+          <Carregando formato="tabela" colunas={4} acoes linhas={3} />
+          <p className="text-xs font-semibold text-[var(--suave)]">{t('Carregando: números')}</p>
+          <Carregando formato="cartoes" linhas={4} />
+          <p className="text-xs font-semibold text-[var(--suave)]">{t('Erro')}</p>
+          <ErroConsulta texto={ERRO_SIMULADO} onTentar={() => undefined} />
+          <p className="text-xs font-semibold text-[var(--suave)]">{t('Vazio')}</p>
+          <Vazio icone="📭" texto="Nada por aqui ainda." />
+        </div>
+      )}
     </Cartao>
   )
 }

@@ -74,6 +74,8 @@ export function useConsulta<N extends NomeConsulta>(nome: N, params: ParamsConsu
   const [dados, setDados] = useState<ResultadoConsulta<N>>()
   const [erro, setErro] = useState<string>()
   const [versao, setVersao] = useState(0)
+  // quantas respostas chegaram (certas ou com erro): o "Tentar de novo" sabe que a tentativa terminou mesmo com o mesmo erro
+  const [respostas, setRespostas] = useState(0)
   const chave = JSON.stringify(params ?? {})
   const vivo = useRef(true)
   useEffect(() => backend.aoMudar(() => setVersao((v) => v + 1)), [backend])
@@ -89,15 +91,20 @@ export function useConsulta<N extends NomeConsulta>(nome: N, params: ParamsConsu
         if (atual && vivo.current) {
           setDados(r)
           setErro(undefined)
+          setRespostas((n) => n + 1)
         }
       })
-      .catch((e) => atual && vivo.current && setErro(e instanceof Error ? e.message : String(e)))
+      .catch((e) => {
+        if (!atual || !vivo.current) return
+        setErro(e instanceof Error ? e.message : String(e))
+        setRespostas((n) => n + 1)
+      })
     return () => {
       atual = false
       vivo.current = false
     }
   }, [backend, nome, chave, versao, ativo, sessao.usuarioId])
-  return { dados, erro, carregando: dados === undefined && !erro, recarregar: () => setVersao((v) => v + 1) }
+  return { dados, erro, carregando: dados === undefined && !erro, respostas, recarregar: () => setVersao((v) => v + 1) }
 }
 
 /** Executa um comando mostrando a mensagem amigável se a regra recusar. Devolve undefined se falhou. */

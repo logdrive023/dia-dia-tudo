@@ -9,6 +9,7 @@ import { formatar, lerValor, moeda as moedaDe } from '../../core/domain/dinheiro
 import type { Cartao as CartaoDados, Formato } from '../../core/modulos'
 import { useApp } from './contexto'
 import { useT } from './i18n'
+import { EsqueletoBloco, EsqueletoCartoes, EsqueletoTabela } from './esqueleto'
 import { Trilha } from './trilha'
 
 export function cx(...c: (string | false | undefined | null)[]) {
@@ -342,11 +343,13 @@ export function TituloSecao({ children, className }: { children: ReactNode; clas
 }
 
 /** Nada para mostrar. `compacto`: uma linha cinza (dentro de um cartão ou seção); sem ele, o quadro tracejado da página. */
-export function Vazio({ texto, children, compacto }: { texto: string; children?: ReactNode; compacto?: boolean }) {
+/** NADA AQUI (lista vazia): o texto do que falta e, se fizer sentido, a ação para resolver. `icone`: um emoji grande em cima. */
+export function Vazio({ texto, children, compacto, icone }: { texto: string; children?: ReactNode; compacto?: boolean; icone?: string }) {
   const t = useT()
   if (compacto) return <p className="text-sm text-[var(--suave)]">{t(texto)}{children}</p>
   return (
     <div className="rounded-xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">
+      {icone && <div aria-hidden className="mb-2 text-3xl">{icone}</div>}
       <p>{t(texto)}</p>
       {children && <div className="mt-3">{children}</div>}
     </div>
@@ -363,16 +366,19 @@ export function Vazio({ texto, children, compacto }: { texto: string; children?:
  * mesma altura aproximada, que só aparece depois de 150 ms (resposta rápida não pisca) e some sem empurrar nada.
  * `tela`: a abertura do app (logo + barra), para a tela inteira. O texto fica para leitor de tela (e para os testes).
  */
-export function Carregando({ texto = 'Carregando…', tela, linhas = 3 }: { texto?: string; tela?: boolean; linhas?: number }) {
+export function Carregando({ texto = 'Carregando…', tela, linhas = 3, formato = 'bloco', colunas, acoes }: {
+  texto?: string; tela?: boolean; linhas?: number
+  /** o CONTORNO do que vai chegar (sem salto): bloco de texto, tabela (com as colunas) ou a grade de números grandes */
+  formato?: 'bloco' | 'tabela' | 'cartoes'
+  /** tabela: quantas colunas e se tem a coluna de ações · cartoes: quantos cartões (em `linhas`) */
+  colunas?: number; acoes?: boolean
+}) {
   const t = useT()
-  if (!tela)
-    return (
-      <div role="status" aria-live="polite" className="carregando-esqueleto min-h-32 space-y-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4">
-        <span className="sr-only">{t(texto)}</span>
-        <span aria-hidden className="esqueleto block h-4 w-2/5 rounded-md" />
-        {Array.from({ length: linhas }, (_, k) => <span key={k} aria-hidden className="esqueleto block h-3 rounded-md" style={{ width: `${[100, 88, 64, 76][k % 4]}%` }} />)}
-      </div>
-    )
+  if (!tela) {
+    if (formato === 'tabela') return <EsqueletoTabela colunas={colunas} linhas={linhas} acoes={acoes} />
+    if (formato === 'cartoes') return <EsqueletoCartoes quantos={linhas} />
+    return <EsqueletoBloco linhas={linhas} />
+  }
   return (
     <div role="status" aria-live="polite" className={cx('flex flex-col items-center justify-center gap-3 p-8 text-center', tela && 'min-h-[60vh]')}>
       <span aria-hidden className="relative flex h-12 w-12 items-center justify-center">

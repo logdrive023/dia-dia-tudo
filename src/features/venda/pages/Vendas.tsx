@@ -7,7 +7,7 @@ import { CaminhoDoCabelo } from '../../../shared/ui/caminhoCabelo'
 import { useCallback, useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../../../core/domain/dinheiro'
 import type { Id, Transacao } from '../../../core/domain/tipos'
-import { Abas, Botao, Campo, Carregando, Cartao, Entrada, Erro, GramasInput, Janela, Pagina, Pilula, Selecao, ValorInput, cx, dataBR, ErroTela, loc, Confirmar } from '../../../shared/ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, ValorInput, cx, dataBR, ErroTela, loc, Confirmar } from '../../../shared/ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { linkWhatsApp, useCotacoes } from '../../../shared/ui/compartilhados'
 import { AbaAnexos } from '../../../shared/ui/anexos'
@@ -17,6 +17,7 @@ import { useT } from '../../../shared/ui/i18n'
 import { MemoriaLinha } from '../../../shared/ui/linhaServico'
 import { dividir, memoriaCalculo, pct } from '../../../core/domain/comissao'
 import { FaltaNaVenda } from '../../../shared/ui/faltaNaVenda'
+import { ErroConsulta } from '../../../shared/ui/consultando'
 import { useLembrado } from '../../../shared/ui/filtros'
 import { DivisaoValores } from '../components/DivisaoValores'
 import { Receber } from '../../agenda'
@@ -292,7 +293,8 @@ function ItensDaVenda({ linhas, moeda }: { linhas: Transacao['linhas']; moeda: s
 function NotaCompleta({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transacao['linhas']; moeda: string }) {
   const t = useT()
   const { sessao, ir } = useApp()
-  const { dados: doc, erro } = useConsulta('documentoVenda', { id: vendaId })
+  const consultaDoc = useConsulta('documentoVenda', { id: vendaId })
+  const { dados: doc, erro } = consultaDoc
   const [modelo, setModelo] = useState<ModeloDocumentoId>()
   const [comImpostos, setComImpostos] = useState<boolean>()
   const [imprimindo, setImprimindo] = useState(false)
@@ -300,8 +302,8 @@ function NotaCompleta({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transac
   const [comDivisao, setComDivisao] = useLembrado('nota.divisao', false)
   const fimImpressao = useCallback(() => setImprimindo(false), [])
   // erro nunca vira "Carregando…" para sempre
-  if (erro) return <Erro texto={t(erro)} />
-  if (!doc) return <Carregando />
+  if (erro && !doc) return <ErroConsulta texto={erro} respostas={consultaDoc.respostas} onTentar={consultaDoc.recarregar} />
+  if (!doc) return <Carregando linhas={6} />
   const md = modelo ?? doc.modeloPadrao
   const includeTaxesInPrint = comImpostos ?? doc.impostosNaNota
   const temImpostos = doc.impostos.linhas.length > 0

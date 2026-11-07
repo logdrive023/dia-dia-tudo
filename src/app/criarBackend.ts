@@ -9,7 +9,7 @@ import { dataLocal } from '../core/domain/datas'
 import type { TipoArmazenamento } from '../core/ports/backend'
 import type { Relogio, Sessao } from '../core/ports/portas'
 import { criarRegistro } from '../core/areas'
-import { lerAtraso } from '../adapters/api/simularApi'
+import { lerAtraso, lerFalha } from '../adapters/api/simularApi'
 
 export const relogioReal: Relogio = { agora: () => new Date().toISOString(), hoje: () => dataLocal() }
 
@@ -37,5 +37,6 @@ export function criarBackend(opcoes: { tipo?: TipoArmazenamento; relogio?: Relog
   const { repos, transacao, arquivos } = criarReposLocal(db)
   const backend = new BackendNoAparelho('local', repos, arquivos, transacao, relogio, sessao, criarRegistro())
   backend.atrasoSimulado = lerAtraso
+  backend.falhaSimulada = lerFalha
   return { backend, sessao }
 }

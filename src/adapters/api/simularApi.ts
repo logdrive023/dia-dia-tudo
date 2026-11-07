@@ -20,3 +20,21 @@ export function lerAtraso(): number {
 export function salvarAtraso(ms: number) {
   try { localStorage.setItem(CHAVE, String(Math.max(0, ms))) } catch { /* modo privado */ }
 }
+
+// SIMULAR FALHA (teste do estado de erro e do "Tentar de novo"): em X% das consultas a resposta não vem, como sem
+// internet. Desligado no padrão; só neste aparelho; só CONSULTAS (nenhum comando falha de mentira: nada fica pela metade).
+const CHAVE_FALHA = 'tudo:simular-api-falha'
+export const OPCOES_FALHA = [0, 10, 30, 100] as const
+export const ERRO_SIMULADO = 'Sem conexão com o servidor (falha simulada em Configurações › Dados).'
+
+export function lerFalha(): number {
+  try {
+    return Math.min(100, Math.max(0, Number(localStorage.getItem(CHAVE_FALHA)) || 0))
+  } catch {
+    return 0
+  }
+}
+
+export function salvarFalha(pct: number) {
+  try { localStorage.setItem(CHAVE_FALHA, String(Math.min(100, Math.max(0, pct)))) } catch { /* modo privado */ }
+}
