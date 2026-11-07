@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react'
 import type { BackendNoAparelho } from '../../../adapters/noAparelho'
 import { espacoUsado, protegerDados } from '../../../adapters/local/indexeddb'
 import { carregarDemo } from '../../../adapters/demo'
-import { Botao, Carregando, Cartao, Confirmar, Escolha, Pilula, Vazio, loc } from '../../../shared/ui/base'
+import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, Pilula, Vazio, loc } from '../../../shared/ui/base'
 import { ErroConsulta } from '../../../shared/ui/consultando'
 import { useApp, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
+import { URL_SERVIDOR_LOCAL, lerModoDados, podeTrocarDados, trocarModoDados } from '../../../adapters/modoDados'
 import { ERRO_SIMULADO, OPCOES_ATRASO, OPCOES_FALHA, lerAtraso, lerFalha, salvarAtraso, salvarFalha } from '../../../adapters/api/simularApi'
 
 export function Dados() {
@@ -70,6 +71,7 @@ export function Dados() {
         </dl>
         {diag && !diag.ok && <ul className="mt-1 text-xs text-[var(--ruim)]">{diag.problemas.slice(0, 5).map((p) => <li key={p}>{p}</li>)}</ul>}
       </Cartao>
+      {podeTrocarDados() && <OndeFicamOsDados atual={backend.tipo} />}
       {backend.tipo !== 'api' && <SimularInternet />}
       <Cartao titulo={t('Backup')}>
         <div className="flex flex-wrap gap-2">
@@ -114,6 +116,33 @@ export function Dados() {
   )
 }
 
+
+/**
+ * ONDE FICAM OS DADOS (só em desenvolvimento): neste aparelho (a demonstração) ou no SERVIDOR (a API Go de
+ * ../dia-dia-tudo-backend). Trocar recarrega o app e pede o login de novo (a sessão de um não vale no outro).
+ * Os dados NÃO são copiados de um para o outro.
+ */
+function OndeFicamOsDados({ atual }: { atual: string }) {
+  const t = useT()
+  const salvo = lerModoDados()
+  const [tipo, setTipo] = useState<'local' | 'api'>(atual === 'api' ? 'api' : 'local')
+  const [url, setUrl] = useState(salvo?.tipo === 'api' ? salvo.url : URL_SERVIDOR_LOCAL)
+  const urlOk = /^https?:\/\/[^\s/]+/.test(url.trim())
+  const mudou = tipo !== (atual === 'api' ? 'api' : 'local') || (tipo === 'api' && salvo?.tipo === 'api' && salvo.url !== url.trim().replace(/\/+$/, ''))
+  return (
+    <Cartao titulo={t('Onde ficam os dados (teste)')} ajuda="Só em desenvolvimento. Neste aparelho: a demonstração (IndexedDB). Servidor: a API Go (../dia-dia-tudo-backend), pelo canal cifrado. Trocar recarrega o app e pede o login de novo. Os dados não são copiados de um para o outro.">
+      <p className="mb-2 text-sm">{t('Agora')}: <Pilula tom={atual === 'api' ? 'marca' : 'neutro'}>{atual === 'api' ? `🌐 ${t('Servidor')}` : `📱 ${t('Neste aparelho')}`}</Pilula></p>
+      <Escolha<'local' | 'api'> rotulo="Onde ficam os dados" valor={tipo} onChange={setTipo} opcoes={[{ id: 'local', nome: 'Neste aparelho' }, { id: 'api', nome: 'Servidor (API)' }]} />
+      {tipo === 'api' && (
+        <Campo rotulo="Endereço do servidor" ajuda="O servidor Go rodando nesta máquina: scripts/rodar no ../dia-dia-tudo-backend. Ex.: http://127.0.0.1:8080">
+          <Entrada inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={URL_SERVIDOR_LOCAL} />
+        </Campo>
+      )}
+      {tipo === 'api' && <p className="mt-2 text-xs text-[var(--suave)]">{t('Entre com o administrador do servidor (ADMIN_LOGIN / ADMIN_SENHA do .env dele). Por enquanto o servidor só tem Unidades: as outras telas mostram “Ainda não existe no servidor”.')}</p>}
+      <Botao className="mt-3" disabled={!mudou || (tipo === 'api' && !urlOk)} onClick={() => trocarModoDados(tipo === 'api' ? { tipo: 'api', url: url.trim() } : { tipo: 'local' })}>↻ {t('Aplicar e recarregar')}</Botao>
+    </Cartao>
+  )
+}
 
 /** SIMULAR INTERNET: cada tela espera um pouco antes de mostrar os dados, como vai ser com o servidor (só neste aparelho) */
 function SimularInternet() {

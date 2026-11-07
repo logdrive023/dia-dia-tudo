@@ -6,6 +6,6 @@
     "tsBuildInfoFile": "node_modules/.cache/tsc/test.tsbuildinfo",
     "types": ["vite/client", "vite-plugin-pwa/client", "node"]
   },
-  "include": ["src/__tests__", "src/**/tests", "src/**/*.test.ts", "src/**/*.test.tsx", "caos"],
+  "include": ["src/__tests__", "src/**/tests", "src/**/*.test.ts", "src/**/*.test.tsx", "caos", "ponta-a-ponta"],
   "references": [{ "path": "./tsconfig.app.json" }]
 }

@@ -14,6 +14,7 @@
     "tipos:vigiar": "tsc -b --watch --preserveWatchOutput",
     "tipos:zerar": "tsc -b --clean",
     "test:caos": "vitest run --config vitest.caos.config.ts",
+    "test:ponta": "vitest run --config vitest.ponta.config.ts",
     "validar": "node scripts/validar.mjs",
     "validar:plano": "node scripts/validar.mjs --plano",
     "validar:tudo": "node scripts/validar.mjs --nivel 3",

@@ -82,7 +82,8 @@ export default defineConfig(({ command, mode }) => {
       environmentMatchGlobs: [['src/__tests__/**/*.test.ts', 'node'], ['src/features/**/*.test.ts', 'node']],
       setupFiles: ['src/__tests__/setup.ts'],
       // a Operação Caos (estresse e concorrência) roda à parte: npx vitest run --config vitest.caos.config.ts
-      exclude: ['**/node_modules/**', 'caos/**'],
+      // e o ponta a ponta com o servidor Go (precisa do servidor no ar): npm run test:ponta
+      exclude: ['**/node_modules/**', 'caos/**', 'ponta-a-ponta/**'],
       testTimeout: 60000,
       // arquivos em paralelo (cada um no seu processo, com o próprio banco): ~4x mais rápido que um por vez
       pool: 'forks',
