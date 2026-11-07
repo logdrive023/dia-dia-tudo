@@ -46,7 +46,7 @@ export const SENHA_DEMO_ANTIGA = '1234'
  */
 export interface ProgressoDemo { pct: number; etapa: string }
 /** quantos comandos a montagem faz — mudou a demonstração, o teste demoCenarios avisa o número novo */
-export const PASSOS_DEMO = 165
+export const PASSOS_DEMO = 175
 const ouvintesProgresso = new Set<(p: ProgressoDemo | undefined) => void>()
 let progresso: ProgressoDemo | undefined
 let feitos = 0
@@ -503,6 +503,39 @@ async function montar(b: BackendNoAparelho) {
     const comEtiqueta = (await b.consulta('estoque', { moduloId: 'cabelo' })).filter((i) => i.etiquetaImpressaEm).map((i) => i.id)
     if (comEtiqueta.length) await c(0, 'prepararQrEtiquetas', { ids: comEtiqueta })
   }
+
+  // ---------- TRIAGEM CHEIA (Triagem › Para separar): brutos PARADOS (mais de 3 dias) para testar cada passo ----------
+  // Entram no fim (os códigos L-/P- de antes não mudam). Juntar: 3 castanhos de compras diferentes, mesma etapa.
+  // Juntado: 2 pretos já unidos, parados esperando separar. Separar: um pesado, um leve de Tinte e o da última compra.
+  // Etiqueta: os separados sem etiqueta de antes. Compra: a da Marta, conferida e ainda não paga.
+  const compraBrutoTriagem = async (dias: number, cid: string, pessoaId: Id, g: number, valor: number, campos: Record<string, string>, pago = true) => {
+    await c(dias, 'criarCompra', {
+      id: cid,
+      moduloId: 'cabelo',
+      pessoaId,
+      linhas: [{ id: id(), quantidade: g, moeda: 'BOB', total: bs(valor), campos: { estado: 'Bruto', categoria: 'Normal', origem: 'Bolívia', ...campos } }],
+      ...(pago ? { pagarNoAto: [{ id: id(), forma: 'dinheiro', moeda: 'BOB', valor: bs(valor) }] } : {}),
+    })
+    return (await b.consulta('estoque', { moduloId: 'cabelo' })).find((i) => i.origem?.id === cid)!.id
+  }
+  await compraBrutoTriagem(10, 'c-tri-cecilia', cirila, 4200, 16800, { cor: 'Castanho' })
+  await compraBrutoTriagem(8, 'c-tri-helena', elena, 2500, 10000, { cor: 'Castanho' })
+  await compraBrutoTriagem(6, 'c-tri-marta', maria, 1800, 7200, { cor: 'Castanho' }, false)
+  const preto1 = await compraBrutoTriagem(12, 'c-tri-preto-1', iran, 1200, 6000, { cor: 'Preto' })
+  const preto2 = await compraBrutoTriagem(11, 'c-tri-preto-2', iran, 900, 4500, { cor: 'Preto' })
+  await c(7, 'unificarLotes', { id: 'lote-juntado-preto', ids: [preto1, preto2], motivo: 'Dois pretos do mesmo fornecedor: separar de uma vez' })
+  await compraBrutoTriagem(5, 'c-tri-tinte', wilson, 600, 3600, { cor: 'Loiro', categoria: 'Tinte' })
+  // Para depois: separou 2 medidas e deixou 600 g sem identificar (fica na fila "Para depois"; as 2 partes, sem etiqueta)
+  const brutoDepois = await compraBrutoTriagem(9, 'c-tri-depois', elena, 2000, 8000, { cor: 'Castanho escuro' })
+  await c(4, 'triarLotes', {
+    id: 'tri-depois',
+    ids: [brutoDepois],
+    saidas: [
+      { id: 'sep-55-escuro', quantidade: 800, campos: { estado: 'Separado', comprimento: 55, categoria: 'Normal', cor: 'Castanho escuro', origem: 'Bolívia' } },
+      { id: 'sep-65-escuro', quantidade: 600, campos: { estado: 'Separado', comprimento: 65, categoria: 'Normal', cor: 'Castanho escuro', origem: 'Bolívia' } },
+    ],
+    paraDepois: { id: 'depois-escuro', quantidade: 600 },
+  })
 
   // ---------- usuários (senha demo1234) ----------
   fase('Criando os usuários de teste')

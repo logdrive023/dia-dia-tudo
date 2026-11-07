@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it } from 'vitest'
 import { PASSOS_DEMO, aoProgressoDemo, carregarDemo, passosDaUltimaMontagem } from '../adapters/demo'
-import { novoBackend } from './ajuda'
+import { hojeReal, novoBackend } from './ajuda'
 
 describe('dados de exemplo: todos os cenários da demonstração', () => {
   it('carrega e cada tela tem o seu cenário', async () => {
@@ -75,5 +75,24 @@ describe('dados de exemplo: a barra de progresso da abertura', () => {
     expect(vistos.at(-1)).toEqual({ pct: 100, etapa: 'Pronto' })
     expect(Math.max(...vistos.slice(0, -1).map((p) => p.pct))).toBeGreaterThanOrEqual(90)
     expect(new Set(vistos.map((p) => p.etapa)).size).toBeGreaterThanOrEqual(7)
+  }, 120_000)
+})
+
+describe('dados de exemplo: triagem com o que testar', () => {
+  it('brutos parados para separar, 3 castanhos para juntar (mesma etapa) e um juntado parado', async () => {
+    const { b } = await novoBackend(hojeReal()) // os dias de espera contam a partir de hoje, como no app
+    await carregarDemo(b)
+    const { lotes } = (await b.consulta('triagem', { moduloId: 'cabelo' })) as any
+    const brutos = (lotes as any[]).filter((l) => l.campos.estado === 'Bruto' && l.saldo > 0)
+    expect(brutos.filter((l) => l.atrasado).length).toBeGreaterThanOrEqual(5)
+    expect(brutos.some((l) => !l.atrasado)).toBe(true) // o que acabou de chegar (não está parado)
+    const castanhos = brutos.filter((l) => l.campos.cor === 'Castanho' && !l.unificado)
+    expect(castanhos.length).toBeGreaterThanOrEqual(3)
+    expect(new Set(castanhos.map((l) => l.fase)).size).toBe(1) // mesma etapa: dá para juntar
+    const juntado = brutos.find((l) => l.id === 'lote-juntado-preto')
+    expect(juntado).toMatchObject({ unificado: 2, atrasado: true, saldo: 2100 })
+    expect(brutos.some((l) => l.campos.categoria === 'Tinte')).toBe(true)
+    // "Para depois": o que ficou sem identificar numa separação
+    expect((lotes as any[]).find((l) => l.id === 'depois-escuro')).toMatchObject({ saldo: 600, campos: { estado: 'Não identificado' } })
   }, 120_000)
 })
