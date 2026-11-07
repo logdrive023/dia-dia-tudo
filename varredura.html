@@ -5,7 +5,16 @@
     · SAI DA TELA   — algo mais largo que o espaço que tem (empurra para o lado / fica cortado)
     · PALAVRA QUEBRADA — uma palavra partida no meio ("Toda / s as viage / ns"): faltou espaço, a peça precisa mudar
   Só abre e lê as telas (nunca toca em botão de salvar). Usa a sessão já entrada neste navegador.
-  ?larguras=240,360 escolhe as larguras · ?rotas=viagens/novo,estoque escolhe as telas · o resultado fica em window.__resultado
+
+  Parâmetros:
+    ?larguras=240,360              escolhe as larguras
+    ?rotas=viagens/novo,estoque    escolhe as telas  (o item @fichas = descobrir aqui uma ficha de cada lista e incluir)
+    ?so=problemas                  mostra só as linhas com problema
+    ?quadros=2                     quantas telas abertas ao mesmo tempo (padrão 1)
+    ?calma=250 · ?calma-carga=500  ms sem nenhuma mudança para considerar que a tela "assentou" (largura · abertura)
+    ?espera=700                    modo antigo, com esperas fixas (2200 ms para abrir, este valor a cada largura)
+    ?listar=1                      só devolve as telas fixas em window.__rotas (o npm run responsivo usa para dividir)
+  Resultado em window.__resultado (e window.__erro, se parar). window.__pronto = true no fim, sempre.
 -->
 <html lang="pt-BR">
 <head>
@@ -13,12 +22,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Varredura de responsividade</title>
 <style>
-  :root { --fundo: #f7f6fb; --texto: #1f1b2e; --suave: #6b6780; --borda: #e4e1ee; --bom: #15803d; --ruim: #dc2626; --marca: #7c3aed; }
-  @media (prefers-color-scheme: dark) { :root { --fundo: #15131d; --texto: #ece9f5; --suave: #a19cb5; --borda: #2f2c3d; --bom: #4ade80; --ruim: #f87171; --marca: #a78bfa; } }
+  :root { --fundo: #f7f6fb; --texto: #1f1b2e; --suave: #6b6780; --borda: #e4e1ee; --bom: #15803d; --ruim: #dc2626; --aviso: #b45309; --marca: #7c3aed; }
+  @media (prefers-color-scheme: dark) { :root { --fundo: #15131d; --texto: #ece9f5; --suave: #a19cb5; --borda: #2f2c3d; --bom: #4ade80; --ruim: #f87171; --aviso: #fbbf24; --marca: #a78bfa; } }
   body { margin: 0; padding: 16px; font: 14px/1.45 system-ui, sans-serif; background: var(--fundo); color: var(--texto); }
   h1 { font-size: 20px; margin: 0 0 4px; }
   p { margin: 0 0 12px; color: var(--suave); }
-  #quadro { position: fixed; right: 16px; bottom: 16px; height: 700px; border: 2px solid var(--marca); border-radius: 12px; background: #fff; transition: width .1s; }
+  /* sem transition: a medição tem de ver a largura final, não o meio do redimensionamento */
+  .quadro { position: fixed; right: 16px; bottom: 16px; height: 700px; border: 2px solid var(--marca); border-radius: 12px; background: #fff; }
   table { border-collapse: collapse; width: 100%; max-width: 900px; }
   td, th { border-bottom: 1px solid var(--borda); padding: 6px 8px; text-align: left; vertical-align: top; }
   .ok { color: var(--bom); font-weight: 700; }
@@ -30,7 +40,7 @@
 <h1>Varredura de responsividade</h1>
 <p id="estado">Preparando…</p>
 <table><thead><tr><th>Tela</th><th>Largura</th><th>O que achou</th></tr></thead><tbody id="saida"></tbody></table>
-<iframe id="quadro" title="tela em teste"></iframe>
+<iframe class="quadro" title="tela em teste"></iframe>
 <script>
 const q = new URLSearchParams(location.search)
 // as larguras padrão: celular pequeno → computador grande
@@ -39,57 +49,150 @@ const LISTAS = ['painel', 'comprar', 'triagem', 'estoque', 'etiquetas', 'vender'
 const FORMS = ['viagens/novo', 'pedidos/novo', 'emprestimos/novo', 'adiantamentos/novo', 'venda-rapida']
 // fichas: abre a lista e toca na primeira linha (descobre o endereço sozinho)
 const FICHAS = ['comprar', 'estoque', 'vender', 'pessoas', 'viagens', 'precos']
-const quadro = document.getElementById('quadro')
+
+const QUADROS = Math.max(1, Number(q.get('quadros')) || 1)
+const FIXO = q.has('espera')                          // modo antigo
+const ESPERA = Number(q.get('espera') || 700)
+const CALMA = Number(q.get('calma') || 250)           // depois de mudar a largura
+const CALMA_CARGA = Number(q.get('calma-carga') || 500) // depois de abrir a tela
+const MAX_CARGA = 15_000, MAX_LARGURA = 3_000, MAX_ABRIR = 30_000
+
 const espera = (ms) => new Promise((r) => setTimeout(r, ms))
 const estado = (t) => (document.getElementById('estado').textContent = t)
 
-function carregar(rota) {
+// ---------- quadros (um por tela aberta ao mesmo tempo) ----------
+const molde = document.querySelector('.quadro')
+const quadros = [molde]
+for (let i = 1; i < QUADROS; i++) {
+  const f = molde.cloneNode()
+  f.title = `tela em teste ${i + 1}`
+  document.body.appendChild(f)
+  quadros.push(f)
+}
+
+/** fila simples: cada quadro pega o próximo item até acabar */
+async function emParalelo(itens, fazer) {
+  let i = 0
+  await Promise.all(quadros.map(async (quadro) => {
+    while (i < itens.length) { const k = i++; await fazer(quadro, itens[k], k) }
+  }))
+}
+
+// ---------- esperar a tela assentar ----------
+function doisQuadrosDeTela(win) {
   return new Promise((ok) => {
-    quadro.onload = async () => { await espera(2200); ok() }
+    const t = setTimeout(ok, 120) // se o navegador não desenhar (quadro escondido), não fica preso
+    win.requestAnimationFrame(() => win.requestAnimationFrame(() => { clearTimeout(t); ok() }))
+  })
+}
+/** resolve quando a página passa `calma` ms sem nenhuma mudança (ou ao estourar `maximo`) */
+function semMudanca(win, calma, maximo) {
+  return new Promise((ok) => {
+    let parado, fim
+    const acabar = () => { obs.disconnect(); clearTimeout(parado); clearTimeout(fim); ok() }
+    const obs = new win.MutationObserver(() => { clearTimeout(parado); parado = setTimeout(acabar, calma) })
+    obs.observe(win.document, { subtree: true, childList: true, attributes: true, characterData: true })
+    parado = setTimeout(acabar, calma)
+    fim = setTimeout(acabar, maximo)
+  })
+}
+/** transições e animações com fim (as infinitas, como spinners, não contam) */
+async function animacoesAcabarem(win, maximo) {
+  const anims = (win.document.getAnimations?.() || []).filter((a) =>
+    a.playState === 'running' && Number.isFinite(a.effect?.getComputedTiming?.().endTime))
+  if (anims.length) await Promise.race([Promise.all(anims.map((a) => a.finished.catch(() => {}))), espera(maximo)])
+}
+async function assentar(win, calma, maximo) {
+  const ate = Date.now() + maximo
+  const resta = () => Math.max(0, ate - Date.now())
+  await doisQuadrosDeTela(win)
+  await Promise.race([win.document.fonts?.ready ?? Promise.resolve(), espera(resta())])
+  await semMudanca(win, calma, resta())
+  await animacoesAcabarem(win, resta())
+  while (win.document.querySelector('[aria-busy="true"]') && resta() > 0) await espera(100)
+  await doisQuadrosDeTela(win)
+}
+
+function carregar(quadro, rota) {
+  return new Promise((ok, falhou) => {
+    const t = setTimeout(() => falhou(new Error(`a tela não abriu em ${MAX_ABRIR / 1000} s`)), MAX_ABRIR)
+    quadro.onload = async () => {
+      clearTimeout(t)
+      try { await (FIXO ? espera(2200) : assentar(quadro.contentWindow, CALMA_CARGA, MAX_CARGA)); ok() } catch (e) { falhou(e) }
+    }
     quadro.src = `/?varredura=${Date.now()}#/${rota}`
   })
 }
 
-/** rola para o lado de propósito (abas, chips, tabela larga): o que está dentro não conta como "saiu da tela" */
-function dentroDeRolagem(el, win) {
-  for (let p = el.parentElement; p && p !== win.document.body; p = p.parentElement) {
-    const s = win.getComputedStyle(p)
-    if (/(auto|scroll|hidden|clip)/.test(s.overflowX) && p.getBoundingClientRect().right <= win.document.documentElement.clientWidth + 1) return true
-  }
-  return false
+async function descobrirFicha(quadro, lista) {
+  quadro.style.width = '1280px'
+  await carregar(quadro, lista)
+  const win = quadro.contentWindow
+  const antes = win.location.hash
+  const linha = quadro.contentDocument.querySelector('tbody tr[tabindex], tbody tr')
+  if (!linha) return null
+  linha.click()
+  if (FIXO) await espera(600)
+  else { const ate = Date.now() + 3000; while (win.location.hash === antes && Date.now() < ate) await espera(50) }
+  const h = win.location.hash.replace(/^#\//, '')
+  return h && '#/' + h !== antes ? h.split('?')[0] : null
 }
+
+// ---------- o exame ----------
 const nome = (el) => {
   const txt = (el.innerText || el.getAttribute('aria-label') || el.getAttribute('placeholder') || '').trim().replace(/\s+/g, ' ').slice(0, 50)
   const cls = (typeof el.className === 'string' ? el.className : '').split(' ').filter(Boolean).slice(0, 4).join('.')
   return `<${el.tagName.toLowerCase()}${cls ? '.' + cls : ''}> ${txt}`
 }
 
-function examinar() {
+function examinar(quadro) {
   const win = quadro.contentWindow
   const doc = win.document
   const L = doc.documentElement.clientWidth
-  const visivel = (el) => { const r = el.getBoundingClientRect(); const s = win.getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' }
+  // guardados durante este exame (nada muda enquanto ele roda)
+  const estilos = new Map(), caixas = new Map(), memoRolagem = new Map()
+  const estilo = (el) => { let s = estilos.get(el); if (!s) estilos.set(el, (s = win.getComputedStyle(el))); return s }
+  const caixa = (el) => { let r = caixas.get(el); if (!r) caixas.set(el, (r = el.getBoundingClientRect())); return r }
+  const visivel = (el) => { const r = caixa(el); const s = estilo(el); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' }
+  const escondidoDeProposito = (el) => !!el.closest('[inert],[aria-hidden="true"]') // ex.: menu lateral fechado
+
+  /** rola para o lado de propósito (abas, chips, tabela larga): o que está dentro não conta como "saiu da tela" */
+  const rolaParaOLado = (p) => /(auto|scroll|hidden|clip)/.test(estilo(p).overflowX) && caixa(p).right <= L + 1
+  const cobertoPorRolagem = (no) => { // no, ou algum ancestral dele (até o body), rola para o lado
+    const pilha = []
+    let r = false
+    for (let p = no; p && p !== doc.body; p = p.parentElement) {
+      if (memoRolagem.has(p)) { r = memoRolagem.get(p); break }
+      pilha.push(p)
+    }
+    for (let k = pilha.length - 1; k >= 0; k--) { r = r || rolaParaOLado(pilha[k]); memoRolagem.set(pilha[k], r) }
+    return r
+  }
+  const dentroDeRolagem = (el) => cobertoPorRolagem(el.parentElement)
+
   // 1) SAI DA TELA: a peça mais de fora que passa da borda (não as que só estão dentro dela)
   const fora = new Set()
   for (const el of doc.body.querySelectorAll('*')) {
     if (!visivel(el)) continue
-    const r = el.getBoundingClientRect()
+    const r = caixa(el)
     if (r.right <= L + 1 && r.left >= -1) continue
-    if (win.getComputedStyle(el).position === 'fixed' && r.width <= L + 1) continue
-    if (dentroDeRolagem(el, win)) continue
+    if (estilo(el).position === 'fixed' && r.width <= L + 1) continue
+    if (escondidoDeProposito(el)) continue
+    if (dentroDeRolagem(el)) continue
     const p = el.parentElement
-    const pr = p?.getBoundingClientRect()
-    if (pr && (pr.right > L + 1 || pr.left < -1) && !dentroDeRolagem(p, win)) continue
+    const pr = p && caixa(p)
+    if (pr && (pr.right > L + 1 || pr.left < -1) && !dentroDeRolagem(p)) continue
     fora.add(nome(el))
   }
+
   // 2) PALAVRA QUEBRADA: a mesma palavra em duas linhas
   const quebradas = new Set()
   const andar = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
   const rg = doc.createRange()
   for (let n = andar.nextNode(); n; n = andar.nextNode()) {
     const el = n.parentElement
-    if (!el || !visivel(el) || el.closest('script,style,svg,[aria-hidden="true"]')) continue
-    const s = win.getComputedStyle(el)
+    if (!el || !visivel(el) || el.closest('script,style,svg,[aria-hidden="true"],[inert]')) continue
+    const s = estilo(el)
     if (s.whiteSpace === 'nowrap' || s.textOverflow === 'ellipsis') continue
     for (const m of n.textContent.matchAll(/[\p{L}\p{N}]{3,}/gu)) {
       rg.setStart(n, m.index); rg.setEnd(n, m.index + m[0].length)
@@ -100,53 +203,83 @@ function examinar() {
   return { fora: [...fora], quebradas: [...quebradas] }
 }
 
-const escapar = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])
+// ---------- mostrar ----------
+const escapar = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])
 function mostrar(rota, largura, r) {
-  const tr = document.createElement('tr')
-  const itens = [...r.fora.map((x) => `🔴 sai da tela: <code>${escapar(x)}</code>`), ...r.quebradas.map((x) => `🟠 palavra quebrada: <code>${escapar(x)}</code>`)]
-  tr.innerHTML = `<td>${escapar(rota)}</td><td>${largura}px</td><td>${itens.length ? itens.slice(0, 8).join('<br>') + (itens.length > 8 ? `<br>… e mais ${itens.length - 8}` : '') : '<span class="ok">✓ ok</span>'}</td>`
+  const itens = [
+    ...(r.erro ? [`⚠️ não abriu: <code>${escapar(r.erro)}</code>`] : []),
+    ...r.fora.map((x) => `🔴 sai da tela: <code>${escapar(x)}</code>`),
+    ...r.quebradas.map((x) => `🟠 palavra quebrada: <code>${escapar(x)}</code>`),
+  ]
   if (!itens.length && q.get('so') === 'problemas') return
+  const tr = document.createElement('tr')
+  tr.innerHTML = `<td>${escapar(rota)}</td><td>${largura}px</td><td>${itens.length ? itens.slice(0, 8).join('<br>') + (itens.length > 8 ? `<br>… e mais ${itens.length - 8}` : '') : '<span class="ok">✓ ok</span>'}</td>`
   document.getElementById('saida').appendChild(tr)
 }
 
+// ---------- a varredura ----------
 async function varrer() {
-  const resultado = []
-  let rotas = q.get('rotas') ? q.get('rotas').split(',') : [...LISTAS, ...FORMS]
+  const pedidas = q.get('rotas') ? q.get('rotas').split(',').map((s) => s.trim()).filter(Boolean) : [...LISTAS, ...FORMS, '@fichas']
+  let rotas = pedidas.filter((r) => r !== '@fichas')
+
   // descobre as fichas (uma de cada) tocando na primeira linha da lista
-  if (!q.get('rotas')) {
-    quadro.style.width = '1280px'
-    for (const lista of FICHAS) {
-      estado(`Descobrindo uma ficha de ${lista}…`)
-      await carregar(lista)
-      const linha = quadro.contentDocument.querySelector('tbody tr[tabindex], tbody tr')
-      const antes = quadro.contentWindow.location.hash
-      linha?.click()
-      await espera(600)
-      const h = quadro.contentWindow.location.hash.replace(/^#\//, '')
-      if (h && '#/' + h !== antes) rotas.push(h.split('?')[0])
-    }
+  if (pedidas.includes('@fichas')) {
+    const achadas = new Array(FICHAS.length)
+    let feitas = 0
+    estado(`Descobrindo fichas… 0 de ${FICHAS.length}`)
+    await emParalelo(FICHAS, async (quadro, lista, k) => {
+      try { achadas[k] = await descobrirFicha(quadro, lista) } catch (e) { console.warn(`ficha de ${lista}:`, e) }
+      estado(`Descobrindo fichas… ${++feitas} de ${FICHAS.length}`)
+    })
+    rotas.push(...achadas.filter(Boolean))
   }
   rotas = [...new Set(rotas)]
-  let k = 0
-  for (const rota of rotas) {
-    k++
-    quadro.style.width = LARGURAS[0] + 'px'
-    estado(`Tela ${k} de ${rotas.length}: ${rota}…`)
-    await carregar(rota)
-    for (const largura of LARGURAS) {
-      quadro.style.width = largura + 'px'
-      await espera(Number(q.get('espera') || 700))
-      const r = examinar()
-      resultado.push({ rota, largura, ...r })
-      mostrar(rota, largura, r)
+
+  const porRota = new Array(rotas.length)
+  let feitas = 0
+  estado(`Telas: 0 de ${rotas.length}…`)
+  await emParalelo(rotas, async (quadro, rota, k) => {
+    const linhas = []
+    try {
+      quadro.style.width = LARGURAS[0] + 'px'
+      await carregar(quadro, rota)
+      for (const largura of LARGURAS) {
+        quadro.style.width = largura + 'px'
+        await (FIXO ? espera(ESPERA) : assentar(quadro.contentWindow, CALMA, MAX_LARGURA))
+        linhas.push({ rota, largura, ...examinar(quadro) })
+      }
+    } catch (e) {
+      for (const largura of LARGURAS.slice(linhas.length)) linhas.push({ rota, largura, fora: [], quebradas: [], erro: e.message || String(e) })
     }
-  }
-  const ruins = resultado.filter((r) => r.fora.length || r.quebradas.length)
-  estado(ruins.length ? `Pronto: ${ruins.length} de ${resultado.length} combinações (tela × largura) com problema.` : `Pronto: ${resultado.length} combinações, todas ok ✓`)
+    porRota[k] = linhas
+    for (const r of linhas) mostrar(r.rota, r.largura, r)
+    estado(`Telas: ${++feitas} de ${rotas.length}…`)
+  })
+
+  const resultado = porRota.flat()
   window.__resultado = resultado
-  window.__pronto = true
+  const ruins = resultado.filter((r) => r.erro || r.fora.length || r.quebradas.length)
+  estado(ruins.length ? `Pronto: ${ruins.length} de ${resultado.length} combinações (tela × largura) com problema.` : `Pronto: ${resultado.length} combinações, todas ok ✓`)
 }
-varrer()
+
+async function principal() {
+  try {
+    if (q.has('listar')) {
+      window.__rotas = [...LISTAS, ...FORMS]
+      window.__fichas = [...FICHAS]
+      estado(`${window.__rotas.length} telas fixas + fichas de ${FICHAS.length} listas.`)
+    } else {
+      await varrer()
+    }
+  } catch (e) {
+    window.__erro = e.message || String(e)
+    window.__resultado = window.__resultado || []
+    estado(`A varredura parou: ${window.__erro}`)
+  } finally {
+    window.__pronto = true
+  }
+}
+principal()
 </script>
 </body>
 </html>
