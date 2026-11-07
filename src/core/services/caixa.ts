@@ -5,12 +5,15 @@ import { MOEDAS, type CodigoMoeda } from '../domain/dinheiro'
 import { ErroNegocio, exigir } from '../domain/erros'
 import type { Id, MovCaixa, TipoCaixa } from '../domain/tipos'
 import { auditar, type Ctx, exigirInteiroPositivo, formaPagamento, garantirDiaAberto, lerConfig, novo, tocar } from './contexto'
+import { exigirTurnoAberto } from './turnos'
 
 export async function moverCaixa(
   ctx: Ctx,
   m: { id?: Id; data: string; moeda: CodigoMoeda; forma: string; delta: number; tipo: TipoCaixa; origemId?: Id; descricao: string; categoria?: string; estornaId?: Id; socioId?: Id; localId?: Id; pessoaId?: Id; valorPrincipal?: number },
 ) {
   await garantirDiaAberto(ctx, m.data)
+  // CONTROLE DE TURNO (opcional): todo dinheiro passa por aqui — sem turno aberto, a funcionária não lança nem vende
+  await exigirTurnoAberto(ctx)
   const f = await formaPagamento(ctx, m.forma)
   exigir(f.moedas.includes(m.moeda), `${f.nome} não aceita ${m.moeda}.`)
   const mov = novo<MovCaixa>(ctx, { ...m })

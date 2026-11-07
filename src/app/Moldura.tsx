@@ -7,6 +7,7 @@
 import { Component, type ReactNode, useEffect, useRef, useState } from 'react'
 import type { BackendNoAparelho } from '../adapters/noAparelho'
 import { carregarDemo } from '../adapters/demo'
+import { montandoCenario } from '../adapters/cenarios'
 import { PacoteVenda } from '../features/lote'
 import { Agenda } from '../features/agenda'
 import { Painel } from '../features/painel'
@@ -66,7 +67,8 @@ export function Preparar({ children }: { children: ReactNode }) {
   const [montando, setMontando] = useState(false)
   const montou = useRef(false)
   useEffect(() => {
-    if (publico || backend.tipo === 'api' || !dados || dados.length || montando || montou.current) return
+    // Modo teste trocando os dados (sem usuários por um instante): não é o primeiro uso, não monta por cima
+    if (publico || backend.tipo === 'api' || !dados || dados.length || montando || montou.current || montandoCenario()) return
     montou.current = true
     setMontando(true)
     carregarDemo(backend as BackendNoAparelho)

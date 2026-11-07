@@ -35,6 +35,7 @@ export const COMANDOS_FUNCIONARIO = new Set<NomeComando>([
   'trocarMinhaSenha',
   // fechar o PRÓPRIO turno (conferência cega: ela informa o contado e não vê o esperado)
   'fecharTurno',
+  'abrirTurno',
   'registrarBuscaCambio',
   'salvarCotacao',
   'registrarDespesaViagem',

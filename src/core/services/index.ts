@@ -79,6 +79,8 @@ export const comandos = {
   salvarVendaAberta: vendasAbertas.salvarVendaAberta,
   descartarVendaAberta: vendasAbertas.descartarVendaAberta,
   fecharTurno: turnos.fecharTurno,
+  abrirTurno: turnos.abrirTurno,
+  anotarTurno: turnos.anotarTurno,
   prepararQrEtiquetas: estoque.prepararQrEtiquetas,
   tirarDaVendaAberta: vendasAbertas.tirarDaVendaAberta,
   salvarCidade: cidades.salvarCidade,

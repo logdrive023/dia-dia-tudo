@@ -4,7 +4,7 @@
 // Tipo (Configurações › Códigos, trocável em cada impressão): QR + código de barras (Code 128, leitor "pistola"), só QR
 // (celular) ou sem etiqueta (o código aparece grande para escrever à mão).
 
-import { type CSSProperties, useEffect, useState } from 'react'
+import { type CSSProperties, memo, useDeferredValue, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Id } from '../../core/domain/tipos'
 import type { Etiqueta } from '../../core/services/fotos'
@@ -55,8 +55,22 @@ export function loteDoCodigoLido(texto: string): Id | undefined {
   return m ? decodeURIComponent(m[1]) : undefined
 }
 
+// DESEMPENHO: gerar um QR (escolher a máscara = 8 tentativas com a regra de penalidade) é caro; com 17 etiquetas, trocar
+// o papel recalculava todos (medido: 1,7–2,6 s de tela parada com CPU de celular). O QR de um texto nunca muda → guarda
+// o desenho pronto (até 500 textos; o mais antigo sai primeiro).
+const cacheQR = new Map<string, { d: string; lado: number }>()
+function desenhoQR(texto: string) {
+  let r = cacheQR.get(texto)
+  if (!r) {
+    r = caminhoQR(gerarQR(texto, 'M'))
+    cacheQR.set(texto, r)
+    if (cacheQR.size > 500) cacheQR.delete(cacheQR.keys().next().value as string)
+  }
+  return r
+}
+
 export function QR({ texto, className }: { texto: string; className?: string }) {
-  const { d, lado } = caminhoQR(gerarQR(texto, 'M'))
+  const { d, lado } = desenhoQR(texto)
   return (
     <svg viewBox={`0 0 ${lado} ${lado}`} className={className} role="img" aria-label="QR" shapeRendering="crispEdges">
       <rect width={lado} height={lado} fill="#fff" />
@@ -65,19 +79,32 @@ export function QR({ texto, className }: { texto: string; className?: string }) 
   )
 }
 
+/** a conferência + o desenho das barras de um texto, guardados (o mesmo motivo do cacheQR) */
+const cacheBarras = new Map<string, { conf: ReturnType<typeof code128Conferido>; desenho?: ReturnType<typeof caminhoCode128> }>()
+function barrasDe(texto: string) {
+  let r = cacheBarras.get(texto)
+  if (!r) {
+    const conf = code128Conferido(texto)
+    r = { conf, desenho: conf.ok ? caminhoCode128(texto) : undefined }
+    cacheBarras.set(texto, r)
+    if (cacheBarras.size > 500) cacheBarras.delete(cacheBarras.keys().next().value as string)
+  }
+  return r
+}
+
 /** Código de barras Code 128 do código do lote (o leitor "pistola" digita o código na busca). */
 export function Barras({ texto, className, style }: { texto: string; className?: string; style?: CSSProperties }) {
   const t = useT()
   // CONFERIDO ANTES DE IR PARA O PAPEL: validado e lido de volta; não serve → aviso no lugar das barras (nunca barras
   // que o leitor leria errado). O código continua escrito na etiqueta e o QR continua funcionando.
-  const conf = code128Conferido(texto)
+  const { conf, desenho } = barrasDe(texto)
   if (!conf.ok)
     return (
       <span role="img" aria-label={t('Sem código de barras: {m}', { m: t(MOTIVO_SEM_BARRAS[conf.problema]) })} className={cx('flex items-center justify-center border border-dashed border-black px-0.5 text-center text-[6px] font-semibold leading-tight text-black', className)} style={style}>
         {t('sem barras')} · {t(MOTIVO_SEM_BARRAS[conf.problema])}
       </span>
     )
-  const { d, largura, altura } = caminhoCode128(texto)
+  const { d, largura, altura } = desenho!
   return (
     <svg viewBox={`0 0 ${largura} ${altura}`} preserveAspectRatio="none" className={className} style={style} role="img" aria-label={`Code 128 ${texto}`} shapeRendering="crispEdges">
       <rect width={largura} height={altura} fill="#fff" />
@@ -142,6 +169,53 @@ function UmaEtiqueta({ e, s, barras, qr = true }: { e: Etiqueta; s: MedidasEtiqu
     </div>
   )
 }
+
+interface PropsPrevia {
+  erro?: string
+  dados?: Etiqueta[]
+  total: number
+  modo: ModoEtiqueta
+  copias: Record<Id, number>
+  a4: boolean
+  paginas: (Etiqueta | undefined)[][]
+  escala: number
+  escalaBarras: number
+  comBarras: boolean
+  comQr: boolean
+  fila: Etiqueta[]
+  medRolo: MedidasEtiqueta
+}
+
+/** A PRÉVIA do papel (memo: só redesenha quando a versão adiada muda — nunca dentro do toque) */
+const PreviaEtiquetas = memo(function PreviaEtiquetas({ erro, dados, total, modo, copias, a4, paginas, escala, escalaBarras, comBarras, comQr, fila, medRolo }: PropsPrevia) {
+  const t = useT()
+  const copiasDe = (id: Id) => copias[id] ?? 1
+  if (erro) return <Erro texto={erro} />
+  if (!dados) return <Carregando />
+  if (!total) return <p className="nao-imprimir rounded-2xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nenhuma etiqueta: aumente as cópias de algum pacote.')}</p>
+  if (modo === 'nenhuma')
+    return <div className="grid gap-3 sm:grid-cols-2">{dados.filter((e) => copiasDe(e.id) > 0).map((e) => <CodigoAMao key={e.id} e={e} />)}</div>
+  if (a4) {
+    const s = comEscalaBarras(TAM.a4, escalaBarras)
+    return (
+      <div className="space-y-3">
+        {paginas.map((vagas, k) => (
+          <div key={k} className="escala overflow-hidden" style={{ width: 210 * MM * escala, height: 297 * MM * escala }}>
+            <div style={{ transform: `scale(${escala})`, transformOrigin: 'top left', width: '210mm' }}>
+              <div className="pagina-a4 bg-white shadow-md" style={{ width: '210mm', height: '297mm', padding: '15.15mm 9.75mm', boxSizing: 'border-box' }}>
+                <div className="grade grid" style={{ gridTemplateColumns: 'repeat(3,63.5mm)', gridAutoRows: '38.1mm' }}>
+                  {vagas.map((e, j) => (e ? <UmaEtiqueta key={j} e={e} s={s} barras={comBarras} qr={comQr} /> : <div key={j} className="vaga" style={{ border: '0.2mm dashed #e5e5e5' }} />))}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  const s = comEscalaBarras(medRolo, escalaBarras)
+  return <div className="pequena grade flex flex-wrap gap-2">{fila.map((e, k) => <UmaEtiqueta key={k} e={e} s={s} barras={comBarras} qr={comQr} />)}</div>
+})
 
 /** Sem etiqueta: o código grande na tela, para escrever à mão no pacote. */
 function CodigoAMao({ e }: { e: Etiqueta }) {
@@ -271,6 +345,12 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   const paginas = a4 ? Array.from({ length: folhas }, (_, k) => Array.from({ length: POR_FOLHA_A4 }, (_, j) => fila[k * POR_FOLHA_A4 + j - comeco])) : []
   const escala = largura ? Math.min(1, (largura - 2) / (210 * MM)) : 0.5
   const pacotes = (dados ?? []).filter((e) => copiasDe(e.id) > 0).length
+  // a prévia recebe tudo num objeto só e ANDA UM PASSO ATRÁS (useDeferredValue): o toque no papel/tipo responde na
+  // hora; as etiquetas se redesenham num trabalho que pode ser interrompido. Tocou Imprimir antes de ela alcançar: o
+  // papel só abre quando a prévia está em dia (nunca imprime a versão velha, e o toque não se perde).
+  const propsPrevia: PropsPrevia = { erro, dados, total, modo, copias, a4, paginas, escala, escalaBarras, comBarras, comQr, fila, medRolo }
+  const previaAdiada = useDeferredValue(propsPrevia)
+  const atualizandoPrevia = previaAdiada !== propsPrevia
 
   // mandou imprimir: o lote sai de Etiquetas › "Sem etiqueta" (fica "impressa em 03/11 por Paula")
   // SÓ ESTA JANELA vai para o papel: se outra janela de etiquetas ficou aberta por baixo (ex.: aberta de duas telas),
@@ -278,12 +358,14 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   // vez = quantas vezes mandou imprimir (cada toque imprime de novo, mesmo se o celular não avisar que terminou)
   const [vez, setVez] = useState(0)
   const ativa = vez > 0
+  const vezImpressa = useRef(0)
   useEffect(() => {
-    if (!vez) return
+    if (!vez || atualizandoPrevia || vezImpressa.current === vez) return
+    vezImpressa.current = vez
     document.body.classList.add('imprimindo-etiquetas')
     window.print()
-    return () => document.body.classList.remove('imprimindo-etiquetas')
-  }, [vez])
+  }, [vez, atualizandoPrevia])
+  useEffect(() => () => document.body.classList.remove('imprimindo-etiquetas'), [])
   const imprimir = async () => {
     setVez((n) => n + 1)
     if (sessao.perfil !== 'admin') return
@@ -300,6 +382,19 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
   }, [onFechar])
+  // ATALHO Ctrl+P / ⌘P: imprime pelo fluxo daqui (papel certo + marca como impressa) — não a página inteira do navegador
+  const podeImprimir = !!dados && !!total && !passou
+  useEffect(() => {
+    const atalho = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault()
+        if (podeImprimir) void imprimir()
+      }
+    }
+    window.addEventListener('keydown', atalho)
+    return () => window.removeEventListener('keydown', atalho)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [podeImprimir, vez])
   // "2 folhas A4 (21 + 4)": quantas etiquetas em cada folha
   const resumoFolhas = !a4 ? '' : folhas <= 1 ? t('1 folha A4') : t('{n} folhas A4 ({a})', { n: folhas, a: paginas.map((v) => v.filter(Boolean).length).join(' + ') })
   const pagina = tamanho === 'a4' ? '@page{size:A4;margin:0}' : `@page{size:${medRolo.w}mm ${medRolo.h}mm;margin:0}`
@@ -460,32 +555,17 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
 
           {/* prévia: como vai sair no papel */}
           <div ref={refPrevia} className="previa min-w-0 flex-1">
-            <p className="nao-imprimir mb-2 text-sm font-semibold text-[var(--suave)]">{t('Como vai sair')}</p>
-            {erro ? <Erro texto={erro} /> : !dados ? <Carregando /> : !total ? (
-              <p className="nao-imprimir rounded-2xl border border-dashed border-[var(--borda)] p-6 text-center text-sm text-[var(--suave)]">{t('Nenhuma etiqueta: aumente as cópias de algum pacote.')}</p>
-            ) : modo === 'nenhuma' ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {dados.filter((e) => copiasDe(e.id) > 0).map((e) => <CodigoAMao key={e.id} e={e} />)}
-              </div>
-            ) : a4 ? (
-              <div className="space-y-3">
-                {paginas.map((vagas, k) => (
-                  <div key={k} className="escala overflow-hidden" style={{ width: 210 * MM * escala, height: 297 * MM * escala }}>
-                    <div style={{ transform: `scale(${escala})`, transformOrigin: 'top left', width: '210mm' }}>
-                      <div className="pagina-a4 bg-white shadow-md" style={{ width: '210mm', height: '297mm', padding: '15.15mm 9.75mm', boxSizing: 'border-box' }}>
-                        <div className="grade grid" style={{ gridTemplateColumns: 'repeat(3,63.5mm)', gridAutoRows: '38.1mm' }}>
-                          {vagas.map((e, j) => (e ? <UmaEtiqueta key={j} e={e} s={comEscalaBarras(TAM.a4, escalaBarras)} barras={comBarras} qr={comQr} /> : <div key={j} className="vaga" style={{ border: '0.2mm dashed #e5e5e5' }} />))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="pequena grade flex flex-wrap gap-2">
-                {fila.map((e, k) => <UmaEtiqueta key={k} e={e} s={comEscalaBarras(medRolo, escalaBarras)} barras={comBarras} qr={comQr} />)}
-              </div>
-            )}
+            <p className="nao-imprimir mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--suave)]">
+              {t('Como vai sair')}
+              {/* o tamanho REAL de cada etiqueta (a prévia é reduzida para caber na tela) */}
+              {modo !== 'nenhuma' && <span className="num rounded-full bg-[var(--fundo)] px-2 py-0.5 text-xs font-semibold text-[var(--texto)]">{a4 ? `${TAM.a4.w} × ${TAM.a4.h} mm` : `${medRolo.w} × ${medRolo.h} mm`}</span>}
+              {atualizandoPrevia &&<span aria-hidden className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+            </p>
+            {/* a PRÉVIA anda um passo atrás (useDeferredValue): o papel/tipo escolhido muda NA HORA e as etiquetas se
+                redesenham logo depois, sem segurar o toque; até alcançar, fica apagadinha e o Imprimir espera */}
+            <div className={cx('transition-opacity', atualizandoPrevia && 'opacity-60')}>
+              <PreviaEtiquetas {...previaAdiada} />
+            </div>
             <p className="nao-imprimir mt-3 text-xs text-[var(--suave)]">{t(modo === 'nenhuma' ? 'Escreva o código no pacote: a busca acha o pacote pelo código.' : modo === 'qrBarras' ? 'O QR abre o lote pela câmera; o código de barras é lido pelo leitor de balcão, que digita o código na busca.' : modo === 'barras' ? 'Sem QR: o leitor de balcão lê as barras e digita o código na busca.' : 'O QR abre o lote: pelo “Ler código” do Estoque ou pela câmera de qualquer celular.')}</p>
           </div>
         </div>
@@ -498,16 +578,29 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2">
           <div className="num min-w-0 basis-full text-sm sm:basis-auto sm:flex-1">
             <b>{t('{n} etiqueta(s)', { n: total })}</b>
+            {/* o que vai sair, numa linha: papel e tipo (a pessoa confere antes de mandar) */}
+            {total > 0 && <span className="text-[var(--suave)]"> · {nomePapel(config)} · {nomeModo(modo)}</span>}
             {a4 && total > 0 && <span className="text-[var(--suave)]"> · {resumoFolhas}{sobram > 0 ? ` · ${t('sobram {n} na última', { n: sobram })}` : ''}</span>}
             {passou && <span role="alert" className="block font-semibold text-[var(--ruim)]">{t('Máximo {n} por vez: diminua as cópias ou imprima em partes.', { n: limite })}</span>}
-            {impresso && <span role="status" className="block font-semibold text-[var(--bom)]">✓ {t('Marcadas como impressas')}</span>}
+            {impresso && <span role="status" className="block font-semibold text-[var(--bom)]">✓ {t('Marcadas como impressas: o pacote saiu de “Sem etiqueta”.')}</span>}
           </div>
           {sessao.perfil === 'admin' && !impresso && (
             <Botao variante="secundario" className="min-h-12 flex-1 sm:flex-none" disabled={!dados || !pacotes} onClick={soMarcar} aria-label={t('Só marcar como gerada')} title={t('Marca as etiquetas como geradas sem imprimir agora (o pacote sai de "Sem etiqueta").')}>
               ✓ <span className="sm:hidden">{t('Só marcar')}</span><span className="hidden sm:inline">{t('Só marcar como gerada')}</span>
             </Botao>
           )}
-          <Botao grande className="flex-1 sm:flex-none" disabled={!dados || !total || passou} onClick={imprimir}>🖨 {t(impresso ? 'Imprimir de novo' : 'Imprimir')}</Botao>
+          {impresso ? (
+            // JÁ IMPRESSO: terminar é o principal; imprimir de novo fica ao lado (papel enroscou, faltou uma)
+            <>
+              <Botao variante="secundario" className="min-h-12 flex-1 sm:flex-none" disabled={!podeImprimir} onClick={imprimir}>🖨 {t('Imprimir de novo')}</Botao>
+              <Botao grande className="flex-1 sm:flex-none" onClick={onFechar}>✓ {t('Concluir')}</Botao>
+            </>
+          ) : (
+            <Botao grande className="flex-1 sm:flex-none" disabled={!podeImprimir} onClick={imprimir} title={t('Atalho: Ctrl+P')}>
+              🖨 {t(total === 1 ? 'Imprimir 1 etiqueta' : 'Imprimir {n} etiquetas', { n: total })}
+              <kbd className="ml-2 hidden rounded border border-white/40 px-1 text-[10px] font-normal opacity-80 md:inline">Ctrl+P</kbd>
+            </Botao>
+          )}
         </div>
       </footer>
     </div>

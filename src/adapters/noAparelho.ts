@@ -228,13 +228,22 @@ export class BackendNoAparelho implements Backend {
 
   /** Só para montar a demonstração: age como "Sistema" e depois volta para quem estava. */
   async comoSistema<R>(fn: () => Promise<R>): Promise<R> {
+    return this.comoUsuario({ usuarioId: 'sistema', nome: 'Sistema (dados de exemplo)', perfil: 'admin' }, fn)
+  }
+
+  /** Só para os cenários de teste: age como um usuário que JÁ EXISTE (passa pelas mesmas permissões) e depois volta. */
+  async comoUsuario<R>(quem: Omit<Sessao, 'empresaId'>, fn: () => Promise<R>): Promise<R> {
     const antes = { ...this.sessao }
-    Object.assign(this.sessao, { usuarioId: 'sistema', nome: 'Sistema (dados de exemplo)', perfil: 'admin' })
+    const trocar = (s: Sessao) => {
+      for (const k of ['login', 'pessoaId', 'localId'] as const) delete this.sessao[k]
+      Object.assign(this.sessao, s)
+    }
+    trocar({ ...quem, empresaId: antes.empresaId })
     try {
       return await fn()
     } finally {
       // se alguém entrou enquanto montava, mantém quem entrou
-      if (this.sessao.usuarioId === 'sistema') Object.assign(this.sessao, antes)
+      if (this.sessao.usuarioId === quem.usuarioId) trocar(antes)
     }
   }
 

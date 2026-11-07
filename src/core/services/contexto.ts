@@ -127,6 +127,11 @@ export interface Configuracoes {
   juntarMesmaEtapa: boolean
   /** avisar (sem travar) ao vender pacote ainda bruto */
   avisarVendaBruto: boolean
+  /**
+   * CONTROLE DE TURNO (opcional): ligado, a funcionária ABRE o turno (com o troco inicial) antes de vender ou lançar
+   * dinheiro, e o turno vai da abertura ao fechamento. Desligado (padrão): o turno começa sozinho no fim do anterior.
+   */
+  controleTurno: boolean
   /** compra paga NO ATO (o normal): a nova compra já sai paga e a aba Pagamento abre em "Pagar e concluir" */
   compraPagaNoAto: boolean
   /** TRIAGEM: abaixo disso (gramas) o pacote é "sobra pequena" — só avisa, não bloqueia */
@@ -182,6 +187,7 @@ export const CONFIG_PADRAO: Configuracoes = {
   // desligada por padrão: o sistema sempre deixou juntar um separado com um bruto (re-triagem); quem quiser, liga
   juntarMesmaEtapa: false,
   avisarVendaBruto: true,
+  controleTurno: false,
   compraPagaNoAto: true,
   saldoPequenoG: 50,
   modeloNota: 'carta',

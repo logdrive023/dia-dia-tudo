@@ -6,7 +6,7 @@ import { EtapasTriagem } from '../pages/ConfigTriagem'
 import { ConfigFiscal } from '../pages/ConfigFiscal'
 import { ConfigCodigos } from '../pages/ConfigCodigos'
 import { ConfigFormCompra } from '../pages/ConfigFormCompra'
-import { Atributos, Catalogo, Dados, EtapasCompra, FormasPagamento, Funcionaria, Geral, Metas, Modulos, Moedas, Socias, Unidades, Usuarios } from '../pages/Config'
+import { Atributos, Catalogo, Dados, EtapasCompra, FormasPagamento, Funcionaria, Geral, Metas, ModoTeste, Modulos, Moedas, Socias, Unidades, Usuarios } from '../pages/Config'
 
 export type GrupoConfigId = 'negocio' | 'pessoas' | 'dinheiro' | 'compras' | 'estoque' | 'sistema'
 
@@ -48,11 +48,12 @@ export const SECOES_CONFIG: SecaoConfig[] = [
   { id: 'codigos', grupo: 'compras', nome: 'Códigos', icone: '🔢', descricao: 'Como identificar compras e lotes', palavras: 'código número identificação sequência lote compra etiqueta prefixo', componente: ConfigCodigos },
   { id: 'catalogo', grupo: 'estoque', nome: 'Catálogo', icone: '📒', descricao: 'Serviços e produtos com preço', palavras: 'catálogo serviço produto preço duração retorno item', componente: Catalogo },
   { id: 'modulos', grupo: 'sistema', nome: 'Módulos', icone: '🧩', descricao: 'Ligar recursos e criar modalidades', palavras: 'módulo modalidade ligar desligar recurso salão empréstimo', componente: Modulos },
-  { id: 'dados', grupo: 'sistema', nome: 'Dados', icone: '💾', descricao: 'Backup e demonstração', palavras: 'backup dados exportar restaurar zerar demonstração armazenamento conferência', componente: Dados },
+  { id: 'dados', grupo: 'sistema', nome: 'Dados', icone: '💾', descricao: 'Backup e onde ficam os dados', palavras: 'backup dados exportar restaurar armazenamento conferência servidor', componente: Dados },
+  { id: 'teste', grupo: 'sistema', nome: 'Modo teste', icone: '🧪', descricao: 'Cenários prontos e zerar tudo', palavras: 'teste testar cenário exemplo demonstração zerar apagar limpar resetar turno caixa', componente: ModoTeste },
 ]
 
 /** seções que ficam sempre só do admin (mexem em acesso, dados e módulos) */
-export const CONFIG_SO_ADMIN = new Set(['funcionaria', 'usuarios', 'dados', 'modulos'])
+export const CONFIG_SO_ADMIN = new Set(['funcionaria', 'usuarios', 'dados', 'modulos', 'teste'])
 
 /**
  * As seções que o perfil vê — UMA regra para o menu lateral, o submenu do celular e a tela de Configurações:

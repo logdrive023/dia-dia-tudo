@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 import { Carregando, Cartao, Escolha, cx } from '../../../shared/ui/base'
 import { useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
-import { Chave } from '../../../shared/ui/interruptor'
+import { Chave, Interruptor } from '../../../shared/ui/interruptor'
 import { CONFIG_SO_ADMIN, SECOES_CONFIG } from '../model/configSecoes'
 import type { TelaLiberavel } from '../../../shared/ui/liberado'
 
@@ -90,6 +90,11 @@ export function Funcionaria() {
               onChange={(v) => salvar({ funcionariaTelas: v ? [...telas, x.id] : telas.filter((y) => y !== x.id) }, { funcionariaTelas: telas })} />
           ))}
         </Bloco>
+        {/* CONTROLE DE TURNO (opcional): ligado, ela abre o turno com o troco antes de vender; o turno vai da abertura ao fechamento */}
+        <Cartao titulo={t('Turno')} ajuda="Ligado: a funcionária ABRE o turno (com o troco que recebeu) antes de vender ou lançar dinheiro, e fecha contando o dinheiro. No Caixa › Turnos você vê de que horas a que horas ela trabalhou, as vendas e a média por hora. Desligado: o turno começa sozinho e vender não depende dele. Ex.: abre às 08:00 com Bs 100 de troco, fecha às 14:00.">
+          <Interruptor ligado={c.controleTurno} onChange={(v) => salvar({ controleTurno: v }, { controleTurno: c.controleTurno })}
+            titulo="Controle de turno" texto={c.controleTurno ? 'Ligado: abrir o turno antes de vender.' : 'Desligado: vende sem abrir turno.'} />
+        </Cartao>
         <Cartao titulo={t('Idioma de quem entra como funcionária')} ajuda="A maioria da equipe é boliviana: espanhol no padrão. Cada aparelho ainda pode trocar no cabeçalho de Configurações.">
           <Escolha<'pt' | 'es'> rotulo="Idioma de quem entra como funcionária" valor={c.funcionariaIdioma} onChange={(v) => salvar({ funcionariaIdioma: v }, { funcionariaIdioma: c.funcionariaIdioma })} opcoes={[{ id: 'es', nome: 'Español' }, { id: 'pt', nome: 'Português' }]} />
         </Cartao>

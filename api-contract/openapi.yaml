@@ -152,7 +152,9 @@ components:
         - avancarTriagem
         - salvarVendaAberta
         - descartarVendaAberta
+        - abrirTurno
         - fecharTurno
+        - anotarTurno
         - prepararQrEtiquetas
         - tirarDaVendaAberta
         - salvarCidade

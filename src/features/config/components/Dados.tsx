@@ -1,10 +1,9 @@
-// CONFIGURAÇÕES › Dados: onde ficam, backup, importar, dados de exemplo e zerar.
+// CONFIGURAÇÕES › Dados: onde ficam, backup e importar (cenários de teste e zerar: Modo teste, ModoTeste.tsx).
 // Uma seção = um arquivo (a lista das seções e onde cada uma aparece fica em ../configSecoes.ts).
 import { useEffect, useState } from 'react'
-import type { BackendNoAparelho } from '../../../adapters/noAparelho'
 import { espacoUsado, protegerDados } from '../../../adapters/local/indexeddb'
-import { carregarDemo } from '../../../adapters/demo'
-import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, Pilula, Vazio, loc } from '../../../shared/ui/base'
+import { baixarBackup } from '../model/backup'
+import { Botao, Campo, Carregando, Cartao, Entrada, Escolha, Pilula, Vazio, loc } from '../../../shared/ui/base'
 import { ErroConsulta } from '../../../shared/ui/consultando'
 import { useApp, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
@@ -13,10 +12,9 @@ import { ERRO_SIMULADO, OPCOES_ATRASO, OPCOES_FALHA, lerAtraso, lerFalha, salvar
 
 export function Dados() {
   const t = useT()
-  const { backend, avisar } = useApp()
+  const { backend, avisar, ir } = useApp()
   const [protegido, setProtegido] = useState<boolean>()
   const [espaco, setEspaco] = useState<{ usado: number; total: number }>()
-  const [confirmar, setConfirmar] = useState<'demo' | 'zerar'>()
   const { dados: diag } = useConsulta('diagnostico', {})
   useEffect(() => {
     if (backend.tipo === 'local') {
@@ -24,26 +22,7 @@ export function Dados() {
       espacoUsado().then(setEspaco)
     }
   }, [backend])
-  const exportar = async () => {
-    const b = await backend.exportar()
-    const url = URL.createObjectURL(new Blob([JSON.stringify(b)], { type: 'application/json' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `backup-tudo-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
-  }
-  const acao = async () => {
-    try {
-      if (confirmar === 'demo') await carregarDemo(backend as BackendNoAparelho)
-      else await backend.limparTudo()
-      avisar(t(confirmar === 'demo' ? 'Dados de exemplo carregados.' : 'Tudo zerado.'), 'ok')
-    } catch (e) {
-      avisar(e instanceof Error ? e.message : String(e), 'erro')
-    } finally {
-      setConfirmar(undefined)
-    }
-  }
+  const exportar = () => baixarBackup(backend)
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
       <Cartao titulo={t('Onde os dados ficam')} className="md:col-span-2 lg:col-span-1 xl:col-span-2">
@@ -94,23 +73,10 @@ export function Dados() {
         <p className="mt-2 text-xs text-[var(--suave)]">{t('O backup leva tudo, inclusive fotos e comprovantes. Serve também para levar a demonstração para outro aparelho.')}</p>
       </Cartao>
       {backend.tipo !== 'api' && (
-        <Cartao titulo={t('Dados de teste')} ajuda="Para testar à vontade: carregue os dados de exemplo (clientes, compras, vendas, viagens) ou comece do zero. Só mexe neste aparelho.">
-          <div className="flex flex-wrap gap-2">
-            <Botao onClick={() => setConfirmar('demo')}>{t('Carregar dados de exemplo')}</Botao>
-            <Botao variante="perigo" onClick={() => setConfirmar('zerar')}>{t('Zerar tudo')}</Botao>
-          </div>
-          <p className="mt-2 text-xs text-[var(--suave)]">{t('Antes de zerar, baixe um backup se quiser voltar depois.')}</p>
+        <Cartao titulo={t('Dados de teste')}>
+          <p className="text-sm">{t('Cenários prontos e “Zerar tudo” ficam em Modo teste.')}</p>
+          <Botao variante="secundario" className="mt-3" onClick={() => ir('config', { aba: 'teste' })}>🧪 {t('Abrir o Modo teste')}</Botao>
         </Cartao>
-      )}
-      {confirmar && (
-        <Confirmar
-          titulo="Tem certeza?"
-          texto={confirmar === 'demo' ? 'Os dados atuais serão trocados pelos dados de exemplo.' : 'Todos os dados deste aparelho serão apagados.'}
-          rotulo="Sim, continuar"
-          perigo={confirmar === 'zerar'}
-          onConfirmar={acao}
-          onFechar={() => setConfirmar(undefined)}
-        />
       )}
     </div>
   )

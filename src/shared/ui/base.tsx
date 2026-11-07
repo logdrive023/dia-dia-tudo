@@ -28,9 +28,19 @@ export const loc = () => padroes.locale
 /** moeda principal das configurações (para valores sem moeda própria) */
 export const moedaPadrao = () => padroes.moeda
 
+// DESEMPENHO: toLocaleString(loc, opções) cria um Intl.NumberFormat novo a CADA número (caro: com 17 etiquetas na tela,
+// trocar o papel gastava ~80 ms só formatando gramas no celular). O formatador do mesmo idioma + opções é guardado.
+const formatadores = new Map<string, Intl.NumberFormat>()
+function numero(v: number, opcoes?: Intl.NumberFormatOptions) {
+  const chave = `${loc()}|${opcoes ? JSON.stringify(opcoes) : ''}`
+  let f = formatadores.get(chave)
+  if (!f) formatadores.set(chave, (f = new Intl.NumberFormat(loc(), opcoes)))
+  return f.format(v)
+}
+
 export function gramasTexto(g: number): string {
-  if (Math.abs(g) >= 1000) return `${(g / 1000).toLocaleString(loc(), { maximumFractionDigits: 3 })} kg`
-  return `${g.toLocaleString(loc())} g`
+  if (Math.abs(g) >= 1000) return `${numero(g / 1000, { maximumFractionDigits: 3 })} kg`
+  return `${numero(g)} g`
 }
 
 export function fmt(valor: number, formato: Formato['tipo'] | undefined, moeda = moedaPadrao()): string {
@@ -40,11 +50,11 @@ export function fmt(valor: number, formato: Formato['tipo'] | undefined, moeda =
     case 'gramas':
       return gramasTexto(valor)
     case 'percentual':
-      return `${(valor / 100).toLocaleString(loc(), { maximumFractionDigits: 1 })}%`
+      return `${numero(valor / 100, { maximumFractionDigits: 1 })}%`
     case 'dias':
       return `${valor} d`
     default:
-      return valor.toLocaleString(loc())
+      return numero(valor)
   }
 }
 

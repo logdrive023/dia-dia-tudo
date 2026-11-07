@@ -89,24 +89,27 @@ export function ListaTabelas({ ajudaVersoes }: { ajudaVersoes: string }) {
             const simbolo = moeda(x.moeda).simbolo
             return (
               <li key={x.id}>
-                <button type="button" onClick={() => ir('tabelaPreco', { id: x.id })} className={cx('group flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-[var(--fundo)]', x.situacao === 'substituida' && 'opacity-75')}>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <b className="truncate">{x.nome}</b>
-                      <Pilula pequena tom={s.tom} title={t(s.ajuda)}>{x.situacao === 'vigente' ? '● ' : ''}{t(s.nome)}</Pilula>
-                      <Pilula pequena tom={x.categoria ? 'marca' : 'neutro'}>{x.categoria ? t(x.categoria) : t('Normal (geral)')}</Pilula>
-                    </span>
-                    <span className="mt-0.5 block truncate text-xs text-[var(--suave)]">
-                      <b className="text-[var(--marca)]">v{x.versao}</b> · {t('mudou em {d}', { d: diaCurto(x.mudouEm) })}{x.por ? ` · ${x.por}` : ''}{x.nota ? ` · “${x.nota}”` : ''}
-                    </span>
-                    <span className="num mt-0.5 block text-xs text-[var(--suave)]">
-                      {x.medidas} {t('medidas')} ({x.medidaMin}–{x.medidaMax} {x.unidadeMedida}) · {x.compradores} {t('compradores')} · {x.vendas} {t('vendas')} · {x.compras} {t('compras')}
-                    </span>
+                {/* Celular: cartão em blocos — nome (› ao lado) · etiquetas · faixa de preço em destaque · números
+                    (cada um inteiro, sem quebrar no meio) · versão. sm+: uma linha, com o preço numa coluna à direita. */}
+                <button type="button" onClick={() => ir('tabelaPreco', { id: x.id })} className={cx('group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3.5 text-left hover:bg-[var(--fundo)] sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-y-1 sm:py-3', x.situacao === 'substituida' && 'opacity-75')}>
+                  <span className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <b className="min-w-0 basis-full truncate text-base sm:basis-auto sm:text-sm">{x.nome}</b>
+                    <Pilula pequena tom={s.tom} title={t(s.ajuda)}>{x.situacao === 'vigente' ? '● ' : ''}{t(s.nome)}</Pilula>
+                    <Pilula pequena tom={x.categoria ? 'marca' : 'neutro'}>{x.categoria ? t(x.categoria) : t('Normal (geral)')}</Pilula>
                   </span>
-                  <span className="num shrink-0 text-right">
-                    {x.faixa ? <><b className="block whitespace-nowrap text-sm">{simbolo} {n(x.faixa[0])} – {n(x.faixa[1])}</b><span className="block text-[11px] text-[var(--suave)]">{t(x.fatorPor === 'grama' ? 'por grama' : 'por unidade')}</span></> : <span className="text-xs text-[var(--suave)]">{t('sem preços ainda')}</span>}
+                  <span className="num col-span-2 col-start-1 row-start-2 flex flex-wrap items-baseline gap-x-1.5 rounded-xl bg-[var(--marca-suave)] px-3 py-2 sm:col-span-1 sm:col-start-2 sm:row-span-3 sm:row-start-1 sm:block sm:bg-transparent sm:p-0 sm:text-right">
+                    {x.faixa ? <><b className="whitespace-nowrap text-lg leading-tight sm:block sm:text-sm">{simbolo} {n(x.faixa[0])} – {n(x.faixa[1])}</b><span className="text-xs text-[var(--suave)] sm:block sm:text-[11px]">{t(x.fatorPor === 'grama' ? 'por grama' : 'por unidade')}</span></> : <span className="text-xs text-[var(--suave)]">{t('sem preços ainda')}</span>}
                   </span>
-                  <span aria-hidden className="text-lg text-[var(--suave)] transition group-hover:translate-x-0.5 group-hover:text-[var(--marca)]">›</span>
+                  <span className="num col-span-2 col-start-1 row-start-3 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs sm:flex sm:flex-wrap text-[var(--suave)] sm:col-span-1 sm:row-start-2">
+                    <span className="whitespace-nowrap"><b className="text-[var(--texto)]">{x.medidas}</b> {t('medidas')} ({x.medidaMin}–{x.medidaMax} {x.unidadeMedida})</span>
+                    <span className="whitespace-nowrap"><b className="text-[var(--texto)]">{x.compradores}</b> {t('compradores')}</span>
+                    <span className="whitespace-nowrap"><b className="text-[var(--texto)]">{x.vendas}</b> {t('vendas')}</span>
+                    <span className="whitespace-nowrap"><b className="text-[var(--texto)]">{x.compras}</b> {t('compras')}</span>
+                  </span>
+                  <span className="col-span-2 col-start-1 row-start-4 block min-w-0 truncate text-xs text-[var(--suave)] sm:col-span-1 sm:row-start-3">
+                    <b className="text-[var(--marca)]">v{x.versao}</b> · {t('mudou em {d}', { d: diaCurto(x.mudouEm) })}{x.por ? ` · ${x.por}` : ''}{x.nota ? ` · “${x.nota}”` : ''}
+                  </span>
+                  <span aria-hidden className="col-start-2 row-start-1 self-center text-xl text-[var(--suave)] transition group-hover:translate-x-0.5 group-hover:text-[var(--marca)] sm:col-start-3 sm:row-span-3">›</span>
                 </button>
               </li>
             )

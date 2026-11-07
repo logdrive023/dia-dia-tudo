@@ -69,3 +69,54 @@ describe('fechamento de turno com conferência cega', () => {
     expect(t2.situacao).toBe('confere')
   })
 })
+
+describe('controle de turno (opcional: abrir → vender → fechar)', () => {
+  it('desligado (padrão): vende sem abrir, como sempre', async () => {
+    const { b, lotes, vender, comoLucia } = await cenario()
+    await comoLucia()
+    await expect(vender('v1', lotes[0], 300)).resolves.toBeTruthy()
+    expect(((await b.consulta('turnoAtual', {})) as any).precisaAbrir).toBe(false)
+  })
+
+  it('ligado: sem abrir não vende; abre com troco, vende, fecha — o troco entra no esperado', async () => {
+    const { b, lotes, vender, comoLucia, comoAdmin } = await cenario()
+    await b.comando('salvarConfig', { controleTurno: true } as any)
+    await comoLucia()
+    expect(((await b.consulta('turnoAtual', {})) as any).precisaAbrir).toBe(true)
+    await expect(vender('v1', lotes[0], 300)).rejects.toThrow(/Abra o seu turno/)
+    await expect(b.comando('fecharTurno', { id: 't0', contado: { BOB: 0 } } as any)).rejects.toThrow(/não está aberto/)
+
+    await b.comando('abrirTurno', { id: 't1', trocoInicial: { BOB: bs(100) } } as any)
+    // abrir de novo (toque duplo): o mesmo turno
+    await b.comando('abrirTurno', { id: 't1b', trocoInicial: { BOB: bs(999) } } as any)
+    expect((await b.consulta('turnoAtual', {})) as any).toMatchObject({ aberto: true, precisaAbrir: false })
+    await vender('v1', lotes[0], 300)
+    await vender('v2', lotes[1], 150, 'qr')
+    await b.comando('fecharTurno', { id: 't1', contado: { BOB: bs(400) } } as any)
+    expect(((await b.consulta('turnoAtual', {})) as any).precisaAbrir).toBe(true) // fechou: abre de novo para vender
+
+    comoAdmin()
+    const [t] = (await b.consulta('turnos', {})) as any[]
+    expect(t.trocoInicial).toEqual({ BOB: bs(100) })
+    expect(t.esperado.BOB).toBe(bs(400)) // 100 de troco + 300 em efectivo (o QR não está na mão)
+    expect(t.situacao).toBe('confere')
+    expect(t.vendas).toMatchObject({ n: 2, total: bs(450) }) // para o relatório: todas as formas
+    // o administrador não precisa de turno para lançar
+    await expect(b.comando('lancarCaixa', { id: 'adm', tipo: 'entrada', moeda: 'BOB', forma: 'dinheiro', valor: bs(10), descricao: 'x' } as any)).resolves.toBeTruthy()
+  })
+
+  it('o administrador anota o turno (fica no turno e na auditoria); a funcionária não anota', async () => {
+    const { b, lotes, vender, comoLucia, comoAdmin } = await cenario()
+    await comoLucia()
+    await vender('v1', lotes[0], 300)
+    await b.comando('fecharTurno', { id: 't1', contado: { BOB: bs(290) } } as any)
+    await expect(b.comando('anotarTurno', { id: 't1', nota: 'ok' } as any)).rejects.toThrow()
+    comoAdmin()
+    await b.comando('anotarTurno', { id: 't1', nota: 'Conferi: faltou troco de uma nota.' } as any)
+    const [t] = (await b.consulta('turnos', {})) as any[]
+    expect(t.notas).toHaveLength(1)
+    expect(t.notas[0]).toMatchObject({ nota: 'Conferi: faltou troco de uma nota.' })
+    const aud = (await b.consulta('auditoria', {} as any)) as any
+    expect(((aud.linhas ?? aud) as any[]).some((x) => x.acao === 'anotarTurno')).toBe(true)
+  })
+})
