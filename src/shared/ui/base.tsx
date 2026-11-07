@@ -3,7 +3,7 @@
 import { createPortal } from 'react-dom'
 import { PAI } from '../navegacao/rotas'
 import { Icone, temIcone } from './icones'
-import { type ReactNode, useEffect, useId, useState, useLayoutEffect, useRef } from 'react'
+import { Children, type ReactNode, useEffect, useId, useState, useLayoutEffect, useRef } from 'react'
 import { dataComAno } from '../../core/domain/datas'
 import { formatar, lerValor, moeda as moedaDe } from '../../core/domain/dinheiro'
 import type { Cartao as CartaoDados, Formato } from '../../core/modulos'
@@ -329,9 +329,35 @@ export const COR_TOM: Record<Tom, string> = {
   marca: 'bg-[var(--marca-suave)] text-[var(--marca)]',
 }
 
+/**
+ * SELO COMEÇA COM MAIÚSCULA (padrão de todos os selos, em português e em espanhol): "parado" → "Parado",
+ * "❓ para depois" → "❓ Para depois", "só 40 g" → "Só 40 g". Mexe só no 1º texto com letra (ícones e espaços antes
+ * passam); não mexe em código ("v2"), em número na frente ("3 kg") nem quando o selo começa por outra peça (<b>…).
+ */
+export function inicialMaiuscula(n: ReactNode): ReactNode {
+  const lista = Array.isArray(n) ? Children.toArray(n) : [n]
+  // o texto do começo (textos e números seguidos, até a 1ª peça): "v" + 3 = "v3" é código
+  let inicio = ''
+  for (const x of lista) {
+    if (typeof x !== 'string' && typeof x !== 'number') break
+    inicio += String(x)
+  }
+  const m = /\p{L}/u.exec(inicio)
+  if (!m || /\d/.test(inicio.slice(0, m.index)) || /^\p{L}\d/u.test(inicio.slice(m.index)) || inicio.charAt(m.index) === inicio.charAt(m.index).toLocaleUpperCase()) return n
+  let feito = false
+  const um = (x: ReactNode): ReactNode => {
+    if (feito || typeof x !== 'string') return x
+    const i = x.search(/\p{L}/u)
+    if (i < 0) return x
+    feito = true
+    return x.slice(0, i) + x.charAt(i).toLocaleUpperCase() + x.slice(i + 1)
+  }
+  return Array.isArray(n) ? Children.map(n, um) : um(n)
+}
+
 /** `pequena`: o selo de 11 px (dentro de números grandes e linhas de lista); `title` aparece ao passar o mouse */
 export function Pilula({ children, tom = 'neutro', pequena, title, className }: { children: ReactNode; tom?: Tom; pequena?: boolean; title?: string; className?: string }) {
-  return <span title={title} className={cx('num inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 font-semibold', pequena ? 'text-[11px]' : 'text-xs', COR_TOM[tom], className)}>{children}</span>
+  return <span title={title} className={cx('num inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 font-semibold', pequena ? 'text-[11px]' : 'text-xs', COR_TOM[tom], className)}>{inicialMaiuscula(children)}</span>
 }
 
 /**

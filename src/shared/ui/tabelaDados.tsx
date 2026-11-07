@@ -16,7 +16,7 @@
 
 import { Fragment, type ReactNode, useState } from 'react'
 import { EsqueletoTabela } from './esqueleto'
-import { Botao, cx } from './base'
+import { Botao, cx, inicialMaiuscula } from './base'
 import { useTelaLarga } from './estoqueUi'
 import { useT } from './i18n'
 import { type Acao, MenuAcoes } from './menuAcoes'
@@ -99,12 +99,12 @@ export function SeloCodigo({ codigo }: { codigo?: string }) {
 /** a situação: bolinha + texto na cor do tom */
 export function SeloSituacao({ texto, tom }: { texto: string; tom: TomLista }) {
   const t = useT()
-  return <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold" style={{ color: COR_TOM[tom] }}><span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: COR_TOM[tom] }} />{t(texto)}</span>
+  return <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold" style={{ color: COR_TOM[tom] }}><span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: COR_TOM[tom] }} />{inicialMaiuscula(t(texto))}</span>
 }
 /** o que pede atenção: selo com fundo suave na cor do tom */
 export function SeloAlerta({ texto, tom }: { texto: string; tom: TomLista }) {
   const t = useT()
-  return <span className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ color: COR_TOM[tom], background: `color-mix(in srgb, ${COR_TOM[tom]} 12%, transparent)` }}>{t(texto)}</span>
+  return <span className="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ color: COR_TOM[tom], background: `color-mix(in srgb, ${COR_TOM[tom]} 12%, transparent)` }}>{inicialMaiuscula(t(texto))}</span>
 }
 /** um fato (aberto da linha): selo cinza */
 export function SeloFato({ children }: { children: ReactNode }) {

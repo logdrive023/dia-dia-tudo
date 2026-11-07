@@ -1,6 +1,6 @@
 # Ecossistema de gerenciamento: desenho antes do código
 
-**Atualizado:** 06/11/2026 · **Situação:** histórico (desenho inicial), exceto o §11 (peças padrão), que é vigente
+**Atualizado:** 07/11/2026 · **Situação:** histórico (desenho inicial), exceto o §11 (peças padrão), que é vigente
 
 > Entrega da etapa "antes de escrever código" do prompt: modelo de dados, contrato dos módulos, mapa de telas,
 > fluxo do assistente de venda e as dúvidas que precisam da sua resposta.
@@ -424,6 +424,7 @@ Uma listagem nova é CONFIGURAÇÃO, não uma tabela nova:
 
 - **Colunas** (`{ id, titulo, celula, direita?, ordenar?, classe? }`), **linhas** e `chave`; **onAbrir** (tocar na linha / Enter abre o registro); **acoes** (o ⋯, sempre na última coluna) e `acaoRapida` (um botão antes do ⋯); **ordem/onOrdenar**; **selecao** (caixas + "todos os filtrados"); `realce` (linha apagada: cancelada, esgotado); `detalhe` (linha extra embaixo); `compacta` (linhas baixas, com foto).
 - **Celular — a LINHA PADRÃO**: `celular={{ titulo, valor, valorSub, codigo, situacao: {texto, tom}, alerta: {texto, tom}, progresso, fatos: [...], aberto }}`. Fechada: título · valor / [CÓDIGO] ● situação · selo do alerta / o detalhe do valor (3 kg). Aberta: progresso, os fatos em selos (📅 · 📦 · ⏱), o extra da tela e "Abrir →" + ⋯. Os mesmos selos (`SeloCodigo`, `SeloSituacao`, `SeloAlerta`) nas colunas da tabela do computador. Sem `celular`, a tabela rola de lado.
+- **Selo começa com maiúscula** (`Pilula`, `SeloSituacao`, `SeloAlerta`, em PT e ES): é automático na peça (`inicialMaiuscula` em `base.tsx`) — "parado" vira "Parado", "❓ para depois" vira "❓ Para depois". Código ("v2") e número na frente ("3 kg") ficam como estão. A chave de tradução pode continuar em minúscula.
 - **Foto na linha**: `celular.midia` (a miniatura do pacote, fora do botão da linha — ela é um botão próprio). Usado no Estoque.
 - **Ver como (tabela × cartões)**: `cartoes={vis.cartoes}` com `const vis = useVisaoLista('tela')` (`src/shared/ui/visaoLista.tsx`). Os cartões são a MESMA linha padrão do celular em grade — nenhuma tela desenha cartão próprio. A escolha fica no ⚙ Filtros, no grupo `<GrupoVisao>` ("Como mostrar"; a tela pode juntar ali o que for de exibição, ex.: as colunas do Estoque). Lembrada por tela, no aparelho. No celular é sempre a linha padrão. Usado em Comprar, Triagem, Estoque e Vender.
 - **Situação em abas**: toda lista com situações usa `FiltroLista situacao={{ opcoes: [{ id, nome, n, tom? }] }}` (o trilho do Vender), nunca um select de status no painel (seria a mesma coisa duas vezes). Estoque: Com saldo · Disponível · Parcial · Para separar · Esgotado · Todos. Triagem (fila): Todos · Parados · Juntados · Sem juntar.
