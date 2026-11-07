@@ -102,7 +102,9 @@ export interface RegraJuntar { icone: string; titulo: string; texto: string; lig
  * Computador: duas colunas com um divisor fino; celular: uma embaixo da outra, divisor na horizontal. Um só contorno,
  * um só fundo. Sem o próximo passo (marcando pacotes), só o juntar; sem 2+ pacotes, só o próximo passo.
  */
-export function PainelTriagem({ agora, tom = 'marca', rotulo = 'Próximo passo', titulo, texto, acoes, juntar }: {
+export function PainelTriagem({ agora, tom = 'marca', rotulo = 'Próximo passo', titulo, texto, acoes, juntar, filtro }: {
+  /** "Escolher por" (as 2 camadas do próximo passo): fica entre a frase e o botão */
+  filtro?: ReactNode
   agora: EtapaFluxo
   tom?: 'marca' | 'bom'
   /** o rótulo pequeno do próximo passo ("Próximo passo", "Nada para separar 🎉") */
@@ -128,7 +130,8 @@ export function PainelTriagem({ agora, tom = 'marca', rotulo = 'Próximo passo',
               <p className="mt-1 text-lg font-bold leading-snug" style={{ color: cor }}>{t(titulo!)}</p>
               {texto && <p className="mt-1 text-sm text-[var(--suave)]">{texto}</p>}
             </div>
-            {acoes && <div className="mt-auto flex flex-wrap items-center gap-2 [&>button]:min-w-max">{acoes}</div>}
+            {filtro}
+            {acoes &&<div className="mt-auto flex flex-wrap items-center gap-2 [&>button]:min-w-max">{acoes}</div>}
           </div>
         )}
         {juntar && (

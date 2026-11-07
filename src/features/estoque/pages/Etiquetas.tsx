@@ -21,6 +21,7 @@ import { useT } from '../../../shared/ui/i18n'
 import { useCamposModulo } from '../model/comum'
 import { NumeroGrande, type Selo, GrupoNumeros } from '../../../shared/ui/numeroGrande'
 import { CampoFaixa, GrupoFiltro, FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
+import { FiltroViagem, passaViagem } from '../../../shared/ui/seloViagem'
 
 type Linha = ResultadoConsulta<'estoque'>[number]
 type Filtro = 'sem' | 'impressa' | 'todas'
@@ -31,7 +32,7 @@ const CARTOES_ETIQUETA: { f: Filtro; rotulo: string; icone: string; cor: string 
   { f: 'impressa', rotulo: 'Já impressa', icone: '✓', cor: 'var(--bom)' },
   { f: 'todas', rotulo: 'Todas', icone: '📦', cor: 'var(--marca)' },
 ]
-const FILTROS = ['compra', 'lote', 'pessoa', 'quem', 'impr', 'medida', 'pmin', 'pmax', 'de', 'ate', 'busca']
+const FILTROS = ['compra', 'lote', 'pessoa', 'quem', 'impr', 'medida', 'pmin', 'pmax', 'de', 'ate', 'busca', 'vg']
 
 
 export function Etiquetas() {
@@ -70,6 +71,8 @@ export function Etiquetas() {
       (!p('quem') || i.criadoPorNome === p('quem')) &&
       (!p('impr') || i.etiquetaImpressaPor === p('impr')) &&
       (!p('medida') || String(i.campos.comprimento ?? '') === p('medida')) &&
+      // VIAGEM (o mesmo filtro do Estoque e da Triagem): a compra do pacote veio de qual viagem
+      passaViagem(p('vg'), i.compras.map((c) => c.viagem)) &&
       atributos.every((c) => !p(`a.${c.id}`) || String(i.campos[c.id] ?? '') === p(`a.${c.id}`)) &&
       (!pmin || i.saldo >= pmin) &&
       (!pmax || i.saldo <= pmax) &&
@@ -152,6 +155,7 @@ export function Etiquetas() {
         className="mb-2"
         situacao={{ valor: filtro, onChange: (id) => setFiltro(id as Filtro), opcoes: CARTOES_ETIQUETA.map((c) => ({ id: c.f, nome: c.rotulo, n: dados ? conta(c.f) : undefined, tom: c.f === 'sem' ? 'alerta' as const : undefined })) }}
         periodo={{ de: p('de'), ate: p('ate'), onChange: (de, ate) => ajustarParams({ de, ate }) }}
+        extra={<FiltroViagem nasLinhas={(dados ?? []).map((i) => i.compras.map((c) => c.viagem))} valor={p('vg')} onChange={(v) => setP('vg', v)} />}
         busca={p('busca')} onBusca={(v) => setP('busca', v)} placeholder="Buscar código, nome ou compra"
         ativos={ativos} onTirar={tirar} onLimpar={limpar} temAtivos={avancados > 0}
         resultados={dados ? lista.length : undefined} total={dados ? dados.filter((i) => passaEtiqueta(i, filtro)).length : undefined} unidade="pacote(s)"

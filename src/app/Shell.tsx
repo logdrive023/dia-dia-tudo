@@ -10,6 +10,7 @@
 
 import { type ReactNode, useEffect, useState } from 'react'
 import { Botao, Janela, cx, useTravarFundo } from '../shared/ui/base'
+import { GrupoMenuCelular } from './GrupoMenuCelular'
 import { useApp, useConsulta } from '../shared/ui/contexto'
 import { useLembrado } from '../shared/ui/filtros'
 import { useT } from '../shared/ui/i18n'
@@ -171,6 +172,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const [recolhido, setRecolhido] = useLembrado('menu.recolhido', false)
   const [oculto, setOculto] = useLembrado('menu.oculto', false)
   const [gruposAbertos, setGruposAbertos] = useLembrado<string[]>('menu.gruposAbertos', [])
+  // celular: grupos FECHADOS da gaveta (começa vazio = tudo aberto, como antes); o do computador é outro
+  const [fechadosCelular, setFechadosCelular] = useLembrado<string[]>('menu.celularFechados', [])
   const { dados } = useConsulta('configuracoes', {})
   // SAIR com dinheiro do turno sem contar: o sistema pergunta antes (fechar o turno agora ou sair mesmo assim)
   const { dados: turno } = useConsulta('turnoAtual', {}, !!sessao.usuarioId)
@@ -389,8 +392,12 @@ export function Shell({ children }: { children: ReactNode }) {
               </button>
             </div>
             {grupos.map(({ g, itens }) => (
-              <section key={g} className="mb-3 rounded-xl pb-1" style={{ background: `color-mix(in srgb, ${COR_GRUPO[g]} 7%, transparent)`, borderLeft: `3px solid ${COR_GRUPO[g]}` }}>
-                <h2 className="px-3 pb-0.5 pt-2 text-xs font-bold uppercase tracking-wide" style={{ color: COR_GRUPO[g] }}>{t(g)}</h2>
+              // grupo que abre/fecha (lembrado neste aparelho; começa tudo aberto); o da tela atual nunca fecha
+              <GrupoMenuCelular key={g} nome={g} cor={COR_GRUPO[g]}
+                podeFechar={!itens.some((m) => m.tela === nav.tela)}
+                aberto={itens.some((m) => m.tela === nav.tela) || !fechadosCelular.includes(g)}
+                onAlternar={() => setFechadosCelular(fechadosCelular.includes(g) ? fechadosCelular.filter((x) => x !== g) : [...fechadosCelular, g])}
+                selo={(() => { const alerta = itens.map((m) => contadores[m.tela]).find((c) => c?.tom === 'urgente') ?? itens.map((m) => contadores[m.tela]).find(Boolean); return alerta ? <Selo c={{ ...alerta, n: itens.reduce((s, m) => s + (contadores[m.tela]?.n ?? 0), 0) }} /> : undefined })()}>
                 <ul className="px-1">
                   {itens.map((m) => {
                     const ativo = nav.tela === m.tela
@@ -414,7 +421,7 @@ export function Shell({ children }: { children: ReactNode }) {
                     )
                   })}
                 </ul>
-              </section>
+              </GrupoMenuCelular>
             ))}
           </div>
         </div>

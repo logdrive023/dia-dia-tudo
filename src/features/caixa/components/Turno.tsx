@@ -6,7 +6,7 @@
 import { type ReactNode, useState } from 'react'
 import { formatar, MOEDAS } from '../../../core/domain/dinheiro'
 import { novoId } from '../../../core/domain/ids'
-import { Botao, Campo, Cartao, Confirmar, Entrada, Pilula, ValorInput, cx, dataHora, hora } from '../../../shared/ui/base'
+import { Botao, BotaoExpandir, Campo, Cartao, Confirmar, Entrada, Pilula, ValorInput, cx, dataHora, hora } from '../../../shared/ui/base'
 import { useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { JanelaCadastro } from '../../../shared/ui/janelaCadastro'
@@ -39,6 +39,7 @@ export function JanelaFecharTurno({ onFechar, aoFechar }: { onFechar(): void; ao
   const [obs, setObs] = useState('')
   const [confirmar, setConfirmar] = useState(false)
   const [feito, setFeito] = useState(false)
+  const [verComo, setVerComo] = useState(false)
   const preenchido = moedas.every((m) => contado[m] !== undefined)
   const registrar = async () => {
     const r = await executar('fecharTurno', { id, contado: Object.fromEntries(moedas.map((m) => [m, contado[m] ?? 0])), obs: obs || undefined })
@@ -68,13 +69,7 @@ export function JanelaFecharTurno({ onFechar, aoFechar }: { onFechar(): void; ao
             </span>
           </div>
         )}
-        {/* o que é, o que conta e a diferença entre fechar e não fechar */}
-        <ul className="space-y-2 text-sm">
-          <ExplicaTurno icone="🔒" titulo="O que é">{t('Você conta o dinheiro em efectivo que está com você e escreve quanto deu. O sistema já sabe quanto deveria ter, mas não mostra: assim a contagem é honesta (conferência cega).')}</ExplicaTurno>
-          <ExplicaTurno icone="💵" titulo="O que entra na conta">{t('Só o efectivo que VOCÊ recebeu ou entregou neste turno (vendas, troco, devoluções). QR, Pix, cartão e transferência não entram: não estão na sua mão.')}</ExplicaTurno>
-          <ExplicaTurno icone="✅" titulo="Fechando o turno" tom="bom">{t('A diferença (se faltar ou sobrar) fica registrada só no seu nome, com data e hora. Cada colega responde só pelo turno dela, e o seu próximo turno começa do zero.')}</ExplicaTurno>
-          <ExplicaTurno icone="⚠️" titulo="Sem fechar" tom="alerta">{t('O efectivo continua somando no mesmo turno, junto com o dia seguinte. Se faltar dinheiro, não dá para saber quando nem com quem faltou.')}</ExplicaTurno>
-        </ul>
+        {/* CELULAR PRIMEIRO: a CONTAGEM (o que ela veio fazer) logo em cima; o exemplo e a explicação depois */}
         <div className="grid gap-3 sm:grid-cols-2">
           {moedas.map((m) => (
             <Campo key={m} rotulo={`${t('Contei em')} ${MOEDAS.find((x) => x.codigo === m)?.nome ?? m} (${m})`} comoDiv>
@@ -83,12 +78,51 @@ export function JanelaFecharTurno({ onFechar, aoFechar }: { onFechar(): void; ao
           ))}
         </div>
         <Campo rotulo="Observação (opcional)"><Entrada value={obs} placeholder={t('Ex.: dei troco de uma nota de 200')} onChange={(e) => setObs(e.target.value)} /></Campo>
+        <ExemploTurno moeda={principal} />
+        {/* o que é, o que conta e a diferença entre fechar e não fechar — recolhido (abre no toque) */}
+        <div>
+          <BotaoExpandir aberto={verComo} onClick={() => setVerComo(!verComo)} className="-ml-2">{t('Como funciona')}</BotaoExpandir>
+          {verComo && (
+            <ul className="mt-1 space-y-2 text-xs sm:text-sm">
+              <ExplicaTurno icone="🔒" titulo="O que é">{t('Você conta o dinheiro em efectivo que está com você e escreve quanto deu. O sistema já sabe quanto deveria ter, mas não mostra: assim a contagem é honesta (conferência cega).')}</ExplicaTurno>
+              <ExplicaTurno icone="💵" titulo="O que entra na conta">{t('Só o efectivo que VOCÊ recebeu ou entregou neste turno (vendas, troco, devoluções). QR, Pix, cartão e transferência não entram: não estão na sua mão.')}</ExplicaTurno>
+              <ExplicaTurno icone="✅" titulo="Fechando o turno" tom="bom">{t('A diferença (se faltar ou sobrar) fica registrada só no seu nome, com data e hora. Cada colega responde só pelo turno dela, e o seu próximo turno começa do zero.')}</ExplicaTurno>
+              <ExplicaTurno icone="⚠️" titulo="Sem fechar" tom="alerta">{t('O efectivo continua somando no mesmo turno, junto com o dia seguinte. Se faltar dinheiro, não dá para saber quando nem com quem faltou.')}</ExplicaTurno>
+            </ul>
+          )}
+        </div>
       </JanelaCadastro>
       {confirmar && (
         <Confirmar titulo="Registrar a contagem?" rotulo="Sim, registrar" onFechar={() => setConfirmar(false)} onConfirmar={registrar}
           texto={`${moedas.map((m) => formatar(contado[m] ?? 0, m)).join(' · ')} — ${t('depois de registrar não dá para mudar.')}`} />
       )}
     </>
+  )
+}
+
+/**
+ * EXEMPLO DE CONTAGEM (números de exemplo, NUNCA os dela: a conferência é cega). Mostra a conta do dia em 3 linhas e
+ * o resultado; o selo deixa claro que o que ela digita é só a contagem para conferir — não muda vendas nem o caixa.
+ */
+function ExemploTurno({ moeda }: { moeda: string }) {
+  const t = useT()
+  const v = (n: number) => formatar(n * 100, moeda)
+  return (
+    <section aria-label={t('Exemplo de contagem')} className="overflow-hidden rounded-2xl border border-[var(--borda)]">
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-[var(--fundo)] px-3 py-2">
+        <b className="text-[11px] uppercase tracking-wide text-[var(--suave)]">{t('Exemplo (números de mentira)')}</b>
+        <Pilula tom="alerta" pequena>🔒 {t('seus valores não aparecem')}</Pilula>
+      </div>
+      <dl className="num space-y-1 px-3 py-2 text-xs sm:text-sm">
+        <div className="flex justify-between gap-3"><dt className="text-[var(--suave)]">{t('Hoje vendeu em efectivo')}</dt><dd className="font-semibold">{v(1250)}</dd></div>
+        <div className="flex justify-between gap-3"><dt className="text-[var(--suave)]">{t('Deu de troco')}</dt><dd className="font-semibold">− {v(50)}</dd></div>
+        <div className="flex justify-between gap-3 border-t border-[var(--borda)] pt-1"><dt className="font-semibold">{t('Na mão, conta e escreve')}</dt><dd className="text-sm font-black sm:text-base">{v(1200)}</dd></div>
+      </dl>
+      <p className="flex items-start gap-2 border-t border-[var(--alerta)]/30 bg-[var(--alerta)]/10 px-3 py-2 text-xs font-semibold text-[var(--texto)] sm:text-sm">
+        <span aria-hidden>ℹ️</span>
+        <span>{t('O que você digita é só a contagem para conferir: não muda as vendas nem o caixa.')}</span>
+      </p>
+    </section>
   )
 }
 

@@ -8,7 +8,14 @@ const faixasV = (cores: string[]) => cores.map((c, k) => <rect key={k} x={(30 / 
 const DESENHOS: Record<string, ReactNode> = {
   BO: faixasH(['#d52b1e', '#f9e300', '#007934']),
   BR: <><rect width="30" height="20" fill="#009c3b" /><path d="M15 2.5 27 10 15 17.5 3 10Z" fill="#ffdf00" /><circle cx="15" cy="10" r="4.2" fill="#002776" /></>,
-  US: <>{Array.from({ length: 7 }, (_, k) => <rect key={k} y={(20 / 7) * k * 1} width="30" height={20 / 13} fill="#b22234" transform={`translate(0 ${(20 / 13) * k})`} />)}<rect width="30" height="20" fill="none" /><rect width="13" height="10.8" fill="#3c3b6e" /></>,
+  // EUA: fundo BRANCO (antes as listras brancas eram transparentes e ficavam escuras no tema escuro), 13 faixas
+  // (7 vermelhas nas pares), o cantão azul com 7 faixas de altura e as estrelas simplificadas em pontos
+  US: <>
+    <rect width="30" height="20" fill="#ffffff" />
+    {Array.from({ length: 7 }, (_, k) => <rect key={k} y={(20 / 13) * 2 * k} width="30" height={20 / 13 + 0.05} fill="#b22234" />)}
+    <rect width="12" height={(20 / 13) * 7} fill="#3c3b6e" />
+    {Array.from({ length: 4 }, (_, l) => Array.from({ length: 5 }, (_, c) => <circle key={`${l}-${c}`} cx={1.4 + c * 2.3} cy={1.5 + l * 2.5} r="0.5" fill="#ffffff" />))}
+  </>,
   PY: <>{faixasH(['#d52b1e', '#ffffff', '#0038a8'])}<circle cx="15" cy="10" r="2" fill="none" stroke="#0038a8" strokeWidth="0.8" /></>,
   AR: <>{faixasH(['#74acdf', '#ffffff', '#74acdf'])}<circle cx="15" cy="10" r="2.2" fill="#f6b40e" /></>,
   PE: faixasV(['#d91023', '#ffffff', '#d91023']),
@@ -28,6 +35,8 @@ export function Bandeira({ pais, className }: { pais: string; className?: string
   const d = DESENHOS[pais]
   if (!d) return <span className={`inline-flex h-4 w-6 items-center justify-center rounded-sm bg-[var(--fundo)] text-[9px] font-bold ${className ?? ''}`}>{pais}</span>
   return (
-    <svg viewBox="0 0 30 20" aria-hidden className={`inline-block h-4 w-6 shrink-0 overflow-hidden rounded-[3px] shadow-[0_0_0_1px_rgba(0,0,0,.15)] ${className ?? ''}`}>{d}</svg>
+    // contorno NEUTRO (cinza meio-transparente): aparece no tema claro e no escuro — bandeira com branco (EUA,
+    // Paraguai, Peru…) não some no fundo claro, e a borda escura não some no fundo escuro
+    <svg viewBox="0 0 30 20" aria-hidden className={`inline-block h-4 w-6 shrink-0 overflow-hidden rounded-[3px] shadow-[0_0_0_1px_rgba(128,128,128,.45)] ${className ?? ''}`}>{d}</svg>
   )
 }

@@ -15,7 +15,7 @@ import { NumeroGrande, GrupoNumeros, type Selo } from '../../../shared/ui/numero
 import { formatar } from '../../../core/domain/dinheiro'
 import type { Id } from '../../../core/domain/tipos'
 import { COLUNA_VENDIDO, type ColunaTriagem } from '../../../core/services/triagem'
-import { Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, Info, Pilula, Selecao, cx, gramasTexto, moedaPadrao, Titulo } from '../../../shared/ui/base'
+import { Botao, Campo, Carregando, Confirmar, Entrada, ErroTela, Pilula, Selecao, cx, gramasTexto, moedaPadrao, Titulo } from '../../../shared/ui/base'
 import { type Params, useApp, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { type Acao, acoesLote } from '../../../shared/ui/menuAcoes'
@@ -34,6 +34,9 @@ import { Icone } from '../../../shared/ui/icones'
 import { GrupoFiltro, FiltroLista } from '../../../shared/ui/filtroPadrao'
 import { PARAMS_PRONTOS } from '../../../shared/ui/filtrosProntos'
 import { NAO_ID, type Lote, type T } from '../model/comum'
+import { CRITERIOS_PROXIMO, PROXIMO_PADRAO, categoriasDaFila, escolherProximo, type PreferenciaProximo } from '../model/proximo'
+import { FiltroProximo } from '../components/FiltroProximo'
+import { AjudaSeparar, LegendaTriagem } from '../components/AjudaTriagem'
 import { ProntoParaVender } from '../components/ProntoParaVender'
 import { CartaoLote, Coluna, PesoDepois, VerVendidos } from '../components/Quadro'
 import { ListaTriagens } from '../components/ListaTriagens'
@@ -57,6 +60,7 @@ export function Triagem() {
   const admin = sessao.perfil === 'admin'
   const [visaoP, setVisao] = useParamTela<'' | 'quadro' | 'lista'>('visao', '')
   const [quadroLembrado, setQuadroLembrado] = useLembrado('triagem.quadro', false)
+  const [prefLembrada, setPrefLembrada] = useLembrado<PreferenciaProximo>('triagem.proximo', PROXIMO_PADRAO)
   const visao = visaoP || (quadroLembrado ? 'quadro' : 'lista')
   const [filtro] = useParamTela('f', '')
   const [busca, setBusca] = useParamTela('busca', '')
@@ -259,7 +263,11 @@ export function Triagem() {
       .concat(pagina.some((l) => !trabalho.some((c) => c.id === l.fase)) ? [{ fase: '?', nome: 'Outras', varias, ls: pagina.filter((l) => !trabalho.some((c) => c.id === l.fase)), todos: [] }] : [])
   }
   const prontosSemEtiqueta = dados.lotes.filter((l) => ehPronto(l) && !l.etiqueta.impressaEm)
-  const maisAntigo = [...separarTodos].sort((a, b) => b.dias - a.dias)[0]
+  // PRÓXIMO PASSO em 2 camadas (o quê · como), lembrado no aparelho; categoria que saiu da fila volta para "todas"
+  const categoriasFila = categoriasDaFila(separarTodos)
+  const prefProximo = { ...prefLembrada, categoria: categoriasFila.includes(prefLembrada.categoria) ? prefLembrada.categoria : '' }
+  const maisAntigo = escolherProximo(separarTodos, prefProximo)
+  const porqueProximo = CRITERIOS_PROXIMO.find((c) => c.id === prefProximo.criterio)!.porque
   /** a dica do próximo passo de cada linha (abre no celular): o que fazer com ESTE pacote */
   // O PAINEL: o próximo passo (separar o mais antigo) e o juntar (com 2+ pacotes) — as regras com ícone, ligadas ou não
   const temPasso = !comSelecao && abaReal === 'separar' && !!maisAntigo
@@ -359,9 +367,9 @@ export function Triagem() {
       <section id="triagem-separar" aria-label={t(visao === 'quadro' ? 'Quadro' : abaReal === 'depois' ? 'Para depois' : 'Para separar')} className="scroll-mt-4">
         <div className="mb-2 flex items-center gap-1">
           <h2 className="min-w-0 truncate text-lg font-bold">{t(visao === 'quadro' ? 'Quadro' : abaReal === 'depois' ? 'Para depois' : 'Para separar')}</h2>
-          {visao !== 'quadro' && <Info texto={DICA_SEPARAR} />}
+          {visao !== 'quadro' && <AjudaSeparar />}
           {/* LEGENDA dos selos da lista (parado, etiqueta, para depois) */}
-          {visao !== 'quadro' && <span className="ml-1 inline-flex items-center text-xs font-semibold text-[var(--suave)]">{t('Legenda')}<Info texto={t('parado: esperando para separar há mais de {n} dias (muda em Configurações › Etapas da compra). ✓ Etiqueta: já foi impressa (toque para ver ou reimprimir). 🏷 Sem etiqueta: ainda não imprimiu (toque para imprimir). ❓ para depois: ficou sem identificar numa separação. 🔗 juntado: pacote misturado (2 ou mais viraram um) ou com cabelo de mais de uma compra. Ex.: “parado” + há 12 dias = está esperando faz tempo, separe primeiro.', { n: dados.diasParado })} /></span>}
+          {visao !== 'quadro' && <span className="ml-1 inline-flex items-center text-xs font-semibold text-[var(--suave)]">{t('Legenda')}<LegendaTriagem diasParado={dados.diasParado} /></span>}
           {/* os dois botões nunca quebram no meio da palavra ("Seleciona / r") no celular */}
           <span className="ml-auto flex shrink-0 items-center [&>button]:whitespace-nowrap [&>button]:px-2 sm:[&>button]:px-3">
             <Botao variante="leve" className="px-3" aria-pressed={comSelecao} onClick={() => { if (comSelecao) limparSel(); setSelecionando(!comSelecao) }}>{t(comSelecao ? 'Cancelar' : 'Selecionar')}</Botao>
@@ -379,7 +387,8 @@ export function Triagem() {
           <div className="mb-3">
             <PainelTriagem agora={temPasso ? 'separar' : 'juntar'}
               titulo={temPasso ? t('Separar {c}', { c: maisAntigo!.codigo ?? '' }) : undefined}
-              texto={temPasso ? <>{t('É o que espera há mais tempo ({g}). Diga as partes por medida; o que sobrar é perda.', { g: gramasTexto(maisAntigo!.saldo) })}{temJuntar ? ` ${t('Mesma qualidade? Dá para juntar antes (opcional).')}` : ''}</> : undefined}
+              texto={temPasso ? <>{t(porqueProximo, { g: gramasTexto(maisAntigo!.saldo) })} {t('Diga as partes por medida; o que sobrar é perda.')}{temJuntar ? ` ${t('Mesma qualidade? Dá para juntar antes (opcional).')}` : ''}</> : undefined}
+              filtro={temPasso ? <FiltroProximo categorias={categoriasFila} valor={prefProximo} onChange={setPrefLembrada} /> : undefined}
               acoes={temPasso ? <Botao disabled={ocupado} onClick={() => separar(maisAntigo!.id)}>✂️ {t('Separar {c}', { c: maisAntigo!.codigo ?? '' })}</Botao> : undefined}
               juntar={temJuntar ? {
                 titulo: comSelecao ? 'Marque os pacotes que vão juntos (2 ou mais)' : 'Juntar pacotes numa separação só',
