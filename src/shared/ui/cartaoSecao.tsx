@@ -97,9 +97,11 @@ export function LinhaPacote({ id, codigo, nome, foto, marcador, situacao, valor,
   onAbrir(): void
 }) {
   return (
-    <li className="flex items-center gap-1 rounded-xl hover:bg-[var(--fundo)]">
-      <button type="button" onClick={onAbrir} className="flex min-h-14 min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 px-2 py-2 text-left">
-        <MiniaturaLote itemId={id} foto={foto} marcador={marcador} tamanho="sm" />
+    <li className="flex items-center gap-1 rounded-xl pl-2 hover:bg-[var(--fundo)]">
+      {/* a miniatura é um botão próprio (ver/tirar foto): FORA do botão da linha — botão dentro de botão é HTML inválido
+          e o leitor de tela se perde (o mesmo jeito da linha padrão da TabelaDados, `celular.midia`) */}
+      <MiniaturaLote itemId={id} foto={foto} marcador={marcador} tamanho="sm" />
+      <button type="button" onClick={onAbrir} className="flex min-h-14 min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 py-2 pl-1 pr-2 text-left">
         <span className="linha-texto">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <CodigoTexto codigo={codigo} className="text-sm" />

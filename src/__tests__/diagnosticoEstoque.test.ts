@@ -26,16 +26,19 @@ const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms))
 /** o "diário" do cenário: cada passo espera (modo lento), roda, e confere tudo de novo */
 function diario(b: B, nome: string) {
   const compras: { id: string; g: number; custo: number }[] = []
+  // gastos levados ao custo do estoque (ex.: o frete da viagem incorporado ao encerrar): entram na conta do dinheiro
+  const extra = { custo: 0 }
   let n = 0
   const log = (s: string) => VERBOSO && console.log(s)
   log(`\n━━ ${nome} ━━`)
   return {
     compras,
+    extra,
     async passo<T>(titulo: string, fn: () => Promise<T>): Promise<T> {
       if (LENTO) await esperar(LENTO)
       const t0 = Date.now()
       const r = await fn()
-      const c = await conferirTudo(b, compras)
+      const c = await conferirTudo(b, compras, extra.custo)
       log(`  ${String(++n).padStart(2)}. ${titulo}  →  estoque ${c.estoque} g · vendido ${c.vendido} g · perda ${c.perda} g · custo fecha ±${c.difCusto} · ${Date.now() - t0} ms`)
       return r
     },
@@ -56,7 +59,7 @@ const item = (b: B, id: string) => (b as any).repos.itens.obter(id)
 const saldo = async (b: B, id: string) => (await item(b, id))?.saldo ?? 0
 
 /** o que tem de valer depois de QUALQUER ação (as contas fecham por compra, no total e no dinheiro) */
-async function conferirTudo(b: B, compras: { id: string; g: number; custo: number }[]) {
+async function conferirTudo(b: B, compras: { id: string; g: number; custo: number }[], custoExtra = 0) {
   const diag: any = await b.consulta('diagnostico', {})
   expect(diag.problemas ?? [], 'diagnóstico do sistema').toEqual([])
   // a ÁRVORE de cada compra fecha (a árvore inclui as compras misturadas com ela: entrou = estoque + vendido + perda)
@@ -91,7 +94,7 @@ async function conferirTudo(b: B, compras: { id: string; g: number; custo: numbe
   // dinheiro: o custo não some nem aparece do nada (custo da perda fica nos pacotes que sobraram — é o jeito do sistema)
   const dre: any = await b.consulta('dre', { de: '2000-01-01', ate: '2100-12-31' })
   const cmv = dre.cmv ?? (dre.linhas as any[]).find((l) => /custo/i.test(l.conta))?.valor ?? 0
-  const custoTotal = compras.reduce((s, c) => s + c.custo, 0)
+  const custoTotal = compras.reduce((s, c) => s + c.custo, 0) + custoExtra
   // as perdas lançadas à mão e na lavagem entram no DRE a custo (linhas próprias): estoque + CMV + perdas = compras
   const custoPerdas = (dre.perdasEstoque?.mao ?? 0) + (dre.perdasEstoque?.lavagem ?? 0)
   const difCusto = Math.abs(inv.valor + Math.abs(cmv) + custoPerdas - custoTotal)
@@ -243,5 +246,72 @@ describe('diagnóstico do estoque, passo a passo', () => {
     const o: any[] = await b.consulta('origemDaVenda', { vendaId: 'V1' })
     expect(Object.fromEntries(o.map((x) => [x.compraId, x.gramas]))).toEqual({ C1: 480, C2: 320 })
     expect((await b.consulta('inventario', { moduloId: 'cabelo' }) as any).quantidade).toBe(6000 - 800 - 300 - 200 - 100)
+  }, TEMPO)
+
+  it('Cenário 5 — primeiro acesso: viagem → compra ligada → triagem → venda → cancelar (estorno) → venda certa', async () => {
+    const { b } = await novoBackend(hojeReal())
+    const d = diario(b, 'Cenário 5 — primeiro acesso (venda cancelada e refeita)')
+    const hoje = hojeReal()
+    const caixaDe = async (vendaId: string) => ((await (b as any).repos.movCaixa.listar()) as any[]).filter((m) => m.origemId === vendaId)
+    const acoesEmOrdem = async () => ((await (b as any).repos.auditoria.listar()) as any[]).sort((x, y) => (x.id < y.id ? -1 : 1)).map((a) => `${a.acao}:${a.alvoId ?? ''}`)
+
+    await b.comando('salvarPessoa', { id: 'p-eu', nome: 'Eu (quem viaja)', papeis: ['funcionario'] } as any)
+    await d.passo('Cadastrar a viagem "SP - Lote Inicial #001" (orçamento Bs 500)', () =>
+      b.comando('salvarViagem', { id: 'VG1', nome: 'SP - Lote Inicial #001', destino: 'São Paulo', viajantes: ['p-eu'], inicio: hoje, orcamento: bs(500) } as any))
+    expect(((await b.consulta('viagens', {})) as any).linhas[0]).toMatchObject({ status: 'aberta', codigo: expect.any(String) })
+    await d.passo('Adiantamento para a viagem: Bs 300 em dinheiro', () => b.comando('adiantarViagem', { id: 'ad1', viagemId: 'VG1', moeda: 'BOB', forma: 'dinheiro', valor: bs(300) } as any))
+    await d.passo('Lançar o frete da viagem: Bs 100', () => b.comando('registrarDespesaViagem', { id: 'g1', viagemId: 'VG1', categoria: 'transporte', moeda: 'BOB', valor: bs(100), nota: 'frete' } as any))
+    const L = await d.passo('Registrar a compra ligada à viagem: 5 kg bruto por Bs 2.000', async () => {
+      await b.comando('salvarPessoa', { id: 'f-sp', nome: 'Fornecedora SP', papeis: ['fornecedor'] } as any)
+      await b.comando('criarCompra', { id: 'C1', moduloId: 'cabelo', pessoaId: 'f-sp', viagemId: 'VG1', linhas: [{ id: 'C1-l', quantidade: 5000, moeda: 'BOB', total: bs(2000), campos: { estado: 'Bruto', categoria: 'Normal' } }], pagarNoAto: [{ id: 'C1-p', forma: 'dinheiro', moeda: 'BOB', valor: bs(2000) }] } as any)
+      d.compras.push({ id: 'C1', g: 5000, custo: bs(2000) })
+      return (await b.consulta('pedido', { id: 'C1' })).lotes[0].id as string
+    })
+    expect((await b.consulta('compra', { id: 'C1' }) as any).compra.viagemId).toBe('VG1')
+    await d.passo('Triagem: separar em A 3 kg (60 cm) + B 1,9 kg (50 cm), perda 100 g', () =>
+      b.comando('triarLotes', { id: 'T1', ids: [L], saidas: [parte('A', 3000), parte('B', 1900, 50)] } as any))
+    expect([await saldo(b, 'A'), await saldo(b, 'B')]).toEqual([3000, 1900])
+
+    // venda com o valor errado (Bs 900 em vez de Bs 600) → cancelar com motivo → refazer
+    await d.passo('Venda rápida: 1 kg do A por Bs 900 (valor digitado errado)', () => vender(b, 'V1', 'A', 1000, 900))
+    expect(await saldo(b, 'A')).toBe(2000)
+    expect((await caixaDe('V1')).reduce((s, m) => s + m.delta, 0)).toBe(bs(900))
+    const turno: any = await b.consulta('turnoAtual', {})
+    expect(turno.lancamentos, 'o turno vê a venda').toBeGreaterThanOrEqual(1)
+    // cancelar SEM motivo é recusado (o motivo fica no histórico)
+    await expect(b.comando('cancelarVenda', { id: 'V1', motivo: '  ' } as any)).rejects.toThrow(/motivo/)
+    await d.passo('Cancelar a venda V1 (motivo: valor digitado errado)', () => b.comando('cancelarVenda', { id: 'V1', motivo: 'valor digitado errado' } as any))
+    expect(await saldo(b, 'A'), 'o estorno devolve EXATAMENTE o que saiu').toBe(3000)
+    const cx1 = await caixaDe('V1')
+    expect(cx1.map((m) => m.tipo).sort()).toEqual(['estorno', 'venda'])
+    expect(cx1.reduce((s, m) => s + m.delta, 0), 'o caixa da venda cancelada zera').toBe(0)
+    // cancelar de novo não devolve duas vezes
+    await expect(b.comando('cancelarVenda', { id: 'V1', motivo: 'de novo' } as any)).rejects.toThrow(/já foi cancelada/)
+    expect(await saldo(b, 'A')).toBe(3000)
+    await d.passo('Refazer a venda certa: 1 kg do A por Bs 600', () => vender(b, 'V2', 'A', 1000, 600))
+    expect(await saldo(b, 'A')).toBe(2000)
+
+    // relatórios: só a venda certa conta; a cancelada fica no histórico
+    const linhas: any[] = await b.consulta('vendasDetalhadas', { de: '2000-01-01', ate: '2100-12-31' })
+    expect(linhas.map((l) => [l.vendaId, l.totalPrincipal])).toEqual([['V2', bs(600)]])
+    expect((await b.consulta('dre', { de: '2000-01-01', ate: '2100-12-31' }) as any).receita).toBe(bs(600))
+    const ordem = (await acoesEmOrdem()).filter((x) => /^(concluirVenda|cancelarVenda):/.test(x))
+    expect(ordem, 'auditoria: VENDA → CANCELAMENTO (com estorno) → NOVA VENDA').toEqual(['concluirVenda:V1', 'cancelarVenda:V1', 'concluirVenda:V2'])
+    expect(((await (b as any).repos.auditoria.listar()) as any[]).find((a) => a.acao === 'cancelarVenda')?.resumo).toMatch(/valor digitado errado/)
+
+    // ENCERRAR: voltou Bs 200 do adiantamento; o frete (Bs 100) vai para o custo do cabelo QUE SOBROU no estoque.
+    // A parte do frete do cabelo JÁ VENDIDO (1 de 4,9 kg) fica como despesa de viagem no DRE — o frete inteiro aparece.
+    await d.passo('Encerrar a viagem (voltaram Bs 200) e levar o frete ao custo do cabelo', async () => {
+      await b.comando('encerrarViagem', { viagemId: 'VG1', contado: { BOB: bs(200) }, incorporar: true } as any)
+      d.extra.custo += (await (b as any).repos.viagens.obter('VG1')).incorporacao?.total ?? 0
+    })
+    const vg: any = ((await b.consulta('viagens', {})) as any).linhas[0]
+    expect(vg).toMatchObject({ status: 'encerrada', gasto: bs(100), gramas: 5000, custoKgReal: bs(420) })
+    const noEstoque = (await (b as any).repos.viagens.obter('VG1')).incorporacao.total
+    const dre: any = await b.consulta('dre', { de: '2000-01-01', ate: '2100-12-31' })
+    const despesaViagem = -((dre.linhas as any[]).filter((l) => /Viagens/.test(l.conta)).reduce((s, l) => s + l.valor, 0))
+    expect(noEstoque + despesaViagem, `frete: ${noEstoque} no custo do estoque + ${despesaViagem} de despesa = Bs 100`).toBe(bs(100))
+    // só a parte do cabelo que ainda está no estoque (arredonda pacote a pacote: ±1 centavo por pacote, A e B)
+    expect(Math.abs(noEstoque - Math.round((bs(100) * 3900) / 4900))).toBeLessThanOrEqual(2)
   }, TEMPO)
 })

@@ -10,6 +10,7 @@ import { useCotacoes } from '../../../shared/ui/compartilhados'
 import { useT } from '../../../shared/ui/i18n'
 import { Passo, useAssistente } from '../../../shared/ui/passoAPasso'
 import { CampoCidade } from '../../../shared/ui/campoCidade'
+import { BuscaPessoa } from '../../../shared/ui/buscaPessoa'
 import { CIDADES_BOLIVIA, textoCidade } from '../../../core/dados/cidadesBolivia'
 
 export function FormViagem({ viagem }: { viagem?: Viagem }) {
@@ -110,7 +111,14 @@ export function FormViagem({ viagem }: { viagem?: Viagem }) {
           resumo={nomesViajantes.length ? `👤 ${nomesViajantes.join(', ')}` : t('ninguém escolhido')}
           ajuda="Quem viaja lança os gastos pelo celular (gasolina, hotel, comida), só nesta viagem, e as compras dela ficam ligadas aqui."
           exemplo="Ex.: Paula e Wagner → os dois lançam gastos e o resultado conta para os dois">
-          {!pessoas.length ? <p className="text-sm text-[var(--suave)]">{t('Cadastre a equipe (papel funcionária ou sócia) em Pessoas.')}</p> : (
+          {/* PRIMEIRO USO: sem equipe cadastrada, cadastra AQUI (a peça padrão de busca cria "+ Nova pessoa da equipe"
+              na hora) — antes só dizia "cadastre em Pessoas" e quem começava ficava preso no passo 2 */}
+          {!pessoas.length && <p className="mb-2 text-sm text-[var(--suave)]">{t('Ninguém da equipe cadastrado ainda: escreva o nome de quem vai e toque em “+ Nova pessoa da equipe”.')}</p>}
+          <div className="mb-2">
+            <BuscaPessoa rotulo="Adicionar quem vai" papel="funcionario" novoRotulo="Nova pessoa da equipe" valor={undefined}
+              onChange={(id) => id && !viajantes.includes(id) && setViajantes([...viajantes, id])} />
+          </div>
+          {pessoas.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {pessoas.map((p) => {
                 const on = viajantes.includes(p.id)

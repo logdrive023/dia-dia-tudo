@@ -5148,4 +5148,8 @@ export const ES: Record<string, string> = {
   'De que país e de que região são os feriados que aparecem na Agenda. Só informativo: o feriado não bloqueia vendas, compras nem triagens. Ex.: Bolívia · La Paz mostra os nacionais e o 16 de julho.': 'De qué país y de qué región son los feriados que aparecen en la Agenda. Solo informativo: el feriado no bloquea ventas, compras ni revisiones. Ej.: Bolivia · La Paz muestra los nacionales y el 16 de julio.',
   'País dos feriados inválido.': 'País de los feriados inválido.',
   'Essa região não é do país escolhido.': 'Esa región no es del país elegido.',
+  // viagem: cadastrar quem vai no próprio formulário (primeiro acesso)
+  'Ninguém da equipe cadastrado ainda: escreva o nome de quem vai e toque em “+ Nova pessoa da equipe”.': 'Nadie del equipo registrado todavía: escriba el nombre de quién va y toque “+ Nueva persona del equipo”.',
+  'Adicionar quem vai': 'Agregar quién va',
+  'Nova pessoa da equipe': 'Nueva persona del equipo',
 }

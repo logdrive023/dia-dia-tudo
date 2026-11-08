@@ -169,7 +169,7 @@ function posicaoBalao(botao: DOMRect, alturaBalao: number) {
 export function Info({ texto = '', exemplo, conteudo }: { texto?: string; exemplo?: string; conteudo?: ReactNode }) {
   const [aberto, setAberto] = useState(false)
   const [pos, setPos] = useState<{ left: number; top: number; width: number; alturaMax: number }>()
-  const botao = useRef<HTMLButtonElement>(null)
+  const botao = useRef<HTMLSpanElement>(null)
   const balao = useRef<HTMLSpanElement>(null)
   const t = useT()
   const [meuId] = useState(() => Math.random().toString(36).slice(2))
@@ -212,9 +212,15 @@ export function Info({ texto = '', exemplo, conteudo }: { texto?: string; exempl
     // o ⓘ acompanha a linha do texto (fica logo depois da última palavra, mesmo quando o texto quebra); o círculo é
     // pequeno, mas a área de toque é maior (after:-inset-2)
     <span className="relative inline-flex shrink-0 align-middle">
-      <button ref={botao} type="button" aria-label={t('Explicação')} aria-expanded={aberto} onClick={(e) => (e.stopPropagation(), setAberto(!aberto))} className={cx('relative ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold leading-none transition after:absolute after:-inset-2 after:content-[\'\']', aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
+      {/* <span role="button"> e não <button>: dentro do rótulo de um campo (<label>), um <button> vira o "dono" do rótulo
+          e o campo fica SEM NOME (leitor de tela) e tocar no rótulo abre a explicação em vez de ir ao campo. preventDefault:
+          tocar no ⓘ não leva o foco para o campo (nem abre o teclado do celular). Teclado: Enter e Espaço. */}
+      <span ref={botao} role="button" tabIndex={0} aria-label={t('Explicação')} aria-expanded={aberto}
+        onClick={(e) => (e.preventDefault(), e.stopPropagation(), setAberto(!aberto))}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), e.stopPropagation(), setAberto(!aberto))}
+        className={cx('relative ml-1 inline-flex cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-[var(--marca)] h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold leading-none transition after:absolute after:-inset-2 after:content-[\'\']', aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
         i
-      </button>
+      </span>
       {aberto &&
         createPortal(
         <span

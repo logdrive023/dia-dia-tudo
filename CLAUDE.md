@@ -58,6 +58,10 @@ Regras:
 - **Diagnóstico do estoque** (`src/__tests__/diagnosticoEstoque.test.ts`, roda na suíte normal sem espera): 3 cenários
   (simples · juntar e separar · "teste da confusão") que conferem estoque, custo, origem e auditoria depois de CADA ação.
   Para ver passo a passo, devagar: `npm run diagnostico` (ou `npm run diagnostico -- 1000`).
+- **Primeiro acesso pela tela** (`scripts/primeiro-acesso.mjs`, precisa do `npm run dev`): um navegador novo, banco zerado,
+  faz viagem → compra → triagem → estoque → venda → cancelar → venda certa com 2 s entre as ações e confere cada tela
+  (avisos, saldo, caixa, auditoria, campos sem nome, botão dentro de botão). Mexeu num desses fluxos: `npm run primeiro-acesso -- 300`.
+  Relatório e fotos em `node_modules/.cache/primeiro-acesso/`.
 - **Servidor Go** (`../dia-dia-tudo-backend`, ver o CLAUDE.md de lá): mexeu no canal (`core/seguranca/envelope.ts`,
   `adapters/api/`) ou numa funcionalidade já portada (hoje: Unidades) → rodar lá `scripts\ponta-a-ponta.ps1` (sobe o
   servidor e roda `npm run test:ponta` daqui). Fora da suíte normal: precisa do servidor no ar.
