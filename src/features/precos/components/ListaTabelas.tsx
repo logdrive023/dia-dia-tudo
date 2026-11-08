@@ -9,7 +9,7 @@ import { useLembrado } from '../../../shared/ui/filtros'
 import { Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
 import { Botao, Carregando, Info, Pilula, Titulo, Vazio, cx, diaCurto, loc } from '../../../shared/ui/base'
 import { useApp, useConsulta, useParamTela } from '../../../shared/ui/contexto'
-import { BotaoEscolha, FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
+import { BotaoEscolha, EscolhaVista, FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
 import { useT } from '../../../shared/ui/i18n'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
 
@@ -58,16 +58,7 @@ export function ListaTabelas({ ajudaVersoes }: { ajudaVersoes: string }) {
           ...(Object.keys(SITUACAO_TABELA) as Situacao[]).map((s) => ({ id: s, nome: SITUACAO_TABELA[s].nome, n: base.filter((x) => x.situacao === s).length })).filter((o) => o.n > 0 || o.id === situacao),
         ] }}
         busca={busca} onBusca={setBusca} placeholder="Buscar tabela, categoria ou comprador"
-        acaoTopo={
-          <div role="radiogroup" aria-label={t('Ver como')} className="inline-flex rounded-xl bg-[var(--marca-suave)] p-1">
-            {([['lista', '☰', 'Lista'], ['cartoes', '▦', 'Cartões']] as const).map(([id, ic, nome]) => (
-              <button key={id} type="button" role="radio" aria-checked={vista === id} onClick={() => setVista(id)} title={t(nome)}
-                className={cx('inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 text-sm font-semibold', vista === id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
-                <span aria-hidden>{ic}</span><span className="hidden xs:inline">{t(nome)}</span>
-              </button>
-            ))}
-          </div>
-        }
+        acaoTopo={<EscolhaVista vista={vista} onChange={setVista} />}
         extra={categorias.length > 1 ? <BotaoEscolha icone="🏷" rotulo="Categoria" valor={categoria} onChange={setCategoria} opcoes={[{ id: '', nome: 'Categoria' }, ...categorias.map((c) => ({ id: c || '—', nome: c || 'Normal (geral)' }))]} /> : undefined}
         ativos={categoria ? [{ k: 'categoria', rotulo: `🏷 ${categoria === '—' ? t('Normal (geral)') : t(categoria)}` }] : []}
         onTirar={() => setCategoria('')} onLimpar={limpar} temAtivos={!!(busca || situacao || categoria)}

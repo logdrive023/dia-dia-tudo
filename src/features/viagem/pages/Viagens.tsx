@@ -6,7 +6,8 @@ import { useState } from 'react'
 import { FiltroViagem } from '../../../shared/ui/seloViagem'
 import { Trilha } from '../../../shared/ui/trilha'
 import { CabecalhoFicha } from '../../../shared/ui/cabecalhoFicha'
-import { BarraFiltros, ChipsFiltros, PainelFiltros, GrupoFiltro } from '../../../shared/ui/filtroPadrao'
+import { BarraFiltros, ChipsFiltros, EscolhaVista, PainelFiltros, GrupoFiltro, type Vista } from '../../../shared/ui/filtroPadrao'
+import { useLembrado } from '../../../shared/ui/filtros'
 import { formatar } from '../../../core/domain/dinheiro'
 import type { Id, Viagem } from '../../../core/domain/tipos'
 import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, ErroTela, Pilula, Selecao, Titulo, Vazio, dataBR, gramasTexto } from '../../../shared/ui/base'
@@ -16,7 +17,7 @@ import { NumeroGrande } from '../../../shared/ui/numeroGrande'
 import { MenuAcoes } from '../../../shared/ui/menuAcoes'
 import { FolhaDespesa, PainelViajante } from '../../../shared/ui/viagem'
 import { NOME_STATUS, TOM_STATUS } from '../model/tipos'
-import { Comparativo, ListaViagens } from '../components/ListaViagens'
+import { Comparativo, ListaViagens, TabelaViagens } from '../components/ListaViagens'
 import { FormViagem } from '../components/FormViagem'
 import { AbaCompras, AbaContas, AbaGastos, AbaHistorico, AbaRateio, AbaResumo } from '../components/abas'
 import { FormAdiantamento } from '../components/FormAdiantamento'
@@ -60,6 +61,8 @@ function ViagensAdmin() {
   const [viajanteId, setViajante] = useParamTela('viajante', '')
   const [busca, setBusca] = useParamTela('busca', '')
   const [verFiltros, setVerFiltros] = useState(false)
+  // duas vistas (o mesmo seletor dos Preços): CARTÕES (barra do orçamento e números em destaque) ou LISTA (tabela) — lembrada neste aparelho
+  const [vista, setVista] = useLembrado<Vista>('viagens.vista', 'cartoes')
   // Por viajante: o filtro padrão de viagem (uma viagem → a comparação conta só ela)
   const [vgComparar, setVgComparar] = useParamTela('vg', '')
   const comparando = aba === 'comparar'
@@ -103,7 +106,7 @@ function ViagensAdmin() {
           )}
           <div className="mb-3 space-y-2">
             <BarraFiltros busca={busca} onBusca={setBusca} placeholder="Buscar código, nome, destino ou viajante" ativos={viajanteId ? 1 : 0} aberto={verFiltros} onAlternar={() => setVerFiltros(!verFiltros)}
-              extra={comparando ? <FiltroViagem valor={vgComparar === 'sem' ? '' : vgComparar} onChange={(v) => setVgComparar(v === 'sem' ? '' : v)} nasLinhas={(semStatus?.linhas ?? []).map((r) => [{ id: r.id, codigo: r.codigo, nome: r.nome }])} /> : undefined} />
+              extra={comparando ? <FiltroViagem valor={vgComparar === 'sem' ? '' : vgComparar} onChange={(v) => setVgComparar(v === 'sem' ? '' : v)} nasLinhas={(semStatus?.linhas ?? []).map((r) => [{ id: r.id, codigo: r.codigo, nome: r.nome }])} /> : <EscolhaVista vista={vista} onChange={setVista} />} />
             <ChipsFiltros itens={viajanteId ? [{ k: 'viajante', rotulo: `👤 ${(dados?.viajantesPossiveis ?? []).find((x) => x.id === viajanteId)?.nome ?? viajanteId}` }] : []} onTirar={() => setViajante('')} onLimpar={() => setViajante('')} />
             {verFiltros && (
               <PainelFiltros resultados={dados?.linhas.length} temAtivos={!!viajanteId} onLimpar={() => setViajante('')} onFechar={() => setVerFiltros(false)}>
@@ -116,7 +119,7 @@ function ViagensAdmin() {
           {!dados ? <Carregando /> : comparando ? <Comparativo linhas={dados.comparativo} moeda={dados.moeda} uma={vgComparar && vgComparar !== 'sem' ? dados.linhas[0] : undefined} /> : !dados.linhas.length ? (
             <Vazio texto="Nenhuma viagem por aqui."><Botao variante="secundario" onClick={() => ir('novaViagem')}>+ {t('Nova viagem')}</Botao></Vazio>
           ) : (
-            <ListaViagens linhas={dados.linhas} />
+            vista === 'lista' ? <TabelaViagens linhas={dados.linhas} /> : <ListaViagens linhas={dados.linhas} />
           )}
         </>
       )}

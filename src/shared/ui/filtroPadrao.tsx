@@ -32,6 +32,25 @@ export function BarraFiltros({ busca, onBusca, placeholder, ativos = 0, aberto =
   )
 }
 
+/**
+ * VER COMO: "☰ Lista · ▦ Cartões" (o mesmo seletor em toda tela que tem as duas vistas: Preços, Viagens…). No celular
+ * só os ícones (a busca não fica espremida); do tablet (640 px) para cima, o nome também. A tela guarda a escolha (useLembrado).
+ */
+export type Vista = 'lista' | 'cartoes'
+export function EscolhaVista({ vista, onChange }: { vista: Vista; onChange(v: Vista): void }) {
+  const t = useT()
+  return (
+    <div role="radiogroup" aria-label={t('Ver como')} className="inline-flex shrink-0 rounded-xl bg-[var(--marca-suave)] p-1">
+      {([['lista', '☰', 'Lista'], ['cartoes', '▦', 'Cartões']] as const).map(([id, ic, nome]) => (
+        <button key={id} type="button" role="radio" aria-checked={vista === id} aria-label={t(nome)} onClick={() => onChange(id)} title={t(nome)}
+          className={cx('inline-flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg px-2.5 text-sm font-semibold', vista === id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
+          <span aria-hidden>{ic}</span><span className="hidden sm:inline">{t(nome)}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /** O botão "⚙ Filtros · N ▾" (o mesmo em toda tela; telas sem busca, como o Painel, usam só ele). */
 export function BotaoFiltros({ ativos = 0, aberto = false, onAlternar }: { ativos?: number; aberto?: boolean; onAlternar(): void }) {
   const t = useT()

@@ -669,6 +669,7 @@ export const ES: Record<string, string> = {
   'Receita de vendas': 'Ingresos por ventas',
   '(−) Custo do que foi vendido': '(−) Costo de lo vendido',
   '(−) Comissões': '(−) Comisiones',
+  'passou do orçamento': 'pasó del presupuesto',
   '(−) Perda de estoque lançada à mão (a custo)': '(−) Pérdida de stock cargada a mano (al costo)',
   '(−) Perda de peso na lavagem (a custo)': '(−) Pérdida de peso en el lavado (al costo)',
   'Perda de estoque lançada à mão (a custo)': 'Pérdida de stock cargada a mano (al costo)',

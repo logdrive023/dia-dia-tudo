@@ -1,5 +1,5 @@
 // VIAGENS › LISTA: as viagens (código, destino, datas, gasto × orçamento) e o comparativo entre elas.
-import { corDoNome, iniciais } from '../../../shared/ui/tabelaDados'
+import { TabelaDados, corDoNome, iniciais } from '../../../shared/ui/tabelaDados'
 import { CodigoTexto } from '../../../shared/ui/codigos'
 import { BarraLimite } from '../../../shared/ui/barras'
 import { formatar } from '../../../core/domain/dinheiro'
@@ -14,6 +14,60 @@ import { NOME_STATUS, TOM_STATUS, type LinhaLista } from '../model/tipos'
  * cabeçalho (código, nome, destino, situação), quem foi e quando, a barra do orçamento e 4 blocos
  * (Gastos · Comprou · Custo/kg real · Resultado). Prospecção (sem compra) diz isso em vez de "−Bs".
  */
+/**
+ * VISTA "LISTA" (tabela padrão): uma linha por viagem — no computador, colunas que dá para comparar de cima a baixo
+ * (gastos × orçamento, kg, custo/kg real, resultado); no celular, a linha curta padrão que abre no lugar.
+ * A vista "Cartões" (ListaViagens) continua com a barra do orçamento e os 4 números em destaque.
+ */
+export function TabelaViagens({ linhas }: { linhas: LinhaLista[] }) {
+  const t = useT()
+  const { ir } = useApp()
+  const resultado = (v: LinhaLista) => (v.prospeccao ? <span className="text-[var(--suave)]">{t('sem compra')}</span> : <b style={{ color: v.resultado < 0 ? 'var(--ruim)' : 'var(--bom)' }}>{formatar(v.resultado, v.moeda)}</b>)
+  const periodo = (v: LinhaLista) => `${dataBR(v.inicio)}${v.fim ? ` → ${dataBR(v.fim)}` : ''}`
+  return (
+    <TabelaDados
+      linhas={linhas}
+      chave={(v) => v.id}
+      onAbrir={(v) => ir('viagem', { id: v.id })}
+      rotuloLinha={(v) => `${v.codigo} · ${v.nome}`}
+      colunas={[
+        { id: 'viagem', titulo: 'Viagem', classe: 'w-full min-w-[12rem]', celula: (v) => (
+          <span className="block min-w-0">
+            <span className="flex flex-wrap items-center gap-1.5"><CodigoTexto codigo={v.codigo} className="text-xs" />{v.prospeccao && <Pilula pequena>{t('prospecção')}</Pilula>}</span>
+            <b className="block truncate">{v.nome}</b>
+            <span className="block truncate text-xs text-[var(--suave)]">{[v.destino ? `📍 ${v.destino}` : '', `👤 ${v.viajantes.map((x) => x.nome).join(', ')}`].filter(Boolean).join(' · ')}</span>
+          </span>
+        ) },
+        { id: 'situacao', titulo: 'Situação', classe: 'whitespace-nowrap', celula: (v) => <Pilula tom={TOM_STATUS[v.status]}>{t(NOME_STATUS[v.status])}</Pilula> },
+        { id: 'periodo', titulo: 'Período', classe: 'whitespace-nowrap', larga: true, celula: (v) => <span className="num text-sm">{periodo(v)}<span className="block text-xs text-[var(--suave)]">{t('{n} dia(s)', { n: v.dias })}</span></span> },
+        { id: 'gastos', titulo: 'Gastos', direita: true, classe: 'whitespace-nowrap', celula: (v) => (
+          <span className="num">{formatar(v.gasto, v.moeda)}{v.orcamento ? <span className={cx('block text-xs', v.acimaOrcamento ? 'font-semibold text-[var(--ruim)]' : 'text-[var(--suave)]')}>{t('de')} {formatar(v.orcamento, v.moeda)}{v.acimaOrcamento ? ` · ${t('passou')}` : ''}</span> : null}</span>
+        ) },
+        { id: 'comprou', titulo: 'Comprou', direita: true, classe: 'whitespace-nowrap', celula: (v) => <span className="num">{gramasTexto(v.gramas)}<span className="block text-xs text-[var(--suave)]">{t('{n} compra(s)', { n: v.compras })}</span></span> },
+        { id: 'custoKg', titulo: 'Custo/kg real', direita: true, classe: 'whitespace-nowrap', larga: true, celula: (v) => <span className="num">{v.custoKgReal !== undefined ? formatar(v.custoKgReal, v.moeda) : '—'}</span> },
+        { id: 'resultado', titulo: 'Resultado', direita: true, classe: 'whitespace-nowrap', celula: (v) => <span className="num">{resultado(v)}{!v.prospeccao && <span className="block text-xs text-[var(--suave)]">ROI {pctBp(v.roiBp)}</span>}</span> },
+      ]}
+      celular={{
+        titulo: (v) => v.nome,
+        valor: (v) => resultado(v),
+        valorSub: (v) => `${t('Gastos')} ${formatar(v.gasto, v.moeda)}`,
+        codigo: (v) => v.codigo,
+        situacao: (v) => ({ texto: NOME_STATUS[v.status], tom: v.status === 'aberta' ? 'marca' : 'suave' }),
+        alerta: (v) => (v.acimaOrcamento ? { texto: 'passou do orçamento', tom: 'ruim' } : v.prospeccao ? { texto: 'prospecção', tom: 'suave' } : undefined),
+        tom: (v) => (v.acimaOrcamento ? 'ruim' : v.status === 'aberta' ? 'marca' : undefined),
+        fatos: (v) => [
+          v.destino ? `📍 ${v.destino}` : undefined,
+          `👤 ${v.viajantes.map((x) => x.nome).join(', ')}`,
+          `📅 ${periodo(v)} · ${t('{n} dia(s)', { n: v.dias })}`,
+          `⚖ ${gramasTexto(v.gramas)} · ${t('{n} compra(s)', { n: v.compras })}`,
+          v.custoKgReal !== undefined ? `💵 ${t('Custo/kg real')} ${formatar(v.custoKgReal, v.moeda)}` : undefined,
+          v.orcamento ? `🎯 ${formatar(v.gasto, v.moeda)} ${t('de')} ${formatar(v.orcamento, v.moeda)}` : undefined,
+        ].filter(Boolean),
+      }}
+    />
+  )
+}
+
 export function ListaViagens({ linhas }: { linhas: LinhaLista[] }) {
   const t = useT()
   const { ir } = useApp()

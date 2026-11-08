@@ -416,7 +416,7 @@ Um só componente; a estrutura nunca muda entre telas, só o conteúdo (título,
 
 - **Números grandes**: `GrupoNumeros` + `NumeroGrande` (com `carregando`; tocar filtra a lista quando há filtro correspondente).
 - **Pesquisa e filtros**: `FiltroLista` (busca · ⚙ Filtros → painel em grupos · resultado "N de M" + chips ✕ · "Limpar filtros"); listas longas com `Paginacao`; vazio de filtro com `VazioFiltro`.
-- **Situação e período** (props do `FiltroLista`, nunca feitos à mão): `situacao={{ opcoes: [{ id, nome, n, tom? }], valor, onChange }}` → `AbasSituacao` (trilho com a escolhida branca e o número num selo; `tom: 'alerta'` pinta o número de quem pede atenção) e `periodo={{ de, ate, onChange }}` → `BotaoPeriodo` ("📅 Tudo ▾" ao lado da busca; no celular, sem filtro, só o ícone). Outra escolha de um toque ao lado da busca: `BotaoEscolha`. Usados em Comprar, Vender, Triagem (triagens) e Livro do cabelo.
+- **Situação e período** (props do `FiltroLista`, nunca feitos à mão): `situacao={{ opcoes: [{ id, nome, n, tom? }], valor, onChange }}` → `AbasSituacao` (trilho com a escolhida branca e o número num selo; `tom: 'alerta'` pinta o número de quem pede atenção) e `periodo={{ de, ate, onChange }}` → `BotaoPeriodo` ("📅 Tudo ▾" ao lado da busca; no celular, sem filtro, só o ícone). Outra escolha de um toque ao lado da busca: `BotaoEscolha`. Tela com duas vistas (lista em tabela × cartões): `EscolhaVista` ("☰ Lista · ▦ Cartões", só os ícones no celular; a escolha fica lembrada com `useLembrado`) — usada em Preços e Viagens. Usados em Comprar, Vender, Triagem (triagens) e Livro do cabelo.
 
 ### 11.3 Listagens (`TabelaDados` em `src/shared/ui/tabelaDados.tsx` + `usePaginacao`/`Paginacao`/`Paginada` em `src/shared/ui/paginacao.tsx`)
 
