@@ -10,6 +10,7 @@ import { useT } from '../../../shared/ui/i18n'
 import { Interruptor } from '../../../shared/ui/interruptor'
 import { GrupoCampos, JanelaCadastro } from '../../../shared/ui/janelaCadastro'
 import { SenhaInput } from '../../../shared/ui/senhaInput'
+import { Paginada } from '../../../shared/ui/paginacao'
 
 const senhaBoa = (s: string) => !faltaNaSenha(s).length
 
@@ -31,8 +32,9 @@ export function Usuarios() {
       </div>
       <p className="flex items-center text-sm text-[var(--suave)]">{t('Cada ação do sistema fica registrada no nome do usuário que entrou.')}<Info texto="Administrador vê e faz tudo. Funcionário só vende/atende, vê a própria agenda, a unidade e as próprias comissões. Ex.: Sofia entra e vê só os horários dela." /></p>
       {!dados ? <Carregando /> : (
-        <ul className="grid gap-2 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-          {dados.map((u) => (
+        <Paginada itens={dados} unidade="usuário(s)" reiniciar={String(dados.length)}>{(pagina) => (
+          <ul className="grid gap-2 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+          {pagina.map((u) => (
             <li key={u.id}>
               <button type="button" className={cx('w-full rounded-xl border bg-[var(--cartao)] p-3 text-left', u.ativo ? 'border-[var(--borda)]' : 'border-dashed border-[var(--borda)] opacity-60')} onClick={() => setEd({ id: u.id, login: u.login, nome: u.nome, perfil: u.perfil, pessoaId: u.pessoaId, localId: u.localId, ativo: u.ativo, novo: false, versao: u.versao })}>
                 <div className="flex items-center justify-between gap-2"><b>{u.nome}</b><Pilula tom={u.perfil === 'admin' ? 'marca' : 'neutro'}>{t(u.perfil === 'admin' ? 'Administrador' : 'Funcionário')}</Pilula></div>
@@ -41,6 +43,7 @@ export function Usuarios() {
             </li>
           ))}
         </ul>
+        )}</Paginada>
       )}
       {ed && (
         <JanelaCadastro titulo={ed.novo ? 'Novo usuário' : 'Editar usuário'} onFechar={() => setEd(undefined)} ocupado={ocupado}

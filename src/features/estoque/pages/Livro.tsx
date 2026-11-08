@@ -10,7 +10,7 @@ import { BarraPartes } from '../../../shared/ui/barras'
 import { dataLocal, somarDias } from '../../../core/domain/datas'
 import type { LinhaLivro, TipoLivro } from '../../../core/services/livro'
 import type { ResultadoConsulta } from '../../../core/services'
-import { Botao, Campo, Carregando, Cartao, Entrada, ErroTela, Info, Selecao, Titulo, cx, dataBR, gramasTexto, sinalGramas, hora, diaSemana, Vazio, BotaoExpandir } from '../../../shared/ui/base'
+import { Campo, Carregando, Cartao, Entrada, ErroTela, Info, Selecao, Titulo, cx, dataBR, gramasTexto, sinalGramas, hora, diaSemana, Vazio, BotaoExpandir } from '../../../shared/ui/base'
 import { clicavel } from '../../../shared/ui/compartilhados'
 import { useApp, useConsulta, useParamTela, useFiltrosTela } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
@@ -18,9 +18,9 @@ import { useLembrado } from '../../../shared/ui/filtros'
 import { baixarCSV } from '../../../shared/ui/csv'
 import { AbasSituacao, BarraFiltros, BotaoPeriodo, CampoFaixa, ChipsFiltros, GrupoFiltro, PainelFiltros } from '../../../shared/ui/filtroPadrao'
 import { NumeroGrande, NumeroPequeno } from '../../../shared/ui/numeroGrande'
+import { Paginada } from '../../../shared/ui/paginacao'
 
 const DICA_CONFERE = 'Comprado = em pacotes + vendido + perda. Ex.: 10 kg = 4 + 5,4 + 0,6.'
-const MAX = 200
 
 /** atalhos por tipo: cada lançamento cai em um grupo */
 type Grupo = 'entradas' | 'vendas' | 'separacoes' | 'ajustes'
@@ -59,7 +59,6 @@ export function Livro() {
   const [sentido, setSentido] = useParamTela<'' | 'entrou' | 'saiu'>('sentido', '')
   const [gMin, setGMin] = useParamTela('gmin', '')
   const [gMax, setGMax] = useParamTela('gmax', '')
-  const [tudo, setTudo] = useState(false)
   const { tirar: tirarFiltro } = useFiltrosTela()
   const [verFiltros, setVerFiltros] = useState(false)
   // minimizar: dias fechados (só a linha do dia com o subtotal), "compacto" (uma linha por lançamento) e o fechamento
@@ -87,7 +86,6 @@ export function Livro() {
       (!ate || l.data <= ate),
   )
   const linhas = base.filter((l) => (!tipo || l.tipo === (tipo as TipoLivro)) && (!grupo || GRUPO[l.tipo] === grupo))
-  const visiveis = tudo ? linhas : linhas.slice(0, MAX)
   const pessoas = [...new Map(dados.linhas.flatMap((l) => l.pessoas).map((x) => [x.id, x.nome ?? x.id])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))
   const compras = dados.porCompra.filter((c) => !compra || c.compraId === compra)
   const nFiltros = [compra, pacote, pessoa, quem, sentido, gMin || gMax, tipo, de || ate].filter(Boolean).length
@@ -128,7 +126,7 @@ export function Livro() {
     totalDia.set(l.data, d)
   }
   const dias: [string, LinhaLivro[]][] = []
-  for (const l of visiveis) {
+  for (const l of linhas) {
     const ult = dias[dias.length - 1]
     if (ult?.[0] === l.data) ult[1].push(l)
     else dias.push([l.data, [l]])
@@ -197,7 +195,7 @@ export function Livro() {
         {!linhas.length ? <Vazio compacto texto="Nenhum lançamento com esse filtro." /> : (
           // cada dia é um bloco próprio (borda + cabeçalho + linhas divididas): nada "grudado" entre um dia e outro
           <div className="space-y-3">
-            {dias.map(([dia, ls]) => {
+            <Paginada itens={dias} padrao={10} unidade="dia(s)" reiniciar={String(linhas.length)}>{(pagina) => pagina.map(([dia, ls]) => {
               const s = totalDia.get(dia)!
               const fechado = fechados.has(dia)
               return (
@@ -221,10 +219,9 @@ export function Livro() {
                   )}
                 </section>
               )
-            })}
+            })}</Paginada>
           </div>
         )}
-        {!tudo && linhas.length > MAX && <Botao variante="leve" className="mt-2" onClick={() => setTudo(true)}>{t('Ver tudo ({n})', { n: linhas.length })}</Botao>}
       </Cartao>
 
       <FechamentoCompras compras={compras} aberto={verFechamento} onAlternar={() => setVerFechamento(!verFechamento)} onAbrir={(id) => ir('pedido', { id })} />

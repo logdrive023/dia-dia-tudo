@@ -27,7 +27,7 @@ export function UsadaEm({ usos, versoes, atual, moeda: m }: { usos: Uso[]; verso
   const base = daVersao.filter((u) => (!busca || [u.codigo, u.pessoa, u.responsavel, ...u.colunas].filter(Boolean).join(' ').toLowerCase().includes(busca)) && (!p('ude') || u.data >= p('ude')) && (!p('uate') || u.data <= p('uate')))
   const lista = base.filter((u) => !tipo || (tipo === 'compra') === (u.tipo === 'compra'))
   const soma = (xs: Uso[]) => xs.reduce((s, u) => s + u.valorTabela, 0)
-  const pag = usePaginacao(lista, { padrao: 20, reiniciar: JSON.stringify([versao, tipo, busca, p('ude'), p('uate')]) })
+  const pag = usePaginacao(lista, { padrao: 25, reiniciar: JSON.stringify([versao, tipo, busca, p('ude'), p('uate')]) })
   const contagem = (n: number) => usos.filter((u) => u.versao === n).length
   const v = versoes.find((x) => x.numero === versao)
   const limpar = () => ajustarParams({ ut: undefined, ub: undefined, ude: undefined, uate: undefined })

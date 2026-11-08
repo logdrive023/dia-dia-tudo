@@ -18,6 +18,7 @@ import { LinhaDoTempo } from '../../../shared/ui/linhaTempo'
 import { AdiantamentosDaPessoa } from '../../../shared/ui/financiamento'
 import { useT } from '../../../shared/ui/i18n'
 import { NOME_ETAPA } from '../../venda'
+import { Paginada } from '../../../shared/ui/paginacao'
 
 const PAPEIS: Papel[] = ['cliente', 'fornecedor', 'funcionario', 'profissional', 'devedor', 'credor', 'socio']
 const SITUACAO_EMPRESTIMO: Record<string, string> = { aberto: 'Em aberto', quitado: 'Quitado', cancelado: 'Cancelado' }
@@ -71,8 +72,9 @@ export function Pessoas() {
       />
       {emContas ? (
         !contas ? <Carregando /> : !doLado.length ? (busca || lado ? <VazioFiltro filtrando onLimpar={limpar} /> : <Vazio texto="Todas as contas estão em dia." />) : (
-          <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-            {doLado.map((c) => {
+          <Paginada itens={doLado} unidade="conta(s)" reiniciar={String(doLado.length)}>{(pagina) => (
+            <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+            {pagina.map((c) => {
               const deve = c.saldo > 0
               return (
                 <li key={c.pessoaId}>
@@ -90,14 +92,16 @@ export function Pessoas() {
               )
             })}
           </ul>
+          )}</Paginada>
         )
       ) : !pessoas ? <Carregando /> : !lista.length ? (
         busca || papel ? <VazioFiltro filtrando onLimpar={limpar} /> : (
           <Vazio texto="Nenhuma pessoa cadastrada ainda."><Botao variante="secundario" onClick={() => ir('novaPessoa')}>+ {t('Pessoa')}</Botao></Vazio>
         )
       ) : (
-        <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {lista.map((p) => (
+        <Paginada itens={lista} unidade="pessoa(s)" reiniciar={String(lista.length)}>{(pagina) => (
+          <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {pagina.map((p) => (
             <li key={p.id}>
               <button type="button" onClick={() => ir('pessoa', { id: p.id })} className="group flex w-full items-center gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--marca)] hover:shadow-md">
                 <AvatarPessoa nome={p.nome} />
@@ -111,6 +115,7 @@ export function Pessoas() {
             </li>
           ))}
         </ul>
+        )}</Paginada>
       )}
     </div>
   )

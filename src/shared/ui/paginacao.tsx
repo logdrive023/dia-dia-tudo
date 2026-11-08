@@ -1,5 +1,5 @@
-// PAGINAÇÃO (padrão do sistema para listas longas): "Exibindo 1–20 de 248 venda(s)" · ‹ Anterior · página [3] de 13 ·
-// Próxima › · "20 por página". Página e tamanho ficam no ENDEREÇO (?pagina=, ?porPagina=): voltar de um detalhe cai
+// PAGINAÇÃO (padrão do sistema para TODA lista de registros): "1–25 de 248 venda(s)" · ‹ página [3] de 10 › ·
+// "25 por página" (10 · 25 · 50 · 100). Página e tamanho ficam no ENDEREÇO (?pagina=, ?porPagina=): voltar de um detalhe cai
 // na mesma página e a ordem/filtros continuam. Aparece SEMPRE que a lista tem algo (com 1 página, as setas ficam apagadas).
 //
 // Os dados continuam vindo da consulta de cada módulo (hoje tudo é local no aparelho, então paginar na tela é o certo;
@@ -9,7 +9,8 @@ import { type ReactNode, useEffect, useRef } from 'react'
 import { useFiltrosTela } from './contexto'
 import { useT } from './i18n'
 
-export const TAMANHOS_PAGINA = [10, 20, 50, 100]
+/** os tamanhos de página do sistema inteiro (o seletor "N por página"); o padrão é 25 */
+export const TAMANHOS_PAGINA = [10, 25, 50, 100]
 
 /** O pedaço da lista que vai na tela (página começa em 1; página fora do fim cai na última: nunca fica numa vazia). */
 export function paginar<T>(itens: T[], pagina: number, porPagina: number) {
@@ -22,7 +23,7 @@ export function paginar<T>(itens: T[], pagina: number, porPagina: number) {
  * Pagina uma lista JÁ filtrada e ordenada pelo módulo. `reiniciar`: o que, quando muda, volta para a página 1 (a busca
  * e os filtros, ex.: JSON dos filtros) — na primeira vez não mexe (quem volta de um detalhe fica na página).
  */
-export function usePaginacao<T>(itens: T[], { padrao = 20, reiniciar = '' }: { padrao?: number; reiniciar?: string } = {}) {
+export function usePaginacao<T>(itens: T[], { padrao = 25, reiniciar = '' }: { padrao?: number; reiniciar?: string } = {}) {
   const { p, setP } = useFiltrosTela()
   const porPagina = TAMANHOS_PAGINA.includes(Number(p('porPagina'))) ? Number(p('porPagina')) : padrao
   const pag = paginar(itens, Number(p('pagina')) || 1, porPagina)

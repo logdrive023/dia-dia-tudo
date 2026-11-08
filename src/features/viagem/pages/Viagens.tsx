@@ -10,7 +10,7 @@ import { BarraFiltros, ChipsFiltros, EscolhaVista, PainelFiltros, GrupoFiltro, t
 import { useLembrado } from '../../../shared/ui/filtros'
 import { formatar } from '../../../core/domain/dinheiro'
 import type { Id, Viagem } from '../../../core/domain/tipos'
-import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, ErroTela, Pilula, Selecao, Titulo, Vazio, dataBR, gramasTexto } from '../../../shared/ui/base'
+import { Abas, Botao, Campo, Carregando, Cartao, Confirmar, ErroTela, Info, Pilula, Selecao, Titulo, Vazio, dataBR, gramasTexto } from '../../../shared/ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { NumeroGrande } from '../../../shared/ui/numeroGrande'
@@ -21,6 +21,10 @@ import { Comparativo, ListaViagens, TabelaViagens } from '../components/ListaVia
 import { FormViagem } from '../components/FormViagem'
 import { AbaCompras, AbaContas, AbaGastos, AbaHistorico, AbaRateio, AbaResumo } from '../components/abas'
 import { FormAdiantamento } from '../components/FormAdiantamento'
+import { Paginada } from '../../../shared/ui/paginacao'
+import { focarBusca, useAtalhos } from '../../../shared/ui/atalhos'
+import { baixarCSV } from '../../../shared/ui/csv'
+import { GuiaPrimeiraViagem } from '../components/GuiaViagem'
 
 // ---------- lista ----------
 
@@ -73,9 +77,26 @@ function ViagensAdmin() {
   const todasViagens = semStatus?.linhas
   const [folha, setFolha] = useState<Id>()
   const abertas = painel?.abertas ?? []
+  const nova = () => ir('novaViagem')
+  // ATALHOS (computador, para quem viaja muito): / busca · Alt+N nova viagem · Alt+G gasto na viagem aberta (a 1ª)
+  useAtalhos({ '/': focarBusca, 'alt+n': nova, 'alt+g': () => abertas[0] && setFolha(abertas[0].id) })
+  const filtrando = !!(busca || status || viajanteId)
+  // AÇÃO EM LOTE: a planilha de TODAS as viagens da lista (com os filtros), não só da página
+  const planilha = () => baixarCSV(`viagens-${new Date().toISOString().slice(0, 10)}`, (dados?.linhas ?? []).map((v) => ({
+    [t('Código')]: v.codigo, [t('Viagem')]: v.nome, [t('Situação')]: t(NOME_STATUS[v.status]), [t('Destino')]: v.destino ?? '',
+    [t('Quem viajou')]: v.viajantes.map((x) => x.nome).join(', '), [t('Início')]: v.inicio, [t('Fim')]: v.fim ?? '', [t('Dias')]: v.dias,
+    [t('Orçamento')]: v.orcamento ? v.orcamento / 100 : '', [t('Gastos')]: v.gasto / 100, [t('Comprou (g)')]: v.gramas, [t('Compras')]: v.compras,
+    [t('Custo/kg real')]: v.custoKgReal !== undefined ? v.custoKgReal / 100 : '', [t('Resultado')]: v.prospeccao ? '' : v.resultado / 100,
+  })))
   return (
     <div>
-      <Titulo subtitulo={t('Gastos, compras e resultado de cada viagem de compra.')} acao={<Botao onClick={() => ir('novaViagem')}>+ {t('Nova viagem')}</Botao>}>{t('Viagens de compra')}</Titulo>
+      <Titulo
+        subtitulo={<>{t('Gastos, compras e resultado de cada viagem de compra.')}{/* teclado só no computador */}<span className="ml-2 hidden items-center text-xs md:inline-flex">⌨ {t('Atalhos')}<Info texto="/ busca · Alt+N nova viagem · Alt+G lança um gasto na viagem aberta." /></span></>}
+        acao={<div className="flex items-center gap-2">
+          <Botao onClick={nova}>+ {t('Nova viagem')}</Botao>
+          <MenuAcoes acoes={[{ icone: '📥', rotulo: 'Baixar planilha', descricao: t('As {n} viagens da lista (com os filtros): gastos, kg, custo/kg real e resultado.', { n: dados?.linhas.length ?? 0 }), onClick: planilha }]} />
+        </div>}
+      >{t('Viagens de compra')}</Titulo>
       {/* no Painel do viajante o cartão "Em viagem" seria repetido: some */}
       {abertas.length > 0 && aba !== 'viajante' && (
         <ul className="mb-4 grid gap-2 md:grid-cols-2">
@@ -117,9 +138,9 @@ function ViagensAdmin() {
             )}
           </div>
           {!dados ? <Carregando /> : comparando ? <Comparativo linhas={dados.comparativo} moeda={dados.moeda} uma={vgComparar && vgComparar !== 'sem' ? dados.linhas[0] : undefined} /> : !dados.linhas.length ? (
-            <Vazio texto="Nenhuma viagem por aqui."><Botao variante="secundario" onClick={() => ir('novaViagem')}>+ {t('Nova viagem')}</Botao></Vazio>
+            filtrando ? <Vazio texto="Nenhuma viagem com esse filtro." /> : <GuiaPrimeiraViagem onNova={nova} />
           ) : (
-            vista === 'lista' ? <TabelaViagens linhas={dados.linhas} /> : <ListaViagens linhas={dados.linhas} />
+            <Paginada itens={dados.linhas} unidade="viagem(ns)" reiniciar={String(dados.linhas.length)}>{(pagina) => (vista === 'lista' ? <TabelaViagens linhas={pagina} onGasto={setFolha} /> : <ListaViagens linhas={pagina} />)}</Paginada>
           )}
         </>
       )}

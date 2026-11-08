@@ -9,6 +9,7 @@ import { Botao, Campo, Carregando, Cartao, Entrada, Escolha, Pilula, Selecao, Va
 import { useApp, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { JanelaCadastro } from '../../../shared/ui/janelaCadastro'
+import { Paginada } from '../../../shared/ui/paginacao'
 
 export function Catalogo() {
   const t = useT()
@@ -107,8 +108,9 @@ export function Catalogo() {
       </div>
       {moduloId === 'salao' && cfg && <RegraComissaoSalao padraoBp={padraoBp} funcionariaMuda={!!cfg.config.comissaoFuncionarioMuda} />}
       {!dados ? <Carregando /> : (
-        <ul className="grid gap-2 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-          {dados.map((i) => (
+        <Paginada itens={dados} unidade="item(ns)" reiniciar={String(dados.length)}>{(pagina) => (
+          <ul className="grid gap-2 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+          {pagina.map((i) => (
             <li key={i.id}>
               <button type="button" className="w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left" onClick={() => abrir(i)}>
                 <span className="flex justify-between gap-2"><b>{i.nome}</b><span className="num">{i.precoSugerido ? formatar(i.precoSugerido.valor, i.precoSugerido.moeda) : ''}</span></span>
@@ -124,6 +126,7 @@ export function Catalogo() {
             </li>
           ))}
         </ul>
+        )}</Paginada>
       )}
       {ed && tipo && (
         <JanelaCadastro titulo={tipo.controlaEstoque ? (ed.novo ? 'Novo item' : 'Editar item') : ed.novo ? 'Novo serviço' : 'Editar serviço'} onFechar={() => setEd(undefined)} onSalvar={salvar} ocupado={ocupado} podeSalvar={!!ed.nome.trim()}>

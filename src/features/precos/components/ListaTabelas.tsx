@@ -30,7 +30,7 @@ export function ListaTabelas({ ajudaVersoes }: { ajudaVersoes: string }) {
   const b = semAcento(busca.trim())
   const base = todas.filter((x) => (!categoria || (x.categoria ?? '') === (categoria === '—' ? '' : categoria)) && (!b || semAcento([x.nome, x.categoria, ...x.colunas].filter(Boolean).join(' ')).includes(b)))
   const lista = base.filter((x) => !situacao || x.situacao === situacao)
-  const pag = usePaginacao(lista, { padrao: 20, reiniciar: JSON.stringify([busca, situacao, categoria]) })
+  const pag = usePaginacao(lista, { padrao: 25, reiniciar: JSON.stringify([busca, situacao, categoria]) })
   const categorias = [...new Set(todas.map((x) => x.categoria ?? ''))]
   const nova = () => ir('tabelaPreco', { id: 'novo' })
   const limpar = () => (setBusca(''), setSituacao(''), setCategoria(''))

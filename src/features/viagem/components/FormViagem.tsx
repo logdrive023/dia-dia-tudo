@@ -4,7 +4,7 @@ import { formatar } from '../../../core/domain/dinheiro'
 import { dataLocal } from '../../../core/domain/datas'
 import { novoId } from '../../../core/domain/ids'
 import type { Id, Viagem } from '../../../core/domain/tipos'
-import { Botao, Campo, Entrada, Escolha, Janela, Pagina, ValorInput, cx, dataBR } from '../../../shared/ui/base'
+import { Botao, Campo, Entrada, Escolha, Janela, Pagina, ValorInput, cx, dataBR, moedaPadrao } from '../../../shared/ui/base'
 import { useApp, useAvisoSaida, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useCotacoes } from '../../../shared/ui/compartilhados'
 import { useT } from '../../../shared/ui/i18n'
@@ -18,7 +18,7 @@ export function FormViagem({ viagem }: { viagem?: Viagem }) {
   const { executar, ocupado } = useComando()
   const { dados } = useConsulta('viagens', {})
   const { cfg } = useCotacoes()
-  const moeda = cfg?.moedaPrincipal ?? 'BOB'
+  const moeda = cfg?.moedaPrincipal ?? moedaPadrao()
   const [id] = useState(() => viagem?.id ?? novoId())
   const [nome, setNome] = useState(viagem?.nome ?? '')
   const [destino, setDestino] = useState(viagem?.destino ?? '')

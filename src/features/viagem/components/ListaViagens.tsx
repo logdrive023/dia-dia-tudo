@@ -3,7 +3,7 @@ import { TabelaDados, corDoNome, iniciais } from '../../../shared/ui/tabelaDados
 import { CodigoTexto } from '../../../shared/ui/codigos'
 import { BarraLimite } from '../../../shared/ui/barras'
 import { formatar } from '../../../core/domain/dinheiro'
-import { Info, Pilula, Vazio, cx, dataBR, gramasTexto, pctBp } from '../../../shared/ui/base'
+import { Botao, Info, Pilula, Vazio, cx, dataBR, gramasTexto, pctBp } from '../../../shared/ui/base'
 import { useApp, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { NumeroPequeno } from '../../../shared/ui/numeroGrande'
@@ -19,7 +19,8 @@ import { NOME_STATUS, TOM_STATUS, type LinhaLista } from '../model/tipos'
  * (gastos × orçamento, kg, custo/kg real, resultado); no celular, a linha curta padrão que abre no lugar.
  * A vista "Cartões" (ListaViagens) continua com a barra do orçamento e os 4 números em destaque.
  */
-export function TabelaViagens({ linhas }: { linhas: LinhaLista[] }) {
+/** `onGasto`: o "⛽ Gasto" direto na linha da viagem aberta (lança sem abrir a ficha) */
+export function TabelaViagens({ linhas, onGasto }: { linhas: LinhaLista[]; onGasto?(id: string): void }) {
   const t = useT()
   const { ir } = useApp()
   const resultado = (v: LinhaLista) => (v.prospeccao ? <span className="text-[var(--suave)]">{t('sem compra')}</span> : <b style={{ color: v.resultado < 0 ? 'var(--ruim)' : 'var(--bom)' }}>{formatar(v.resultado, v.moeda)}</b>)
@@ -30,6 +31,7 @@ export function TabelaViagens({ linhas }: { linhas: LinhaLista[] }) {
       chave={(v) => v.id}
       onAbrir={(v) => ir('viagem', { id: v.id })}
       rotuloLinha={(v) => `${v.codigo} · ${v.nome}`}
+      acaoRapida={(v) => (v.status === 'aberta' && onGasto ? <Botao variante="secundario" className="whitespace-nowrap px-3" onClick={(e) => (e.stopPropagation(), onGasto(v.id))}>⛽ {t('Gasto')}</Botao> : null)}
       colunas={[
         { id: 'viagem', titulo: 'Viagem', classe: 'w-full min-w-[12rem]', celula: (v) => (
           <span className="block min-w-0">

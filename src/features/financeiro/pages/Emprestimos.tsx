@@ -21,6 +21,7 @@ import { useT } from '../../../shared/ui/i18n'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
 import { corDoNome, iniciais } from '../../../shared/ui/tabelaDados'
 import { Trilha } from '../../../shared/ui/trilha'
+import { Paginada } from '../../../shared/ui/paginacao'
 
 const TOM = { atrasada: 'ruim', vencendo: 'alerta', 'em dia': 'marca', paga: 'bom', quitado: 'bom' } as const
 const COR_LADO = { dado: 'var(--bom)', tomado: 'var(--ruim)' } as const
@@ -85,8 +86,9 @@ export function Emprestimos() {
         resultados={dados ? lista.length : undefined} total={todos.length} unidade="empréstimo(s)"
       />
       {!dados ? <Carregando /> : !todos.length ? <Vazio texto="Nenhum empréstimo." /> : !lista.length ? <VazioFiltro filtrando onLimpar={limpar} /> : (
-        <ul className="grid gap-2 md:grid-cols-2">
-          {lista.map((e) => {
+        <Paginada itens={lista} unidade="empréstimo(s)" reiniciar={String(lista.length)}>{(pagina) => (
+          <ul className="grid gap-2 md:grid-cols-2">
+          {pagina.map((e) => {
             const cor = COR_LADO[e.direcao]
             const atrasada = e.proxima?.status === 'atrasada'
             return (
@@ -119,6 +121,7 @@ export function Emprestimos() {
             )
           })}
         </ul>
+        )}</Paginada>
       )}
     </div>
   )

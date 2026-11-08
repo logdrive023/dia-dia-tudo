@@ -19,6 +19,7 @@ import { Anexos, linkWhatsApp, useCotacoes } from '../../../shared/ui/compartilh
 import { BarraFinanciamento, StatusFinanciamentoPilula } from '../../../shared/ui/financiamento'
 import { LinhaDoTempo } from '../../../shared/ui/linhaTempo'
 import { useT } from '../../../shared/ui/i18n'
+import { Paginada } from '../../../shared/ui/paginacao'
 
 type FiltroStatus = 'ativos' | StatusFinanciamento | 'todos'
 
@@ -87,8 +88,9 @@ export function Financiamentos() {
           {admin && <Botao className="mt-2" onClick={() => ir('novoFinanciamento')}>+ {t('Adiantamento')}</Botao>}
         </Vazio>
       ) : (
-        <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {dados.linhas.map((f) => (
+        <Paginada itens={dados.linhas} unidade="adiantamento(s)" reiniciar={String(dados.linhas.length)}>{(pagina) => (
+          <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {pagina.map((f) => (
             <li key={f.id}>
               <button type="button" onClick={() => ir('financiamento', { id: f.id })} className="flex h-full w-full flex-col gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 text-left shadow-sm hover:border-[var(--marca)]">
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -117,6 +119,7 @@ export function Financiamentos() {
             </li>
           ))}
         </ul>
+        )}</Paginada>
       )}
     </div>
   )

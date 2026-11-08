@@ -10,7 +10,7 @@ import { formatar } from '../../../core/domain/dinheiro'
 import { dataBR } from '../../../shared/ui/base'
 import { novoId } from '../../../core/domain/ids'
 import type { Id } from '../../../core/domain/tipos'
-import { Botao, Campo, Carregando, Entrada, Escolha, Janela, Selecao } from '../../../shared/ui/base'
+import { Botao, Campo, Carregando, Entrada, Escolha, Janela, Selecao, moedaPadrao } from '../../../shared/ui/base'
 import { useApp, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { SeletorPessoa, useCotacoes } from '../../../shared/ui/compartilhados'
 import { EscolhaCartoes } from '../../../shared/ui/escolhaCartoes'
@@ -94,7 +94,7 @@ function Atendimento({ passo1, w, dataInicial, horaInicial, localPadrao, profiss
   const conflitoParams = prof && quando && linhas.length ? { profissionalId: prof, inicio: quando, itens: linhas.map((l) => l.itemId) } : undefined
   const { dados: conflitos } = useConsulta('conflitosAgenda', conflitoParams ?? { profissionalId: '', inicio: '' }, !!conflitoParams)
   const temConflito = !!conflitoParams && !!conflitos?.length
-  const principal = cfg?.moedaPrincipal ?? 'BOB'
+  const principal = cfg?.moedaPrincipal ?? moedaPadrao()
   const nomeCliente = pessoas?.find((p) => p.id === cliente)?.nome
   const total = linhas.reduce((s, l) => s + l.total, 0)
   const falta = !cliente ? t('a cliente') : !linhas.length ? t('o serviço') : !quando ? t('o dia e a hora') : admin && !prof ? t('quem atende') : ''

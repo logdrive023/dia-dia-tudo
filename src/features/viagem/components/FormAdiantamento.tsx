@@ -4,7 +4,7 @@ import { formasEmUso } from '../../../core/domain/formas'
 import { formatar } from '../../../core/domain/dinheiro'
 import { novoId } from '../../../core/domain/ids'
 import type { Id } from '../../../core/domain/tipos'
-import { Botao, Campo, Entrada, Janela, Selecao, ValorInput } from '../../../shared/ui/base'
+import { Botao, Campo, Entrada, Janela, Selecao, ValorInput, moedaPadrao } from '../../../shared/ui/base'
 import { useComando } from '../../../shared/ui/contexto'
 import { useCotacoes } from '../../../shared/ui/compartilhados'
 import { useT } from '../../../shared/ui/i18n'
@@ -15,7 +15,7 @@ export function FormAdiantamento({ viagemId, onFechar }: { viagemId: Id; onFecha
   const { executar, ocupado } = useComando()
   const [id] = useState(() => novoId())
   const [moedaEscolhida, setMoeda] = useState<string>()
-  const moeda = moedaEscolhida ?? cfg?.moedaPrincipal ?? 'BOB'
+  const moeda = moedaEscolhida ?? cfg?.moedaPrincipal ?? moedaPadrao()
   const [valor, setValor] = useState<number>()
   const [forma, setForma] = useState('dinheiro')
   const [obs, setObs] = useState('')

@@ -7,7 +7,7 @@
 import { type ReactNode, useState } from 'react'
 import { formatar, MOEDAS } from '../../../core/domain/dinheiro'
 import { novoId } from '../../../core/domain/ids'
-import { Botao, BotaoExpandir, Campo, Cartao, Confirmar, Entrada, Pilula, ValorInput, cx, dataHora, hora } from '../../../shared/ui/base'
+import { Botao, BotaoExpandir, Campo, Cartao, Confirmar, Entrada, Pilula, ValorInput, cx, dataHora, hora, moedaPadrao } from '../../../shared/ui/base'
 import { useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { JanelaCadastro } from '../../../shared/ui/janelaCadastro'
@@ -47,7 +47,7 @@ export function JanelaAbrirTurno({ onFechar }: { onFechar(): void }) {
   const { dados: cfg } = useConsulta('configuracoes', {})
   const { executar, ocupado } = useComando()
   const [id] = useState(novoId)
-  const principal = cfg?.config.moedaPrincipal ?? 'BOB'
+  const principal = cfg?.config.moedaPrincipal ?? moedaPadrao()
   const moedas = [principal, ...(cfg?.config.moedasAtivas ?? []).filter((m) => m !== principal)]
   const [troco, setTroco] = useState<Record<string, number | undefined>>({})
   const abrir = async () => {
@@ -78,7 +78,7 @@ export function JanelaFecharTurno({ onFechar, aoFechar }: { onFechar(): void; ao
   const { dados: cfg } = useConsulta('configuracoes', {})
   const { executar, ocupado } = useComando()
   const [id] = useState(novoId)
-  const principal = cfg?.config.moedaPrincipal ?? 'BOB'
+  const principal = cfg?.config.moedaPrincipal ?? moedaPadrao()
   // as moedas que ela recebeu no turno + a principal (sempre)
   const moedas = [...new Set([principal, ...(atual?.moedas ?? [])])]
   const [contado, setContado] = useState<Record<string, number | undefined>>({})

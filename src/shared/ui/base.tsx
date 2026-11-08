@@ -718,12 +718,30 @@ export function Janela({ aberta, titulo, onFechar, children, rodape, larga }: { 
   const id = useId()
   const t = useT()
   useTravarFundo(aberta)
+  // NÃO PERDER O QUE FOI DIGITADO: digitou/mudou algum campo (busca não conta) e apertou Esc ou × → pergunta antes de
+  // fechar ("Descartar o que você digitou?"). O "Cancelar" de quem usa e o fechar depois de salvar fecham direto.
+  const [mexeu, setMexeu] = useState(false)
+  const [perguntar, setPerguntar] = useState(false)
+  useEffect(() => {
+    if (!aberta) (setMexeu(false), setPerguntar(false))
+  }, [aberta])
+  const marcar = (e: { target: EventTarget }) => {
+    const el = e.target as HTMLElement
+    if (el.matches?.('textarea, select, input:not([type=search]):not([data-sem-aviso])') && !el.closest('[data-sem-aviso]')) setMexeu(true)
+  }
+  const pedirFechar = () => (mexeu ? setPerguntar(true) : onFechar())
+  const pedirRef = useRef(pedirFechar)
+  pedirRef.current = pedirFechar
   useEffect(() => {
     if (!aberta) return
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onFechar()
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (perguntar) setPerguntar(false)
+      else pedirRef.current()
+    }
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
-  }, [aberta, onFechar])
+  }, [aberta, perguntar])
   if (!aberta) return null
   // PORTAL: a janela vai direto para o <body> — nenhuma barra fixa/rolagem de quem abriu corta ela (ex.: aberta de dentro
   // da barra do caixa, ficava atrás do menu de baixo)
@@ -735,6 +753,8 @@ export function Janela({ aberta, titulo, onFechar, children, rodape, larga }: { 
         aria-modal="true"
         aria-labelledby={id}
         onClick={(e) => e.stopPropagation()}
+        onInputCapture={marcar}
+        onChangeCapture={marcar}
         className={cx('flex max-h-[92vh] max-h-[92dvh] min-h-0 w-full flex-col rounded-t-3xl bg-[var(--cartao)] shadow-xl md:rounded-3xl', larga ? 'md:max-w-4xl' : 'md:max-w-lg')}
       >
         <div className="flex items-center justify-between gap-2 border-b border-[var(--borda)] py-2 pl-4 pr-2">
@@ -742,12 +762,21 @@ export function Janela({ aberta, titulo, onFechar, children, rodape, larga }: { 
             {titulo}
           </h2>
           {/* × sempre com área de toque grande e por cima de tudo da janela (câmera, vídeo…) */}
-          <button type="button" onClick={onFechar} aria-label={t('Fechar')} className="relative z-10 h-12 w-12 shrink-0 rounded-full text-2xl hover:bg-[var(--marca-suave)] active:bg-[var(--marca-suave)]">
+          <button type="button" onClick={pedirFechar} aria-label={t('Fechar')} className="relative z-10 h-12 w-12 shrink-0 rounded-full text-2xl hover:bg-[var(--marca-suave)] active:bg-[var(--marca-suave)]">
             ×
           </button>
         </div>
-        <div className={cx('min-h-0 flex-1 overflow-y-auto overscroll-contain p-4',!rodape && 'pb-[max(1rem,env(safe-area-inset-bottom))]')}>{children}</div>
-        {rodape && <div className="border-t border-[var(--borda)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{rodape}</div>}
+        <div className={cx('min-h-0 flex-1 overflow-y-auto overscroll-contain p-4',!rodape && !perguntar && 'pb-[max(1rem,env(safe-area-inset-bottom))]')}>{children}</div>
+        {/* a pergunta fica no lugar do rodapé (fixa embaixo): o que foi digitado continua à vista em cima */}
+        {perguntar ? (
+          <div role="alertdialog" aria-label={t('Descartar o que você digitou?')} className="border-t border-[var(--alerta)]/50 bg-[var(--alerta)]/10 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <p className="mb-2 text-sm font-semibold">⚠️ {t('Descartar o que você digitou?')}</p>
+            <div className="flex flex-wrap gap-2">
+              <Botao autoFocus className="min-w-max flex-1" onClick={() => setPerguntar(false)}>{t('Continuar editando')}</Botao>
+              <Botao variante="perigo" className="min-w-max flex-1" onClick={onFechar}>{t('Descartar')}</Botao>
+            </div>
+          </div>
+        ) : rodape && <div className="border-t border-[var(--borda)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{rodape}</div>}
       </div>
     </div>,
     document.body,
