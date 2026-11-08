@@ -22,7 +22,7 @@ import { type AjusteServico, EditorServico, SeletorServicos, ajusteParaEntrada, 
 import { useT } from '../../../shared/ui/i18n'
 import { useLembrado } from '../../../shared/ui/filtros'
 import { CAT_FERIADO, LegendaCalendario } from '../../../shared/ui/feriadosAgenda'
-import type { CategoriaFeriado } from '../../../core/dados/feriados'
+import { type CategoriaFeriado, PAISES_FERIADO } from '../../../core/dados/feriados'
 
 type Modo = 'mes' | 'semana' | 'dia'
 
@@ -48,8 +48,13 @@ export function Agenda() {
   const aberto = dados?.find((i) => i.id === abertoId)
   // FERIADOS (só visual — nada bloqueia): cada categoria liga e desliga sozinha; fica lembrado neste aparelho
   const [verNacional, setVerNacional] = useLembrado('agenda.feriadosNacionais', true)
-  const [verSantaCruz, setVerSantaCruz] = useLembrado('agenda.feriadosSantaCruz', true)
-  const categorias: CategoriaFeriado[] = [...(verNacional ? ['nacional' as const] : []), ...(verSantaCruz ? ['santaCruz' as const] : [])]
+  // o regional é o do departamento/estado escolhido em Configurações › Geral (a chave antiga continua lembrada)
+  const [verRegional, setVerRegional] = useLembrado('agenda.feriadosSantaCruz', true)
+  const { dados: cfgFer } = useConsulta('configuracoes', {})
+  const paisFer = cfgFer ? cfgFer.config.feriadosPais : 'BO'
+  const infoPais = paisFer ? PAISES_FERIADO[paisFer] : undefined
+  const regiaoFer = infoPais?.regioes.find((r) => r.id === cfgFer?.config.feriadosRegiao)
+  const categorias: CategoriaFeriado[] = !infoPais ? [] : [...(verNacional ? ['nacional' as const] : []), ...(verRegional && regiaoFer ? ['regional' as const] : [])]
   const { dados: feriados } = useConsulta('feriados', { de, ate, categorias }, categorias.length > 0)
   const fer = categorias.length ? feriados ?? [] : []
   const hoje = dataLocal()
@@ -132,11 +137,15 @@ export function Agenda() {
           </GrupoFiltro>}
           {/* FERIADOS: só o que aparece na agenda (não muda datas nem trava vendas, compras ou triagens) */}
           <GrupoFiltro titulo="Feriados" icone="🗓">
-            {([['nacional', verNacional, setVerNacional, 'Mostrar feriados nacionais da Bolívia'], ['santaCruz', verSantaCruz, setVerSantaCruz, 'Mostrar feriados de Santa Cruz']] as const).map(([c, on, set, rot]) => (
+            {!infoPais && <p className="col-span-full text-sm text-[var(--suave)]">{t('Sem feriados: escolha o país em Configurações › Geral.')}</p>}
+            {([
+              ...(infoPais ? [['nacional', verNacional, setVerNacional, t('Mostrar feriados nacionais ({p})', { p: t(infoPais.nome) })] as const] : []),
+              ...(infoPais && regiaoFer ? [['regional', verRegional, setVerRegional, t('Mostrar feriados de {r}', { r: regiaoFer.nome })] as const] : []),
+            ]).map(([c, on, set, rot]) => (
               <label key={c} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl bg-[var(--cartao)] px-3 text-sm">
                 <input type="checkbox" className="h-5 w-5" checked={on} onChange={(e) => set(e.target.checked)} />
                 <span aria-hidden className="h-2.5 w-2.5 rounded-[3px]" style={{ background: CAT_FERIADO[c].cor }} />
-                <span>{t(rot)}</span>
+                <span>{rot}</span>
               </label>
             ))}
             <p className="col-span-full text-xs text-[var(--suave)]">{t('Só muda o que aparece na agenda: o feriado não bloqueia nada e não muda nenhuma data.')}</p>

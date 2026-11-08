@@ -410,5 +410,6 @@ export async function receberAtendimento(ctx: Ctx, d: { id: Id; vendaId: Id; for
 export async function feriados(ctx: Ctx, p: { de: string; ate: string; categorias: CategoriaFeriado[] }) {
   exigir(p.de && p.ate && p.de <= p.ate, 'Período inválido.')
   const cfg = await lerConfig(ctx)
-  return feriadosEntre(p.de, p.ate, p.categorias, cfg.feriadosAjustes ?? AJUSTES_PADRAO)
+  // do país e da região escolhidos em Configurações › Geral
+  return feriadosEntre(p.de, p.ate, p.categorias, cfg.feriadosAjustes ?? AJUSTES_PADRAO, { pais: cfg.feriadosPais ?? 'BO', regiao: cfg.feriadosRegiao || undefined })
 }

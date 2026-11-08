@@ -4,14 +4,21 @@
 //    onde vale, a fonte e se a data foi trasladada);
 //  · a dica (tooltip nativo) em tudo: "Feriado nacional · Carnaval (segunda) — Carnaval (lunes) · 16/02/2026";
 //  · a LEGENDA embaixo do calendário: o que cada bolinha e cada quadradinho quer dizer.
-import type { CategoriaFeriado, FeriadoNoDia } from '../../core/dados/feriados'
+import { type CategoriaFeriado, type FeriadoNoDia, PAISES_FERIADO } from '../../core/dados/feriados'
 import { cx, dataBR } from './base'
 import { useT } from './i18n'
 import { Legenda } from './legenda'
 
 export const CAT_FERIADO: Record<CategoriaFeriado, { nome: string; cor: string }> = {
   nacional: { nome: 'Feriado nacional', cor: '#e11d48' },
-  santaCruz: { nome: 'Feriado de Santa Cruz', cor: '#0d9488' },
+  regional: { nome: 'Feriado regional', cor: '#0d9488' },
+}
+
+/** onde vale, traduzido pelas partes: "Bolívia (nacional)" · "Departamento de La Paz" / "Departamento de La Paz" (es) */
+export function abrangenciaTexto(f: Pick<FeriadoNoDia, 'pais' | 'regiao'>, t: ReturnType<typeof useT>) {
+  const p = PAISES_FERIADO[f.pais]
+  const r = f.regiao ? p.regioes.find((x) => x.id === f.regiao) : undefined
+  return r ? t('{tipo} de {r}', { tipo: t(p.tipoRegiao), r: r.nome }) : t('{p} (nacional)', { p: t(p.nome) })
 }
 
 /** a dica completa (tooltip) de um feriado */
@@ -20,7 +27,7 @@ export function dicaFeriado(f: FeriadoNoDia, t: ReturnType<typeof useT>) {
     `${t(CAT_FERIADO[f.categoria].nome)} · ${f.pt}`,
     `${t('em espanhol')}: ${f.es}`,
     `${dataBR(f.data)}${f.movidoDe ? ` (${t('trasladado de')} ${dataBR(f.movidoDe)})` : ''}`,
-    `${t(f.abrangencia)} · ${t('fonte')}: ${f.fonte}${f.confirmacaoAnual ? ` · ${t('confirmado a cada ano')}` : ''}`,
+    `${abrangenciaTexto(f, t)} · ${t('fonte')}: ${f.fonte}${f.confirmacaoAnual ? ` · ${t('confirmado a cada ano')}` : ''}`,
   ].join('\n')
 }
 
@@ -57,7 +64,7 @@ export function AvisoFeriado({ f, compacto }: { f: FeriadoNoDia; compacto?: bool
         <span lang="es" className="block truncate text-xs italic text-[var(--suave)]">{f.es}</span>
         {!compacto && (
           <span className="block text-xs text-[var(--suave)]">
-            {f.movidoDe ? `${t('trasladado de')} ${dataBR(f.movidoDe)} · ` : ''}{t(f.abrangencia)} · {f.fonte}{f.confirmacaoAnual ? ` · ${t('confirmado a cada ano')}` : ''}
+            {f.movidoDe ? `${t('trasladado de')} ${dataBR(f.movidoDe)} · ` : ''}{abrangenciaTexto(f, t)} · {f.fonte}{f.confirmacaoAnual ? ` · ${t('confirmado a cada ano')}` : ''}
           </span>
         )}
       </span>

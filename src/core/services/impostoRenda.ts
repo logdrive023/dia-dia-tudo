@@ -68,7 +68,7 @@ export async function impostoRenda(ctx: Ctx, p: { ano: number }) {
   const ex = exercicio(p.ano, tipo)
   const regras = regrasEm(ex.ate)
   const general = fis.regimeBO === 'general'
-  const feriados = new Set(feriadosEntre(ex.de, ex.vencimentoAnual > ex.ate ? ex.vencimentoAnual : ex.ate, ['nacional'], cfg.feriadosAjustes).map((f) => f.data))
+  const feriados = new Set(feriadosEntre(ex.de, ex.vencimentoAnual > ex.ate ? ex.vencimentoAnual : ex.ate, ['nacional'], cfg.feriadosAjustes, { pais: 'BO' }).map((f) => f.data))
   const registros = (await lerReg(ctx)).filter((r) => r.ano === p.ano || (r.ano === p.ano - 1 && r.obrigacao === 'iue'))
   const estado = (await lerEx(ctx))[String(p.ano)]
 

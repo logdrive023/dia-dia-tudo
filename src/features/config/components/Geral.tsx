@@ -1,11 +1,12 @@
 // CONFIGURAÇÕES › Geral: nome do negócio, idioma e o básico.
 // Uma seção = um arquivo (a lista das seções e onde cada uma aparece fica em ../configSecoes.ts).
 import { useState } from 'react'
-import { Botao, Campo, Carregando, Cartao, Entrada } from '../../../shared/ui/base'
+import { Botao, Campo, Carregando, Cartao, Entrada, Selecao } from '../../../shared/ui/base'
 import { BarraSalvar } from '../../../shared/ui/barraSalvar'
 import { useAvisoSaida, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { MODELOS_DOCUMENTO } from '../../../core/dados/documentos'
+import { PAISES_FERIADO, type PaisFeriado } from '../../../core/dados/feriados'
 
 export function Geral() {
   const t = useT()
@@ -45,6 +46,22 @@ export function Geral() {
               <span className="text-[var(--suave)]">{t('A venda passa sempre (nada trava). Ligado: o caixa mostra "ainda está bruto" para conferir o preço.')}</span>
             </span>
           </label>
+        </div>
+      </Cartao>
+      {/* FERIADOS DA AGENDA: o país (nacionais) e a região (departamento/estado) — só informativo, não trava nada */}
+      <Cartao titulo={`🗓 ${t('Feriados da agenda')}`} className="mt-4" ajuda="De que país e de que região são os feriados que aparecem na Agenda. Só informativo: o feriado não bloqueia vendas, compras nem triagens. Ex.: Bolívia · La Paz mostra os nacionais e o 16 de julho.">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Campo rotulo="País">
+            <Selecao valor={c.feriadosPais} vazio="Sem feriados"
+              onChange={(v) => { const p = v as PaisFeriado | ''; executar('salvarConfig', { feriadosPais: p, feriadosRegiao: p && PAISES_FERIADO[p].regioes.some((r) => r.id === c.feriadosRegiao) ? c.feriadosRegiao : '' }, t('Salvo.')) }}
+              opcoes={(Object.keys(PAISES_FERIADO) as PaisFeriado[]).map((p) => ({ id: p, nome: t(PAISES_FERIADO[p].nome) }))} />
+          </Campo>
+          {c.feriadosPais && (PAISES_FERIADO[c.feriadosPais].regioes.length ? (
+            <Campo rotulo={PAISES_FERIADO[c.feriadosPais].tipoRegiao}>
+              <Selecao valor={c.feriadosRegiao} vazio="Só os nacionais" onChange={(v) => executar('salvarConfig', { feriadosRegiao: v }, t('Salvo.'))}
+                opcoes={PAISES_FERIADO[c.feriadosPais].regioes.map((r) => ({ id: r.id, nome: r.nome }))} />
+            </Campo>
+          ) : <p className="self-end text-xs text-[var(--suave)]">{t('Por enquanto só os feriados nacionais deste país.')}</p>)}
         </div>
       </Cartao>
       {/* NOTA DE VENTA: o padrão de toda nota (na venda dá para mudar só naquela impressão) */}

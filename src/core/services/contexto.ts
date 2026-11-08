@@ -3,7 +3,7 @@
 import { MOEDAS, type CodigoMoeda, type Cotacao, type TabelaCotacoes, type UsoCambio, ajustarCotacao, converter } from '../domain/dinheiro'
 import { FISCAL_PADRAO, IMPOSTOS_PADRAO_BO, IMPOSTOS_PADRAO_BR, type ConfigFiscal } from '../dados/impostos'
 import type { ModeloDocumentoId } from '../dados/documentos'
-import { AJUSTES_PADRAO, type AjusteFeriado } from '../dados/feriados'
+import { AJUSTES_PADRAO, type AjusteFeriado, LOCAL_PADRAO, type PaisFeriado } from '../dados/feriados'
 import { ErroNegocio, exigir } from '../domain/erros'
 import { novoId } from '../domain/ids'
 import type { Base, Dia, Id, Pessoa } from '../domain/tipos'
@@ -142,6 +142,9 @@ export interface Configuracoes {
   impostosNaNota: boolean
   /** FERIADOS: os ajustes do decreto de cada ano (mover · extra · tirar) — atualiza a agenda sem mudar o código */
   feriadosAjustes: AjusteFeriado[]
+  /** FERIADOS DA AGENDA: de que país ('' = nenhum) e de que região (departamento/estado) — Configurações › Geral */
+  feriadosPais: PaisFeriado | ''
+  feriadosRegiao: string
   /**
    * O QUE A FUNCIONÁRIA FAZ (o admin decide em Configurações › O que a funcionária faz):
    * naoVende = os caminhos de venda que ela NÃO vê ('caixa' = cabelo pela pistola/QR · 'medida' = cabelo sem etiqueta ·
@@ -193,6 +196,8 @@ export const CONFIG_PADRAO: Configuracoes = {
   modeloNota: 'carta',
   impostosNaNota: true,
   feriadosAjustes: AJUSTES_PADRAO,
+  feriadosPais: LOCAL_PADRAO.pais,
+  feriadosRegiao: LOCAL_PADRAO.regiao ?? '',
   funcionariaNaoVende: [],
   funcionariaAgenda: ['atendimento', 'compromisso'],
   funcionariaTelas: [],

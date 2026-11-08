@@ -5134,4 +5134,18 @@ export const ES: Record<string, string> = {
   'usuário(s)': 'usuario(s)',
   'viagem(ns)': 'viaje(s)',
   'dia(s)': 'día(s)',
+  // feriados por país e região (Configurações › Geral e Agenda)
+  'Sem feriados: escolha o país em Configurações › Geral.': 'Sin feriados: elija el país en Configuración › General.',
+  'Mostrar feriados nacionais ({p})': 'Mostrar feriados nacionales ({p})',
+  'Mostrar feriados de {r}': 'Mostrar feriados de {r}',
+  'Feriados da agenda': 'Feriados de la agenda',
+  'Por enquanto só os feriados nacionais deste país.': 'Por ahora solo los feriados nacionales de este país.',
+  '{tipo} de {r}': '{tipo} de {r}',
+  '{p} (nacional)': '{p} (nacional)',
+  'Feriado regional': 'Feriado regional',
+  'Sem feriados': 'Sin feriados',
+  'Só os nacionais': 'Solo los nacionales',
+  'De que país e de que região são os feriados que aparecem na Agenda. Só informativo: o feriado não bloqueia vendas, compras nem triagens. Ex.: Bolívia · La Paz mostra os nacionais e o 16 de julho.': 'De qué país y de qué región son los feriados que aparecen en la Agenda. Solo informativo: el feriado no bloquea ventas, compras ni revisiones. Ej.: Bolivia · La Paz muestra los nacionales y el 16 de julio.',
+  'País dos feriados inválido.': 'País de los feriados inválido.',
+  'Essa região não é do país escolhido.': 'Esa región no es del país elegido.',
 }

@@ -9,6 +9,7 @@ import { empresaFormatada } from '../domain/textoFormatado'
 import { validarMetas } from './metas'
 import { validarVitrine } from './vitrine'
 import { MODELOS_DOCUMENTO } from '../dados/documentos'
+import { PAISES_FERIADO } from '../dados/feriados'
 import type { Anexo, CategoriaAnexo, CotacaoRegistro, Id, Local, Papel, Pessoa } from '../domain/tipos'
 import { auditar, type Configuracoes, type Ctx, cotacoesAtuais, exigirVersao, lerConfig, MSG_ALTERADO_POR_OUTRA, novo, tocar, versaoDoFormulario } from './contexto'
 import { situacaoDe } from './emprestimos'
@@ -290,6 +291,9 @@ export async function salvarConfig(
     exigir(false, 'Já existem vendas/compras na moeda principal atual: trocar agora misturaria moedas nos totais. Faça um backup e comece de novo para trocar.')
   exigir(Number.isInteger(valor.saldoPequenoG) && valor.saldoPequenoG >= 0, 'Sobra pequena: use um número de gramas (0 desliga o aviso).')
   exigir(!valor.modeloNota || valor.modeloNota in MODELOS_DOCUMENTO, 'Modelo de nota inválido.')
+  // feriados: país conhecido (ou nenhum) e região daquele país (ou nenhuma)
+  exigir(!valor.feriadosPais || valor.feriadosPais in PAISES_FERIADO, 'País dos feriados inválido.')
+  exigir(!valor.feriadosRegiao || (!!valor.feriadosPais && PAISES_FERIADO[valor.feriadosPais].regioes.some((r) => r.id === valor.feriadosRegiao)), 'Essa região não é do país escolhido.')
   if (d.fiscal) {
     valor.fiscal = { ...atual.fiscal, ...d.fiscal }
     const f = valor.fiscal

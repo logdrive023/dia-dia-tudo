@@ -31,7 +31,7 @@ describe('feriados', () => {
     const natal = feriadosDoAno(2022).find((f) => f.id === 'navidad')!
     expect(natal).toMatchObject({ data: '2022-12-26', movidoDe: '2022-12-25' })
     // Santa Cruz: 24/09, marcado como confirmado a cada ano
-    expect(feriadosDoAno(2027).find((f) => f.id === 'santaCruz')).toMatchObject({ data: '2027-09-24', categoria: 'santaCruz', confirmacaoAnual: true })
+    expect(feriadosDoAno(2027).find((f) => f.id === 'santaCruz')).toMatchObject({ data: '2027-09-24', categoria: 'regional', regiao: 'santaCruz', abrangencia: 'Departamento de Santa Cruz', confirmacaoAnual: true })
   })
 
   it('categorias e a virada do ano (dezembro → janeiro)', () => {
@@ -50,6 +50,37 @@ describe('feriados', () => {
     await b.comando('salvarConfig', { feriadosAjustes: [{ ano: 2027, acao: 'extra', data: '2027-03-15', pt: 'Feriado de teste', es: 'Feriado de prueba', categoria: 'nacional', fonte: 'DS de teste' }] } as never)
     const r = await b.consulta('feriados', { de: '2027-03-01', ate: '2027-03-31', categorias: ['nacional'] })
     expect(r.find((f) => f.data === '2027-03-15')).toMatchObject({ pt: 'Feriado de teste', fonte: 'DS de teste' })
+  })
+
+  it('país e região escolhidos: outro departamento, Brasil, nenhum', () => {
+    const ano = (local: Parameters<typeof feriadosEntre>[4]) => feriadosEntre('2027-01-01', '2027-12-31', ['nacional', 'regional'], undefined, local)
+    // La Paz: os nacionais da Bolívia + 16/07 (e não o 24/09 de Santa Cruz)
+    const lp = ano({ pais: 'BO', regiao: 'laPaz' })
+    expect(lp.filter((f) => f.categoria === 'regional').map((f) => [f.data, f.abrangencia])).toEqual([['2027-07-16', 'Departamento de La Paz']])
+    expect(lp.some((f) => f.id === 'santaCruz')).toBe(false)
+    // só os nacionais (sem região)
+    expect(ano({ pais: 'BO' }).every((f) => f.categoria === 'nacional')).toBe(true)
+    // Brasil: 10 nacionais (sem traslado de domingo; Carnaval é ponto facultativo e não entra)
+    const br = ano({ pais: 'BR' })
+    expect(br).toHaveLength(10)
+    expect(br.find((f) => f.id === 'br-sextaSanta')?.data).toBe('2027-03-26')
+    expect(br.some((f) => f.pais !== 'BR' || f.id === 'carnavalSeg')).toBe(false)
+    // nenhum país: nada
+    expect(ano({ pais: '' })).toEqual([])
+    // ajuste antigo gravado como 'santaCruz' continua valendo para Santa Cruz (e não para La Paz)
+    const extra = [{ ano: 2027, acao: 'extra' as const, data: '2027-10-01', pt: 'Extra', es: 'Extra', categoria: 'santaCruz' as const, fonte: 'teste' }]
+    expect(feriadosEntre('2027-10-01', '2027-10-01', ['regional'], extra, { pais: 'BO', regiao: 'santaCruz' })).toHaveLength(1)
+    expect(feriadosEntre('2027-10-01', '2027-10-01', ['regional'], extra, { pais: 'BO', regiao: 'laPaz' })).toHaveLength(0)
+  })
+
+  it('a agenda usa o país e a região da configuração; região de outro país é recusada', async () => {
+    const { b } = await novoBackend()
+    await b.comando('salvarConfig', { feriadosPais: 'BO', feriadosRegiao: 'cochabamba' } as never)
+    const r = await b.consulta('feriados', { de: '2027-09-01', ate: '2027-09-30', categorias: ['regional'] })
+    expect(r.map((f) => [f.data, f.regiao])).toEqual([['2027-09-14', 'cochabamba']])
+    await expect(b.comando('salvarConfig', { feriadosPais: 'BR', feriadosRegiao: 'cochabamba' } as never)).rejects.toThrow(/não é do país/)
+    await b.comando('salvarConfig', { feriadosPais: '', feriadosRegiao: '' } as never)
+    expect(await b.consulta('feriados', { de: '2027-01-01', ate: '2027-12-31', categorias: ['nacional', 'regional'] })).toEqual([])
   })
 })
 
