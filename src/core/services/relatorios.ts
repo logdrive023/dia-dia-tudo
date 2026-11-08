@@ -43,7 +43,10 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
     if (inc && inc.em.slice(0, 10) >= p.de && inc.em.slice(0, 10) <= p.ate)
       despesasPorCategoria.set('Viagens', (despesasPorCategoria.get('Viagens') ?? 0) - inc.total)
   }
-  const despesas = [...despesasPorCategoria.values()].reduce((s, v) => s + v, 0)
+  // PERDAS DE ESTOQUE (a custo): o que saiu do estoque sem venda e sem ir para outro pacote — perda/acerto à mão e o
+  // peso que a lavagem tirou. Antes esse custo sumia do estoque e não aparecia aqui (o resultado ficava maior).
+  const perdasEstoque = await perdasDeEstoque(ctx, p)
+  const despesas = [...despesasPorCategoria.values()].reduce((s, v) => s + v, 0) + perdasEstoque.mao + perdasEstoque.lavagem
   const lucroBruto = receita - cmv - insumos - comissoes
   const resultado = lucroBruto - despesas
   const retiradas = caixa.filter((m) => m.tipo === 'retirada' && m.socioId && !m.estornadoPor)
@@ -56,7 +59,8 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
     de: p.de,
     ate: p.ate,
     moeda: cfg.moedaPrincipal,
-    linhas: [
+    // `ajuda`: o ⓘ da linha (o que entra nela, com exemplo)
+    linhas: <{ conta: string; valor: number; nivel: number; ajuda?: string }[]>[
       { conta: 'Receita de vendas', valor: receitaBruta, nivel: 0 },
       ...(descontos ? [{ conta: '(−) Descontos', valor: -descontos, nivel: 1 }, { conta: '= Receita líquida', valor: receita, nivel: 0 }] : []),
       { conta: '(−) Custo do que foi vendido', valor: -cmv, nivel: 1 },
@@ -65,6 +69,8 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
       { conta: '= Lucro bruto', valor: lucroBruto, nivel: 0 },
       // negativo = o gasto de viagem levado ao custo do estoque passou do gasto do período: aparece como (+)
       ...[...despesasPorCategoria].map(([c, v]) => ({ conta: v < 0 ? `(+) ${c} (gasto levado ao custo do estoque)` : `(−) ${c}`, valor: -v, nivel: 1 })),
+      ...(perdasEstoque.mao ? [{ conta: '(−) Perda de estoque lançada à mão (a custo)', valor: -perdasEstoque.mao, nivel: 1, ajuda: 'Perda ou acerto para menos lançado à mão em Estoque (ex.: pontas, cabelo estragado, contagem). Vale o custo das gramas que saíram. Ex.: 100 g de um pacote que custou Bs 0,10/g = Bs 10.' }] : []),
+      ...(perdasEstoque.lavagem ? [{ conta: '(−) Perda de peso na lavagem (a custo)', valor: -perdasEstoque.lavagem, nivel: 1, ajuda: 'O peso que o cabelo perdeu na lavagem (o peso depois digitado na Triagem), a custo. Ex.: lavou 10 kg a Bs 0,20/g e ficou 9,5 kg → 500 g = Bs 100.' }] : []),
       { conta: '= Resultado do período', valor: resultado, nivel: 0 },
     ],
     receita,
@@ -75,11 +81,36 @@ export async function dre(ctx: Ctx, p: { de: string; ate: string }) {
     comissoes,
     lucroBruto,
     despesas,
+    perdasEstoque,
     resultado,
     margem: receita ? Math.round((lucroBruto / receita) * 10000) : 0,
     socios,
     vendas: vendas.length,
   }
+}
+
+/**
+ * Perdas de estoque do período, A CUSTO: 'mao' = perda ou acerto para menos lançado no estoque · 'lavagem' = o peso que
+ * a lavagem tirou. O custo foi guardado no movimento na hora da baixa; movimento antigo (sem o custo guardado) usa o
+ * custo do pacote hoje. Não entram: perda da separação (o custo fica nos pacotes que saíram) e conferência de peso da
+ * compra (o custo é redistribuído pelo peso novo).
+ */
+async function perdasDeEstoque(ctx: Ctx, p: { de: string; ate: string }) {
+  const itens = new Map((await ctx.repos.itens.listar()).map((i) => [i.id, i]))
+  const r = { mao: 0, lavagem: 0 }
+  for (const m of await ctx.repos.movEstoque.listar()) {
+    if (m.data < p.de || m.data > p.ate || m.delta >= 0) continue
+    if (m.perdaCusto) {
+      r[m.perdaCusto.tipo] += m.perdaCusto.valor
+      continue
+    }
+    // dado antigo: a baixa à mão não tem origem (a conferência de peso tem a compra); a lavagem diz no texto
+    if ((m.motivo !== 'perda' && m.motivo !== 'ajuste') || m.origemId) continue
+    const i = itens.get(m.itemId)
+    if (!i) continue
+    r[m.descricao?.startsWith('Perda de lavagem') ? 'lavagem' : 'mao'] += custoDe(i, -m.delta)
+  }
+  return r
 }
 
 /** Livro caixa: cada entrada e saída com saldo acumulado, por moeda. */

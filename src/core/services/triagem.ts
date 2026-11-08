@@ -263,7 +263,7 @@ export async function moverFaseTriagem(ctx: Ctx, d: { ids: Id[]; fase: string; o
       exigir(peso <= i.saldo, `${i.codigo ?? i.nome}: o peso depois (${unidadeTexto(i.unidade, peso)}) é maior que o de antes (${unidadeTexto(i.unidade, i.saldo)}).`)
       if (peso < i.saldo) {
         const texto = `${unidadeTexto(i.unidade, i.saldo)} → ${unidadeTexto(i.unidade, peso)} (−${unidadeTexto(i.unidade, i.saldo - peso)})`
-        await moverEstoque(ctx, { itemId: i.id, delta: peso - i.saldo, motivo: 'perda', descricao: `Perda de lavagem: ${texto}` })
+        await moverEstoque(ctx, { itemId: i.id, delta: peso - i.saldo, motivo: 'perda', descricao: `Perda de lavagem: ${texto}`, perda: 'lavagem' })
         extra += ` · lavagem ${texto}`
         i = (await ctx.repos.itens.obter(id))!
       }

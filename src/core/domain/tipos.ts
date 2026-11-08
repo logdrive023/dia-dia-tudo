@@ -257,6 +257,12 @@ export interface MovEstoque extends Base {
   /** quem fez (usuário da sessão), para o histórico do pacote e o livro do cabelo */
   usuario?: Id
   porNome?: string
+  /**
+   * PERDA QUE SAI DO ESTOQUE COM CUSTO (vai para o DRE como despesa, numa linha própria): o custo das gramas no momento
+   * da baixa. 'mao' = perda/acerto lançado à mão no estoque · 'lavagem' = o peso que a lavagem tirou.
+   * (A perda da separação não entra: o custo dela fica nos pacotes que saíram. A conferência de peso também não.)
+   */
+  perdaCusto?: { tipo: 'mao' | 'lavagem'; valor: number }
 }
 
 export interface Dia extends Base {

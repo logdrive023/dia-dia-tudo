@@ -52,7 +52,7 @@ export function DivisaoSocias({ de, ate }: { de: string; ate: string }) {
           <ol className="py-1">
             {d.linhas.map((l, i) => (
               <li key={i} className={cx('num grid grid-cols-[minmax(0,1fr)_auto_3.5rem] items-baseline gap-x-3 px-4 py-1.5', l.nivel === 0 && i > 0 && 'mt-1 border-t border-[var(--borda)] pt-2')}>
-                <span className={cx('min-w-0 text-sm', l.nivel === 0 ? 'font-bold' : 'text-[var(--suave)]')}>{t(l.conta.replace(/^= /, ''))}</span>
+                <span className={cx('min-w-0 text-sm', l.nivel === 0 ? 'font-bold' : 'text-[var(--suave)]')}>{t(l.conta.replace(/^= /, ''))}{l.ajuda && <Info texto={l.ajuda} />}</span>
                 <span className={cx('whitespace-nowrap text-right', l.nivel === 0 ? 'font-bold' : 'text-sm', i === d.linhas.length - 1 && 'border-b-[3px] border-double border-[var(--texto)] pb-0.5 font-black', i === d.linhas.length - 1 && (l.valor < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'))}>{contabil(l.valor, m)}</span>
                 <span className="whitespace-nowrap text-right text-xs text-[var(--suave)]">{pctTexto(l.valor, d.receitaBruta || d.receita)}</span>
               </li>

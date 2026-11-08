@@ -14,7 +14,7 @@ import { fatorDaTabela } from './precos'
 
 export async function moverEstoque(
   ctx: Ctx,
-  m: { itemId: Id; delta: number; motivo: MotivoEstoque; origemId?: Id; descricao?: string; corrigeId?: Id },
+  m: { itemId: Id; delta: number; motivo: MotivoEstoque; origemId?: Id; descricao?: string; corrigeId?: Id; perda?: 'mao' | 'lavagem' },
 ) {
   const item = await ctx.repos.itens.obter(m.itemId)
   exigir(item, 'Item não encontrado.')
@@ -34,6 +34,8 @@ export async function moverEstoque(
     descricao: m.descricao,
     usuario: ctx.sessao.usuarioId || undefined,
     porNome: ctx.sessao.nome || undefined,
+    // perda com custo (DRE): o custo das gramas que saíram, calculado ANTES de mudar o saldo
+    perdaCusto: m.perda && m.delta < 0 ? { tipo: m.perda, valor: custoDe(item, -m.delta) } : undefined,
   })
   await ctx.repos.movEstoque.salvar(mov)
   await ctx.repos.itens.salvar(tocar(ctx, { ...item, saldo: depois }))
@@ -176,7 +178,8 @@ export async function ajustarEstoque(ctx: Ctx, d: { itemId: Id; novoSaldo: numbe
   const delta = d.novoSaldo - item.saldo
   exigir(delta !== 0, 'A quantidade já é essa.')
   if (d.motivo === 'perda') exigir(delta < 0, 'Perda só diminui o estoque.')
-  const mov = await moverEstoque(ctx, { itemId: item.id, delta, motivo: d.motivo, descricao: d.descricao })
+  // baixa à mão (perda ou acerto para menos): o custo que sai vai para o DRE como "Perda de estoque lançada à mão"
+  const mov = await moverEstoque(ctx, { itemId: item.id, delta, motivo: d.motivo, descricao: d.descricao, perda: delta < 0 ? 'mao' : undefined })
   await auditar(ctx, 'ajustarEstoque', item.id, `${item.nome}: ${item.saldo} → ${d.novoSaldo}`)
   return { id: mov.id }
 }

@@ -19,6 +19,7 @@
     "validar:plano": "node scripts/validar.mjs --plano",
     "validar:tudo": "node scripts/validar.mjs --nivel 3",
     "responsivo": "node scripts/responsivo.mjs",
+    "diagnostico": "node scripts/diagnostico.mjs",
     "responsivo:fotos": "node scripts/responsivo.mjs --fotos"
   },
   "dependencies": {
