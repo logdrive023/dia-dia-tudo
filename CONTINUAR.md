@@ -7,8 +7,7 @@
 > desenho original em [DESENHO.md](docs/architecture/DESENHO.md) (§11: peças padrão das telas);
 > impostos e relatórios em [FISCAL.md](docs/business/FISCAL.md);
 > auditoria de usabilidade em [AUDITORIA-USABILIDADE.md](docs/audit/AUDITORIA-USABILIDADE.md).
-> O plano da API (banco, rotas, login, perfis, QR) está em `DIAGNOSTICO-API.md` — **fica só neste computador**
-> (está no `.gitignore`); copie à mão se for trabalhar em outro.
+> O plano da API (banco, contrato, login, perfis, QR, migração) está em `DIAGNOSTICO-API.md`.
 >
 > Atualizado em 05/11/2026.
 
@@ -194,7 +193,7 @@ O texto para quem usa está em Novidades (`src/features/novidades/model/novidade
   "Quero este" no WhatsApp; só dados públicos (nunca custo/fornecedor). Hoje abre no aparelho; com a API vira link público.
 - **Bruto que juntou com outro**: `pacotesFinais` (`leitura.ts`) segue a cadeia da triagem até os pacotes finais
   ("passou por L-…") no caixa e no estoque.
-- **QR da etiqueta seguro** (`DIAGNOSTICO-API.md` §12): o QR leva só um código aleatório de 16 caracteres (`Item.qr`,
+- **QR da etiqueta seguro** (`DIAGNOSTICO-API.md` §3.9): o QR leva só um código aleatório de 16 caracteres (`Item.qr`,
   `novoCodigoQr`), endereço `#/q/<código>` → `AbrirQr.tsx` → `pacoteDoQr`. Sem login: página neutra
   (`EtiquetaInterna`), sem usuários de teste e sem montar dados de exemplo. **Reimprimir (nova via) troca o código**
   e o QR velho para de abrir; imprimir de novo a mesma etiqueta mantém. O código nasce em `prepararQrEtiquetas` ao
@@ -313,9 +312,9 @@ Tabelas de preço refeitas e relatórios no padrão contábil boliviano.
 3. **Funcionária na Compra e na Triagem**: hoje não tem interruptor para liberar (não foi pedido; avisar se pedirem).
 4. **Configurações**: explicar em cada seção o que muda na prática quando altera (como foi feito no ⚙ da Triagem).
 5. **Conferir num Android de verdade**: fonte grande do sistema e o "Separar" com o dedo.
-6. **Servidor/API** (plano em `DIAGNOSTICO-API.md`: tabelas, rotas, login e perfis vindos do banco §10–11, QR §12):
+6. **Servidor/API** (plano em `DIAGNOSTICO-API.md`: tabelas §3, contrato §4, perfis §5, fases §6, migração §7):
    sincronização entre aparelhos, vitrine com link público, segurança de verdade. O front já chama tudo pelo contrato;
-   entra um adaptador novo (`src/adapters/api/backendHttp.ts`, plano no §6.1), ao lado do atual `backendApi.ts`.
+   o adaptador é o `backendApi.ts`, que já fala o canal cifrado com o servidor Go.
 7. Pendências menores de [SISTEMA.md](docs/architecture/SISTEMA.md) §7: devolução parcial de produto, leitura de QR própria para
    iPhone/Firefox, testes de longa duração.
 

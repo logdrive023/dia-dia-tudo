@@ -1,186 +1,824 @@
-# DIAGNÓSTICO DE ARQUITETURA — da app no aparelho para API real (Go + PostgreSQL)
+# Diagnóstico da API — desenho final (Go + SQLite/PostgreSQL)
 
-> Análise **somente leitura** do código em `C:\Users\CLIENTE\Desktop\dia-dia-tudo` (branch `main`, árvore com mudanças locais não commitadas em 05/11/2026). Nenhum arquivo de código foi alterado; `scripts/contrato.mjs` **não** foi executado porque ele **grava** `api-contract/openapi.yaml` (`scripts/contrato.mjs:29`) — os números abaixo foram extraídos lendo `src/core/services/index.ts` com a mesma regra do script.
->
-> Convenção de marcação:
-> - **[FATO]** — está no código; sempre com `arquivo:linha`.
-> - **[HIPÓTESE]** — dedução razoável, não comprovada no código.
-> - **[RECOMENDAÇÃO]** — o que eu faria.
+**Atualizado:** 09/11/2026 · **Situação:** vigente (substitui a versão de 05/11/2026, que está no git em `d1d2980`)
 
----
+Diretrizes definitivas para levar o app "Tudo" do aparelho para o servidor. Vale junto com o
+[CLAUDE.md do servidor](../dia-dia-tudo-backend/CLAUDE.md) e com o contrato em
+[api-contract/openapi.yaml](api-contract/openapi.yaml). Em conflito, vale o **código**; o documento se corrige.
 
-## 0. Resumo executivo (1 minuto)
+## 0. Decisões definitivas
 
-| Pergunta do dono | Resposta curta |
+| # | Tema | Decisão | O que muda em relação à versão anterior |
+|---|---|---|---|
+| D1 | Transporte | **Canal cifrado**: `POST /v1/k` (aperto de mão) e `POST /v1/r` (todo o resto). A "rota" é o **nome** do comando ou da consulta. | Sai o plano de `POST /v1/comandos/{nome}`, REST e `backendHttp.ts`. O canal já funciona dos dois lados. |
+| D2 | Login | Token opaco dentro da `Mensagem`, nunca em cabeçalho ou cookie. Sessões passam para a tabela `sessoes`. | Sai JWT + refresh em cookie. |
+| D3 | Banco | **Um SQL só para os dois bancos**: SQLite no desenvolvimento e numa instalação simples, PostgreSQL 16 em produção. | Sai o DDL exclusivo do Postgres como migração direta: ele vira desenho lógico ([Anexo A](#anexo-a--ddl-de-referência-postgresql)). |
+| D4 | Camadas | As que já existem: `canal → handler → usecase → domain ← repository`. | Sai `http/service/platform` e o uso de `sqlc`/`goose`. |
+| D5 | Regra | Mesmo nome, mesmo JSON e **mesma mensagem de erro** do app. `src/core/services` é a especificação; os testes do app são o contrato. | Sai a geração de servidor pelo OpenAPI. |
+| D6 | Transação | **Um comando = uma transação**, com travas em ordem fixa ([§2.3](#23-transação-e-concorrência)). | Continua a regra, agora no desenho real. Ainda não existe no servidor. |
+| D7 | Multi-empresa | `empresa_id` vem **só do token**. Filial = `locais`. Login é único no sistema inteiro. | Reforça: toda gravação confere a empresa ([§3.8](#38-multi-empresa-filiais-e-b2b)). |
+| D8 | Paginação | No servidor, opcional por consulta e compatível com a resposta atual ([§4.3](#43-paginação)). | Sai o cursor `(data, id)`: a tela usa número de página. |
+| D9 | Modo Teste | **Só no aparelho.** Produção não tem cenário nem "zerar tudo". | Novo. |
+| D10 | Offline | **Escrever exige internet** na V1 quando o modo é servidor. O modo aparelho continua funcionando sozinho. | Mantém a decisão. O `outbox` continua sem uso. |
+
+## 1. Discovery: o documento antigo e o projeto de hoje
+
+### 1.1 Números
+
+| Medida | Documento (05/11) | Hoje (09/11) |
+|---|---|---|
+| Comandos / consultas em `src/core/services/index.ts` | 85 / 92 | **95 / 104** |
+| Permitidos à funcionária (comandos / consultas) | 20 / 36 | **23 / 42** |
+| Linhas em `src/core/services/*.ts` | 11.343 | **13.094** |
+| Nomes já portados para Go | — | **2 de 199** (`locais`, `salvarLocal`), mais o login |
+| Tabelas no servidor | — | `usuarios`, `auditoria`, `locais`, `turnos` |
+
+### 1.2 O que se aproveita
+
+| Parte | Como fica |
 |---|---|
-| Ligar o front numa API é simples? | **Simples.** As telas já só falam com uma porta (`Backend`) por nome de comando/consulta [FATO `src/core/ports/backend.ts:136-152`, `src/shared/ui/contexto.tsx:72-124`]. Trocar o adaptador não mexe em tela. |
-| Montar o banco relacional é simples? | **Moderado.** O modelo tem 20 coleções [FATO `src/core/ports/portas.ts:41-63`], com `Base` uniforme [FATO `src/core/domain/tipos.ts:10-18`], mas há **listas e mapas dentro dos registros** que viram ~30 tabelas filhas, e alguns dados de negócio estão "escondidos" em `config` e `auditoria`. Proposta: **64 tabelas na V1** (58 indispensáveis + 6 que podem nascer como coluna/JSONB), 67 com as de acesso do §11. |
-| O backend em Go é simples? | **Complexo.** Toda regra está em TypeScript: **11.343 linhas** em `src/core/services/*.ts` + 1.872 em `domain/` e módulos [FATO: contagem `wc -l`]. São **85 comandos e 92 consultas** [FATO `src/core/services/index.ts:36-138` e `:140-238`]. Em Go tudo isso é **reescrito**, com aritmética exata de dinheiro/câmbio igual à do TS e com concorrência real (hoje um comando roda por vez no aparelho [FATO `src/adapters/noAparelho.ts:68-72,94`]). |
-| Os perfis (admin × funcionária/gerente) já estão prontos para a API? | **Sim, na maior parte.** Atualização 05/11/2026 (§10): o que a funcionária vende, vê na agenda e as telas liberadas são **configuração** (`config.funcionaria*`) e são conferidos **no serviço** (`vendas.ts`, `agenda.ts`, `visibilidade.ts`), não só na tela — a API herda isso de graça. Ficam para decidir: liberações **por usuário** (hoje valem para todas as funcionárias) e preferências (tema/idioma) **por usuário no servidor** (hoje no aparelho). |
-| Autenticação e permissões vão vir do banco? Muda muito o front? | **Sim, vão para o servidor; o front muda pouco** (§11): as regras já estão no núcleo (`permissoes.ts`, `visibilidade.ts`), não nas telas. No front: 1 adaptador HTTP, 1 hook de permissões no lugar das contas locais em 10 arquivos, e a sessão sempre reconferida no servidor. |
-| O QR da etiqueta é seguro? | **No app, sim, para o que dá sem servidor** (§12): o QR leva só um código aleatório (não vaza id, data, medida nem cor), reimprimir invalida o antigo e quem lê sem login vê uma página neutra. Com a API: abrir só com JWT, limite de tentativas, auditoria das leituras inválidas e, se quiser, código assinado (HMAC). |
-| **Veredito** | **COMPLEXA** no total (pela reescrita das regras em Go + concorrência multiusuário). A arquitetura atual é boa e reduz o risco: o *encaixe* é simples; o *volume e a exatidão* das regras é o que pesa. |
+| Mapa de entidades e as entidades "fantasma" (triagem, venda em aberto, contadores) | **Aproveitado** em [§3.2](#32-o-que-sai-do-config-e-do-json) |
+| DDL de 64 tabelas, conferido num Postgres de verdade | **Aproveitado como desenho lógico** ([Anexo A](#anexo-a--ddl-de-referência-postgresql)); tabelas e restrições valem, os tipos seguem [§3.1](#31-dialeto-único) |
+| Separar `compras` × `vendas`, promover `campos` com regra para colunas, tabelas de preço versionadas | **Mantido** |
+| Riscos de concorrência e a tabela do que cada comando grava junto | **Mantido** em [§2.3](#23-transação-e-concorrência) e [§6](#6-ordem-de-implementação-e-riscos) |
+| Perfis, `config.funcionaria*`, permissões efetivas | **Mantido** em [§5](#5-permissões-admin--funcionária) |
+| QR da etiqueta (código aleatório, só logado, revogar ao reimprimir) | **Mantido** em [§3.9](#39-etiquetas-qr-e-vitrine), sem `GET /v1/qr` |
 
-Top 3 riscos: (1) **divergência de regra/arredondamento** entre TS e Go (dinheiro, câmbio racional, rateios de custo); (2) **concorrência**: hoje a fila única esconde corridas (estoque, contadores de código, comissão a pagar, dia do caixa); (3) **contrato de transporte**: o adaptador atual fala um **envelope cifrado em 2 endereços** (`/v1/k`, `/v1/r`) com token **dentro** do corpo [FATO `src/adapters/api/backendApi.ts:1-12`, `api-contract/openapi.yaml:9-41`], o que conflita com "REST + JWT em cabeçalho" — precisa de decisão antes de começar.
+### 1.3 O que estava errado ou ficou velho
 
----
-
-## 1. Mapeamento de entidades
-
-### 1.1 O que existe hoje (coleções da porta)
-
-[FATO] Porta de repositório com 20 coleções (`src/core/ports/portas.ts:41-63`). Toda coleção só tem `obter`, `listar(onde por igualdade)`, `salvar`, `salvarVarios`, `limpar` (`portas.ts:32-39`) — **não existe consulta por intervalo, ordenação, paginação nem agregação na porta**; todas as consultas carregam a coleção e filtram em memória (ex.: `vendas.ts:573-608`, `painel.ts:29-40`, `caixa.ts:127-131`).
-
-[FATO] Campos-base de todo registro: `id, empresaId, criadoEm, atualizadoEm, criadoPor, versao, apagadoEm?` (`tipos.ts:10-18`), preenchidos por `novo()` e `tocar()` (`contexto.ts:21-37`). `id` é ULID gerado no aparelho (`domain/ids.ts:16-33`).
-
-### 1.2 Entidades, dependência e campos
-
-Legenda: **I** = independente (existe sozinha) · **D** = dependente (só existe dentro/por causa de outra) · *obrig.* = obrigatório no tipo TS.
-
-| # | Entidade (coleção) | I/D | Campos obrigatórios | Campos opcionais relevantes | Relações | Fonte |
-|---|---|---|---|---|---|---|
-| 1 | **Pessoa** (`pessoas`) | I | nome, papeis[] | telefone, documento, obs, comissaoBp, localId, cargo, salario{moeda,valor,periodo}, superiorId, acesso, verAgendaEquipe | N:1 Local; auto-relação superior (organograma); papéis N:N | `tipos.ts:22-41` |
-| 2 | **Local / Unidade** (`locais`) | I | nome, tipo(salao/ponto/outro) | apelido, endereço (rua…pais), referencia | 1:N pessoas, vendas, mov. caixa | `tipos.ts:43-54` |
-| 3 | **Item** (`itens`) — catálogo **e** lote de cabelo | I | moduloId, tipoItem, nome, unidade, controlaEstoque, ativo, **saldo**, campos | precoSugerido, estoqueIdeal, duracaoMin, retornoDias, comissaoBp, insumo{moeda,valor,itens[]}, custoPrincipal, quantidadeInicial, **origem{tipo,id,ids[],pessoaId,compraId,compraIds[]}**, faseTriagem{…}, **triagem{id,codigo,em,por,papel}**, codigo, codigosAnteriores[], etiqueta*(5 campos), reserva{…} | N:1 compra (lote nasce na compra); N:N lote↔lote (genealogia); N:N lote↔compras | `tipos.ts:61-111` |
-| 4 | **Transação** (`transacoes`) — **compra e venda na mesma coleção** | I | tipo, moduloId, data, etapa, **linhas[]**, **pagamentos[]**, moedaPrincipal, totalPrincipal, **historico[]**, campos | codigo, codigosAnteriores, compradorId, pessoaId, localId, profissionalId, agendadoPara, obs, viagemId, financiamentoId, **impostosEstimados{…linhas[]}** | N:1 pessoa, local, viagem, financiamento | `tipos.ts:192-221` |
-| 4a | Linha (`Transacao.linhas[]`) | D | id, descricao, quantidade, moeda, total, totalPrincipal, campos | itemId, cotacao, custoPrincipal, profissionalId, comissão(3), insumo(4), baseComissao, parteSalao, precoCatalogo, motivoPreco, bruto/desconto/descontoPrincipal | N:1 item | `tipos.ts:133-172` |
-| 4b | Pagamento (`Transacao.pagamentos[]`) | D | id, forma, moeda, valor, valorPrincipal | cotacao | N:1 forma | `tipos.ts:123-131` |
-| 4c | EventoEtapa (`Transacao.historico[]`) | D | de, para, em | por, porNome, tipo(etapa/correcao), totalAntes/Depois, motivo, ajustes[] | — | `tipos.ts:174-188` |
-| 5 | **MovEstoque** (`movEstoque`) | D (de Item) | itemId, data, delta, saldoAntes, saldoDepois, motivo | origemId (polimórfico), corrigeId, descricao, usuario, porNome | N:1 item; origem → compra/venda/lote/triagem | `tipos.ts:225-238` |
-| 6 | **Dia do caixa** (`dias`) | I | data, status, **contado{moeda→valor}** | **alteracoesDepois[]** | 1:N mov. caixa (pela data) | `tipos.ts:240-247`; id = a própria data `contexto.ts:227` |
-| 7 | **MovCaixa** (`movCaixa`) | D | data, moeda, forma, delta, tipo(11), descricao | origemId (polimórfico), categoria, socioId, valorPrincipal, localId, pessoaId, estornadoPor, estornaId, viagemId | N:1 dia, forma, sócio, local, pessoa; auto-relação estorno | `tipos.ts:262-284` |
-| 8 | **MovConta** — conta corrente da pessoa (`movConta`) | D (de Pessoa) | pessoaId, data, moeda, delta, tipo(8), descricao | origemId, forma | N:1 pessoa | `tipos.ts:290-300` |
-| 9 | **Cotação** (`cotacoes`) | I | (Cotacao) moeda, valor(**texto decimal**), sentido, data | contra, uso(base/venda/compra), fonte | — | `tipos.ts:302-304`, `dinheiro.ts:86-98` |
-| 10 | **TabelaPreco** (`tabelasPreco`) | I | moduloId, nome, moeda, unidadeMedida, fatorPor, **linhas: number[]**, **colunas[]**, **valores{"medida\|coluna"→"3,5"}** | categoria, validaDesde | colunas N:1 pessoa | `tipos.ts:310-326` |
-| 10a | **Versão da tabela** | D | numero, em, nome, linhas, colunas, valores | por, nota, categoria, validaDesde | **guardada como linha de `auditoria` com JSON no `resumo`** | `precos.ts:126-146`, `precos.ts:148-151` |
-| 11 | **Empréstimo** (`emprestimos`) | I | direcao, pessoaId, moeda, principal, juros{tipo,taxa,fixo}, inicio, **parcelas[]**, situacao | obs | N:1 pessoa; 1:N parcelas; 1:N mov. dívida | `tipos.ts:337-347` |
-| 12 | **MovDivida** (`movDivida`) | D | emprestimoId, data, delta, saldoAntes, saldoDepois, tipo | parcelaId, forma, descricao | N:1 empréstimo, parcela | `tipos.ts:349-359` |
-| 13 | **Anexo** (`anexos`) | D (de qualquer dono) | donoId (polimórfico), categoria, nome, mime, tamanho | **miniatura (data URL dentro do registro)** | dono = compra/venda/item/pessoa/… | `tipos.ts:363-371` |
-| 14 | **Config** (`config`) — chave → valor qualquer | I | valor: unknown | — | ver 1.4 | `tipos.ts:373-375` |
-| 15 | **Auditoria** (`auditoria`) | D | acao, resumo | alvoId, usuarioNome, ligados[] | polimórfica | `tipos.ts:378-385` |
-| 16 | **Usuário** (`usuarios`) | I | login, nome, perfil, senhaHash, sal, ativo | pessoaId, localId, ultimoAcesso | 1:1 opcional pessoa | `tipos.ts:388-398` |
-| 17 | **Viagem** (`viagens`) | I | codigo, nome, **viajantes[]**, inicio, status, rateio, **despesas[]**, **carteira[]** | destino, naBolivia, fim, orcamento(2), encerramento{}, **incorporacao{…lotes[]}**, **incorporacoesDesfeitas[]**, obs | N:N pessoas; 1:N compras (Transacao.viagemId) | `tipos.ts:404-468` |
-| 18 | **Financiamento / Adiantamento** (`financiamentos`) | I | codigo, pessoaId, data, moeda, valor, valorPrincipal, forma, **eventos[]** | cotacao, viagemId, prazo, abaterComissoes, obs, encerramento{} | N:1 pessoa, viagem; 1:N compras (entregas) | `tipos.ts:470-511` |
-| 19 | **Evento da agenda** (`eventos`) | I | titulo, data | hora, duracaoMin, nota, pessoaId, localId, semanal, repetirAte, **feitos[]** | N:1 pessoa, local | `tipos.ts:524-538` |
-| 20 | **Outbox** (`outbox`) | D | comando, dados | enviadoEm | — (hoje só grava, ninguém envia) | `tipos.ts:513-517`, `noAparelho.ts:114-116` |
-
-**Entidades que existem no negócio mas NÃO têm registro próprio** (achado importante):
-
-| Entidade "fantasma" | Onde vive hoje | Fonte |
+| Assunto | O documento dizia | A realidade |
 |---|---|---|
-| **Triagem** ("T-0003": quem, quando, o que juntou/separou) | copiada em cada lote: `item.triagem{id,codigo,em,por,papel}` e `item.campos.separacaoId` | `tipos.ts:93-94`, `estoque.ts:231-234`, `triagem.ts:536` |
-| **Venda em aberto** (rascunho do caixa) | `config` com id `"vendaAberta:<id>"` | `vendasAbertas.ts:8,37-41` |
-| **Cidade cadastrada** | `config` com id `"cidade:<id>"` | `cidades.ts:1-3,10,14-18` |
-| **Contadores de código** (P, L, T, V, VG…) | `config` com id `"contador-<letra>"` | `codigos.ts:194-202`, `estoque.ts:188-196` |
-| **Sigla da pessoa** (código "por pessoa") | `config.codigos.siglas{pessoaId→sigla}` | `codigos.ts:31-32` |
-| **Forma de pagamento**, **Sócio**, **Fluxo de compra/triagem**, **Atributos**, **Categorias de viagem**, **Módulos personalizados**, **Fiscal/impostos** | dentro de `config` (`geral`, `fluxosCompra`, `fluxoTriagem`, `atributosItem`, `categoriasViagem`, `modulosPersonalizados`) | `contexto.ts:65-132,157-165`, `noAparelho.ts:59-66`, `viagens.ts:75-85` |
-| **Versão de tabela de preço** | `auditoria` com `acao='tabelaPrecoVersao'` e o JSON inteiro em `resumo` | `precos.ts:142-151`, filtrada da tela em `auditoria.ts:65` |
-| **Comissão** (ganha / paga / a pagar) | **derivada**: ganho = linhas de venda; pago = `movCaixa` com `categoria==='Comissões'` + `movConta.tipo==='comissao'` | `comissoes.ts:1-5,30-65` |
+| Rotas | REST + `Idempotency-Key` + `Authorization` | Canal cifrado; `api-contract/openapi.yaml` só tem `/v1/k` e `/v1/r`; o `CLAUDE.md` do servidor proíbe rotas REST |
+| Catálogo | Faltam 9 comandos e 10 consultas | `abrirTurno`, `fecharTurno`, `anotarTurno`, `reduzirNaVendaAberta`, `salvarDivisaoVenda`, 4 do Imposto de Renda; `turnoAtual`, `turnos`, `custoDaVenda`, `reposicao`, `metas`, `documentoVenda`, `divisaoVenda`, `impostoRenda`, `exerciciosFiscais`, `feriados` |
+| Turnos | `fim NOT NULL`, tabela `turno_valores` | Turno aberto existe (`fim` vazio, migração 002); valores por moeda em JSON |
+| Tipos | `DOMAIN`, `timestamptz`, `jsonb`, `text[]`, `EXCLUDE`, GIN | O servidor usa só o que roda nos dois bancos |
+| Vendas em aberto | Pacote vendido sai de todas | Regra nova: só sai se o saldo não der mais; existe venda de parte do pacote |
+| Etiquetas | Imprimir marca como impressa | Imprimir só envia; `marcarEtiquetasImpressas` só depois de confirmar no papel |
+| Vitrine | `mostrarPreco` | `modoPreco`: `contato` (padrão), `tabela` ou `individual` |
+| Auditoria de lotes | Só `auditoria` e `genealogia` | Existe o livro de origem em gramas (`origem.ts`), que depende da **ordem exata** dos movimentos |
 
-### 1.3 Dados duplicados e derivados (calculado × persistido)
+### 1.4 Lacunas por assunto
 
-| Dado | Persistido? | Verdade | Risco | Fonte |
+| Assunto | O que faltava | Resposta |
+|---|---|---|
+| Viagens | Frete identificado, trava de incorporação única | [§3.3](#33-viagens-e-rateio-de-frete) |
+| Agenda | Feriados por país e região, conflitos, atendimento agendado | [§3.7](#37-agenda) |
+| Turnos | Turno aberto, trava em `moverCaixa`, conferência cega | [§3.5](#35-turnos) |
+| Filiais / B2B | Empresa pública sem login; B2B não existe como conceito | [§3.8](#38-multi-empresa-filiais-e-b2b) |
+| Auditoria de lotes | Ordem global dos movimentos | [§3.6](#36-auditoria-de-lotes) |
+| Paginação | Totais dos cartões dependem da lista inteira | [§4.3](#43-paginação) |
+| Modo Teste | Não existia | [§7](#7-guia-de-migração-e-consistência) |
+
+### 1.5 Defeitos achados no servidor atual
+
+Nenhum foi corrigido nesta revisão, que só trata do documento. Todos entram na Fase 0.
+
+| # | Defeito | Onde | Efeito | Correção |
 |---|---|---|---|---|
-| `item.saldo` | **Sim (cache)** | soma de `movEstoque.delta` | divergência em concorrência; o diagnóstico confere | `tipos.ts:68`, `estoque.ts:21-37`, consulta `diagnostico` `painel.ts:312` |
-| `movEstoque.saldoAntes/saldoDepois` | Sim | cadeia de movimentos | dois movimentos simultâneos com o mesmo `saldoAntes` | `estoque.ts:21-34` |
-| `movDivida.saldoAntes/saldoDepois` | Sim | soma dos movimentos do empréstimo | idem | `emprestimos.ts:51-53` |
-| `transacao.totalPrincipal` | Sim | Σ `linhas.totalPrincipal` | baixo (calculado no mesmo comando) | `compras.ts:208`, `vendas.ts:284` |
-| `linha.totalPrincipal`, `pagamento.valorPrincipal`, `cotacao` | Sim (**foto da hora**) | não recalcular o passado | correto manter persistido | `tipos.ts:128-130,140-141` |
-| `linha.comissaoPrincipal/baseComissao/parteSalao/insumo*` | Sim (foto) | regra de comissão na hora | correto manter | `vendas.ts:146-153` |
-| `linha.custoPrincipal` | Sim (foto na saída) | custo proporcional do lote | correto manter | `vendas.ts:240-244` |
-| `item.custoPrincipal` | Sim | custo do lote (muda com incorporação da viagem) | atualizado por `incorporarCustoViagem`/`reabrirViagem` | `viagens.ts:508-511` |
-| `item.origem.compraIds` | Sim (denormalizado) | fecho transitivo da genealogia | mantido por cada triagem | `tipos.ts:86-90`, `triagem.ts:143,162` |
-| Saldo da conta corrente | **Não** (soma de `movConta`) | — | consulta varre tudo | `vendas.ts:585` |
-| Saldo do caixa ("veio de ontem") | **Não** (soma de todo `movCaixa` < data) | — | **cresce sem limite**: `caixaDoDia` lê todos os movimentos de sempre | `caixa.ts:131-139` |
-| Comissão a pagar | **Não** | ganho − pago | corrida ao pagar (ver §7) | `comissoes.ts:91-104` |
-| Saldo do financiamento | **Não** (soma de `movConta` pela origem) | — | — | `tipos.ts:487-492` |
-| Status de parcela | **Não** | calculado por data | — | `emprestimos.ts:148-155` |
-| `pessoa.acesso` × `usuario.perfil` | **Duplicado** | o que vale para permissão é `usuario.perfil` (`noAparelho.ts:83-85`) | dois lugares para "é admin" | `tipos.ts:38`, `CadastroFuncionario.tsx:40,64` |
-| `movCaixa.viagemId` × `movCaixa.origemId` (viagem) | Duplicado | gravados juntos | — | `viagens.ts:179-182` |
+| S1 | `ON CONFLICT (id) DO UPDATE` sem conferir a empresa | `internal/repository/locais.go` | Uma empresa que envie o `id` de um registro de outra **sobrescreve** os dados dela | `DO UPDATE … WHERE tabela.empresa_id = excluded.empresa_id` e recusar se nenhuma linha mudou |
+| S2 | Não há transação por comando | Só as migrações usam `BeginTx` | Comando com várias gravações pode ficar pela metade | [§2.3](#23-transação-e-concorrência) |
+| S3 | Sessões, tokens e idempotência em memória | `internal/handler/rpc.go`, `internal/canal/servidor.go` | Reiniciar derruba todos; não dá para ter duas instâncias | Tabelas `sessoes` e `idempotencia` (as sessões do canal ficam em memória ou Redis) |
+| S4 | Sem caminho para consulta sem login | `RPC.Executar` exige token | `configuracoes`, `usuariosDemo` e `vitrine` não funcionam | [§4.4](#44-consultas-sem-login) |
+| S5 | Visibilidade da funcionária não portada | Só as listas de nomes em `permissoes.go` | Ao portar venda ou pessoa, custo e comissão vazam | [§5](#5-permissões-admin--funcionária), obrigatório a partir da Fase 1 |
+| S6 | `INTEGER` no Postgres tem 32 bits | Regra atual "só TEXT e INTEGER" | Dinheiro acima de 21 milhões em centavos estoura | `BIGINT` em dinheiro e quantidade ([§3.1](#31-dialeto-único)) |
 
-### 1.4 O que precisa de histórico / auditoria
+### 1.6 Clean Architecture: dá para reaproveitar?
 
-[FATO] Toda ação chama `auditar()` (`contexto.ts:59-61`) e as **tentativas recusadas** também ficam no log, fora da transação (`noAparelho.ts:119-123,133-145`). Nada é apagado de verdade: `apagadoEm` (soft delete) e estornos (`caixa.ts:64-85`, `vendas.ts:342-369`).
+**Sim, sem mudar a estrutura.** `domain` não conhece banco, `usecase` só usa portas e `repository` implementa as portas para os
+dois bancos. O `cmd/gerar` já cria o esqueleto. Faltam só peças transversais: transação, travas, paginação e visibilidade.
 
-| Precisa de histórico | Como está hoje | Proposta |
+## 2. Arquitetura limpa
+
+### 2.1 Camadas
+
+```text
+app React (telas → useConsulta / useComando)
+   │  porta Backend (src/core/ports/backend.ts)
+   ├─ BackendNoAparelho   memory (testes) · local (IndexedDB, Modo Teste)
+   └─ BackendApi          canal cifrado
+                               │  POST /v1/k · POST /v1/r
+                               ▼
+internal/canal       envelope, anti-repetição, relógio, idempotência
+internal/handler     nome → regra (rotas.go), token, permissões, visibilidade
+internal/usecase     as regras (espelho de src/core/services)
+internal/domain      entidades, erros de regra, portas, dinheiro, datas
+internal/repository  SQL único + migrations/NNN_*.sql
+                               │
+                     SQLite (local) · PostgreSQL 16 (produção)
+```
+
+Dependência sempre para dentro: `handler → usecase → domain ← repository`. O `usecase` nunca importa `database/sql`.
+
+### 2.2 Caminho de um comando
+
+```text
+/v1/r → abre o envelope → confere relógio e repetição
+      → idempotência: mesma chave devolve a mesma resposta
+      → token → Sessao (a empresa vem daqui, nunca do corpo)
+      → PodeComando(perfil, nome) → visibilidade antes do comando
+      → BEGIN → regra (travas em ordem) → auditoria → COMMIT
+      → grava a resposta da idempotência → fecha o envelope
+Recusa de regra: ROLLBACK, a tentativa vai para a auditoria e a resposta é { ok: false, erro: { mensagem, campo } }.
+```
+
+### 2.3 Transação e concorrência
+
+Porta nova em `domain` (nomes sugeridos):
+
+```go
+type Transacoes interface {
+	Em(ctx context.Context, f func(tx Tx) error) error
+}
+
+type Tx interface {
+	// Travar segura as linhas até o fim da transação, sempre em ordem crescente de id.
+	Travar(ctx context.Context, tabela, empresaID string, ids ...string) error
+	ProximoNumero(ctx context.Context, empresaID, sequencia string) (int64, error)
+}
+```
+
+| Banco | `Em` | `Travar` |
 |---|---|---|
-| Etapas e correções de compra/venda (antes → depois) | `transacao.historico[]` | tabela `etapa_eventos` |
-| Estoque, caixa, conta, dívida | razões append-only (`movEstoque`, `movCaixa`, `movConta`, `movDivida`) | mantêm-se razões imutáveis |
-| Versões da tabela de preço | linhas de auditoria com JSON | tabelas `tabela_preco_versoes/colunas/medidas/celulas` |
-| Códigos trocados (compra/lote) | `codigosAnteriores[]` | tabela `codigos_anteriores` |
-| Incorporação de custo da viagem e as desfeitas | `incorporacao` + `incorporacoesDesfeitas[]` | `viagem_incorporacoes` (+ `desfeita_em`) e `viagem_incorporacao_lotes` |
-| Dia encerrado alterado depois | `dia.alteracoesDepois[]` | `dia_alteracoes` |
-| Quem fez o quê (log geral, linha do tempo de cada registro) | `auditoria` + `ligados[]` | `auditoria` (com `ligados text[]` + índice GIN) |
+| SQLite | `BEGIN IMMEDIATE` (um escritor por vez) | não faz nada |
+| PostgreSQL | `READ COMMITTED` | `SELECT id … WHERE empresa_id = ? AND id IN (…) ORDER BY id FOR UPDATE` |
 
----
+**Ordem fixa das travas** (evita deadlock): sequências → dia do caixa → itens por id → pessoa/conta → viagem/adiantamento.
 
-## 2. Estimativa de tabelas e DDL (PostgreSQL)
-
-### 2.1 Motor recomendado
-
-**[RECOMENDAÇÃO] PostgreSQL 16+.** Motivos curtos: transações ACID com `SELECT … FOR UPDATE` e `SERIALIZABLE` (o que estoque/caixa precisam com várias funcionárias); `CHECK`, índices parciais (`WHERE apagado_em IS NULL` para soft delete), `NUMERIC` exato (fatores "3,5" e cotações), `JSONB` com índice para o pouco que deve ficar flexível, arrays + GIN (`auditoria.ligados`), `COMMENT ON` nativo, ótimo driver Go (`pgx`) e geração de código tipado (`sqlc`).
-
-### 2.2 Estimativa
-
-| Grupo | Tabelas V1 | Quantas |
+| Operação | Trava | Por quê |
 |---|---|---|
-| Plataforma/segurança | empresas, moedas, usuarios, refresh_tokens, idempotencia, auditoria | 6 |
-| Configuração/referência | modulos, configuracoes, formas_pagamento, socios, sequencias, cotacoes, cidades* | 7 |
-| Cadastros | pessoas, pessoa_papeis, locais | 3 |
-| Estoque/triagem | itens, item_insumos*, item_origens, item_compras*, triagens, triagem_colunas, codigos_anteriores*, mov_estoque | 8 |
-| Tabelas de preço | tabelas_preco, tabela_preco_versoes, tabela_preco_colunas, tabela_preco_medidas, tabela_preco_celulas | 5 |
-| Compras/vendas | compras, compra_linhas, vendas, venda_linhas, pagamentos, etapa_eventos, vendas_abertas, venda_aberta_linhas | 8 |
-| Caixa/conta corrente | dias_caixa, dia_contagens, dia_alteracoes*, mov_caixa, mov_conta, turnos, turno_valores | 7 |
-| Empréstimos | emprestimos, parcelas, mov_divida | 3 |
-| Viagens | viagens, viagem_viajantes, viagem_despesas, viagem_carteira, viagem_incorporacoes, viagem_incorporacao_lotes | 6 |
-| Adiantamentos | financiamentos, financiamento_eventos | 2 |
-| Agenda | eventos, evento_feitos* | 2 |
-| Arquivos | anexos | 1 |
-| QR da etiqueta (§12) | item_qr_anteriores, qr_leituras | 2 |
-| Imposto de Renda | ir_exercicios, ir_exercicio_eventos, ir_obrigacoes | 3 |
-| Metas do mês | metas | 1 |
-| **Total** | | **64** (58 indispensáveis + 6 marcadas com * que podem nascer como coluna/array/JSONB); **67** com as 3 de acesso do §11 (perfil_permissoes, usuario_permissoes, sessoes) |
+| `concluirVenda`, `reduzirNaVendaAberta` | itens da venda | Duas pessoas vendendo o mesmo pacote |
+| `triarLotes`, `desfazerTriagem`, `tirarDaMistura` | todos os lotes envolvidos | Venda no meio da triagem |
+| `pagarComissao` | pessoa | Dois pagamentos do mesmo "a pagar" |
+| `encerrarDia`, `moverCaixa` | dia do caixa | Venda no instante do encerramento |
+| `abrirTurno`, `fecharTurno` | usuário (e `ux_turnos_aberto`) | Dois turnos abertos |
+| `incorporarCustoViagem`, `reabrirViagem` | viagem, depois lotes | Lote vendido entre a prévia e a incorporação |
 
-Decisões de normalização (as estruturas "JSON dentro do registro"):
+### 2.4 Regras que valem em todo o código
 
-| Estrutura hoje | Decisão | Por quê |
+- Dinheiro em inteiro na menor unidade; câmbio e fator com `math/big.Rat`, igual a `dinheiro.ts`.
+- "Hoje" e o dia do caixa são calculados no servidor, pelo `empresas.fuso_horario`.
+- `id` novo vem do app (ULID) e é a base da idempotência. O servidor valida o formato.
+- Erro interno vira HTTP 500 sem detalhe; recusa de regra vai dentro do envelope.
+
+## 3. Estrutura de dados
+
+### 3.1 Dialeto único
+
+| Desenho lógico (Anexo A) | Migração real | Observação |
 |---|---|---|
-| `transacao.linhas/pagamentos/historico` | **Tabelas** (`compra_linhas`, `venda_linhas`, `pagamentos`, `etapa_eventos`) | são consultadas (comissão por profissional, vendas por item/forma/moeda — `vendas.ts:591-595`, `comissoes.ts:30-34`) |
-| Compra e venda na mesma coleção | **Separar** `compras` × `vendas` | linhas totalmente diferentes (compra: tabela/fator/sem valor; venda: comissão/insumo/desconto); `CHECK` e índices ficam limpos; ids ULID continuam únicos |
-| `item.campos` (atributos dinâmicos) | **Promover** a colunas o que tem regra (`estado` 19 usos, `categoria` 16, `separacaoId` 13, `comprimento` 13, `triagemDesfeita` 5 — contagem de `campos.<x>` em `src/core/services`); o resto em `atributos JSONB` | atributos são configuráveis pelo usuário (`modulos.ts:24-28`, `salvarAtributos`) |
-| `tabelaPreco.linhas/colunas/valores` + versões na auditoria | **5 tabelas versionadas** | a venda guarda a versão usada (`precos.ts:91-110`); comparar versões (`precos.ts:178-216`) vira SQL |
-| Vendas abertas em `config` | **Tabelas** `vendas_abertas` + `venda_aberta_linhas` | precisa achar "em que venda aberta está o pacote X" (`vendasAbertas.ts:99-110`) por índice |
-| Fiscal dentro de `config.geral` | **Fica em `configuracoes` (JSONB) na V1** | lido inteiro, raramente muda; normalizar alíquotas com vigência depois |
-| Cotação usada (`Cotacao`) | **JSONB de valor imutável** (`cotacao`) nas linhas/pagamentos | foto que nunca é filtrada; 5 colunas × 6 tabelas não compensam |
-| `impostosEstimados` | **JSONB** em `compras`/`vendas` na V1 | "só registro, nunca cobrados" (`tipos.ts:219-220`) |
-| `viagem.despesas/carteira/incorporacao` | **Tabelas** | são somadas por moeda e desfeitas (`viagens.ts:418-470,525+`) |
-| `financiamento.eventos`, `emprestimo.parcelas`, `evento.feitos`, `dia.contado` | **Tabelas filhas** | — |
-| Turnos em `config` (`turno:<id>`, `turnos.ts`) | **Tabelas** `turnos` + `turno_valores` (por moeda) | é dinheiro, consultado por pessoa e período (Caixa › Turnos); `EXCLUDE` impede turnos sobrepostos |
-| Imposto de Renda em `config` (`irExercicios`, `irObrigacoes`) | **Tabelas** `ir_exercicios`, `ir_exercicio_eventos`, `ir_obrigacoes` | fechamento congelado e histórico com motivo precisam de garantia no banco; somas por mês/obrigação |
-| `docFiscal` em `compra.campos` e `movCaixa` | **Colunas** `doc_fiscal*` em `compras` e `mov_caixa` | filtra as compras sem factura (retenções) e os gastos dedutíveis |
-| `geral.metas.itens` | **Tabela** `metas` (opções de exibição continuam em `geral`) | a funcionária vê só as dela: filtro por `pessoa_id`/`local_id` com FK |
-| `geral.vitrine.ocultos` (lista de ids) | **Coluna** `itens.vitrine_oculto` (o resto da vitrine continua em `geral`) | a página pública lista por índice parcial, sem ler um array |
-| `Item.qr` | **Coluna** `itens.qr_codigo` UNIQUE + `item_qr_anteriores` + `qr_leituras` | §12: abrir só logado, "etiqueta antiga", limite e registro de tentativas |
-| Metas/vitrine/reposição/o que a funcionária faz (opções) | **Ficam em `configuracoes` 'geral' (JSONB)** | lidas inteiras, mudam pouco |
+| `ident` | `TEXT` | ULID |
+| `dinheiro`, `quantidade`, `bigint` | `BIGINT` | Inteiro de 64 bits nos dois bancos |
+| `pontos_base`, `integer`, `versao` | `INTEGER` | |
+| `boolean` | `INTEGER CHECK (x IN (0, 1))` | |
+| `timestamptz`, `date` | `TEXT` ISO 8601 | Mesma forma do app; ordena como texto |
+| `numeric`, `fator` | `TEXT` | Como o app ("17,5"); contas no `domain` |
+| `jsonb` | `TEXT` com JSON | Só para o que nunca entra em `WHERE` |
+| `text[]` (`auditoria.ligados`) | Tabela `auditoria_ligados (auditoria_id, alvo_id)` | Precisa de índice |
+| `EXCLUDE USING gist` (turnos) | Índice parcial + regra no `usecase` | |
+| `pg_trgm`, GIN | Só migração opcional de Postgres | A busca funciona sem eles, mais lenta |
+| `num_nonnulls`, `btrim` | `origem_tipo` + `origem_id`; validação no `usecase` | |
 
-**Constraints com nome** (`pk_`, `fk_`, `ck_`, `ux_`, `ex_`) nas tabelas novas: o servidor Go traduz a violação pelo nome (`ck_turnos_periodo` → "o fim vem depois do começo") sem depender do texto do Postgres. **[RECOMENDAÇÃO]** levar o mesmo padrão às tabelas antigas na primeira migração.
+Valem nos dois bancos: `CHECK`, `FOREIGN KEY`, índice parcial, `ON CONFLICT … DO UPDATE … WHERE`, `RETURNING`.
 
-### 2.3 Convenções do DDL
+**Colunas-base** de toda tabela de negócio: `id, empresa_id, criado_em, atualizado_em, criado_por, versao, apagado_em`.
+Razões (`mov_*`, `auditoria`) não têm `versao` nem `apagado_em`: só crescem. Chave natural por empresa quando o id do app não é
+único entre empresas: dia do caixa `(empresa_id, data)`, configuração `(empresa_id, chave)`.
 
-- `ident`: texto; **ULID** para registros novos. Aceita ids legados que **não são ULID** e já existem nos dados: `"<id>-u"` (lote juntado na triagem, `triagem.ts:515`), `"<id>-corr-N"` (pagamento de correção, `vendas.ts:490`), `"<id>-<n>"` (mov. de dívida por parcela, `emprestimos.ts:128`), dia = `"AAAA-MM-DD"` (`contexto.ts:227`). **[RECOMENDAÇÃO]** no servidor novo, gerar ULID próprio e guardar a chave derivada em `operacao_id`.
-- Dinheiro = `BIGINT` na menor unidade (limite 10 bi igual ao app, `contexto.ts:244-248`); quantidade = `BIGINT` (grama/peça); percentuais = pontos-base `0..10000`.
-- Datas de negócio = `DATE` no fuso da empresa; instantes = `TIMESTAMPTZ`.
-- **Perfil de colunas**: **B** (registro completo: `id, empresa_id, criado_em, criado_por, atualizado_em, versao, apagado_em`); **L** (razão append-only: `id, empresa_id, criado_em, criado_por`); **F** (filha de composição: sem colunas-base, apaga junto com o pai).
-- `ON DELETE`: **RESTRICT** como padrão (nada é apagado de verdade — apagar = `apagado_em`); **CASCADE** só em filhas de composição (linhas, colunas, células, papéis…).
-- Unicidade com soft delete = índice único **parcial** `WHERE apagado_em IS NULL`.
-- Tenancy: toda tabela de negócio tem `empresa_id`; todo índice começa por `empresa_id`. (Opção mais forte, não aplicada aqui para não pesar: FKs compostas `(empresa_id, id)` ou Row-Level Security.)
+### 3.2 O que sai do `config` e do JSON
 
-### 2.4 DDL V1 completo
+| Hoje | Vai para |
+|---|---|
+| `config` `vendaAberta:<id>` | `vendas_abertas`, `venda_aberta_linhas` |
+| `config` `turno:<id>`, `turnoAberto:<usuário>` | `turnos` |
+| `config` `contador-<letra>` | `sequencias` |
+| `config` `cidade:<id>` | `cidades` |
+| `config` `irExercicios`, `irObrigacoes` | `ir_exercicios`, `ir_exercicio_eventos`, `ir_obrigacoes` |
+| `config.funcionaria*` | `perfil_permissoes`, `usuario_permissoes` |
+| Versões de tabela na `auditoria` | `tabela_preco_versoes` e filhas |
+| `item.triagem` e `campos.separacaoId` | `triagens`, `triagem_colunas` |
+| `Transacao.linhas/pagamentos/historico` | `compra_linhas`, `venda_linhas`, `pagamentos`, `etapa_eventos` |
+| `viagem.despesas/carteira/incorporacao` | Tabelas de viagem ([§3.3](#33-viagens-e-rateio-de-frete)) |
+| `geral.vitrine.ocultos`, `geral.vitrine.precos` | `itens.vitrine_oculto`, `itens.vitrine_fator` |
 
-> **Conferido em 05/11/2026** num PostgreSQL 16 de verdade (PGlite, com `btree_gist` e `pg_trgm`): o bloco abaixo roda
-> inteiro, cria as 64 tabelas, toda coluna nova tem `COMMENT`, e 50 casos de teste das constraints novas (turnos, Imposto de
-> Renda, metas, QR, documento fiscal) aceitam o certo e recusam o errado pela constraint esperada.
-> As tabelas de acesso do §11 ficam no próprio §11 (não entram neste bloco).
+**Total: 65 tabelas** (as 67 do desenho anterior, menos `turno_valores` e `refresh_tokens`).
+
+### 3.3 Viagens e rateio de frete
+
+- **Frete é despesa**, categoria `frete` em `viagem_despesas` (`CATEGORIAS_VIAGEM_PADRAO`). Não ganha tabela própria.
+- O **rateio** vale para o gasto inteiro da viagem: `viagens.rateio` = `grama` ou `valor`. O último leva o resto, e a soma fecha exata.
+- O rateio **por compra é calculado**, não gravado. O que se grava é o resultado **por lote**, ao incorporar:
+  `viagem_incorporacao_lotes` com `custo_antes`, `extra` e `custo_depois`.
+- **Reversível**: `reabrirViagem` marca `desfeita_em` e o custo dos lotes volta. Só uma incorporação viva por viagem
+  (`ux_viagem_incorporacao_viva`).
+- Se as compras de uma viagem incorporada mudam, o rateio é refeito na mesma transação (`redividirGasto`).
+- Lote já vendido fica de fora da incorporação; `linha.custoPrincipal` é foto da hora.
+
+### 3.4 Vendas, cancelamento e estorno
+
+Nada é apagado. `vendas.etapa`: `agendado`, `novo`, `concluido`, `cancelado`.
+
+| Passo de `cancelarVenda` | Grava em |
+|---|---|
+| Exige motivo; funcionária só desmarca agendamento dela | — |
+| Dia já encerrado: anota a alteração | `dia_alteracoes` |
+| Devolve cada pacote | `mov_estoque`, motivo `cancelamento` |
+| Estorna cada pagamento **no dia de hoje** | `mov_caixa`, tipo `estorno`, com origem na venda |
+| Estorna o fiado | `mov_conta` |
+| Muda a etapa, com quem e por quê | `vendas`, `etapa_eventos`, `auditoria` |
+
+Vale para todos os razões: **corrigir é lançar outro movimento**, nunca editar. `itens.saldo` é cache de `mov_estoque`, sempre
+gravado junto; a consulta `diagnostico` confere os dois.
+
+**Vendas em aberto** não baixam estoque, não entram em caixa nem em relatório.
+
+| Regra | Onde fica |
+|---|---|
+| "Aberta há 15 min" | `aberta_em` não muda ao salvar de novo; a tela calcula a idade |
+| Só a dona ou o administrador mexe | `criado_por` |
+| Pacote em outra venda: avisar antes | Índice `ix_venda_aberta_item` |
+| Vender parte (`reduzirNaVendaAberta`) | A outra só diminui se as duas passarem do saldo |
+| Ao fechar uma venda | A própria some; nas outras, o pacote só sai se o saldo não der mais |
+
+### 3.5 Turnos
+
+Aberto = `fim` vazio. Valores por moeda ficam em JSON, porque só são filtrados por pessoa e período.
+
+- `ux_turnos_aberto` garante um turno aberto por pessoa. A sobreposição de turnos fechados é conferida no `usecase`.
+- Com o controle ligado, `moverCaixa` exige turno aberto. **Porte `moverCaixa` antes da regra de turnos.**
+- **Conferência cega**: a funcionária nunca recebe `esperado` nem `diferenca`.
+- `esperado` = troco inicial + dinheiro vivo lançado pela pessoa + estornos desses lançamentos. QR, Pix e cartão não entram.
+
+### 3.6 Auditoria de lotes
+
+| Pergunta | Consulta | De onde vem |
+|---|---|---|
+| Quem fez o quê | `auditoria`, `logDetalhado`, `linhaDoTempo` | `auditoria` + `auditoria_ligados` |
+| De que lote veio | `genealogia`, `rastreio` | `item_origens` com CTE recursiva (nos dois bancos) |
+| Quantas gramas de cada compra | `origemDoPacote`, `origemDaVenda` | `mov_estoque` |
+| Movimentos de um pacote | `movimentosDoItem`, `historicoPacote` | `mov_estoque` |
+
+O livro de `origem.ts` lê os movimentos **na ordem em que aconteceram**, entre pacotes diferentes. Hoje a ordem vem do ULID, o que
+não é seguro com vários processos. Por isso `mov_estoque.ordem` vem de `sequencias` (`mov_estoque`), na mesma transação. Isso
+enfileira as gravações de estoque de **uma** empresa, o que é aceitável neste volume. As tentativas recusadas também ficam na
+`auditoria`.
+
+### 3.7 Agenda
+
+`eventos` (com `evento_feitos`) e vendas `agendado` formam o calendário. Os feriados vêm de `config`
+(`feriadosPais`, `feriadosRegiao`, `feriadosAjustes`), lidos inteiros, e **uma região vale para a empresa toda**. Filiais em regiões
+diferentes pedem `locais.feriados_regiao`, que só deve entrar quando existir esse caso.
+
+### 3.8 Multi-empresa, filiais e B2B
+
+| Conceito | Como é |
+|---|---|
+| Empresa (tenant) | `empresas`; `empresa_id` em toda tabela de negócio e no começo de todo índice |
+| Filial | `locais` da empresa; `usuarios.local_id` e `local_id` em vendas e caixa |
+| Login | Único no sistema; a empresa vem do usuário. Não há tela de escolher empresa |
+| Isolamento | Toda leitura filtra por empresa e toda gravação usa o `WHERE` de S1. Teste obrigatório: a empresa B não lê nem altera a A |
+| Reforço (opcional) | Row-Level Security só no Postgres |
+| No aparelho | `empresaId` é fixo (`demo`); o importador troca pelo da empresa real |
+| **B2B** | **Não existe como conceito no código.** Cliente atacadista hoje = `pessoas` + coluna própria na tabela de preço + fiado em `mov_conta`. Portal para o cliente comprar fica fora da V1 e precisa de definição do dono |
+
+### 3.9 Etiquetas, QR e vitrine
+
+- `itens.etiqueta_impressa_em` significa **confirmada no papel**, não enviada à impressora.
+- QR: `itens.qr_codigo` único, inclusive entre apagados; códigos trocados em `item_qr_anteriores`; leituras recusadas em
+  `qr_leituras`. Abre pela consulta `pacoteDoQr`, só logado.
+- Vitrine: `modoPreco` fica em `configuracoes`; por pacote, `itens.vitrine_oculto` e `itens.vitrine_fator`.
+
+### 3.10 Migrações previstas
+
+Numeração a partir de 003, uma por fase ([§6](#6-ordem-de-implementação-e-riscos)). Cada arquivo roda uma vez e nunca é editado.
+Este bloco foi **executado em SQLite e em PostgreSQL 16** em 09/11/2026 com 18 casos (válidos passam; turno duplicado, ordem repetida,
+saldo que não fecha, rateio inválido, incorporação dupla e quantidade zero são recusados; outra empresa não sobrescreve). No Postgres
+rodou dentro de transação desfeita. As tabelas `itens` e `turnos` vêm de outras migrações.
+
+```sql
+-- ========== fundação ==========
+CREATE TABLE empresas (
+  id TEXT PRIMARY KEY,
+  nome TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,               -- o endereço público da vitrine
+  moeda_principal TEXT NOT NULL,
+  fuso_horario TEXT NOT NULL DEFAULT 'America/La_Paz',
+  criado_em TEXT NOT NULL,
+  atualizado_em TEXT NOT NULL,
+  versao INTEGER NOT NULL DEFAULT 1,
+  apagado_em TEXT
+);
+
+CREATE TABLE sessoes (
+  token_hash TEXT PRIMARY KEY,             -- guarda só o resumo do token
+  empresa_id TEXT NOT NULL REFERENCES empresas(id),
+  usuario_id TEXT NOT NULL,
+  criada_em TEXT NOT NULL,
+  expira_em TEXT NOT NULL,
+  revogada_em TEXT
+);
+CREATE INDEX ix_sessoes_usuario ON sessoes (empresa_id, usuario_id);
+
+CREATE TABLE idempotencia (
+  empresa_id TEXT NOT NULL,
+  usuario_id TEXT NOT NULL,
+  chave TEXT NOT NULL,                     -- "nome:id" (Mensagem.chave)
+  resposta TEXT,                           -- NULL = ainda rodando
+  criada_em TEXT NOT NULL,
+  expira_em TEXT NOT NULL,
+  PRIMARY KEY (empresa_id, usuario_id, chave)
+);
+
+CREATE TABLE sequencias (
+  empresa_id TEXT NOT NULL REFERENCES empresas(id),
+  nome TEXT NOT NULL,                      -- 'P', 'L', 'T', 'V', 'VG', 'mov_estoque'…
+  valor BIGINT NOT NULL DEFAULT 0 CHECK (valor >= 0),
+  PRIMARY KEY (empresa_id, nome)
+);
+
+-- ========== permissões (padrão do sistema → empresa → pessoa) ==========
+CREATE TABLE perfil_permissoes (
+  empresa_id TEXT NOT NULL REFERENCES empresas(id),
+  perfil TEXT NOT NULL CHECK (perfil IN ('funcionario')),
+  chave TEXT NOT NULL CHECK (chave IN ('vende', 'agenda', 'tela', 'config', 'idioma')),
+  valor TEXT NOT NULL,
+  ligado INTEGER NOT NULL DEFAULT 1 CHECK (ligado IN (0, 1)),
+  atualizado_em TEXT NOT NULL,
+  atualizado_por TEXT,
+  PRIMARY KEY (empresa_id, perfil, chave, valor)
+);
+
+CREATE TABLE usuario_permissoes (
+  empresa_id TEXT NOT NULL REFERENCES empresas(id),
+  usuario_id TEXT NOT NULL,
+  chave TEXT NOT NULL,
+  valor TEXT NOT NULL,
+  ligado INTEGER NOT NULL CHECK (ligado IN (0, 1)),
+  PRIMARY KEY (empresa_id, usuario_id, chave, valor)
+);
+
+-- ========== turnos (completa a 002) ==========
+CREATE UNIQUE INDEX ux_turnos_aberto ON turnos (empresa_id, usuario_id) WHERE fim IS NULL;
+CREATE INDEX ix_turnos_periodo ON turnos (empresa_id, inicio);
+
+-- ========== estoque: o razão ==========
+CREATE TABLE mov_estoque (
+  id TEXT PRIMARY KEY,
+  empresa_id TEXT NOT NULL REFERENCES empresas(id),
+  ordem BIGINT NOT NULL,                   -- ordem real dos movimentos na empresa (sequencias 'mov_estoque')
+  item_id TEXT NOT NULL REFERENCES itens(id),
+  data TEXT NOT NULL,
+  delta BIGINT NOT NULL CHECK (delta <> 0),
+  saldo_antes BIGINT NOT NULL CHECK (saldo_antes >= 0),
+  saldo_depois BIGINT NOT NULL CHECK (saldo_depois >= 0),
+  motivo TEXT NOT NULL,
+  origem_tipo TEXT CHECK (origem_tipo IN ('compra', 'venda', 'triagem', 'lote', 'viagem')),
+  origem_id TEXT,
+  corrige_id TEXT REFERENCES mov_estoque(id),
+  descricao TEXT,
+  por_nome TEXT,
+  criado_em TEXT NOT NULL,
+  criado_por TEXT NOT NULL,
+  CHECK (saldo_depois = saldo_antes + delta),
+  UNIQUE (empresa_id, ordem)
+);
+CREATE INDEX ix_mov_estoque_item ON mov_estoque (empresa_id, item_id, ordem);
+CREATE INDEX ix_mov_estoque_origem ON mov_estoque (empresa_id, origem_tipo, origem_id);
+
+-- ========== vendas em aberto ==========
+CREATE TABLE vendas_abertas (
+  id TEXT PRIMARY KEY,
+  empresa_id TEXT NOT NULL REFERENCES empresas(id),
+  aberta_em TEXT NOT NULL,                 -- de onde sai "Aberta há 15 min"; não muda ao salvar de novo
+  salva_em TEXT NOT NULL,
+  por_nome TEXT,
+  pessoa_id TEXT,
+  vendedor_id TEXT,
+  local_id TEXT,
+  coluna_id TEXT,
+  obs TEXT,
+  desconto_modo TEXT CHECK (desconto_modo IN ('pct', 'valor')),
+  desconto_pct TEXT,
+  desconto_valor BIGINT CHECK (desconto_valor >= 0),
+  moeda TEXT,
+  total_mostrado BIGINT,
+  moeda_total TEXT,
+  criado_em TEXT NOT NULL,
+  atualizado_em TEXT NOT NULL,
+  criado_por TEXT NOT NULL,                -- a dona: só ela ou o administrador mexe
+  versao INTEGER NOT NULL DEFAULT 1,
+  apagado_em TEXT
+);
+CREATE INDEX ix_vendas_abertas ON vendas_abertas (empresa_id, aberta_em) WHERE apagado_em IS NULL;
+
+CREATE TABLE venda_aberta_linhas (
+  id TEXT PRIMARY KEY,
+  venda_aberta_id TEXT NOT NULL REFERENCES vendas_abertas(id) ON DELETE CASCADE,
+  empresa_id TEXT NOT NULL,
+  item_id TEXT NOT NULL REFERENCES itens(id),
+  quantidade BIGINT NOT NULL CHECK (quantidade > 0),
+  preco_manual BIGINT CHECK (preco_manual >= 0)
+);
+CREATE INDEX ix_venda_aberta_item ON venda_aberta_linhas (empresa_id, item_id);
+
+-- ========== viagens e rateio ==========
+CREATE TABLE viagens (
+  id TEXT PRIMARY KEY,
+  empresa_id TEXT NOT NULL REFERENCES empresas(id),
+  codigo TEXT NOT NULL,
+  nome TEXT NOT NULL,
+  destino TEXT,
+  na_bolivia INTEGER NOT NULL DEFAULT 0 CHECK (na_bolivia IN (0, 1)),
+  inicio TEXT NOT NULL,
+  fim TEXT,
+  status TEXT NOT NULL DEFAULT 'aberta' CHECK (status IN ('aberta', 'encerrada')),
+  orcamento BIGINT CHECK (orcamento >= 0),
+  orcamento_compra BIGINT CHECK (orcamento_compra >= 0),
+  rateio TEXT NOT NULL DEFAULT 'grama' CHECK (rateio IN ('grama', 'valor')),
+  encerrada_em TEXT,
+  encerrada_data TEXT,
+  encerrada_por_nome TEXT,
+  encerramento_obs TEXT,
+  obs TEXT,
+  criado_em TEXT NOT NULL,
+  atualizado_em TEXT NOT NULL,
+  criado_por TEXT NOT NULL,
+  versao INTEGER NOT NULL DEFAULT 1,
+  apagado_em TEXT,
+  CHECK (fim IS NULL OR fim >= inicio),
+  CHECK (status = 'aberta' OR encerrada_em IS NOT NULL)
+);
+CREATE UNIQUE INDEX ux_viagens_codigo ON viagens (empresa_id, codigo) WHERE apagado_em IS NULL;
+CREATE INDEX ix_viagens_status ON viagens (empresa_id, status, inicio) WHERE apagado_em IS NULL;
+
+CREATE TABLE viagem_despesas (
+  id TEXT PRIMARY KEY,
+  viagem_id TEXT NOT NULL REFERENCES viagens(id) ON DELETE CASCADE,
+  empresa_id TEXT NOT NULL,
+  data TEXT NOT NULL,
+  em TEXT NOT NULL,
+  categoria_id TEXT NOT NULL,              -- 'frete' é uma categoria, não uma tabela
+  moeda TEXT NOT NULL,
+  valor BIGINT NOT NULL CHECK (valor > 0),
+  valor_principal BIGINT NOT NULL CHECK (valor_principal >= 0),
+  cotacao TEXT,                            -- JSON: a foto da cotação usada
+  nota TEXT,
+  por TEXT NOT NULL,
+  por_nome TEXT NOT NULL,
+  anulada_em TEXT,
+  anulada_por_nome TEXT,
+  anulada_motivo TEXT,
+  CHECK ((anulada_em IS NULL) = (anulada_motivo IS NULL))
+);
+CREATE INDEX ix_viagem_despesas ON viagem_despesas (empresa_id, viagem_id, categoria_id);
+
+CREATE TABLE viagem_incorporacoes (
+  id TEXT PRIMARY KEY,
+  viagem_id TEXT NOT NULL REFERENCES viagens(id) ON DELETE CASCADE,
+  empresa_id TEXT NOT NULL,
+  em TEXT NOT NULL,
+  por_nome TEXT NOT NULL,
+  total BIGINT NOT NULL CHECK (total >= 0),
+  desfeita_em TEXT,
+  desfeita_motivo TEXT
+);
+CREATE UNIQUE INDEX ux_viagem_incorporacao_viva ON viagem_incorporacoes (viagem_id) WHERE desfeita_em IS NULL;
+
+CREATE TABLE viagem_incorporacao_lotes (
+  incorporacao_id TEXT NOT NULL REFERENCES viagem_incorporacoes(id) ON DELETE CASCADE,
+  item_id TEXT NOT NULL REFERENCES itens(id),
+  codigo TEXT,
+  gramas BIGINT NOT NULL CHECK (gramas > 0),
+  inicial BIGINT NOT NULL CHECK (inicial > 0),
+  extra BIGINT NOT NULL CHECK (extra >= 0),
+  custo_antes BIGINT NOT NULL CHECK (custo_antes >= 0),
+  custo_depois BIGINT NOT NULL CHECK (custo_depois >= custo_antes),
+  PRIMARY KEY (incorporacao_id, item_id)
+);
+```
+
+As demais tabelas seguem o Anexo A, convertidas por [§3.1](#31-dialeto-único), quando a fase delas chegar.
+
+## 4. Contrato da API
+
+### 4.1 Transporte
+
+Só dois endereços, `POST`, corpo binário, sem query string, cookie ou cabeçalho de autorização. Detalhe do envelope:
+[api-contract/openapi.yaml](api-contract/openapi.yaml). Além deles, `GET /saude`. Mudou o canal num lado, muda igual no outro
+(`src/core/seguranca/envelope.ts` e `internal/canal`).
+
+```json
+{ "tipo": "comando", "nome": "fecharTurno", "dados": { "id": "01J…", "contado": { "BOB": 53000 } },
+  "id": "msg-1", "ts": 1794240000000, "token": "…", "chave": "fecharTurno:01J…" }
+```
+
+`tipo`: `comando`, `consulta`, `auth`, `backup`, `arquivo`.
+
+### 4.2 Resposta e erros
+
+| Situação | Resposta |
+|---|---|
+| Certo | `{ re, ok: true, r, ts }` |
+| Recusa de regra | `{ re, ok: false, erro: { mensagem, campo? }, ts }` |
+| Relógio fora da janela | `{ re, ok: false, falha: "relogio", ts }`: nada executou; o app ajusta e repete |
+| Outra pessoa alterou antes | Recusa de regra com a mensagem da trava de versão (`versaoBase`) |
+| Sem login ou sem permissão | Recusa de regra com as mensagens do app |
+| Erro interno | HTTP 500 sem corpo |
+
+**Idempotência**: mesma `chave` da mesma pessoa devolve a resposta guardada, sem executar de novo.
+
+### 4.3 Paginação
+
+Hoje a consulta devolve tudo e a tela pagina (`usePaginacao`, em 15 telas). Com a API:
+
+```json
+// pedido: os filtros de sempre, mais página e tamanho
+{ "de": "2026-11-01", "busca": "ana", "pagina": 3, "porPagina": 25 }
+// resposta quando veio "pagina"
+{ "itens": [], "total": 248, "pagina": 3, "porPagina": 25, "resumo": { "vendido": 25069080 } }
+```
+
+- **Sem `pagina`, a resposta continua sendo a lista de hoje**: dá para migrar tela por tela.
+- Tamanhos aceitos: 10, 25, 50, 100.
+- `resumo` existe porque os cartões somam a lista inteira (ex.: "Vendido" em `ListaVendas`); paginada, a tela não teria como somar.
+- Filtros e busca passam a ir para o servidor junto com a página.
+- Primeiras a migrar: `vendas`, `estoque`, `auditoria`, `logDetalhado`, `comprasDetalhadas`, `vendasDetalhadas`, `livroCabelo`,
+  `viagens`, `pessoas`. `caixaDoDia` e `painel` passam a somar em SQL.
+
+### 4.4 Consultas sem login
+
+`SEM_LOGIN` no app: `vitrine`, `configuracoes`, `usuariosDemo`.
+
+| Consulta | No servidor |
+|---|---|
+| `vitrine` | Aceita sem token, com `{ loja: "<slug>" }` para saber a empresa. Só dados públicos |
+| `configuracoes` | Sem token, só o necessário para a tela de entrar (nome, idioma). **Nunca a configuração inteira** |
+| `usuariosDemo` | **Não existe em produção** |
+
+### 4.5 Mudanças de outros aparelhos
+
+Hoje `aoMudar` da API não ouve ninguém. Criar a consulta **`mudancas`** `{ desde }` → `{ marca, areas[] }`, chamada a cada ~15 s,
+para recarregar só as telas das áreas alteradas. Fica dentro do canal e não precisa de rota nova.
+
+### 4.6 Contratos principais
+
+Perm.: **A** administrador · **F** funcionária também, com o filtro de visibilidade. Todo comando devolve `{ id }`, salvo indicação.
+Situação no Go: todos **a portar**.
+
+**Viagens**
+
+| Nome | Tipo | Entrada | Perm. |
+|---|---|---|---|
+| `salvarViagem` | cmd | `id, nome, destino?, naBolivia?, viajantes[], inicio, fim?, orcamento?, orcamentoCompra?, rateio?, obs?, versaoBase?` | A |
+| `adiantarViagem` | cmd | `id, viagemId, moeda, forma, valor, obs?` | A |
+| `registrarDespesaViagem` | cmd | `id, viagemId, categoria, moeda, valor, data?, nota?` | F (viagem dela) |
+| `anularDespesaViagem` | cmd | `viagemId, despesaId, motivo` | F (o que lançou) |
+| `vincularCompras` | cmd | `viagemId, compraIds[], mover?` | A |
+| `desvincularCompra` | cmd | `viagemId, compraId` | A |
+| `desfazerLigacao` | cmd | `antes[{ compraId, viagemId?, agora? }]` | A |
+| `encerrarViagem` | cmd | `viagemId, contado{}, forma?, reembolsar?, incorporar?, fim?, obs?` | A |
+| `incorporarCustoViagem` | cmd | `viagemId, seHouver?` | A |
+| `reabrirViagem` | cmd | `viagemId, motivo` | A |
+| `apagarViagem` | cmd | `viagemId, motivo?` | A |
+| `salvarCategoriasViagem` | cmd | `categorias[]` ou `null` | A |
+| `viagens` | cons | `status?, viajanteId?, busca?, viagemId?` | F |
+| `viagem` | cons | `id` → KPIs, DRE, rateio, plano de incorporação | A |
+| `previaLigarCompras` | cons | `viagemId, compraIds[]` | A |
+| `viagensParecidas` | cons | `id?, nome?, destino?, inicio?, fim?` | A |
+| `painelViajante` | cons | `viagemId?` | F |
+| `categoriasViagem`, `viagensParaFiltro` | cons | — | F |
+
+**Turnos**
+
+| Nome | Tipo | Entrada | Perm. |
+|---|---|---|---|
+| `abrirTurno` | cmd | `id, trocoInicial?` | F |
+| `fecharTurno` | cmd | `id, contado{moeda: valor}, obs?` | F |
+| `anotarTurno` | cmd | `id, nota` | A |
+| `turnoAtual` | cons | — | F |
+| `turnos` | cons | `de?, ate?, usuarioId?` (funcionária sem `esperado` e `diferenca`) | F |
+
+**Vendas em aberto**
+
+| Nome | Tipo | Entrada | Perm. |
+|---|---|---|---|
+| `salvarVendaAberta` | cmd | `id, linhas[{ id, itemId, quantidade, precoManual? }], pessoaId?, colunaId?, vendedorId?, localId?, obs?, desconto?, moeda?, total?, moedaTotal?` | F (a dela) |
+| `descartarVendaAberta` | cmd | `id, motivo?` | F (a dela) |
+| `tirarDaVendaAberta` | cmd | `id, itemId, para?` | F |
+| `reduzirNaVendaAberta` | cmd | `id, itemId, quantidade, para?` | F |
+| `vendasAbertas` | cons | — → `[{ id, abertaEm, salvaEm, minha, porNome, cliente, total, moedaTotal, linhas[], venda }]` | F (só as dela) |
+
+**Cancelamento**
+
+| Nome | Tipo | Entrada | Perm. |
+|---|---|---|---|
+| `cancelarVenda` | cmd | `id, motivo` | A; F só desmarca o agendamento dela |
+| `corrigirVenda` | cmd | `id, linhas[], motivo, diferenca?` | A |
+| `cancelarCompra` | cmd | `id, motivo` | A |
+| `estornarLancamento` | cmd | `lancamentoId, motivo?` | A |
+
+**Auditoria e rastreio** (todas administrador)
+
+| Nome | Entrada |
+|---|---|
+| `auditoria` | `de?, ate?, usuarioId?, acao?, categoria?, busca?, alvoId?, limite?` |
+| `registroAuditoria` | `id` |
+| `logDetalhado` | `de?, ate?, usuarioId?, acao?, busca?, limite?` |
+| `linhaDoTempo` | `id` |
+| `genealogia`, `rastreio`, `movimentosDoItem`, `historicoPacote`, `livroCabelo` | ver `triagem.ts`, `estoque.ts`, `livro.ts` |
+| `origemDoPacote` | `itemId, gramas?` |
+| `origemDaVenda` | `vendaId` |
+
+### 4.7 Catálogo completo
+
+Gerado de `src/core/services/index.ts` e `permissoes.ts`. O sinal ᶠ marca o que a funcionária também pode; sem ele, só administrador.
+A fonte da verdade é o código.
+
+| Domínio | Tipo | Nomes |
+|---|---|---|
+| `caixa` | comandos | `lancarCaixa` · `estornarLancamento` · `encerrarDia` · `reabrirDia` |
+| `estoque` | comandos | `salvarItem` · `ajustarEstoque` · `transformarLote` · `separarLote` · `marcarLotes` · `editarAtributosLote` · `marcarEtiquetasImpressas` · `refazerEtiqueta` · `reservarLote` · `prepararQrEtiquetas` |
+| `codigos` | comandos | `salvarCodigos` · `salvarSigla` · `trocarCodigoCompra` · `trocarCodigoLote` |
+| `triagem` | comandos | `unificarLotes` · `moverFaseTriagem` · `salvarFluxoTriagem` · `triarLotes` · `desfazerTriagem` · `tirarDaMistura` |
+| `precos` | comandos | `salvarTabelaPreco` |
+| `contas` | comandos | `registrarAcerto` · `ajustarConta` |
+| `compras` | comandos | `criarCompra` · `avancarTriagem` · `pagarCompra` · `cancelarCompra` · `conferirPesoCompra` · `definirValorCompra` |
+| `vendasAbertas` | comandos | `salvarVendaAberta`ᶠ · `descartarVendaAberta`ᶠ · `tirarDaVendaAberta`ᶠ · `reduzirNaVendaAberta`ᶠ |
+| `turnos` | comandos | `fecharTurno`ᶠ · `abrirTurno`ᶠ · `anotarTurno` |
+| `cidades` | comandos | `salvarCidade`ᶠ |
+| `formCompra` | comandos | `salvarFormCompra` |
+| `vendas` | comandos | `concluirVenda`ᶠ · `atenderAgendamento`ᶠ · `cancelarVenda`ᶠ · `corrigirVenda` |
+| `divisao` | comandos | `salvarDivisaoVenda` |
+| `impostoRenda` | comandos | `classificarDocumentoFiscal` · `registrarObrigacaoFiscal` · `removerObrigacaoFiscal` · `mudarSituacaoExercicio` |
+| `comissoes` | comandos | `pagarComissao` |
+| `agenda` | comandos | `salvarEvento`ᶠ · `excluirEvento`ᶠ · `concluirEvento`ᶠ · `receberAtendimento`ᶠ |
+| `servicosSalao` | comandos | `criarServicoRapido`ᶠ · `revisarServico` · `restaurarBibliotecaServicos` |
+| `usuarios` | comandos | `salvarUsuario` · `trocarMinhaSenha`ᶠ |
+| `emprestimos` | comandos | `criarEmprestimo` · `pagarEmprestimo` |
+| `cadastros` | comandos | `salvarPessoa`ᶠ · `salvarLocal` · `salvarCotacao`ᶠ · `salvarCambio` · `registrarBuscaCambio`ᶠ · `salvarConfig` · `salvarModulo` · `salvarFluxoCompra` · `salvarAtributos` · `registrarAnexo`ᶠ · `removerAnexo` |
+| `equipe` | comandos | `pagarSalario` |
+| `fotos` | comandos | `definirMiniatura`ᶠ |
+| `viagens` | comandos | `salvarViagem` · `adiantarViagem` · `registrarDespesaViagem`ᶠ · `anularDespesaViagem`ᶠ · `vincularCompras` · `desvincularCompra` · `encerrarViagem` · `desfazerLigacao` · `apagarViagem` · `incorporarCustoViagem` · `reabrirViagem` · `salvarCategoriasViagem` |
+| `financiamentos` | comandos | `criarFinanciamento` · `registrarEntregaFinanciamento` · `receberFinanciamento` · `pagarDiferencaFinanciamento` · `abaterComissaoFinanciamento` · `encerrarFinanciamento` · `ajustarFinanciamento` |
+| `cadastros` | consultas | `fluxosCompra` · `atributosItem` · `pessoas`ᶠ · `fichaPessoa`ᶠ · `locais`ᶠ · `configuracoes`ᶠ · `cambio` · `anexosDe`ᶠ |
+| `painel` | consultas | `painel` · `operacao` · `diagnostico` |
+| `resumo` | consultas | `resumoMenu`ᶠ |
+| `caixa` | consultas | `caixaDoDia` · `diasDoCaixa` |
+| `estoque` | consultas | `estoque`ᶠ · `catalogo`ᶠ · `movimentosDoItem` · `fichaItem` · `pacoteVenda`ᶠ · `rastreio` · `pacoteDoQr`ᶠ |
+| `codigos` | consultas | `codigos` · `codigoDisponivel` · `modoEtiqueta`ᶠ |
+| `triagem` | consultas | `triagem` · `fluxosTriagem` · `genealogia` · `triagens` · `mistura` |
+| `origem` | consultas | `origemDoPacote` · `origemDaVenda` |
+| `leitura` | consultas | `lerCodigoPacote`ᶠ |
+| `vendasAbertas` | consultas | `vendasAbertas`ᶠ |
+| `turnos` | consultas | `turnoAtual`ᶠ · `turnos`ᶠ |
+| `vendas` | consultas | `custoDaVenda`ᶠ · `vendas`ᶠ · `venda`ᶠ · `agenda`ᶠ · `conflitosAgenda`ᶠ |
+| `reposicao` | consultas | `reposicao` |
+| `metas` | consultas | `metas`ᶠ |
+| `vitrine` | consultas | `vitrine` |
+| `viagemCurta` | consultas | `viagensParaFiltro`ᶠ |
+| `cidades` | consultas | `cidades`ᶠ |
+| `livro` | consultas | `livroCabelo` · `historicoPacote` |
+| `precos` | consultas | `tabelasPreco`ᶠ · `tabelaVigente`ᶠ · `listaTabelasPreco` · `versoesEmUso`ᶠ · `historicoTabela` · `versoesTabela` · `compararVersoes` · `tabelaPreco` · `calcularPreco`ᶠ |
+| `contas` | consultas | `contas` · `contaPessoa` |
+| `equipe` | consultas | `organograma`ᶠ · `resumoFuncionario`ᶠ · `unidades` · `sugestaoSalario` · `ultimoLancamento` |
+| `historico` | consultas | `linhaDoTempo` · `logDetalhado` |
+| `auditoria` | consultas | `auditoria` · `registroAuditoria` |
+| `relatorios` | consultas | `dre` · `livroCaixa` · `inventario` · `balanco` · `vendasDetalhadas` · `comprasDetalhadas` |
+| `compras` | consultas | `filaTriagem` · `compra` · `pedido` |
+| `formCompra` | consultas | `formCompra` |
+| `documentos` | consultas | `documentoVenda` |
+| `divisao` | consultas | `divisaoVenda` |
+| `impostoRenda` | consultas | `impostoRenda` · `exerciciosFiscais` |
+| `agenda` | consultas | `calendario`ᶠ · `feriados` · `agendaFiltros`ᶠ · `evento`ᶠ |
+| `contabilidade` | consultas | `relatorioContabil` · `impostosOperacao`ᶠ |
+| `comissoes` | consultas | `comissoes`ᶠ |
+| `servicosSalao` | consultas | `servicosReceitaInsumos` |
+| `usuarios` | consultas | `usuarios` · `usuariosDemo`ᶠ |
+| `emprestimos` | consultas | `emprestimos` · `emprestimo` |
+| `fotos` | consultas | `fotosDoLote`ᶠ · `etiquetas`ᶠ |
+| `viagens` | consultas | `viagens`ᶠ · `viagem` · `previaLigarCompras` · `viagensParecidas` · `painelViajante`ᶠ · `categoriasViagem`ᶠ |
+| `financiamentos` | consultas | `financiamentos`ᶠ · `financiamento`ᶠ · `origemFinanciamento` |
+
+## 5. Permissões: admin × funcionária
+
+Três camadas, nesta ordem, todas no servidor:
+
+| Camada | No app | No Go | Decide |
+|---|---|---|---|
+| 1. Perfil | `permissoes.ts` | `handler/permissoes.go` | Qual nome a pessoa pode chamar |
+| 2. Liberação | `config.funcionaria*`, `exigirTelaLiberada` | `perfil_permissoes`, `usuario_permissoes` | O que a empresa libera: vender, agenda, telas |
+| 3. Visibilidade | `visibilidade.ts` | Pacote a criar, porta 1:1 | Quais registros e campos ela recebe |
+
+- **Permissão efetiva** = padrão do sistema → empresa → pessoa. Administrador não tem linhas: pode tudo.
+- **Gerente** não é um terceiro perfil: é funcionária com `verAgendaEquipe`, que vê a equipe da unidade.
+- **Campos que a funcionária nunca recebe**: custo, margem, fornecedor, salário, documento, comissão de colegas (`SENSIVEIS`).
+- **Saída por perfil**: em Go, estruturas separadas para administrador e funcionária, em vez de apagar campos depois. Assim, campo
+  novo nasce escondido. O teste `funcionariaNaoVe` é o contrato.
+- **Divisão interna da venda**: `podeVerDivisao` (administrador ou dona da linha, só com divisão de verdade).
+- Senha: resumo PBKDF2 com sal, calculado no servidor; o administrador nunca vê senha de ninguém.
+- Ao portar: copiar a linha de `permissoes.ts` para `permissoes.go`. Regra nova de visibilidade entra primeiro no app, com teste.
+
+## 6. Ordem de implementação e riscos
+
+| Fase | Entrega | Pronto quando |
+|---|---|---|
+| **0 · Fundação** | S1–S4 e S6, `Transacoes`/`Tx`, `empresas`, `sessoes`, `idempotencia`, `sequencias`, paginação, `auditoria_ligados` | Reinício não derruba sessão; teste empresa A × B passa nos dois bancos |
+| **1 · Cadastros e permissões** | `configuracoes`, `pessoas`, `usuarios`, cotações, visibilidade, permissões | `funcionariaNaoVe` contra o servidor |
+| **2 · Caixa e turnos** | `moverCaixa`, dia do caixa, conta corrente, `turnos` | Conferência cega; trava de turno aberto |
+| **3 · Estoque** | Itens, `mov_estoque` com `ordem`, reservas | Teste de duas vendas simultâneas no Postgres |
+| **4 · Compras** | Criar, etapas, pagar, cancelar, conferir peso | Testes de compra do app |
+| **5 · Vendas** | Concluir, cancelar, corrigir, vendas em aberto, comissões | `caosVendas`, `modoCaixaEstresse` |
+| **6 · Triagem e preços** | Triagens, genealogia, origem em gramas, etiquetas, QR, tabelas | `diagnosticoEstoque`, testes de triagem |
+| **7 · Viagens e dívidas** | Carteira, despesas, rateio, incorporação, adiantamentos, empréstimos | Testes de viagem e financiamento |
+| **8 · Agenda e equipe** | Eventos, calendário, feriados, salários, serviços | Testes de calendário |
+| **9 · Relatórios** | Painel, DRE, balanço, contábil, IR, auditoria em SQL | `relatorios-verdade.caos` |
+| **10 · Corte** | Importador, rodar em paralelo, trocar por empresa | [§7.4](#74-virada-para-produção) |
+
+| Risco | Mitigação |
+|---|---|
+| Conta diferente entre TS e Go (arredondamento, câmbio, rateio) | Rodar os cenários do app contra o servidor (`npm run test:ponta`), com entradas e saídas iguais |
+| Corridas que a fila única do aparelho esconde | [§2.3](#23-transação-e-concorrência) e teste de concorrência em todo comando de estoque e caixa |
+| Diferença entre SQLite e Postgres | Suíte de repositório nos dois bancos no CI. **Concorrência só vale se testada no Postgres** |
+| Consultas que leem tudo | SQL com índice por fase; `caixaDoDia` não soma todo o histórico |
+| Todo comando recarrega todas as telas | Consulta `mudancas` e invalidação por área |
+| Volume (CAOS-D-05) | Paginação no servidor e índices |
+| Duas fontes de "é admin" | `usuarios.perfil` vale; remover `pessoa.acesso` |
+| Comissão identificada por texto (`categoria === 'Comissões'`) | Coluna `finalidade` em `mov_caixa` |
+| Sessões do canal em memória | Com mais de uma instância, Redis ou afinidade |
+
+## 7. Guia de migração e consistência
+
+### 7.1 Os modos de dados
+
+| Modo | Onde ficam os dados | Para quê | Modo Teste? |
+|---|---|---|---|
+| `memory` | Memória | Testes automáticos | — |
+| `local` | IndexedDB do aparelho | Demonstração, site publicado hoje | **Sim** |
+| `api` + SQLite | Arquivo no servidor | Desenvolvimento, instalação simples | Não |
+| `api` + PostgreSQL | Banco gerenciado | Produção | Não |
+
+A escolha é única, em `src/app/criarBackend.ts` (`VITE_STORAGE`, `VITE_API_URL`). As telas não mudam. A troca manual fica só em
+desenvolvimento ou com `VITE_PERMITIR_TROCAR_DADOS=1`.
+
+### 7.2 Modo Teste e cenários
+
+- Vive em `src/adapters/cenarios.ts` e `ModoTeste.tsx`. Cenários `loja`, `turnoErro`, `vazio`, montados **pelos mesmos comandos das telas**.
+- Com `backend.tipo === 'api'`, a tela se recusa: no servidor nada é apagado por ela.
+- **Dados de teste no servidor** (desenvolvimento e homologação): um programa a criar, `cmd/semear`, que cria uma empresa à parte e chama os
+  mesmos `usecase`. Recusa rodar se `AMBIENTE=producao`. Não existe "zerar tudo" em produção.
+- A senha de acesso da demonstração é só para o modo aparelho.
+
+### 7.3 Do aparelho para o servidor
+
+Formato de origem: backup `tudo-backup` versão 1 (`noAparelho.exportar`), com coleções e arquivos.
+
+1. **Congelar**: sem vendas durante a importação. Fazer o backup e guardar o arquivo original.
+2. **Conferir antes**: rodar `diagnostico` no aparelho. Com problema, corrigir primeiro.
+3. **Importar** com um programa a criar, `cmd/importar`, numa transação por empresa, nesta ordem:
+
+   | # | Dados | Atenção |
+   |---|---|---|
+   | 1 | Empresa, moedas, configuração | Trocar `empresaId: demo` |
+   | 2 | Usuários, pessoas, locais | Resumo e sal da senha vêm iguais |
+   | 3 | Sequências | Maior número usado por letra, ou o contador se for maior |
+   | 4 | Itens, triagens, origens | `campos` com regra viram colunas |
+   | 5 | Tabelas de preço e versões | Versões saem da `auditoria` |
+   | 6 | Compras, vendas, linhas, pagamentos, etapas | Separar `transacoes` por `tipo` |
+   | 7 | Razões `mov_*` | Manter a ordem; `mov_estoque.ordem` segue a ordem dos ids. Ids derivados (`-u`, `-corr-N`, `-<n>`) ficam iguais |
+   | 8 | Viagens, adiantamentos, empréstimos | `incorporacao` e desfeitas viram linhas |
+   | 9 | Vendas em aberto, turnos, cidades, IR | Saem do `config`. `abertaEm` ausente usa `criadoEm` |
+   | 10 | Agenda, anexos, auditoria | Arquivos para o armazenamento do servidor |
+
+4. **Reconciliar** antes de confirmar. Qualquer diferença desfaz a importação:
+
+   | Conferência | Deve bater |
+   |---|---|
+   | Por item | `itens.saldo` = soma de `mov_estoque.delta` |
+   | Por moeda e dia | Soma de `mov_caixa` igual à do app |
+   | Por pessoa | Saldo de `mov_conta` |
+   | Global | Totais de vendas e compras; `diagnostico` sem problemas |
+   | Quantidade | Registros por coleção = linhas importadas |
+
+5. **Reimportação** é idempotente: mesmo `id` não duplica.
+
+### 7.4 Virada para produção
+
+1. Rodar em paralelo por uma semana, comparando painel, caixa e estoque; diferença zero para seguir.
+2. Virar por empresa ou unidade, trocando `VITE_STORAGE=api`.
+3. Guardar o backup do aparelho; a volta é possível até a primeira venda no servidor.
+4. Backup do Postgres diário com teste de restauração, antes da primeira empresa real.
+
+### 7.5 Regras permanentes de consistência
+
+- Mudança de esquema = arquivo novo em `migrations/`, que precisa rodar nos dois bancos.
+- Comando novo no app: `index.ts`, `permissoes.ts`, `historico.ts`, `openapi.yaml` e este catálogo.
+- Campo novo em registro: conferir `visibilidade.ts` e o importador.
+- Mudou canal ou funcionalidade portada: rodar `scripts\ponta-a-ponta.ps1`.
+
+## Anexo A — DDL de referência (PostgreSQL)
+
+Desenho lógico das tabelas, **histórico nos tipos**. Conferido em 05/11/2026 num PostgreSQL 16. Não rodar direto: as migrações reais
+seguem [§3.1](#31-dialeto-único). Onde divergir de [§3](#3-estrutura-de-dados), vale §3: `turnos`, `turno_valores`, `refresh_tokens`,
+`vendas_abertas`, `mov_estoque` e `auditoria.ligados` mudaram.
 
 ```sql
 -- =====================================================================
@@ -2249,765 +2887,3 @@ COMMENT ON COLUMN metas.valor     IS 'Alvo do mês, na unidade do indicador.';
 COMMENT ON COLUMN metas.ativa     IS 'Desligada não aparece no Painel nem em Vender.';
 COMMENT ON CONSTRAINT ck_metas_alvo_id ON metas IS 'O alvo e o id certo: empresa sem id; unidade com local; pessoa com pessoa.';
 ```
-
-> Pontos deixados para decisão do dono: (a) `compra_linhas.lote_nascido` é coluna nova (hoje o lote nascido e o item de catálogo usam o mesmo `itemId`, `compras.ts:375`); (b) o app **não** obriga sócia na retirada (`caixa.ts:56` só copia `socioId` se vier) — por isso não há `CHECK (tipo <> 'retirada' OR socio_id IS NOT NULL)`; ligar se a regra for essa.
-
----
-
-## 3. Diagrama ER
-
-```mermaid
-erDiagram
-  EMPRESAS ||--o{ USUARIOS : tem
-  EMPRESAS ||--o{ PESSOAS : tem
-  EMPRESAS ||--o{ LOCAIS : tem
-  EMPRESAS ||--o{ MODULOS : tem
-  EMPRESAS ||--o{ CONFIGURACOES : tem
-  EMPRESAS ||--o{ FORMAS_PAGAMENTO : tem
-  EMPRESAS ||--o{ SEQUENCIAS : tem
-  MOEDAS ||--o{ COTACOES : cotada
-  USUARIOS |o--o| PESSOAS : "e a pessoa"
-  USUARIOS ||--o{ REFRESH_TOKENS : renova
-  USUARIOS ||--o{ IDEMPOTENCIA : pede
-  USUARIOS ||--o{ AUDITORIA : fez
-  PESSOAS ||--o{ PESSOA_PAPEIS : tem
-  PESSOAS |o--o{ PESSOAS : "superior de"
-  LOCAIS ||--o{ PESSOAS : trabalha
-  SOCIOS }o--o| PESSOAS : "e"
-  MODULOS ||--o{ TRIAGEM_COLUNAS : quadro
-  MODULOS ||--o{ ITENS : contem
-  TRIAGEM_COLUNAS ||--o{ ITENS : "fase atual"
-  TRIAGENS ||--o{ ITENS : "gerou"
-  ITENS ||--o{ ITEM_ORIGENS : "filho"
-  ITENS ||--o{ ITEM_ORIGENS : "pai"
-  ITENS ||--o{ ITEM_COMPRAS : "vem de"
-  COMPRAS ||--o{ ITEM_COMPRAS : "originou"
-  ITENS ||--o{ ITEM_INSUMOS : insumos
-  ITENS ||--o{ MOV_ESTOQUE : razao
-  COMPRAS ||--o{ COMPRA_LINHAS : linhas
-  COMPRA_LINHAS |o--o| ITENS : "lote nasce"
-  PESSOAS ||--o{ COMPRAS : fornece
-  VIAGENS |o--o{ COMPRAS : "compras da viagem"
-  FINANCIAMENTOS |o--o{ COMPRAS : "entregas"
-  VENDAS ||--o{ VENDA_LINHAS : linhas
-  ITENS ||--o{ VENDA_LINHAS : vendido
-  PESSOAS |o--o{ VENDAS : cliente
-  PESSOAS |o--o{ VENDA_LINHAS : profissional
-  COMPRAS ||--o{ PAGAMENTOS : pagamentos
-  VENDAS ||--o{ PAGAMENTOS : pagamentos
-  FORMAS_PAGAMENTO ||--o{ PAGAMENTOS : forma
-  COMPRAS ||--o{ ETAPA_EVENTOS : historico
-  VENDAS ||--o{ ETAPA_EVENTOS : historico
-  VENDAS_ABERTAS ||--o{ VENDA_ABERTA_LINHAS : linhas
-  ITENS ||--o{ VENDA_ABERTA_LINHAS : guardado
-  TABELAS_PRECO ||--o{ TABELA_PRECO_VERSOES : versoes
-  TABELA_PRECO_VERSOES ||--o{ TABELA_PRECO_COLUNAS : colunas
-  TABELA_PRECO_VERSOES ||--o{ TABELA_PRECO_MEDIDAS : medidas
-  TABELA_PRECO_MEDIDAS ||--o{ TABELA_PRECO_CELULAS : linha
-  TABELA_PRECO_COLUNAS ||--o{ TABELA_PRECO_CELULAS : coluna
-  TABELAS_PRECO |o--o{ VENDA_LINHAS : "carimbo"
-  TABELAS_PRECO |o--o{ COMPRA_LINHAS : "carimbo"
-  DIAS_CAIXA ||--o{ MOV_CAIXA : lancamentos
-  DIAS_CAIXA ||--o{ DIA_CONTAGENS : contado
-  DIAS_CAIXA ||--o{ DIA_ALTERACOES : "alterado depois"
-  MOV_CAIXA |o--o| MOV_CAIXA : estorno
-  VENDAS |o--o{ MOV_CAIXA : origem
-  COMPRAS |o--o{ MOV_CAIXA : origem
-  PESSOAS ||--o{ MOV_CONTA : "conta corrente"
-  EMPRESTIMOS ||--o{ PARCELAS : parcelas
-  EMPRESTIMOS ||--o{ MOV_DIVIDA : razao
-  PARCELAS |o--o{ MOV_DIVIDA : abate
-  VIAGENS ||--o{ VIAGEM_VIAJANTES : viajantes
-  PESSOAS ||--o{ VIAGEM_VIAJANTES : viajou
-  VIAGENS ||--o{ VIAGEM_DESPESAS : gastos
-  VIAGENS ||--o{ VIAGEM_CARTEIRA : carteira
-  VIAGEM_CARTEIRA |o--o| MOV_CAIXA : "lancamento"
-  VIAGENS ||--o{ VIAGEM_INCORPORACOES : incorporacoes
-  VIAGEM_INCORPORACOES ||--o{ VIAGEM_INCORPORACAO_LOTES : lotes
-  ITENS ||--o{ VIAGEM_INCORPORACAO_LOTES : "custo ajustado"
-  PESSOAS ||--o{ FINANCIAMENTOS : parceiro
-  FINANCIAMENTOS ||--o{ FINANCIAMENTO_EVENTOS : eventos
-  EVENTOS ||--o{ EVENTO_FEITOS : feitos
-  PESSOAS |o--o{ EVENTOS : "para quem"
-```
-
-### 3.1 Tabela de relacionamentos
-
-| Relação | Cardinalidade | Implementação | Observação |
-|---|---|---|---|
-| Usuário ↔ Pessoa | 1:1 opcional | `usuarios.pessoa_id` + único parcial | hoje "quem sou eu" mistura `pessoaId ?? usuarioId` [FATO `visibilidade.ts:52`] |
-| Pessoa ↔ Papel | N:N (domínio fixo) | `pessoa_papeis` | — |
-| Pessoa → superior | 1:N recursiva | `pessoas.superior_id` | organograma; ciclos (A→B→A) não são barrados por CHECK → validar no serviço |
-| Compra → Linhas / Pagamentos / Histórico | 1:N | `compra_linhas`, `pagamentos(compra_id)`, `etapa_eventos(compra_id)` | composição (CASCADE) |
-| Venda → Linhas / Pagamentos / Histórico | 1:N | idem com `venda_id` | XOR compra/venda por CHECK |
-| Linha de compra → Lote | 1:1 (cabelo) / N:1 (catálogo) | `compra_linhas.item_id` | o lote nasce da linha [FATO `compras.ts:356-376`] |
-| **Lote ↔ Lote (genealogia)** | **N:N recursiva, acíclica** | `item_origens(filho, pai, tipo, quantidade)` | separação = 1 pai → N filhos; unificação = N pais → 1 filho; triagem pode fazer as duas no mesmo passo com lote "intermediário" [FATO `triagem.ts:500-526`, `tipos.ts:93-94`]. Consulta com `WITH RECURSIVE` |
-| **Lote ↔ Compras de origem** | N:N (derivada) | `item_compras` | fecho transitivo mantido pelo serviço (`origem.compraIds`) [FATO `tipos.ts:86-90`] |
-| Triagem → Lotes gerados | 1:N | `itens.triagem_id` + `item_origens.triagem_id` | **entidade nova** |
-| Linha de venda → Item | N:1 | `venda_linhas.item_id` | gramas parciais de um lote: vários vendas do mesmo lote |
-| Viagem ↔ Viajantes | N:N | `viagem_viajantes` | — |
-| **Viagem → Compras** | 1:N opcional | `compras.viagem_id` | mudar compras de viagem encerrada **refaz o rateio** já incorporado [FATO `viagens.ts:236-243`, `compras.ts:225`] |
-| Viagem → Incorporação → Lotes | 1:N:N | `viagem_incorporacoes` + `viagem_incorporacao_lotes` | reversível (reabrir) |
-| Financiamento → Compras (entregas) | 1:N | `compras.financiamento_id` + `financiamento_eventos.compra_id` | dívida em `mov_conta` |
-| Venda/Compra/Empréstimo/Financiamento/Viagem → MovCaixa | 1:N | FKs explícitas + `CHECK num_nonnulls ≤ 1` | hoje `origemId` polimórfico [FATO `tipos.ts:268`] |
-| MovCaixa ↔ MovCaixa (estorno) | 1:1 | `estorna_id` / `estornado_por` | ciclo de 2 colunas — manter as duas coerentes na mesma transação |
-| Tabela → Versões → Colunas/Medidas → Células | 1:N:N | 4 tabelas | célula com FK dupla (medida e coluna da MESMA versão) |
-| Linha de venda/compra → versão da tabela | N:1 (por número) | `tabela_id + tabela_versao` | "carimbo" [FATO `precos.ts:91-110`] |
-| Venda em aberto ↔ Itens | N:N | `venda_aberta_linhas` | um pacote pode estar em várias (a tela avisa) [FATO `vendasAbertas.ts:3-7`] |
-| Anexo → dono | N:1 **polimórfica sem FK** | `anexos.dono_id` | a foto sobe antes de a compra existir [FATO `compras.ts:174`] |
-| Auditoria → qualquer registro | N:N polimórfica | `alvo_id` + `ligados[]` | sem FK (é log) |
-
-**Relações complexas / cíclicas (atenção na implementação):**
-1. **Genealogia** lote→lote com unificação + separação no mesmo comando e "desfazer" que precisa achar todo movimento gerado (`triagem.ts:544-600`).
-2. **Lote unificado ↔ compras** (N:N transitiva) que alimenta rastreio, viagem (rateio por compra) e "origem do pacote" (`origem.ts:87-101`).
-3. **Viagem ↔ compras ↔ custo dos lotes**: ligar/desligar compra de viagem encerrada recalcula custo de lotes **já vendidos parcialmente** (`viagens.ts:236-283`).
-4. **Financiamento ↔ compra ↔ conta corrente ↔ comissão**: pagar comissão pode reter parte para abater adiantamento (`comissoes.ts:105-109`, `financiamentos.ts:313-331`).
-5. **Ciclos de FK**: `usuarios ↔ pessoas`, `itens ↔ compras`, `mov_caixa ↔ mov_caixa` (resolvidos com `ALTER TABLE … ADD CONSTRAINT` depois da criação).
-
----
-
-## 4. Catálogo de rotas da API
-
-### 4.1 Princípios
-
-[FATO] O contrato atual tem **85 comandos** e **92 consultas** (`src/core/services/index.ts:36-138` e `:140-238`). A intenção registrada é `POST /v1/comandos/{nome}` e `GET /v1/consultas/{nome}` (`index.ts:1-2`), mas o adaptador implementado fala **outro transporte**: aperto de mão `POST /v1/k` e todo pedido em `POST /v1/r`, cifrado, com o token **dentro** do envelope e sem cabeçalho `Authorization` (`backendApi.ts:1-12`, `openapi.yaml:9-41`).
-
-[FATO] Permissões: a funcionária pode **20 comandos** e **36 consultas** (`permissoes.ts:18-40,42-80`); o resto é só admin. `usuariosDemo` e `configuracoes` funcionam sem login (`permissoes.ts:83`). Visibilidade por registro e por campo em `visibilidade.ts` (`SENSIVEIS` `:18-24`; `antesDaConsulta` `:86-104`; `depoisDaConsulta` `:106-176`; `antesDoComando` `:179-194`).
-
-[RECOMENDAÇÃO] **Implementar o barramento** (estilo comando) como API principal na V1 — é o que o front já fala e mantém 1 controller genérico → service por nome:
-- `POST /v1/comandos/{nome}` — corpo = `DadosComando<nome>`; cabeçalho `Idempotency-Key` obrigatório; resposta `200 {ok:true, r}`; erro de regra `422 {ok:false, erro:{mensagem, campo}}`.
-- `POST /v1/consultas/{nome}` — corpo = `ParamsConsulta<nome>` (POST porque vários parâmetros são objetos/arrays: `codigos.rascunho`, `etiquetas.ids`, `previaLigarCompras.compraIds`); respostas cacheáveis por `ETag`.
-- A coluna **REST** abaixo é o **mapeamento equivalente** (para documentação/gateway, ou para migrar depois). Não é necessário implementar os dois.
-
-Legenda: **Perm.** A = admin; **F** = funcionária também (com filtro de visibilidade). **Idemp.**: `id` = o serviço já devolve o mesmo resultado se o id já existe (fato, linha citada); `nat` = repetir não muda nada (define estado absoluto); `chave` = **precisa** da `Idempotency-Key` (repetir duplicaria efeito). Todo comando, mesmo `id`/`nat`, recebe a chave.
-
-### 4.2 Compras (7 cmd · 3 cons)
-
-| Operação | REST | Payload principal | Resposta | Toca | Idemp. | Perm. |
-|---|---|---|---|---|---|---|
-| criarCompra | `POST /v1/compras` | id, moduloId, pessoaId?, localId?, compradorId?, viagemId?, linhas[{id,itemId?,quantidade,moeda,total,campos,calculo?}], codigo?, modoCodigo?, codigosLotes?, semValor?, pagarNoAto?[], pagoParcial?[], obs? | {id} | compras, linhas, itens (lotes), mov_estoque, sequencias, pagamentos, mov_caixa, mov_conta, viagem (rateio), auditoria | id `compras.ts:122` | A |
-| pagarCompra | `POST /v1/compras/{id}/pagar` | pagamentos[{forma,moeda,valor,cotacao?}], motivo? | {id} | etapas até Concluído, pagamentos, mov_caixa, mov_conta | nat `compras.ts:148` | A |
-| avancarTriagem | `POST /v1/compras/{id}/etapas` | para, motivo?, ajustes?[{linhaId,quantidade?,total?,campos?}], pagamentos? | {id} | etapa_eventos, linhas, pagamentos, caixa, estoque (catálogo) | nat `compras.ts:253` | A |
-| cancelarCompra | `POST /v1/compras/{id}/cancelar` | motivo | {id} | estoque (devolve), caixa estorno, conta | chave | A |
-| conferirPesoCompra | `POST /v1/compras/{id}/conferencias-peso` | linhaId?/itemId?, pesado, motivo | {id} | mov_estoque (ajuste "Diferença de peso" `compras.ts:408-486`) | chave | A |
-| definirValorCompra | `PUT /v1/compras/{id}/linhas/{linhaId}/valor` | total, motivo | {id} | linha, total, custo do lote, conta | nat | A |
-| trocarCodigoCompra | `PUT /v1/compras/{id}/codigo` | codigo, motivo? | {id} | compras, codigos_anteriores | nat | A |
-| desvincularCompra | (ver Viagens) | | | | | |
-| filaTriagem | `GET /v1/compras?moduloId&incluirEncerradas&pendencia&id` | — | lista de compras + pendências + lotes | compras, linhas, anexos, itens, viagens | — | A |
-| compra | `GET /v1/compras/{id}` | — | Transacao | — | — | A |
-| pedido | `GET /v1/compras/{id}/pedido` | — | BFF da tela do pedido (fechamento, triagem, genealogia, origem) `compras.ts:786` | várias | — | A |
-
-### 4.3 Triagem (8 cmd · 6 cons)
-
-| Operação | REST | Payload | Resposta | Toca | Idemp. | Perm. |
-|---|---|---|---|---|---|---|
-| triarLotes | `POST /v1/triagens` | id, ids[], quantidadeUsada?, saidas[{id,quantidade,campos,codigo?,valorReferencia?}], paraDepois?{id,quantidade,codigo?}, custoExtraPrincipal?, motivo?, codigo? | {id, codigo, lotes[]} | triagens, itens (novos), item_origens, mov_estoque, sequencias, auditoria | id `triagem.ts:502-503` | A |
-| unificarLotes | `POST /v1/triagens/unificacoes` | id, ids[≥2], motivo?, codigo? | {id, codigo, triagem} | idem | id `triagem.ts:121-126` | A (sem tela) |
-| separarLote | `POST /v1/triagens/separacoes` | DadosSeparacao | {id, lotes[]} | idem | id `estoque.ts:252-253` | A (sem tela) |
-| transformarLote | `POST /v1/lotes/{loteId}/transformacoes` | id, quantidadeUsada, quantidadeResultado, campos, custoExtra? | {id} | itens, mov_estoque | chave | A (sem tela) |
-| moverFaseTriagem | `POST /v1/triagem/movimentos` | ids[], fase, obs?, pesos?{id→g} | {ok} | itens.fase, mov_estoque (perda de lavagem) | nat (sem pesos) / chave (com pesos) | A |
-| desfazerTriagem | `POST /v1/triagens/{id}/desfazer` | motivo | {id, codigo, etiquetasParaJogarFora[]} | itens, mov_estoque, triagens | erra na 2ª vez → chave | A |
-| tirarDaMistura | `POST /v1/lotes/{loteId}/mistura/retiradas` | id, tirar[], motivo? | {id} | itens, mov_estoque | id | A |
-| salvarFluxoTriagem | `PUT /v1/config/triagem/{moduloId}` | colunas[] \| null | {ok} | triagem_colunas | nat | A |
-| triagem | `GET /v1/triagem?moduloId&colunaId&vendidosDias` | — | quadro (colunas × lotes) | itens, vendas recentes | — | A |
-| triagens | `GET /v1/triagens?moduloId` | — | lista de triagens | — | — | A |
-| genealogia | `GET /v1/genealogia?compraId\|itemId\|vendaId\|triagemId` | — | grafo em gramas | item_origens, mov_estoque | — | A |
-| mistura | `GET /v1/lotes/{loteId}/mistura` | — | fontes + "dá para desfazer?" | — | — | A |
-| fluxosTriagem | `GET /v1/config/triagem` | — | colunas por módulo | — | — | A |
-| origemDoPacote | `GET /v1/lotes/{itemId}/origem?gramas` | — | gramas por compra | — | — | A |
-
-### 4.4 Vendas / Caixa / Conta corrente (13 cmd · 9 cons)
-
-| Operação | REST | Payload | Resposta | Toca | Idemp. | Perm. |
-|---|---|---|---|---|---|---|
-| concluirVenda | `POST /v1/vendas` | VendaEntrada (`vendas.ts:51-77`): id, pessoaId?, localId?, profissionalId?, agendadoPara?, linhas[], pagamentos[], cobranca?, desconto?, ignorarConflito?, obs? | {id} | vendas, linhas, pagamentos, mov_estoque, mov_caixa, mov_conta, dias_caixa, sequencias, vendas_abertas, reserva, auditoria | id `vendas.ts:265` | **F** |
-| atenderAgendamento | `POST /v1/vendas/{id}/atender` | linhas?, pagamentos[] | {id} | idem | nat `vendas.ts:326` | **F** |
-| cancelarVenda | `POST /v1/vendas/{id}/cancelar` | motivo | {id} | estoque, caixa, conta, dia_alteracoes | erra na 2ª → chave | **F** (só desmarcar agendamento dela `vendas.ts:348-352`) |
-| corrigirVenda | `POST /v1/vendas/{id}/correcoes` | linhas[{linhaId,quantidade?,total?,insumo?,comissaoBp?,fator?}], motivo, diferenca?{forma,moeda}\|'conta' | {id, diferenca} | linhas, estoque, caixa/conta, etapa_eventos, dia_alteracoes | **chave (não idempotente)** | A |
-| salvarVendaAberta | `PUT /v1/vendas-abertas/{id}` | linhas[{id,itemId,quantidade,precoManual?}], pessoaId?, colunaId?, vendedorId?, localId?, desconto?, moeda?, total?, obs? | {id} | vendas_abertas | nat (upsert) | **F** |
-| descartarVendaAberta | `DELETE /v1/vendas-abertas/{id}` | motivo? | {id} | soft delete | nat | **F** |
-| tirarDaVendaAberta | `DELETE /v1/vendas-abertas/{id}/itens/{itemId}` | para? | {id} | linhas | nat | **F** |
-| lancarCaixa | `POST /v1/caixa/lancamentos` | id, tipo(entrada/despesa/retirada/dar/saldoInicial), moeda, forma, valor, descricao, categoria?, socioId?, localId? | {id} | mov_caixa, dias_caixa | id `caixa.ts:42` | A |
-| estornarLancamento | `POST /v1/caixa/lancamentos/{id}/estorno` | motivo? | {id} | mov_caixa | erra na 2ª | A |
-| encerrarDia | `POST /v1/caixa/dias/{data}/encerrar` | contado{moeda→valor} | {id} | dias_caixa, dia_contagens | erra na 2ª | A |
-| reabrirDia | `POST /v1/caixa/dias/{data}/reabrir` | — | {id} | dias_caixa | nat | A |
-| registrarAcerto | `POST /v1/pessoas/{pessoaId}/acertos` | id, direcao, adiantamento?, valor, moeda, forma, descricao? | {id} | mov_conta, mov_caixa | id `contas.ts:24` | A |
-| ajustarConta | `POST /v1/pessoas/{pessoaId}/conta/ajustes` | id, delta, descricao | {id} | mov_conta | id `contas.ts:56` | A (sem tela) |
-| vendas | `GET /v1/vendas?etapa&de&ate&pessoaId&localId&itemId&forma&moeda&usuarioId&moduloId&profissionalId&pendencia` | — | lista + lucro + pendências | — | — | A |
-| venda | `GET /v1/vendas/{id}` | — | venda + cliente + profissional + viagens | — | — | **F** (só a dela) |
-| vendasAbertas | `GET /v1/vendas-abertas` | — | lista | — | — | **F** (só as dela) |
-| origemDaVenda | `GET /v1/vendas/{id}/origem` | — | gramas por compra | — | — | A |
-| caixaDoDia | `GET /v1/caixa/dias/{data}` | — | contas por moeda, movimentos | — | — | A |
-| diasDoCaixa | `GET /v1/caixa/dias` | — | [{data,status}] | — | — | A |
-| contas | `GET /v1/contas?somenteAbertas` | — | saldos por pessoa | — | — | A |
-| contaPessoa | `GET /v1/pessoas/{id}/conta` | — | extrato | — | — | A |
-| lerCodigoPacote | `GET /v1/lotes/leitura?texto` | — | pacote lido (QR/pistola) | — | — | **F** |
-
-### 4.5 Estoque / Catálogo / Etiquetas / Fotos (11 cmd · 12 cons)
-
-| Operação | REST | Payload | Resposta | Toca | Idemp. | Perm. |
-|---|---|---|---|---|---|---|
-| salvarItem | `PUT /v1/itens/{id}` | moduloId, tipoItem, nome, precoSugerido?, estoqueIdeal?, duracaoMin?, retornoDias?, campos?, saldoInicial?, ativo?, comissaoBp?, insumo?, antes? | {id} | itens, item_insumos, mov_estoque (saldo inicial) | nat (conflito por `antes` `estoque.ts:99-100`) | A |
-| ajustarEstoque | `POST /v1/itens/{id}/ajustes` | novoSaldo, motivo(ajuste/perda), descricao? | {id} | mov_estoque | nat (saldo absoluto) | A |
-| marcarLotes | `PATCH /v1/lotes` | ids[], campos | {ok} | itens | nat | A |
-| editarAtributosLote | `PATCH /v1/lotes/{id}/atributos` | campos, motivo? | {id} | itens | nat | A |
-| reservarLote | `PUT /v1/lotes/{id}/reserva` | para?, ate?, obs?, tirar? | {id} | itens | nat | A |
-| trocarCodigoLote | `PUT /v1/lotes/{id}/codigo` | codigo, motivo? | {id} | itens, codigos_anteriores | nat | A |
-| marcarEtiquetasImpressas | `POST /v1/etiquetas/impressoes` | ids[] | {ok} | itens | nat | A |
-| refazerEtiqueta | `POST /v1/lotes/{id}/etiqueta/nova-via` | motivo | {id} | itens (via+1) | **chave** | A |
-| definirMiniatura | `PUT /v1/anexos/{id}/miniatura` | miniatura | {id} | anexos | nat `fotos.ts:171` | **F** |
-| registrarAnexo | `POST /v1/anexos` (multipart: arquivo + metadados) | id, donoId, categoria, nome, mime, tamanho | {id} | anexos, storage | id `cadastros.ts:442` | **F** |
-| removerAnexo | `DELETE /v1/anexos/{id}` | — | {id} | soft delete | nat | A |
-| estoque | `GET /v1/estoque?moduloId&somenteComSaldo&etiqueta` | — | lotes com saldo, fotos, compras, busca | — | — | **F** (sem fornecedor/custo) |
-| catalogo | `GET /v1/catalogo?moduloId&incluirAvulsos` | — | itens | — | — | **F** |
-| movimentosDoItem | `GET /v1/itens/{id}/movimentos` | — | mov_estoque | — | — | A (sem tela) |
-| fichaItem | `GET /v1/itens/{id}` | — | ficha completa (custo, margem, histórico) | — | — | A |
-| pacoteVenda | `GET /v1/lotes/{id}/venda` | — | foto, código, peso, preço | — | — | **F** |
-| rastreio | `GET /v1/rastreio?compraId\|itemId` | — | — | — | — | A |
-| livroCabelo | `GET /v1/livro?moduloId&compraId&itemId&pessoaId&de&ate&tipo` | — | lançamentos de gramas | — | — | A |
-| historicoPacote | `GET /v1/lotes/{itemId}/historico` | — | linha do tempo do pacote | — | — | A |
-| fotosDoLote | `GET /v1/lotes/{itemId}/fotos` | — | próprias + herdadas | — | — | **F** |
-| etiquetas | `POST /v1/consultas/etiquetas` | ids[] | dados para imprimir | — | — | **F** |
-| modoEtiqueta | `GET /v1/config/etiqueta` | — | modo | — | — | **F** |
-| anexosDe | `GET /v1/anexos?donoId` | — | metadados | — | — | **F** (dono visível) |
-| *(arquivo)* | `GET /v1/anexos/{id}/conteudo` → URL assinada (302) | — | binário | storage | — | conforme dono |
-
-### 4.6 Tabelas de preço (1 cmd · 9 cons)
-
-| Operação | REST | Payload | Resposta | Idemp. | Perm. |
-|---|---|---|---|---|---|
-| salvarTabelaPreco | `PUT /v1/tabelas-preco/{id}` | moduloId, nome, categoria?, validaDesde?, moeda, unidadeMedida, fatorPor, linhas[], colunas[], valores{}, nota?, **versaoBase** | {id, versao} | nat ("Nada mudou" `precos.ts:69`) + trava `precos.ts:76` | A |
-| tabelasPreco | `GET /v1/tabelas-preco?moduloId` | — | tabelas | — | **F** |
-| tabelaVigente | `GET /v1/tabelas-preco/vigente?moduloId&categoria` | — | tabela | — | **F** (sem tela) |
-| listaTabelasPreco | `GET /v1/tabelas-preco/resumo` | — | lista com uso | — | A |
-| tabelaPreco | `GET /v1/tabelas-preco/{id}` | — | tabela + versões | — | A |
-| versoesTabela | `GET /v1/tabelas-preco/{id}/versoes` | — | versões | — | A (sem tela) |
-| historicoTabela | `GET /v1/tabelas-preco/{id}/historico` | — | versões anteriores | — | A (sem tela) |
-| compararVersoes | `GET /v1/tabelas-preco/{id}/comparar?de&para` | — | células que mudaram | — | A |
-| versoesEmUso | `GET /v1/tabelas-preco/versoes-em-uso` | — | — | — | **F** |
-| calcularPreco | `GET /v1/tabelas-preco/{tabelaId}/preco?colunaId&medida&quantidade&fator` | — | valor | — | **F** (sem tela) |
-
-### 4.7 Relatórios / Painel (0 cmd · 13 cons)
-
-| Consulta | REST | Params | Perm. | Nota |
-|---|---|---|---|---|
-| painel | `GET /v1/painel` | de, ate, comparar, moeda, area, localId, profissionalId | A | hoje carrega **todas** as transações e itens (`painel.ts:29-40`) → SQL agregado |
-| operacao | `GET /v1/painel/operacao` | — | A | avisos do dia |
-| resumoMenu | `GET /v1/menu/resumo` | — | **F** | chamado pelo Shell em toda tela |
-| diagnostico | `GET /v1/admin/diagnostico` | — | A | confere saldo × movimentos (vira job/consulta SQL) |
-| dre | `GET /v1/relatorios/dre` | de, ate | A | |
-| livroCaixa | `GET /v1/relatorios/livro-caixa` | de, ate, moeda | A (sem tela) | |
-| inventario | `GET /v1/relatorios/inventario` | moduloId | A | |
-| balanco | `GET /v1/relatorios/balanco` | — | A | |
-| vendasDetalhadas | `GET /v1/relatorios/vendas` | de, ate, pessoaId, moduloId | A (sem tela) | |
-| comprasDetalhadas | `GET /v1/relatorios/compras` | de, ate | A (sem tela) | |
-| relatorioContabil | `GET /v1/relatorios/contabil` | de, ate, padrao(BO/BR) | A | motor boliviano (`CONTABILIDADE.md`) |
-| impostosOperacao | `GET /v1/impostos/operacao` | produto, servico, compra | **F** | prévia |
-| servicosReceitaInsumos | `GET /v1/relatorios/servicos` | de, ate, localId | A | |
-
-### 4.8 Cadastros (6 cmd · 4 cons)
-
-| Operação | REST | Payload | Idemp. | Perm. |
-|---|---|---|---|---|
-| salvarPessoa | `PUT /v1/pessoas/{id}` | Pessoa sem Base + versaoBase | nat + trava `cadastros.ts:38` | **F** (só clientes e ela `visibilidade.ts:181-188`) |
-| salvarLocal | `PUT /v1/locais/{id}` | Local + versaoBase | nat + trava `cadastros.ts:82` | A |
-| salvarCidade | `POST /v1/cidades` | id, nome, departamento?, pais? | nat (não duplica `cidades.ts:34-35`) | **F** |
-| criarServicoRapido | `POST /v1/catalogo/servicos` | id, nome, preço… | id `servicosSalao.ts:28` | **F** |
-| revisarServico | `POST /v1/catalogo/servicos/{id}/revisar` | — | nat | A |
-| restaurarBibliotecaServicos | `POST /v1/catalogo/servicos/biblioteca` | — | nat | A |
-| pessoas | `GET /v1/pessoas?papel&busca` | — | **F** (clientes + equipe só nome) |
-| fichaPessoa | `GET /v1/pessoas/{id}/ficha` | — | **F** (cliente ou ela) |
-| locais | `GET /v1/locais` | — | **F** |
-| cidades | `GET /v1/cidades?pais` | — | **F** |
-
-### 4.9 Configurações (10 cmd · 7 cons)
-
-| Operação | REST | Idemp. | Perm. |
-|---|---|---|---|
-| salvarConfig | `PATCH /v1/config/geral` (versaoBase ou antes — merge 3 vias `cadastros.ts:271-281`) | nat + trava | A |
-| salvarModulo | `PUT /v1/modulos/{id}` | nat | A |
-| salvarFluxoCompra | `PUT /v1/config/fluxos-compra/{moduloId}` | nat | A |
-| salvarAtributos | `PUT /v1/config/atributos/{moduloId}/{tipoId}` | nat | A |
-| salvarFormCompra | `PUT /v1/config/form-compra` | nat | A |
-| salvarCodigos | `PUT /v1/config/codigos` | nat | A |
-| salvarSigla | `PUT /v1/pessoas/{pessoaId}/sigla` | nat | A |
-| salvarCotacao | `POST /v1/cotacoes` | id | **F** |
-| salvarCambio | `PUT /v1/config/cambio` | nat | A |
-| registrarBuscaCambio | `POST /v1/cambio/buscas` | nat | **F** |
-| configuracoes | `GET /v1/config` (pré-login: só nome/idioma) | — | **F**/público |
-| fluxosCompra / atributosItem / formCompra / codigos / codigoDisponivel / cambio | `GET /v1/config/fluxos-compra`, `/atributos`, `/form-compra`, `/codigos`, `/codigos/disponivel?tipo&codigo&…`, `/cambio` | — | A |
-
-### 4.10 Histórico / Auditoria (0 cmd · 4 cons)
-
-| Consulta | REST | Params | Perm. |
-|---|---|---|---|
-| linhaDoTempo | `GET /v1/historico/{id}` | — | A |
-| logDetalhado | `GET /v1/auditoria/log` | de, ate, usuarioId, acao, busca, limite | A (sem tela) |
-| auditoria | `GET /v1/auditoria` | de, ate, usuarioId, acao, categoria, busca, alvoId, limite → **cursor** | A |
-| registroAuditoria | `GET /v1/auditoria/{id}` | — | A |
-
-### 4.11 Viagens (12 cmd · 7 cons)
-
-| Operação | REST | Payload | Idemp. | Perm. |
-|---|---|---|---|---|
-| salvarViagem | `PUT /v1/viagens/{id}` | nome, destino?, naBolivia?, viajantes[], inicio, fim?, orcamento?, orcamentoCompra?, rateio?, obs?, confirmarParecida?, versaoBase | nat + trava `viagens.ts:124` | A |
-| adiantarViagem | `POST /v1/viagens/{viagemId}/adiantamentos` | id, moeda, forma, valor, obs? | id `viagens.ts:158` | A |
-| registrarDespesaViagem | `POST /v1/viagens/{viagemId}/despesas` | id, categoria, moeda, valor, data?, nota? | id `viagens.ts:187` | **F** (viagem dela) |
-| anularDespesaViagem | `POST /v1/viagens/{viagemId}/despesas/{id}/anular` | motivo | nat `viagens.ts:223` | **F** (o que ela lançou) |
-| vincularCompras | `POST /v1/viagens/{viagemId}/compras` | compraIds[], mover? | nat | A |
-| desvincularCompra | `DELETE /v1/viagens/{viagemId}/compras/{compraId}` | — | nat | A |
-| desfazerLigacao | `POST /v1/viagens/ligacoes/desfazer` | antes[{compraId,viagemId?,agora?}] | nat | A |
-| encerrarViagem | `POST /v1/viagens/{id}/encerrar` | contado{}, forma?, reembolsar?, incorporar?, fim?, obs? | nat `viagens.ts:424` | A |
-| incorporarCustoViagem | `POST /v1/viagens/{id}/incorporacao` | seHouver? | erra na 2ª | A |
-| reabrirViagem | `POST /v1/viagens/{id}/reabrir` | motivo | nat `viagens.ts:528` | A |
-| apagarViagem | `DELETE /v1/viagens/{id}` | motivo? | nat | A |
-| salvarCategoriasViagem | `PUT /v1/config/categorias-viagem` | categorias[] | nat | A (sem tela) |
-| viagens / viagem / previaLigarCompras / viagensParecidas / painelViajante / categoriasViagem / viagensParaFiltro | `GET /v1/viagens?status&viajanteId&busca&viagemId`, `/viagens/{id}`, `POST /v1/consultas/previaLigarCompras`, `/viagens/parecidas?…`, `/viagens/painel-viajante?viagemId`, `/config/categorias-viagem`, `/viagens/opcoes` | — | viagens, painelViajante, categoriasViagem: **F**; demais A |
-
-### 4.12 Empréstimos (2 cmd · 2 cons) e Adiantamentos (7 cmd · 3 cons)
-
-| Operação | REST | Idemp. | Perm. |
-|---|---|---|---|
-| criarEmprestimo | `POST /v1/emprestimos` (id, direcao, pessoaId, moeda, principal, juros, parcelas, primeiroVencimento, forma, obs?) | id `emprestimos.ts:81` | A |
-| pagarEmprestimo | `POST /v1/emprestimos/{id}/pagamentos` (id, valor, forma) | id `emprestimos.ts:119` | A |
-| emprestimos / emprestimo | `GET /v1/emprestimos?direcao&pessoaId&status`, `/emprestimos/{id}` | — | A |
-| criarFinanciamento | `POST /v1/adiantamentos` | id `financiamentos.ts:151` | A |
-| registrarEntregaFinanciamento | `POST /v1/adiantamentos/{id}/entregas` (cria compra) | id `financiamentos.ts:211` | A |
-| receberFinanciamento | `POST /v1/adiantamentos/{id}/recebimentos` | id `:258` | A |
-| pagarDiferencaFinanciamento | `POST /v1/adiantamentos/{id}/diferencas` | id `:275` | A |
-| abaterComissaoFinanciamento | `POST /v1/adiantamentos/{id}/abatimentos` | id `:295` | A |
-| encerrarFinanciamento | `POST /v1/adiantamentos/{id}/encerrar` | nat `:336` | A |
-| ajustarFinanciamento | `PATCH /v1/adiantamentos/{id}` | nat `:368` | A |
-| financiamentos / financiamento | `GET /v1/adiantamentos?status&pessoaId&viagemId&busca&de&ate&prazo`, `/adiantamentos/{id}` | — | **F** (os dela) |
-| origemFinanciamento | `GET /v1/adiantamentos/origem?compraId\|itemId` | — | A (sem tela) |
-
-### 4.13 Agenda (4 cmd · 5 cons) e Equipe (2 cmd · 6 cons)
-
-| Operação | REST | Idemp. | Perm. |
-|---|---|---|---|
-| salvarEvento | `PUT /v1/eventos/{id}` | nat (sem versaoBase!) | **F** (os dela) |
-| excluirEvento | `DELETE /v1/eventos/{id}` | nat `agenda.ts:364` | **F** |
-| concluirEvento | `POST /v1/eventos/{id}/feitos` (data?, desfazer?) | nat | **F** |
-| receberAtendimento | `POST /v1/vendas/{vendaId}/recebimentos` (id, forma, moeda, valor) | id `agenda.ts:391` | **F** |
-| agenda / calendario / agendaFiltros / evento / conflitosAgenda | `GET /v1/agenda?de&ate&profissionalId&localId`, `/calendario?de&ate&localId&pessoaId&tipo`, `/agenda/filtros`, `/eventos/{id}`, `/agenda/conflitos?profissionalId&inicio&itens&duracaoMin&ignorarId` | — | **F** |
-| pagarSalario | `POST /v1/pessoas/{pessoaId}/salarios` | id `equipe.ts:180` | A |
-| pagarComissao | `POST /v1/pessoas/{pessoaId}/comissoes/pagamentos` (id, valor, moeda, forma, referencia?) | id `comissoes.ts:92-93` | A |
-| organograma / resumoFuncionario / comissoes | `GET /v1/equipe/organograma?localId&de&ate`, `/equipe/{id}/resumo?de&ate`, `/equipe/comissoes?de&ate&pessoaId` | — | **F** (números dela) |
-| unidades / sugestaoSalario / ultimoLancamento | `GET /v1/equipe/unidades?de&ate`, `/equipe/{pessoaId}/sugestao-salario`, `/caixa/ultimo-lancamento?tipo` | — | A |
-
-### 4.14 Usuários / Auth (2 cmd · 2 cons + 4 rotas novas)
-
-| Operação | REST | Nota | Perm. |
-|---|---|---|---|
-| **login** | `POST /v1/auth/login` {login, senha} → {accessToken (JWT 15 min), refreshToken (cookie httpOnly ou corpo), sessao} | hoje `entrar` confere hash PBKDF2 calculado **no aparelho** (`noAparelho.ts:184-197`, `usuarios.ts:15-37`) → no servidor: argon2id | público + rate limit |
-| **refresh** | `POST /v1/auth/refresh` | rotação + reuso detectado revoga a família | público |
-| **logout** | `POST /v1/auth/logout` | revoga refresh | logado |
-| **me** | `GET /v1/auth/me` | sessão atual (perfil relido do banco, como `conferirUsuario` `noAparelho.ts:79-87`) | logado |
-| salvarUsuario | `PUT /v1/usuarios/{id}` (login, nome, perfil, pessoaId?, localId?, senha?, ativo?, versaoBase) | trava `usuarios.ts:74`; ≥1 admin ativo `:76-77`; senha nunca no log | A |
-| trocarMinhaSenha | `POST /v1/auth/senha` (atual, nova) | revoga outros refresh | **F** |
-| usuarios | `GET /v1/usuarios` | — | A |
-| usuariosDemo | **não expor na API** (só demonstração; `Entrar.tsx:18` já desliga com `backend.tipo === 'api'`) | — | — |
-
-Contagem conferida por seção — comandos: Compras 7 + Triagem 8 + Vendas/Caixa 13 + Estoque 11 + Preços 1 + Cadastros 6 + Config 10 + Viagens 12 + Empréstimos 2 + Adiantamentos 7 + Agenda 4 + Equipe 2 + Usuários 2 = **85**; consultas: 3 + 6 + 9 + 12 + 9 + Relatórios 13 + 4 + 7 + Auditoria 4 + Viagens 7 + 2 + 3 + 5 + 6 + 2 = **92** (`desvincularCompra` está em Viagens; `comprasDetalhadas` em Relatórios). Consultas sem nenhuma tela hoje [FATO, busca por nome em `src/screens`, `src/ui`, `src/app/App.tsx`]: `movimentosDoItem, tabelaVigente, historicoTabela, versoesTabela, calcularPreco, logDetalhado, livroCaixa, vendasDetalhadas, comprasDetalhadas, categoriasViagem, origemFinanciamento`; comandos sem tela: `transformarLote, separarLote, unificarLotes, ajustarConta, salvarCategoriasViagem` (e `registrarAnexo`, usado por `backend.anexar` `noAparelho.ts:168-171`). **[RECOMENDAÇÃO]** estes 16 podem ficar para depois da V1.
-
----
-
-## 5. Fluxo de chamadas por tela
-
-[FATO] Mecânica atual: `useConsulta` refaz **toda consulta montada** a cada comando (`contexto.tsx:79` assina `backend.aoMudar`; `backendApi.ts:89-90` avisa após cada comando). O `Shell` chama `configuracoes` e `resumoMenu` em toda tela (`src/app/Shell.tsx`). A paginação é feita **na tela sobre a lista inteira** (`ui/paginacao.tsx:1-6,15-20`).
-
-**[RECOMENDAÇÃO] regras gerais** (valem para todas as linhas abaixo):
-- **Cache longo** (até invalidar): `configuracoes`, `locais`, `formCompra`, `fluxosCompra`, `fluxosTriagem`, `atributosItem`, `codigos`, `modoEtiqueta`, `categoriasViagem`, `tabelasPreco`, `versoesEmUso`, `cidades`, `agendaFiltros`. Invalidar só quando um comando `salvar*` da mesma área roda.
-- **Invalidação por etiqueta** em vez de "recarrega tudo": cada comando declara o que muda (ex.: `concluirVenda` → `vendas`, `venda:{id}`, `estoque`, `caixaDoDia:{hoje}`, `vendasAbertas`, `contaPessoa:{pessoaId}`, `resumoMenu`, `painel`).
-- **Busca e filtros no servidor + paginação por cursor** para listas que crescem com o tempo: estoque/lotes, compras, vendas, pessoas, livro, auditoria, movimentos.
-- `pessoas` (lista inteira em ~15 telas) → trocar por **busca com autocomplete** (`GET /v1/pessoas?busca=&papel=&limite=20`).
-
-| Tela (arquivo) / abas | Carrega ao abrir | Sob demanda | Agrupar (BFF) | Comandos → invalidar | Filtros hoje locais → backend / paginação |
-|---|---|---|---|---|---|
-| **Entrar** (`Entrar.tsx`) | `usuariosDemo` (só demo, `:18`) | login | — | — | — |
-| **Shell** (todas) | `configuracoes`, `resumoMenu` | — | `GET /v1/sessao/contexto` (config pública + resumo + perfil) | qualquer comando → `resumoMenu` (ou SSE) | — |
-| **Painel** (`Painel.tsx`) abas por área + viagens | `operacao` (`:162`), `configuracoes`, `locais`, `painel{de,ate,comparar,moeda,area,localId}` (`:327`) | `relatorioContabil` se impostos ligados (`:330`); `viagens` na aba (`:468`) | `operacao`+`painel` já são BFF; cache 60 s | nenhum próprio; invalidar por vendas/compras/caixa | tudo agregado no servidor (hoje varre tudo `painel.ts:29-40`) |
-| **Vender / Vendas** (`Vender.tsx` + `ListaVendas.tsx`) abas concluídas/canceladas/em aberto | `configuracoes`, `pessoas`, `locais`, `vendas(base)`, `vendas(cancelado)`, `vendasAbertas` (`ListaVendas.tsx:41-51`) | no formulário: `tabelasPreco`, `catalogo(salao)`, `estoque(moduloId)`, `conflitosAgenda` (debounce) (`Vender.tsx:205-225,367-410`) | "contexto de venda": config + locais + tabelas + catálogo | `concluirVenda` → vendas, estoque, caixa, vendasAbertas, conta; `cancelarVenda`, `descartarVendaAberta` → vendas/vendasAbertas | **vendas**: busca/ordem/aba locais → servidor + cursor; pedir só `etapa` da aba visível (hoje 2 consultas) |
-| **Venda rápida / modo caixa** (`VendaRapida.tsx`) | `configuracoes`, **`estoque({})` de todos os módulos** (`:41`), `tabelasPreco({})`, `versoesEmUso`, `pessoas`, `locais`, `vendasAbertas` | `lerCodigoPacote` a cada leitura (`caixa/Avisos.tsx:34`); `origemDoPacote` (admin, `caixa/janelas.tsx:195`); `venda` após fechar (`:421`) | `GET /v1/caixa/contexto` (config+tabelas+versões+locais+abertas) | `salvarVendaAberta` (autosave: **throttle ≥ 2 s** e só na mudança), `concluirVenda`, `tirarDaVendaAberta` | trocar `estoque({})` por `lerCodigoPacote` + busca paginada; é a tela mais sensível a latência |
-| **Comprar (lista)** (`Comprar.tsx:59-123`) abas abertas/encerradas/todas | `filaTriagem{incluirEncerradas:true}` (**todas as compras de sempre**, `:65`), `configuracoes` | — | — | — | aba, busca, pendência, fornecedor, ordem → servidor + cursor (`:59-62,123`) |
-| **Nova compra** (`Comprar.tsx:289-378`, `compra/*`) | `configuracoes`, `formCompra`, `codigos`(admin), `codigoDisponivel`, `viagens{aberta}`, `tabelasPreco(cabelo)`, `catalogo`, `filaTriagem` (de novo, `:376`), `anexosDe(id)` | `compra` (repetir), `contaPessoa` ao escolher fornecedor, `pessoas{funcionario}` (`:1199`) | `GET /v1/compras/novo/contexto` (form+tabelas+catálogo+viagens abertas+códigos) | `criarCompra` → compras, estoque, triagem, caixa (se pago), viagem; `registrarAnexo` (upload antes) | remover a 2ª `filaTriagem` (só para checar duplicidade? [HIPÓTESE]) → endpoint específico |
-| **Pedido** (`Comprar.tsx:1260-1348`, `PagamentoCompra.tsx`) abas resumo/pagamento/anexos/histórico | `pedido{id}`, `anexosDe`, `configuracoes` | `linhaDoTempo` (aba histórico, `ui/linhaTempo.tsx`); `viagensParaFiltro`+`previaLigarCompras` (`compra/LigarCompras.tsx:24-25`) | `pedido` já é BFF | `avancarTriagem`, `pagarCompra`, `cancelarCompra`, `conferirPesoCompra`, `definirValorCompra`, `trocarCodigoCompra`, `vincularCompras`/`desfazerLigacao`/`desvincularCompra` → `pedido:{id}`, filaTriagem, estoque, caixa, viagem | — |
-| **Triagem** (`Triagem.tsx`) abas separar/… + `triagem/*` | `triagem{moduloId,colunaId,vendidosDias}` (`:79`) | `triagens` (`:928`), `genealogia{triagemId}` (`:1147`); Separar: `fichaItem`, `estoque(moduloId)` (**inteiro**), `codigos`, `tabelasPreco` (`triagem/Separar.tsx:42-60`); Unificar: `codigos`, `codigoDisponivel`; `mistura` | "contexto de separação": ficha + códigos + tabelas | `triarLotes`, `moverFaseTriagem`, `desfazerTriagem`, `tirarDaMistura`, `conferirPesoCompra` → triagem, estoque, etiquetas, genealogia | quadro: paginar por coluna; vendidos só últimos N dias (já existe `vendidosDias`) |
-| **Etiquetas** (`Etiquetas.tsx`) filtros sem/já impressa | `estoque{cabelo, somenteComSaldo}` (`:43`) | `etiquetas{ids}`, `modoEtiqueta`, `fichaItem` (`ui/etiquetas.tsx`) | — | `marcarEtiquetasImpressas`, `refazerEtiqueta` → estoque | filtro `f` (`:41`) → servidor (`etiqueta=sem/ja`; índice `ix_itens_sem_etiqueta`) |
-| **Livro do cabelo** (`Livro.tsx`) | `livroCabelo{moduloId}` (`:49`) — **todos os lançamentos** | — | — | — | período/tipo/compra/lote → servidor; cursor (razão cresce sem fim) |
-| **Estoque** (`Estoque.tsx:147-250`) | `configuracoes`, `estoque{moduloId}` (`:170`) | — | — | `marcarLotes`, `ajustarEstoque` | todos os filtros/chips e paginação 50 são locais (`:248`) → servidor |
-| **Ficha do lote** (`Estoque.tsx:796+`) abas resumo/detalhes/histórico/fotos | `fichaItem{id}`, `genealogia{itemId}`(admin) | `historicoPacote`, `fotosDoLote`, `codigoDisponivel` | ficha + genealogia num BFF | `ajustarEstoque`, `editarAtributosLote`, `reservarLote`, `trocarCodigoLote`, `definirMiniatura`, `removerAnexo` → `fichaItem:{id}`, estoque | — |
-| **Rastreio** (`Estoque.tsx:1006`) | `genealogia{compraId\|itemId}` | — | — | — | — |
-| **Pacote para vender** (`PacoteVenda.tsx`) | `pacoteVenda{id}` | — | — | — | — |
-| **Caixa** (`Caixa.tsx`) | `caixaDoDia{data}`, `diasDoCaixa` (`:121-122`) | `locais` (janela de lançar `:586`), `venda`, `emprestimo`, `ultimoLancamento` | — | `lancarCaixa`, `estornarLancamento`, `encerrarDia`, `reabrirDia`, `registrarAcerto` → `caixaDoDia:{data}`, `diasDoCaixa`, painel | `caixaDoDia` hoje soma todo `movCaixa` de sempre (`caixa.ts:131-139`) → saldo de abertura por SQL ou tabela de fechamento; `diasDoCaixa` por mês |
-| **Agenda** (`Agenda.tsx`, `agenda/MarcarAgenda.tsx`) modos dia/semana/mês | `agendaFiltros`, `calendario{de,ate,localId,pessoaId}` (`:43-44`) | `venda{id}` ao abrir atendimento (`:154,292`), `catalogo(salao)`, `pessoas`; Marcar: `locais`, `pessoas`, `conflitosAgenda`, `evento` | — | `salvarEvento`, `excluirEvento`, `concluirEvento`, `receberAtendimento`, `atenderAgendamento`, `cancelarVenda` → `calendario`, `agenda`, caixa | `tipo` e `busca` (`:35-36`) → servidor |
-| **Equipe** (`Equipe.tsx`) abas organograma/unidades/comissões | `locais`, `organograma{localId,de,ate}` (`:33-34`) | `resumoFuncionario`, `sugestaoSalario`, `configuracoes`; aba Unidades `unidades`; aba Comissões `comissoes`, `configuracoes` | — | `pagarSalario`, `pagarComissao` → comissoes, caixa | — |
-| **Pessoas** (`Pessoas.tsx`) abas contas/todas | `pessoas`, `contas{somenteAbertas}`(admin) (`:38-39`) | ficha: `fichaPessoa`, `contaPessoa`, `configuracoes` (`:144-148`) | ficha + conta num BFF | `registrarAcerto`, `salvarPessoa` → pessoas, contaPessoa, caixa | busca/papel locais → servidor + cursor |
-| **Cadastro pessoa / funcionária** (`cadastros/*`) | `pessoas`, `locais` | — | — | `salvarPessoa` → pessoas | `pessoas` inteira só para checar duplicado → endpoint de busca |
-| **Empréstimos** (`Emprestimos.tsx`) | `emprestimos{}` (`:57`) | `emprestimo{id}` | — | `pagarEmprestimo`, `criarEmprestimo` → emprestimos, caixa | direção/status/busca/período (`:52-56`) → servidor |
-| **Adiantamentos** (`Financiamentos.tsx`) | `financiamentos{status,busca,de,ate,prazo}` (`:44`, já no servidor) | `financiamento{id}` | — | 6 comandos → `financiamento:{id}`, conta, caixa, compras | já filtrado no servidor; falta cursor |
-| **Novo adiantamento** (`cadastros/CadastroAdiantamento.tsx`) | `pessoas`, `viagensParaFiltro` | — | — | `criarFinanciamento` | — |
-| **Viagens** (`Viagens.tsx`) abas lista/viajante/comparar | `viagens{}` (`:44`), `viagens{status,viajanteId,busca,viagemId}` (`:76`), `painelViajante` (`:77`), `viagens{viajanteId,busca}` (`:79`) — **3 vezes a mesma consulta** | ficha: `viagem{id}` (`:385`), `configuracoes`; `viagensParecidas` | uma consulta com contagem por status | 11 comandos → `viagem:{id}`, viagens, caixa, compras, estoque (incorporação) | unificar as 3 chamadas |
-| **Ficha da viagem** abas resumo/gastos/compras/rateio/contas/histórico | `viagem{id}` | `linhaDoTempo` | — | ver acima | — |
-| **Tabelas de preço** (`Precos.tsx`, `precos/*`, `PrecosHistorico.tsx`) | `listaTabelasPreco`, `tabelaPreco{id}` (`:65-66`), `pessoas` (`:484`) | `tabelasPreco` (vista cartões), `compararVersoes` | — | `salvarTabelaPreco` → tabelasPreco, tabelaPreco, versoesEmUso | lista paginada local (`ListaTabelas.tsx:37`) — volume baixo, pode ficar |
-| **Relatórios** (`Relatorios.tsx`, `relatorio/*`) | `dre{de,ate}` (`:99`), `servicosReceitaInsumos` (`:51`), `relatorioContabil` (`EstadosFinanceiros.tsx:20`) | inventário/balanço | — | — | tudo agregado no servidor; cache por período fechado |
-| **Auditoria** (`Auditoria.tsx`) | `auditoria{de,ate,usuarioId,acao,categoria,busca}` (`:53`) | `registroAuditoria{id}` (`:134`) | — | — | já filtra no servidor; paginação 50 local (`:55`) → cursor |
-| **Configurações** (`Config.tsx`, `Configuracoes.tsx`, `config/*`, `ConfigCodigos/Fiscal/FormCompra/Triagem.tsx`) — 21 seções (`configSecoes.ts`) | conforme a seção: `configuracoes`, `locais`, `usuarios`, `pessoas`, `cambio`, `fluxosCompra`, `fluxosTriagem`, `atributosItem`, `catalogo`, `codigos`, `formCompra`, `tabelasPreco`, `diagnostico` | — | — | `salvarConfig`, `salvarLocal`, `salvarUsuario`, `salvarCambio`, `salvarModulo`, `salvarFluxoCompra`, `salvarFluxoTriagem`, `salvarAtributos`, `salvarCodigos`, `salvarSigla`, `salvarFormCompra`, `salvarItem`, `restaurarBibliotecaServicos`, `revisarServico` → só a chave de config correspondente + `configuracoes` | `diagnostico` vira job assíncrono |
-| **Novidades** (`Novidades.tsx`) | — | — | — | — | — |
-
----
-
-## 6. Arquitetura proposta
-
-### 6.1 Frontend: ligar a API sem reescrever telas
-
-[FATO] As telas só conhecem `useConsulta(nome, params)` / `useComando().executar(nome, dados)` (`contexto.tsx:72-124`), que chamam a porta `Backend` (`ports/backend.ts:136-152`). O ponto único de escolha é `src/app/criarBackend.ts:1-29` (`VITE_STORAGE=api` + `VITE_API_URL`). Os tipos de entrada/saída de **cada** nome já são derivados das funções (`index.ts:240-247`: `DadosComando<N>`, `ResultadoConsulta<N>`…).
-
-[RECOMENDAÇÃO]
-1. **Novo adaptador `src/adapters/api/backendHttp.ts`** implementando a mesma porta `Backend`, mas sobre HTTPS simples: `POST {base}/v1/comandos/{nome}` com `Authorization: Bearer <jwt>` + `Idempotency-Key: nome:uuid` (a mesma chave que `backendApi.ts:89` já gera) e `POST {base}/v1/consultas/{nome}`. Reaproveita de `backendApi.ts`: tentativas com backoff `:67-84`, mensagens genéricas `:33-34`, `ErroNegocio` com `campo`. O `canalSeguro.ts` fica como opção (decisão do dono — ver §7).
-2. **Estrutura**:
-   ```
-   src/adapters/api/
-     backendHttp.ts      ← implementa Backend (comando, consulta, anexar, urlDoAnexo, entrar, sair, aoMudar)
-     cliente.ts          ← fetch + base URL + timeout + retry + Idempotency-Key + refresh do JWT (fila única de refresh)
-     cache.ts            ← cache por (nome+params) com etiquetas e invalidação por comando
-     invalidacao.ts      ← mapa comando → etiquetas (gerado/declarado junto do contrato)
-     eventos.ts          ← SSE /v1/eventos (mudanças de outros usuários) → backend.aoMudar
-     tipos.gen.ts        ← gerado do OpenAPI (openapi-typescript)
-   ```
-3. **Base URL** `VITE_API_URL`; mesma origem atrás de proxy reverso → sem CORS.
-4. **Tipos**: o contrato nasce dos tipos TS que já existem. Passo único: gerar JSON Schema de `DadosComando<N>`/`ResultadoConsulta<N>` (ex.: `ts-json-schema-generator`) → **OpenAPI 3.1 fica sendo a fonte da verdade** → `oapi-codegen` gera os DTOs/servidor em Go e `openapi-typescript` gera `tipos.gen.ts`. O teste `src/__tests__/contratoApi.test.ts` já confere a lista de nomes; estender para os schemas.
-5. **Padrão de erro** (manter o que as telas já mostram): `422 {erro:{mensagem, campo?, codigo}}` (regra; `campo` destaca o input); `409 {erro:{codigo:'versao'}}` (trava otimista, mesma mensagem de `contexto.ts:39`); `401` (renova token uma vez, senão volta ao login); `403` (sem permissão); `429`; `5xx`/rede → "Sem conexão…"/"Erro no servidor…" (`backendApi.ts:33-34`).
-6. **Loading**: `useConsulta` já expõe `carregando` (`contexto.tsx:100`); acrescentar "stale-while-revalidate" no `cache.ts` para não piscar a tela a cada invalidação.
-7. **Paginação**: `usePaginacao` já guarda `pagina/porPagina` no endereço (`ui/paginacao.tsx:22-30`) e o próprio arquivo prevê passá-los à consulta (`:5-6`). Padrão de resposta: `{itens, total?, proximo?}` (cursor = `(data, id)`).
-8. **JWT**: access 15 min em memória; refresh rotativo em cookie `httpOnly; Secure; SameSite=Strict` (o PWA é mesma origem). Renovação silenciosa em fila única (várias consultas em paralelo não renovam 2×).
-9. **Offline/outbox**: [FATO] o outbox só é gravado (`noAparelho.ts:114-116`) e ninguém envia; `aoMudar` da API não ouve outros aparelhos (`backendApi.ts:117`). [RECOMENDAÇÃO] **V1 online para escrever** (estoque e caixa com várias funcionárias não toleram fila offline sem resolução de conflito); leitura offline via cache do service worker para consultas estáveis. Outbox offline só para comandos "seguros" (ex.: `salvarVendaAberta`, `registrarDespesaViagem`) numa fase posterior.
-
-### 6.2 Backend Go (controller → service → repository)
-
-```
-cmd/api/main.go                 ← config, pool pgx, rotas, graceful shutdown
-internal/
-  http/                         ← (controller) handlers por módulo; decode/validação de DTO; nenhum SQL
-    middleware/                 ← requestID, log, recover, JWT, perfil/permissões (porta de permissoes.ts), rate limit
-    comandos.go / consultas.go  ← dispatcher do barramento: nome → handler (tabela registrada, igual a index.ts)
-  service/                      ← regras (porta de src/core/services/*), 1 pacote por módulo
-    compras/ triagem/ estoque/ vendas/ caixa/ precos/ viagens/ financiamentos/ emprestimos/ agenda/ equipe/ cadastros/ config/ relatorios/ auditoria/
-    visibilidade/               ← porta de visibilidade.ts (filtro de registro + remoção de campos sensíveis)
-  domain/                       ← dinheiro (math/big.Rat p/ câmbio e fator — espelho de dinheiro.ts), datas no fuso da empresa, erros de negócio
-  repository/                   ← SQL (sqlc) por agregado; recebe pgx.Tx; FOR UPDATE nos pontos de concorrência
-  platform/                     ← tx (1 transação por comando), idempotência, auditoria, sequências, storage (S3), SSE
-migrations/                     ← goose/atlas: 0001_base.sql … (o DDL da §2.4 dividido)
-api/openapi.yaml                ← contrato (fonte da verdade)
-test/contrato/                  ← roda os cenários do app (JSON de entrada/saída) contra o servidor
-```
-
-Fluxo de um comando: `middleware JWT → perfil (lista de permissões) → idempotência (INSERT … ON CONFLICT na tabela idempotencia; se já 'concluido' devolve a resposta) → BEGIN → antesDoComando (visibilidade) → service (regras; locks) → auditoria (mesma tx) → outbox/SSE (mesma tx) → COMMIT → grava resposta da idempotência`. Recusa de regra: ROLLBACK + auditoria "recusado" em transação separada (igual a `noAparelho.ts:119-123`).
-
-Concorrência: `READ COMMITTED` + `SELECT … FOR UPDATE` em **ordem fixa** dos agregados (sequências → dia do caixa → itens por id crescente → pessoa/conta → viagem/financiamento) para evitar deadlock; `SERIALIZABLE` com retentativa automática (3×) nos comandos que leem muitos registros para decidir (`desfazerTriagem`, `tirarDaMistura`, `incorporarCustoViagem`, `pagarComissao`). Trava otimista: `UPDATE … SET versao = versao + 1 WHERE id = $1 AND versao = $versaoBase` → 0 linhas = 409.
-
-Sem stored procedures (decisão do dono): toda regra no service; o banco só garante integridade (FK/CHECK/UNIQUE).
-
----
-
-## 7. Riscos e complexidade
-
-### 7.1 Operações transacionais (o que um comando grava junto)
-
-| Operação | Escreve em | Concorrência a tratar | Fonte |
-|---|---|---|---|
-| criarCompra (+ pagar no ato) | compra, linhas, N lotes, N mov_estoque, contador P e L, pagamentos, caixa, conta, rateio da viagem, impostos, auditoria | contadores; código único; viagem encerrada com incorporação refaz custo | `compras.ts:93-237` |
-| pagarCompra / avancarTriagem | etapas em cadeia, pagamentos, caixa, conta, estoque (catálogo) | dia do caixa encerrado | `compras.ts:145-160,239+` |
-| cancelarCompra | estoque (devolve), caixa estorno, conta, lotes | lote já vendido/triado | `compras.ts:610-654` |
-| triarLotes (unificar + separar) | triagem, lote intermediário, N lotes, 2N+ mov_estoque, contadores T e L, custo rateado por peso/valor | dois admins triando o mesmo lote; `exigirIdsLivres` e códigos livres conferidos antes (`estoque.ts:239-248`) | `triagem.ts:500-526`, `estoque.ts:259-356` |
-| desfazerTriagem / tirarDaMistura | reverte movimentos por análise de **todo** o histórico de movimentos | alguém vende um pacote no meio → precisa travar todos os lotes envolvidos | `triagem.ts:544-600,652+` |
-| concluirVenda | venda, linhas, estoque de cada pacote, caixa por pagamento, conta (fiado), contador V, vendas abertas (tira o pacote de todas), reserva, impostos | **duas funcionárias vendendo o mesmo pacote** (saldo) | `vendas.ts:232-321` |
-| cancelarVenda / corrigirVenda | estoque, caixa, conta, histórico, alteração em dia encerrado | correção não é idempotente | `vendas.ts:342-503` |
-| encerrarDia / reabrirDia | dia, contagens | venda concluída no mesmo instante do encerramento | `caixa.ts:87-104` |
-| pagarComissao | caixa ou retenção em adiantamento(s), conta | "a pagar" lido e conferido antes de gravar → dois pagamentos simultâneos passam | `comissoes.ts:91-126` |
-| criarFinanciamento / entregas / abatimentos | caixa, conta, eventos, compra (entrega) | idem saldo | `financiamentos.ts:142-350` |
-| encerrar/incorporar/reabrir viagem | carteira, caixa, custo de N lotes, histórico de incorporação | lote vendido entre a prévia e a incorporação | `viagens.ts:418-560` |
-| pagarEmprestimo | mov_divida por parcela, caixa, situação | saldo da dívida | `emprestimos.ts:115-146` |
-
-### 7.2 Riscos principais
-
-| # | Risco | Tipo | Detalhe | Mitigação |
-|---|---|---|---|---|
-| R1 | **Reescrita das regras em Go** | complexidade | 11.343 linhas de serviço; 177 operações; regras sutis (rateio por valor × peso `estoque.ts:276-282`, desconto repartido com "última leva o arredondamento" `vendas.ts:79-110`, Price `emprestimos.ts:27-31`, câmbio racional `dinheiro.ts:102+`) | contrato executável: exportar os **491 casos** de teste (`it/test` em `src/__tests__` + `caos/`) como cenários JSON entrada→saída e rodar contra o Go; o adaptador `apiSimulada.ts` mostra que dá para testar o mesmo contrato |
-| R2 | **Concorrência mascarada hoje** | correção | um comando por vez (`noAparelho.ts:68-72`) e transação Dexie sobre todas as tabelas (`indexeddb.ts:95-96`). No servidor: saldo, `saldoAntes`, contadores `contador-X` lidos e gravados (`codigos.ts:194-224`), dia do caixa, "a pagar" | FOR UPDATE + `UNIQUE(item_id, seq)` + `sequencias` travada + SERIALIZABLE nos casos de leitura ampla |
-| R3 | **Transporte/auth em conflito** | decisão | adaptador pronto usa envelope ECDH+AES-GCM e token no corpo, "nunca em cabeçalho" (`openapi.yaml:9-12,103`); o dono quer JWT/REST | decidir: (a) HTTPS + Bearer (simples, observável, recomendado) ou (b) implementar o envelope em Go (`crypto/ecdh`, HKDF, AES-GCM) — +1 a 2 semanas e pior para logs/WAF |
-| R4 | **Consultas que leem tudo** | desempenho | porta só tem `listar` por igualdade (`portas.ts:30-35`); `caixaDoDia` soma todo o histórico (`caixa.ts:131-139`); `vendas` carrega todas as vendas, itens, compras, anexos e movConta (`vendas.ts:573-585`); `painel` idem | reescrever consultas como SQL com índices da §2.4; paginação por cursor |
-| R5 | **Filtros e paginação na tela** | desempenho/UX | listas inteiras + filtro/paginação local (Estoque, Comprar, ListaVendas, Livro, Pessoas, Auditoria — §5) | params de filtro para o servidor; resposta paginada |
-| R6 | **Refetch global** | desempenho | todo comando recarrega todas as consultas montadas (`contexto.tsx:79`) | invalidação por etiqueta |
-| R7 | **Estruturas fora do lugar** | modelagem | vendas abertas e cidades em `config` com prefixo (`vendasAbertas.ts:37`, `cidades.ts:10`); versões de tabela como JSON na auditoria (`precos.ts:144`); triagem sem entidade (`tipos.ts:93-94`); contadores em config | migrar para as tabelas da §2.4 |
-| R8 | **Regras em `campos` (JSON)** | modelagem | `estado`, `categoria`, `comprimento`, `separacaoId`, `triagemDesfeita`, `semValor`, `jaPaga`, `fator`, `tabelaVersao` decidem regra | promovidos a colunas (§2.4) |
-| R9 | **IDs no cliente e ids derivados** | integridade | ULID no aparelho (`ids.ts:16`) é bom para idempotência, mas há ids **não ULID derivados** (`-u`, `-corr-N`, `-<n>`) e a idempotência de alguns comandos depende de `startsWith(id + '-')` (`comissoes.ts:93`, `emprestimos.ts:119`) | servidor valida formato; idempotência por `operacao_id` e pela tabela `idempotencia` |
-| R10 | **Relógio e fuso** | correção | `hoje()` = data local do **aparelho** (`criarBackend.ts:13`, `datas.ts:3-6`); `dataDeInstante` usa o fuso do aparelho (`datas.ts`); o envelope já trata relógio errado (`apiSimulada.ts:125`) | "hoje" e dia do caixa calculados no servidor pelo `empresas.fuso_horario`; o cliente nunca manda `data` de negócio (exceto onde a regra permite datas passadas, ex. `financiamentos.ts:162-164`) |
-| R11 | **Câmbio** | correção | cotação é texto decimal convertida por racional (`dinheiro.ts:102-110`); escolha "base × fixo × dinâmico ± ajuste" (`contexto.ts:186-205`); cotação manual digitada no caixa (`vendas.ts:316-320`) | portar com `math/big.Rat`; testes dourados por moeda/uso |
-| R12 | **Senha** | segurança | hash PBKDF2 calculado **no aparelho** e o servidor recebe o hash (`noAparelho.ts:105-108,184-187`) | no servidor: recebe a senha por TLS e usa argon2id; nunca aceitar hash pronto do cliente |
-| R13 | **Visibilidade da funcionária** | segurança | depende de remover campos em qualquer profundidade (`visibilidade.ts:41-49`) | em Go: DTOs por perfil (não "apagar campos depois"); teste `funcionariaNaoVe.test.ts` como contrato |
-| R14 | **Duas fontes de "é admin"** | modelagem | `pessoa.acesso` (`tipos.ts:38`, `CadastroFuncionario.tsx:40`) × `usuario.perfil` (vale para permissão `noAparelho.ts:83-85`) | remover `pessoa.acesso` (ou derivar do usuário) |
-| R15 | **Comissão identificada por texto** | modelagem | pago = `movCaixa.categoria === 'Comissões'` (`comissoes.ts:16,60`) | coluna `finalidade` |
-| R16 | **Anexos** | infra | miniatura em data URL dentro do registro (`tipos.ts:369-370`); arquivo em base64 dentro do envelope (`backendApi.ts:98-101`) | object storage + URL assinada; miniatura binária pequena |
-| R17 | **Comandos sem trava de versão** | concorrência | `salvarEvento`, `salvarFluxoTriagem`, `salvarCodigos`, `salvarFormCompra`, `salvarAtributos`, `salvarFluxoCompra`, `salvarModulo` não usam `exigirVersao` (busca por `exigirVersao` só em cadastros, precos, usuarios, viagens) | aceitar `versaoBase` em todos os `salvar*` |
-| R18 | **Regras no front** | baixo | telas usam funções puras para PRÉVIA (`fatorDaTabela`, `multiplicarFator`, `calcularParcelas`, `camposUnificados`, `passaEtiqueta`, `resolverComissao`) — o servidor recalcula (ex.: total com fator é recalculado `vendas.ts:28-31,163`) | manter como prévia; servidor é a verdade; atenção a `precoManual`/`total` sem fator, que **vêm do cliente** |
-
----
-
-## 8. Tabela consolidada
-
-| Item | Indispensável na V1 do backend | Pode vir depois |
-|---|---|---|
-| **Quantidade de tabelas** | **50** | **6** da proposta (`cidades`, `codigos_anteriores`, `item_insumos`, `item_compras`, `dia_alteracoes`, `evento_feitos` — podem nascer como array/JSONB/derivação) + **~6 novas** (`impostos` com vigência, `outbox_eventos`/SSE, `etiqueta_impressoes`, `reservas_historico`, `push_inscricoes`, `saldos_diarios` materializados) |
-| **Entidades principais** | empresas, usuarios, pessoas, locais, itens (catálogo+lotes), triagens, compras, vendas, tabelas_preco, dias_caixa, mov_estoque, mov_caixa, mov_conta, viagens, financiamentos, emprestimos, eventos, anexos, configuracoes, formas_pagamento, cotacoes, sequencias, auditoria (23) | separar `itens` em `catalogo` × `lotes` (só se o volume de lotes justificar) |
-| **Tabelas intermediárias (N:N)** | pessoa_papeis, item_origens, viagem_viajantes, venda_aberta_linhas (4) | item_compras (derivada; na V1 pode ser `WITH RECURSIVE`) |
-| **Relacionamentos** | ~70 FKs (1:N na maioria; XOR compra/venda em pagamentos e histórico; origens explícitas em mov_caixa/mov_conta/mov_estoque) | FKs compostas por empresa ou RLS (multiempresa "dura") |
-| **Relacionamentos complexos** | genealogia lote↔lote (recursiva), triagem juntar+separar, viagem↔compras↔custo dos lotes (reversível), financiamento↔compra↔conta↔comissão, tabela→versão→células (FK dupla), estornos mov_caixa↔mov_caixa | grafo materializado de genealogia para relatórios pesados |
-| **Operações transacionais** | criarCompra, pagarCompra/avancarTriagem, cancelarCompra, triarLotes, desfazerTriagem, tirarDaMistura, concluirVenda, atenderAgendamento, cancelarVenda, corrigirVenda, lancar/estornar/encerrar/reabrir caixa, pagarComissao, pagarSalario, registrarAcerto, criarFinanciamento + entregas, encerrar/incorporar/reabrir viagem, criar/pagar empréstimo (≈ 25) | transformarLote, separarLote, unificarLotes (sem tela), ajustarConta (sem tela) |
-| **Necessidade de histórico** | razões imutáveis (estoque, caixa, conta, dívida), etapa_eventos, versões de tabela, incorporações (com desfeitas), auditoria + recusas, refresh tokens | histórico de reservas e de etiquetas como tabelas próprias (hoje só no log) |
-
----
-
-## 9. Avaliação final
-
-**(1) O modelo atual está organizado o suficiente?** Sim, **acima da média** para migrar: núcleo sem banco (`portas.ts:1-2`), barramento comando/consulta único (`index.ts`), `Base` com `versao`/`apagadoEm`/`empresaId` (`tipos.ts:10-18`), uma transação por comando (`noAparelho.ts:110-118`), idempotência por id e por pedido (`backendApi.ts:86-92`), permissões e visibilidade centralizadas (`permissoes.ts`, `visibilidade.ts`), razões append-only com saldo antes/depois. O que falta é **modelagem relacional** (listas dentro de registros, dados de negócio em `config`/`auditoria`) e **consultas por intervalo/paginação** na porta.
-
-**(2) Quantas tabelas?** **64 na proposta V1** (58 indispensáveis + 6 opcionais; 67 com as de acesso do §11), ~70 com as de "depois".
-
-**(3) Relações simples ou complexas?** **Maioria simples** (1:N com FK). **Complexas em 5 pontos**: genealogia recursiva de lotes, triagem (juntar+separar+desfazer), viagem↔compras↔custo (reversível), adiantamento↔compra↔conta↔comissão, tabela de preço versionada.
-
-**(4) Há entidade mal estruturada?** Sim:
-- **Transacao** junta compra e venda com linhas de formatos diferentes (`tipos.ts:133-221`) → separar.
-- **Item** acumula catálogo, lote, etiqueta, reserva, fase de triagem e identidade da triagem (`tipos.ts:61-111`) → triagem vira entidade; atributos com regra viram colunas.
-- **Triagem** não existe como registro (`tipos.ts:93-94`).
-- **ConfigRegistro** é um "saco" (`tipos.ts:373-375`) com vendas abertas, cidades e contadores.
-- **Versões de tabela na Auditoria** (`precos.ts:144`).
-- **Pessoa.acesso** duplica Usuario.perfil.
-
-**(5) É fácil transformar as operações em chamadas?** **Sim** — já são chamadas nomeadas com payload JSON puro (`tipos.ts:1`). O trabalho não é "transformar em chamada"; é **reimplementar o corpo** de cada uma em Go com SQL eficiente.
-
-**(6) Módulos mais difíceis** (em ordem): **Triagem/Estoque** (`triagem.ts` 917 + `estoque.ts` 979 linhas; desfazer analisando o histórico), **Viagens** (1.048; rateio e incorporação reversível), **Compras** (838; etapas configuráveis, lotes no registro, pagamento parcial), **Vendas** (646; correção, desconto repartido, comissão/insumo), **Adiantamentos** (580), **Relatórios/contabilidade** (painel 408, contabilidade 228, regras bolivianas em `CONTABILIDADE.md`).
-
-**(7) O que corrigir ANTES de começar o backend** (no próprio app, onde os testes já existem):
-1. Decidir **transporte** (envelope × HTTPS+JWT) e **fuso** do negócio.
-2. Criar a entidade **Triagem**; tirar **vendas abertas, cidades e contadores** de `config`; tirar **versões de tabela** da `auditoria`.
-3. Promover `estado/categoria/comprimento/separacaoId/triagemDesfeita/semValor` de `campos` para campos tipados.
-4. Separar `Transacao` em compra × venda nos tipos (mesmo mantendo uma coleção no aparelho).
-5. `finalidade` explícita em `MovCaixa` (comissão/salário/viagem) em vez de `categoria` texto.
-6. Remover `Pessoa.acesso` (ou derivar do usuário).
-7. Dar `versaoBase` a todos os `salvar*`.
-8. Acrescentar à porta `listar` com **intervalo, ordenação e limite/cursor**, e passar filtros das telas para as consultas (o servidor herda a forma).
-9. Exportar os cenários de teste como **contrato executável** (JSON entrada→saída).
-
-**(8) Arquitetura recomendada.** PostgreSQL 16 + Go (`chi`/`net/http`, `pgx`, `sqlc`, `goose`), camadas controller → service → repository, **barramento** `POST /v1/comandos/{nome}` / `POST /v1/consultas/{nome}` (o front já fala nomes), JWT curto + refresh rotativo, tabela `idempotencia`, 1 transação por comando com locks em ordem fixa, auditoria na mesma transação, SSE para avisar outros aparelhos, object storage para anexos. No front: só um adaptador novo (`backendHttp.ts`) + cache com invalidação por etiqueta.
-
-**(9) Principal risco de começar hoje.** Portar as regras para Go **sem uma especificação executável** e **sem tratar concorrência**: resultados de dinheiro/estoque diferentes do app atual (arredondamentos, câmbio, rateios) e corridas que hoje não aparecem porque tudo roda em fila única no aparelho. Em segundo lugar, começar o servidor sem decidir o transporte (envelope cifrado × JWT em cabeçalho).
-
-**(10) Sequência mais segura (fases)**
-
-| Fase | Entrega | Critério de pronto |
-|---|---|---|
-| **0 · Preparação no app** (sem servidor) | itens 1–9 da resposta (7); OpenAPI 3.1 gerado dos tipos; cenários de teste exportados; mapa comando→invalidação | `npm test` e `test:caos` verdes; contrato publicado |
-| **1 · Fundação Go** | projeto, migrações (§2.4), auth JWT/refresh, middleware de perfil, idempotência, auditoria, tx por comando, SSE; `backendHttp.ts` no front | login/logout/refresh; `configuracoes`, `locais`, `pessoas`, `usuarios`, `cotacoes`, `formas` funcionando pela API |
-| **2 · Dinheiro e estoque base** | caixa (lançar, estornar, encerrar, reabrir, caixaDoDia por SQL), conta corrente, itens/catálogo, mov_estoque com `seq` + FOR UPDATE, sequências | cenários de caixa e estoque iguais ao TS; teste de carga com 5 usuários simultâneos no mesmo lote |
-| **3 · Compras** | criar (lote no registro), etapas, pagar, cancelar, conferir peso, valor depois, anexos (S3) | cenários `pagarCompra`, `compraSemValor`, `semValorLinha` |
-| **4 · Vendas** | concluir, agendar/atender, cancelar, corrigir, vendas abertas, comissões, salário, agenda/calendário | `caosVendas`, `modoCaixaEstresse`, `comissaoInsumos`, `funcionariaNaoVe` |
-| **5 · Triagem e preços** | triagens, genealogia (CTE recursiva), desfazer/mistura, etiquetas, tabelas versionadas | `triagem*`, `desfazerMistura`, `precosVersao`, `caminhoMisturado` |
-| **6 · Viagens, adiantamentos, empréstimos** | carteira, despesas, rateio, incorporação reversível; financiamentos; empréstimos | `viagens`, `compraViagem`, `financiamentos` |
-| **7 · Relatórios e auditoria** | painel, DRE, balanço, contábil BO/BR, livro, linha do tempo — tudo em SQL agregado | `relatorios-verdade.caos`, `contabilidade` |
-| **8 · Migração e corte** | importador do backup JSON atual (`noAparelho.ts:244-273`) → tabelas (mapear ids derivados); rodar em paralelo (sombra) comparando resultados; corte por unidade | diferenças zeradas em 1 semana de sombra |
-| **Depois** | offline com outbox para comandos seguros, alíquotas com vigência, tabelas "depois" da §8 | — |
-
-
-
----
-
-## 10. Perfis e “o que a funcionária faz” (atualização 05/11/2026)
-
-> Esta seção foi escrita depois das mudanças de 05/11/2026 (código já alterado). As citações apontam para o código atual.
-
-### 10.1 O modelo hoje
-
-| Peça | Onde | Quem confere |
-|---|---|---|
-| **Perfil** `admin` × `funcionario` | `usuarios.perfil` | servidor: lista fechada de comandos/consultas (`permissoes.ts`) |
-| **Bolha** (o que é dela; a gerente vê a equipe da unidade) | `pessoa.verAgendaEquipe` + `visiveis()` (`agenda.ts`) | servidor: `visibilidade.ts` (vendas, agenda, pessoas, campos sensíveis) |
-| **Pode vender** (caminhos do “+ Nova venda”) | `config.funcionariaNaoVende` (lista de exclusão: `caixa`, `medida`, id de módulo) | servidor: `concluirVenda` recusa (`vendas.ts`); tela: menu, filtro “Área” e Modo caixa |
-| **Vê na agenda** | `config.funcionariaAgenda` (padrão: atendimento, compromisso) | servidor: `calendario` filtra os tipos; `agendaFiltros.tipos` diz à tela o que mostrar na legenda |
-| **Telas além do básico** (Pessoas, Viagens, Adiantamentos, Conversor) | `config.funcionariaTelas` (padrão: nenhuma; básico = Vender, Agenda, Equipe, Configurações) | servidor: `exigirTelaLiberada` em `visibilidade.ts` recusa as consultas/comandos da tela (`viagens`, `painelViajante`, `categoriasViagem`, despesas de viagem, `financiamentos`, `financiamento`, `fichaPessoa`); tela: menu e rotas (`ui/liberado.ts`, `App.tsx`). O Conversor é só atalho de tela (usa `cambio`). |
-| **Configurações que ela vê** | `config.funcionariaConfig` (ids de seção; Usuários, Dados, Módulos e “O que a funcionária faz” nunca) | tela mostra; **salvar continua só do admin** no servidor (`salvarConfig` não está em `COMANDOS_FUNCIONARIO`) |
-| **Filtros da lista de vendas** | “Quem vendeu” só com equipe visível (`agendaFiltros.pessoas`); “Unidade” e “Viagem” só para quem pode | servidor já devolve só as vendas da bolha (`vendaVisivel`); a tela só não oferece filtro que não serve |
-| **Idioma da funcionária** | `config.funcionariaIdioma` (padrão `es`) + escolha do aparelho (`localStorage` `tudo.idioma`) | tela |
-| **Tema** | aparelho (`localStorage` `tudo.tema`) | tela |
-| **Formas de pagamento desligadas** | `formas[].desligada` (dinheiro nunca) | tela esconde (`domain/formas.ts`); `salvarConfig` valida; **o serviço ainda aceita pagamento numa forma desligada** (ver 10.3, P3) |
-| **Regra de senha** | `domain/senha.ts` (8+, letra, número/especial) | servidor (`prepararSenhas`) e tela |
-
-Testes que funcionam como contrato: `funcionariaNaoVe`, `calendario` (agenda sem viagem no padrão), `configuracoesCadastro` (formas, senha, liberação de agenda), `telas` (menu da funcionária em espanhol, sem Pessoas e Viagens).
-
-### 10.2 Na hora de ligar a API: é fácil?
-
-**Sim para o que já existe**, porque toda decisão de perfil passa por três pontos do núcleo que viram middleware no Go, sem mudar as telas:
-
-1. `permissoes.ts` → middleware de perfil (lista de nomes).
-2. `visibilidade.ts` (`antesDaConsulta` / `antesDoComando` / `depoisDaConsulta`, agora com `exigirTelaLiberada`) → filtro por registro + DTO por perfil.
-3. As chaves `funcionaria*` da config → lidas no começo de cada requisição (cache por empresa).
-
-As telas já perguntam ao servidor o que mostrar (`agendaFiltros.tipos`, `agendaFiltros.pessoas`, `configuracoes.config.funcionaria*`), então trocar o adaptador não mexe nelas.
-
-### 10.3 O que ajustar antes ou junto da API [RECOMENDAÇÃO]
-
-| # | Ponto | Por quê | Proposta |
-|---|---|---|---|
-| P1 | As liberações valem para **todas** as funcionárias | a “gerente” hoje é uma funcionária com `verAgendaEquipe`; não dá para liberar Pessoas só para ela | tabela `usuario_permissoes (usuario_id, chave, valor)` por cima da config da empresa, ou um terceiro perfil `gerente` |
-| P2 | Tema e idioma ficam no **aparelho** | aparelho do balcão compartilhado mistura as escolhas | `usuarios.preferencias jsonb` (tema, idioma); `GET /v1/auth/me` devolve |
-| P3 | Forma desligada é aceita no serviço | só a tela esconde | `formaPagamento()` recusar forma desligada em pagamento **novo** (estornos continuam) |
-| P4 | `config` é um documento único | as chaves `funcionaria*` cabem em JSONB, mas auditoria e consulta ficam melhores em colunas | `config_empresa` com colunas para as chaves de perfil (ou a tabela de P1) |
-| P5 | “Simular internet” (`app/simularApi.ts`) | só existe no adaptador do aparelho | some com a API (o atraso passa a ser real); o carregamento padrão (`Carregando`) já está em todas as telas |
-
-### 10.4 Rotas novas ou alteradas
-
-| Operação | REST | Perm. |
-|---|---|---|
-| ler liberações | já vem em `GET /v1/configuracoes` (`config.funcionaria*`) | logado |
-| salvar liberações | `salvarConfig` com `funcionariaNaoVende`, `funcionariaAgenda`, `funcionariaTelas`, `funcionariaConfig`, `funcionariaIdioma` (mesma trava `antes`) | A |
-| tipos da agenda | `agendaFiltros` devolve `tipos` | F |
-| (P1) por usuário | `PUT /v1/usuarios/{id}/permissoes` | A |
-| (P2) preferências | `PUT /v1/auth/preferencias` {tema, idioma} | F |
-
----
-
-## 11. Autenticação e “o que o usuário pode ver” vindo do banco (atualização 05/11/2026)
-
-> Pedido do dono: hoje isso é tratado no app; com a API, **o backend decide tudo** (quem é, o que pode fazer, o que pode ver) e o banco guarda. Esta seção deixa o caminho pronto e mede o quanto o front muda.
-
-### 11.1 Onde a regra de perfil está hoje (e para onde vai)
-
-Ponto importante: “no front” hoje significa **no navegador**, mas as regras **não estão nas telas**. Estão no núcleo (`src/core/services`), que roda no navegador só porque o adaptador é o do aparelho (`noAparelho.ts`). Com a API, esse núcleo vira o servidor Go e as telas continuam iguais.
-
-| Regra | Arquivo hoje | Com a API | Muda o front? |
-|---|---|---|---|
-| Quem pode qual comando/consulta | `core/services/permissoes.ts` | middleware de perfil no Go | não |
-| A bolha (o que é dela; a gerente vê a equipe) | `core/services/visibilidade.ts` + `visiveis()` em `agenda.ts` | filtro por registro + DTO por perfil no Go (consultas SQL já filtradas por `usuario_id`/`pessoa_id`) | não |
-| Telas liberadas (Pessoas, Viagens, Adiantamentos) | `exigirTelaLiberada` em `visibilidade.ts` | middleware: consulta/comando de tela não liberada → `403` | não |
-| O que ela vende | `concluirVenda` em `vendas.ts` | mesma checagem no service Go | não |
-| O que ela vê na agenda | `calendario` / `agendaFiltros.tipos` em `agenda.ts` | consulta SQL filtra os tipos | não |
-| Lista de vendas da bolha, sem lucro/custo | `depoisDaConsulta('vendas')` + `SENSIVEIS` | SQL + DTO da funcionária (sem `lucroPrincipal`, custos, viagens) | não |
-| Vendedora da venda | `concluirVenda`: sem escolha, a funcionária vira a vendedora | igual no Go | não |
-| Senha (regra + hash) | `domain/senha.ts` + `prepararSenhas` (PBKDF2 **no navegador**) | regra igual; hash **argon2id no servidor**; a senha vai em HTTPS e nunca é guardada | só o adaptador |
-| Auditoria (inclusive tentativas recusadas) | `auditar` + `registrarRecusa` (`noAparelho.ts`) | mesma transação do comando; recusa em transação separada | não |
-
-Teste-contrato desta parte: `configuracoesCadastro.test.ts` (lista de vendas só da bolha e sem lucro, vendedora automática, venda **e** tentativa recusada na auditoria no nome dela), `funcionariaNaoVe`, `calendario`, `financiamentos` (sem a tela liberada, a consulta é recusada), `telas` (menu da funcionária).
-
-### 11.2 O que fica no banco [RECOMENDAÇÃO]
-
-```sql
--- quem entra (já previsto em §2.4: usuarios)
--- + o que a empresa libera para o perfil funcionário (hoje config.funcionaria*)
-CREATE TABLE perfil_permissoes (
-  empresa_id   uuid NOT NULL REFERENCES empresas(id),
-  perfil       text NOT NULL CHECK (perfil IN ('funcionario')),        -- admin vê tudo: não precisa de linha
-  chave        text NOT NULL,       -- 'vende' | 'agenda' | 'tela' | 'config' | 'idioma'
-  valor        text NOT NULL,       -- ex.: 'caixa', 'medida', 'salao' · 'atendimento' · 'pessoas' · 'catalogo' · 'es'
-  ligado       boolean NOT NULL DEFAULT true,
-  atualizado_em timestamptz NOT NULL DEFAULT now(),
-  atualizado_por uuid REFERENCES usuarios(id),
-  PRIMARY KEY (empresa_id, perfil, chave, valor)
-);
--- por cima da empresa, por pessoa (a gerente): resolve o P1 da §10.3
-CREATE TABLE usuario_permissoes (
-  usuario_id   uuid NOT NULL REFERENCES usuarios(id),
-  chave        text NOT NULL,
-  valor        text NOT NULL,
-  ligado       boolean NOT NULL,
-  PRIMARY KEY (usuario_id, chave, valor)
-);
--- preferências de quem entra (hoje no aparelho: tudo.tema, tudo.idioma)
-ALTER TABLE usuarios ADD COLUMN preferencias jsonb NOT NULL DEFAULT '{}'::jsonb;  -- {tema, idioma}
--- sessões (refresh rotativo, já previsto em §4.14)
-CREATE TABLE sessoes (
-  id uuid PRIMARY KEY, usuario_id uuid NOT NULL REFERENCES usuarios(id),
-  refresh_hash text NOT NULL, familia uuid NOT NULL, criada_em timestamptz NOT NULL DEFAULT now(),
-  expira_em timestamptz NOT NULL, revogada_em timestamptz, ip inet, agente text
-);
-```
-
-O servidor calcula as **permissões efetivas** = padrão do sistema → `perfil_permissoes` da empresa → `usuario_permissoes` da pessoa. Cada requisição usa essas permissões já calculadas (cache curto, derrubado quando o admin muda algo).
-
-### 11.3 O que o front recebe
-
-Uma resposta só, no login e em `GET /v1/auth/me`:
-
-```json
-{
-  "usuario": { "id": "…", "nome": "Lúcia", "perfil": "funcionario", "pessoaId": "…", "localId": "…" },
-  "permissoes": {
-    "vende": ["caixa", "medida", "salao"],
-    "agenda": ["atendimento", "compromisso"],
-    "telas": [],
-    "config": [],
-    "verEquipe": false
-  },
-  "preferencias": { "tema": "auto", "idioma": "es" }
-}
-```
-
-A tela **só usa isso para esconder botões e menus**. Mesmo que alguém altere o navegador, o servidor recusa (`403`) e grava a tentativa na auditoria.
-
-### 11.4 Vai precisar mexer no front? Quanto?
-
-**Sim, pouco, e sem mudar o desenho das telas.** Medido no código atual:
-
-| Mudança | Onde | Tamanho |
-|---|---|---|
-| Adaptador HTTP novo (`backendHttp.ts`) com `entrar` / `sair` / `me` | `src/adapters/api/` (§6.1) | arquivo novo; nenhuma tela muda |
-| **Um hook só de permissões** (`usePermissoes`) lendo `me.permissoes`, no lugar de cada tela juntar `sessao.perfil` + `config.funcionaria*` | hoje essa conta está em **10 arquivos** (`App.tsx`, `ui/Shell.tsx`, `ui/liberado.ts`, `ui/preferencias.tsx`, `Configuracoes.tsx`, `configSecoes.ts`, `config/Funcionaria.tsx`, `Vender.tsx`, `VendaRapida.tsx`, `ListaVendas.tsx`) | troca mecânica: o `useLiberado()` já concentra parte; vira a fonte única |
-| Testes de perfil espalhados pelas telas (`perfil === 'admin'` etc.) | **73 ocorrências em 30 arquivos** (`src/screens`, `src/ui`, `App.tsx`) | **não precisam mudar**: `sessao.perfil` continua existindo, só que vem do `me` (do token) |
-| Sessão guardada no aparelho | `App.tsx:91` lê e `:172` grava `tudo.sessao` no `localStorage` | com a API: guardar só o necessário para reabrir e **sempre reconferir com `me`** ao abrir; o perfil nunca vem do aparelho |
-| Tema e idioma | `ui/tema.ts`, `ui/idiomaAparelho.ts` (localStorage) | ler/gravar em `preferencias` (`PUT /v1/auth/preferencias`); o aparelho vira só cache |
-| Configuração do admin (“O que a funcionária faz”) | `config/Funcionaria.tsx` salva em `salvarConfig` | passa a salvar em `perfil_permissoes` (rota própria ou o mesmo `salvarConfig` mapeado no servidor) — a tela fica igual |
-| Senha de acesso da demonstração e usuários de teste | `app/acesso.ts`, `Entrar.tsx` | já desligam com `backend.tipo === 'api'`; nada a fazer |
-
-**Resumo:** o trabalho grande está no servidor (portar `permissoes.ts` + `visibilidade.ts` + as checagens dos services para Go, com o banco acima). No front: 1 adaptador novo, 1 hook de permissões que substitui as contas locais em 10 arquivos, e a sessão reconferida no servidor. Telas, menus e textos continuam iguais.
-
-### 11.5 Ordem sugerida
-
-1. **Agora, no app (sem servidor):** criar `usePermissoes()` montando o mesmo objeto da §11.3 a partir de `sessao` + `config` e trocar os 10 arquivos para usá-lo. Quando a API entrar, só a origem do objeto muda.
-2. **Fase 1 do Go (§9):** `usuarios`, `sessoes`, `perfil_permissoes`, `usuario_permissoes`, `/auth/login|refresh|logout|me`, middleware de perfil + visibilidade, auditoria com recusas.
-3. Rodar os testes-contrato da §11.1 contra a API.
-
----
-
-## 12. QR da etiqueta: o que o app já faz e o que o servidor faz depois (atualização 05/11/2026)
-
-### 12.1 Como ficou no app (feito)
-
-| Antes | Agora |
-|---|---|
-| O QR levava o **id interno** do pacote (`…#/lotes/01M6…`): o id carrega a data/hora de criação; nos dados de exemplo, até medida e cor (`lote-60-preto`) | O QR leva só um **código aleatório** de 16 letras/números (≈95 bits, `Item.qr`, `domain/ids.ts novoCodigoQr`): `…#/q/k7Pq2xR9mT4wZb3n`. Não diz id, data, medida nem cor; não dá para adivinhar outro |
-| Reimprimir mantinha o mesmo QR | **Reimprimir (nova via) troca o código**: o QR da etiqueta cancelada não abre mais nada (`refazerEtiqueta`) |
-| Quem lia sem login caía na tela de entrar com a **lista de usuários de teste**; num aparelho novo, o app **montava dados de exemplo** | Quem lê sem login vê uma **página neutra** (“Etiqueta de uso interno · Entrar”), sem nome do negócio, sem usuários de teste e sem montar dados de exemplo (`AbrirQr.tsx`, `Preparar` em `App.tsx`) |
-| — | Logado, `#/q/<código>` pergunta ao serviço (`pacoteDoQr`) qual é o pacote e abre a ficha (funcionária: a visão de vender) |
-
-O código nasce ao **preparar a impressão** (`prepararQrEtiquetas`, só admin, ao abrir a janela de etiquetas) e não muda ao imprimir de novo — a etiqueta que já está no pacote continua valendo.
-
-**Compatibilidade:** as etiquetas impressas antes (`…#/lotes/<id>`) continuam abrindo para quem entrou (caixa, pistola, câmera, `lerCodigoPacote`). Ao reimprimir, o pacote passa para o QR novo.
-
-Testes-contrato: `qrEtiqueta.test.ts` (aleatório, não vaza id/medida/cor, abre só logado, reimprimir invalida, caixa acha pelo novo e pelo antigo, rotas) e `qrSemLogin.test.tsx` (página neutra, login sem usuários de teste, sem dados de exemplo).
-
-### 12.2 O limite do app sem servidor
-
-Sem servidor, **não existe segredo**: qualquer chave colocada no site fica visível para quem abrir o código do site. Por isso hoje o QR é um código **aleatório guardado** (não uma assinatura). Isso já resolve “não vazar nada” e “não dá para adivinhar”; o que falta é o que só o servidor garante: conferir quem pede, limitar tentativas e registrar quem leu.
-
-### 12.3 No servidor (quando a API entrar) [RECOMENDAÇÃO]
-
-| # | O quê | Como |
-|---|---|---|
-| Q1 | **Guardar o código** | coluna `itens.qr_codigo` + `ux_itens_qr` (já no DDL §2.4: único no banco inteiro, **inclusive apagados**, para um QR nunca abrir outro pacote) e códigos trocados em `item_qr_anteriores`; o importador do backup leva os códigos que já existem (as etiquetas impressas continuam valendo) |
-| Q2 | **Abrir só logado** | `GET /v1/qr/{codigo}` → `{ id }` com JWT; sem token: `401` e a tela mostra a página neutra; perfil/visibilidade de sempre (a funcionária recebe a visão de vender) |
-| Q3 | **Assinatura (opcional)** | se quiser QR que o servidor reconhece sem consultar o banco: `codigo = base64url(id_curto ‖ via ‖ HMAC-SHA256(segredo, id ‖ via)[0..10])`; o segredo fica só no servidor (variável de ambiente, com rotação). Com o código aleatório guardado (Q1) isso **não é obrigatório** |
-| Q4 | **Revogar** | reimprimir já troca o código; acrescentar “invalidar todas as etiquetas deste lote/compra” (ex.: lote extraviado) (DDL: motivo `lote_revogado` em `item_qr_anteriores`) = gerar código novo em lote |
-| Q5 | **Limitar e registrar** | rate limit por IP/usuário em `/v1/qr/*` (ex.: 30/min); toda leitura com código inválido ou sem login vai para `qr_leituras` (DDL §2.4, 12A: IP, hora, código, resultado; fora da `auditoria` porque sem login não há usuário) — tentativa de adivinhar fica visível |
-| Q6 | **Desligar o QR antigo** | `#/lotes/<id>` no QR: aceitar até todas as etiquetas serem reimpressas e então recusar sem login (já recusa) e, depois, também logado vindo de QR (o caixa continua achando pelo código impresso `L-0001`) |
-| Q7 | **Vitrine separada** | a página pública (`#/loja`) usa outro endpoint (`GET /v1/vitrine`), sem relação com o QR interno |
-
-**Muda o front?** Quase nada: `AbrirQr.tsx` já pergunta `pacoteDoQr`, a página neutra já existe e a leitura (caixa/pistola/câmera) já entende `#/q/`. Com a API, só o adaptador (`backendHttp.ts`) passa a chamar `GET /v1/qr/{codigo}`.
