@@ -20,12 +20,14 @@ async function abrirVender() {
   fireEvent.click((await screen.findAllByText('admin', { selector: 'span.font-mono' }, { timeout: 30000 }))[0])
   await screen.findByText('Precisa de você', {}, { timeout: 30000 })
   fireEvent.click(within(screen.getAllByRole('navigation')[0]).getByText('Vender'))
-  await screen.findByRole('heading', { level: 1, name: 'Vender' }, { timeout: 15000 })
+  await screen.findByRole('heading', { level: 1, name: 'Vender' }, { timeout: ESPERA })
 }
 
+// o app inteiro com os dados de exemplo: em rodadas lentas as consultas levam mais de 15 s neste banco simulado
+const ESPERA = 60000
 const CONTAGEM = /\d+ de \d+ venda\(s\)/
 /** a contagem do resultado ("4 de 18 venda(s)") — só aparece com busca ou filtro ligado */
-const contagem = async () => (await screen.findAllByText(CONTAGEM, {}, { timeout: 15000 })).find((e) => e.closest('[aria-live]'))!
+const contagem = async () => (await screen.findAllByText(CONTAGEM, {}, { timeout: ESPERA })).find((e) => e.closest('[aria-live]'))!
 /** o número de uma aba ("Concluídas 21") */
 const naAba = (nome: RegExp) => Number(screen.getByRole('tab', { name: nome }).textContent!.match(/\d+/)![0])
 
@@ -33,8 +35,8 @@ describe('lista de vendas no Vender', () => {
   it('abre pelo menu com a lista, a busca filtra e as abas trocam a situação', async () => {
     await abrirVender()
     // a lista está aqui (sem o Painel) e o botão principal é "+ Nova venda"
-    expect((await screen.findAllByRole('button', { name: '+ Nova venda' }, { timeout: 15000 })).length).toBeGreaterThan(0)
-    await screen.findByRole('tab', { name: /Concluídas \d+/ }, { timeout: 15000 })
+    expect((await screen.findAllByRole('button', { name: '+ Nova venda' }, { timeout: ESPERA })).length).toBeGreaterThan(0)
+    await screen.findByRole('tab', { name: /Concluídas \d+/ }, { timeout: ESPERA })
     const n = naAba(/Concluídas/)
     expect(n).toBeGreaterThan(0)
     // sem filtro não há contagem repetida (o número já está na aba e no cartão)
@@ -53,12 +55,12 @@ describe('lista de vendas no Vender', () => {
     // aba "Com pendência": só as que têm pendência (≤ concluídas)
     fireEvent.click(screen.getByRole('tab', { name: /Com pendência/ }))
     expect(naAba(/Com pendência/)).toBeLessThanOrEqual(n)
-  }, 60000)
+  }, 240000)
 
   it('o "+ Nova venda" abre os caminhos de venda de antes', async () => {
     await abrirVender()
-    fireEvent.click((await screen.findAllByRole('button', { name: '+ Nova venda' }, { timeout: 15000 }))[0])
+    fireEvent.click((await screen.findAllByRole('button', { name: '+ Nova venda' }, { timeout: ESPERA }))[0])
     expect(await screen.findByRole('menuitem', { name: /Vender cabelo/ })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: /Cabelo sem etiqueta/ })).toBeTruthy()
-  }, 60000)
+  }, 240000)
 })

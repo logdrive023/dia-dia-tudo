@@ -25,6 +25,7 @@ import { useT } from './i18n'
 import { caminhoQR, gerarQR } from './qr'
 import { useUrlFoto } from './fotos'
 import { useLembrado } from './filtros'
+import { NotaTela } from './notaTela'
 
 export type TamanhoEtiqueta = 'pequena' | 'a4' | 'livre'
 
@@ -742,7 +743,7 @@ export function VerEtiqueta({ id, onFechar, admin }: { id: Id; onFechar(): void;
             {(i.etiquetaVia ?? 1) > 1 && <span className="rounded-full bg-[var(--fundo)] px-2.5 py-1 ring-1 ring-[var(--borda)]">{t('{n}ª via', { n: i.etiquetaVia! })}</span>}
           </p>
         )}
-        <p className="text-xs text-[var(--suave)]">{t('O peso na etiqueta é o de agora. Mudou o peso ou rasgou? "Imprimir de novo"; saiu errada? "Errou? Gerar nova" (a antiga deixa de valer).')}</p>
+        <NotaTela>{t('O peso na etiqueta é o de agora. Mudou o peso ou rasgou? "Imprimir de novo"; saiu errada? "Errou? Gerar nova" (a antiga deixa de valer).')}</NotaTela>
       </div>
     </Janela>
   )

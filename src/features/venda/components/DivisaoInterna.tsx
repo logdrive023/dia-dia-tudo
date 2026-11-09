@@ -7,6 +7,7 @@ import { Cartao } from '../../../shared/ui/base'
 import { useApp, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { type DestinoComissao, origemComissao, partesDaLinha } from '../model/divisao'
+import { NotaTela } from '../../../shared/ui/notaTela'
 
 const COR = { insumos: 'var(--alerta)', salao: 'var(--suave)', profissional: 'var(--marca)' }
 
@@ -69,7 +70,7 @@ export function DivisaoInterna({ linhas, moeda, onCorrigir }: { linhas: Linha[];
           )
         })}
       </ul>
-      {linhas.some((l) => origemComissao(l)) && <p className="mt-3 text-xs text-[var(--suave)]">{t('Mudar a regra vale para as próximas vendas; esta continua como foi feita.')}</p>}
+      {linhas.some((l) => origemComissao(l)) && <NotaTela className="mt-3">{t('Mudar a regra vale para as próximas vendas; esta continua como foi feita.')}</NotaTela>}
     </Cartao>
   )
 }

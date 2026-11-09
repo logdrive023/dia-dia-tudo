@@ -11,6 +11,7 @@ import { useApp, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
 import { TabelaDados } from '../../../shared/ui/tabelaDados'
+import { NotaTela } from '../../../shared/ui/notaTela'
 
 type R = ResultadoConsulta<'reposicao'>
 type L = R['linhas'][number]
@@ -77,7 +78,7 @@ export function Reposicao() {
           }}
         />
       )}
-      <p className="text-xs text-[var(--suave)]">{t('Como calcula: vendido nos últimos {j} dias ÷ {j} = ritmo por dia. Estoque ÷ ritmo = em quantos dias acaba. Comprar = ritmo × {c} dias − estoque. O custo do último kg já inclui o gasto da viagem quando ele foi incorporado.', { j: c.janelaDias, c: c.cobrirDias })}</p>
+      <NotaTela>{t('Como calcula: vendido nos últimos {j} dias ÷ {j} = ritmo por dia. Estoque ÷ ritmo = em quantos dias acaba. Comprar = ritmo × {c} dias − estoque. O custo do último kg já inclui o gasto da viagem quando ele foi incorporado.', { j: c.janelaDias, c: c.cobrirDias })}</NotaTela>
     </div>
   )
 }

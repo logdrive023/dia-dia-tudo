@@ -19,6 +19,7 @@ import { useApp, useComando, useConsulta, useParamTela } from '../../../shared/u
 import { useLembrado, usePeriodo } from '../../../shared/ui/filtros'
 import { useT } from '../../../shared/ui/i18n'
 import { useLargo } from '../../../shared/ui/calendario'
+import { NotaTela } from '../../../shared/ui/notaTela'
 
 const PERIODOS = { mes: 'por mês', semana: 'por semana', dia: 'por dia' } as const
 
@@ -117,7 +118,7 @@ function OrganogramaVisual({ raizes, busca, eu, nomeLocal, onClick, onLimpar }: 
       ) : (
         <ul className="space-y-2">{raizes.map((n) => <NoLista key={n.pessoa.id} n={n} {...p} />)}</ul>
       )}
-      <p className="mt-3 text-center text-xs text-[var(--suave)]">{t('Toque numa pessoa para ver o resumo.')}</p>
+      <NotaTela className="mt-3">{t('Toque numa pessoa para ver o resumo.')}</NotaTela>
     </div>
   )
 }

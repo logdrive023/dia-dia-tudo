@@ -15,6 +15,7 @@ import { useApp, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
 import { TabelaDados } from '../../../shared/ui/tabelaDados'
 import { useT } from '../../../shared/ui/i18n'
+import { NotaTela } from '../../../shared/ui/notaTela'
 
 type V = NonNullable<ResultadoConsulta<'viagens'>>['linhas'][number]
 const kg = (g: number) => `${(g / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} kg`
@@ -172,7 +173,7 @@ function Comparar({ A, B, opcoes, onA, onB, v }: { A: V; B: V; opcoes: V[]; onA(
           )
         })}
       </ul>
-      <p className="border-t border-[var(--borda)] px-4 py-2 text-xs text-[var(--suave)]">{t('✓ = melhor nessa linha (menor custo, maior lucro). Viagem com cabelo ainda em estoque ainda vai vender: o que já voltou tende a subir.')}</p>
+      <NotaTela>{t('✓ = melhor nessa linha (menor custo, maior lucro). Viagem com cabelo ainda em estoque ainda vai vender: o que já voltou tende a subir.')}</NotaTela>
     </section>
   )
 }

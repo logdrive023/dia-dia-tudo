@@ -475,3 +475,7 @@ Regra de operação que pode ser diferente de um negócio para outro vira config
 - Lista que abre dentro de cartão (ex.: `CampoCidade`): abre **no lugar** (empurra o resto), não flutuando — senão o cartão corta.
 
 **Conferir (antes de entregar tela nova ou mexida):** `npm run dev` → **http://localhost:5174/varredura.html** abre cada tela em todas as larguras (240, 320, 360, 390, 414, 768, 1024, 1280, 1440) e lista 🔴 o que sai da tela e 🟠 palavra partida. `?rotas=viagens/novo,estoque` escolhe as telas, `?larguras=240,360` as larguras, `?so=problemas` mostra só o que tem problema. Só abre e lê (não salva nada).
+
+### 11.8 Orientação curta da tela (`NotaTela` em `src/shared/ui/notaTela.tsx`)
+
+Como usar a lista ou o que aquele número quer dizer: sempre `NotaTela`, logo abaixo do bloco, com o texto curto e à vista. Explicação longa continua no `Info`; dica de um campo só continua no próprio campo.

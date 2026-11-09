@@ -24,6 +24,7 @@ import { DivisaoValores } from '../components/DivisaoValores'
 import { Receber } from '../../agenda'
 import { ImprimirNota, NotaVenda } from '../components/NotaVenda'
 import { MODELOS_DOCUMENTO, type ModeloDocumentoId } from '../../../core/dados/documentos'
+import { NotaTela } from '../../../shared/ui/notaTela'
 
 /** Nome da etapa para gente (o código fica só nos dados). */
 export const NOME_ETAPA: Record<string, string> = { concluido: 'Concluída', agendado: 'Agendada', cancelado: 'Cancelada' }
@@ -351,7 +352,7 @@ function NotaCompleta({ vendaId, linhas, moeda, onCorrigir }: { vendaId: Id; lin
           <NotaVenda doc={doc} modelo={md} includeTaxesInPrint={includeTaxesInPrint} comDivisao={comDivisao} />
         </div>
       </div>
-      <p className="text-xs text-[var(--suave)]">{t('É uma nota de venda (documento comercial), não uma factura: o sistema não está ligado ao SIN, por isso não tem código de autorização nem QR.')}</p>
+      <NotaTela>{t('É uma nota de venda (documento comercial), não uma factura: o sistema não está ligado ao SIN, por isso não tem código de autorização nem QR.')}</NotaTela>
 
       {/* FORA DO PAPEL: a divisão interna de cada serviço (comissão, insumos) */}
       {internas.length > 0 && <DivisaoInterna linhas={internas} moeda={moeda} onCorrigir={onCorrigir} />}

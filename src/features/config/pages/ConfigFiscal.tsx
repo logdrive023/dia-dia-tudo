@@ -13,6 +13,7 @@ import { EscolhaCartoes } from '../../../shared/ui/escolhaCartoes'
 import { useT } from '../../../shared/ui/i18n'
 import { Interruptor } from '../../../shared/ui/interruptor'
 import { limparEspacos, nomeProprio, soNumeros } from '../../../core/domain/textoFormatado'
+import { NotaTela } from '../../../shared/ui/notaTela'
 
 const pct = (bp: number) => String(bp / 100).replace('.', ',')
 const bp = (txt: string) => Math.round(Number(txt.replace(',', '.')) * 100)
@@ -261,7 +262,7 @@ function ComoFuncionaRegime({ r }: { r: { nome: string; quem: string; comoFuncio
       <p className="font-bold">💡 {t('Como funciona: {r}', { r: t(r.nome) })}</p>
       <p><b>{t('Quem está nele')}:</b> <span className="text-[var(--suave)]">{t(r.quem)}</span></p>
       <p><b>{t('Como paga')}:</b> <span className="text-[var(--suave)]">{t(r.comoFunciona)}</span></p>
-      <p className="text-xs text-[var(--suave)]">{t('Os valores do sistema são estimativas para acompanhar o negócio — não substituem o contador. Confirme com ele o regime e as taxas.')}</p>
+      <NotaTela>{t('Os valores do sistema são estimativas para acompanhar o negócio — não substituem o contador. Confirme com ele o regime e as taxas.')}</NotaTela>
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { Info, cx, gramasTexto, loc } from '../../../shared/ui/base'
 import { useT } from '../../../shared/ui/i18n'
 import { SeloReserva } from '../../../shared/ui/reserva'
 import { Miniatura, type Vista, origemCurta } from './pecas'
+import { NotaTela } from '../../../shared/ui/notaTela'
 
 export function ItensDaVenda({ vistas, onConferir, onEditar, onRemover, onPreco }: {
   vistas: Vista[]
@@ -78,7 +79,7 @@ export function ItensDaVenda({ vistas, onConferir, onEditar, onRemover, onPreco 
           </li>
         ))}
       </ul>
-      <p className="mt-2 flex items-center text-xs text-[var(--suave)]">{t('Toque na foto para conferir o pacote · toque nas gramas para vender só uma parte.')} <Info texto="Vendeu só uma parte? Toque e digite as gramas. Ex.: 500 g do P4" /></p>
+      <NotaTela className="mt-2">{t('Toque na foto para conferir o pacote · toque nas gramas para vender só uma parte.')} <Info texto="Vendeu só uma parte? Toque e digite as gramas. Ex.: 500 g do P4" /></NotaTela>
     </>
   )
 }

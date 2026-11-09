@@ -12,6 +12,7 @@ import { useApp, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { BotaoEscolha, EscolhaVista, FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
 import { useT } from '../../../shared/ui/i18n'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
+import { NotaTela } from '../../../shared/ui/notaTela'
 
 const semAcento = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
@@ -110,7 +111,7 @@ export function ListaTabelas({ ajudaVersoes }: { ajudaVersoes: string }) {
       )}
       </AreaPaginada>
       {lista.length > 0 && <div className="mt-3"><Paginacao {...pag} unidade="tabela(s)" /></div>}
-      <p className="mt-2 text-xs text-[var(--suave)]">{t('Toque numa tabela para ver a grade, onde foi usada, o histórico e como os valores funcionam.')}</p>
+      <NotaTela className="mt-2">{t('Toque numa tabela para ver a grade, onde foi usada, o histórico e como os valores funcionam.')}</NotaTela>
     </div>
   )
 }
