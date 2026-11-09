@@ -6,7 +6,7 @@ import { AjudaConta } from './AjudaConta'
 import { CartaoTabela } from './CartaoTabela'
 import { SITUACAO_TABELA, type Situacao } from '../model/situacao'
 import { useLembrado } from '../../../shared/ui/filtros'
-import { Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
+import { AreaPaginada, Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
 import { Botao, Carregando, Info, Pilula, Titulo, Vazio, cx, diaCurto, loc } from '../../../shared/ui/base'
 import { useApp, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { BotaoEscolha, EscolhaVista, FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
@@ -64,6 +64,7 @@ export function ListaTabelas({ ajudaVersoes }: { ajudaVersoes: string }) {
         onTirar={() => setCategoria('')} onLimpar={limpar} temAtivos={!!(busca || situacao || categoria)}
         resultados={dados ? lista.length : undefined} total={todas.length} unidade="tabela(s)"
       />
+      <AreaPaginada pag={pag}>
       {!dados ? <Carregando /> : !todas.length ? (
         <Vazio texto="Nenhuma tabela ainda.">
           <p className="mb-3">{t('Uma tabela diz o fator por medida e comprador: 60 cm × Helena = 16 → valor = gramas × 16.')}</p>
@@ -107,6 +108,7 @@ export function ListaTabelas({ ajudaVersoes }: { ajudaVersoes: string }) {
           })}
         </ul>
       )}
+      </AreaPaginada>
       {lista.length > 0 && <div className="mt-3"><Paginacao {...pag} unidade="tabela(s)" /></div>}
       <p className="mt-2 text-xs text-[var(--suave)]">{t('Toque numa tabela para ver a grade, onde foi usada, o histórico e como os valores funcionam.')}</p>
     </div>

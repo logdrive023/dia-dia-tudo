@@ -13,7 +13,7 @@ import { baixarCSV } from '../../../shared/ui/csv'
 import { BotaoEscolha, FiltroLista, GrupoFiltro, VazioFiltro } from '../../../shared/ui/filtroPadrao'
 import { useT } from '../../../shared/ui/i18n'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
-import { Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
+import { AreaPaginada, Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
 import { corDoNome, iniciais } from '../../../shared/ui/tabelaDados'
 import type { CategoriaAuditoria, RefAuditoria } from '../../../core/services/auditoria'
 
@@ -88,6 +88,7 @@ export function Auditoria() {
       />
       {!dados ? <Carregando /> : !dados.noPeriodo ? <Vazio texto="Nada registrado ainda." /> : !linhas.length ? <VazioFiltro filtrando onLimpar={limpar} /> : (
         <>
+          <AreaPaginada pag={pag}>
           <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
             {pag.itens.map((l) => {
               const cor = COR_AREA[l.categoria]
@@ -117,6 +118,7 @@ export function Auditoria() {
               )
             })}
           </ul>
+          </AreaPaginada>
           <div className="mt-3"><Paginacao {...pag} unidade="ação(ões)" /></div>
         </>
       )}

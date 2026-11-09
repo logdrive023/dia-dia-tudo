@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useState } from 'react'
 import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../../../shared/ui/seloViagem'
 import { GrupoVisao, useVisaoLista } from '../../../shared/ui/visaoLista'
 import { PainelSelecao } from '../../../shared/ui/painelSelecao'
-import { Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
+import { AreaPaginada, Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
 import { TabelaDados } from '../../../shared/ui/tabelaDados'
 import { GrupoFiltro, CampoFaixa, FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
 import { formatar } from '../../../core/domain/dinheiro'
@@ -361,6 +361,7 @@ export function Estoque() {
       ) : (
         // LISTAGEM PADRÃO (TabelaDados): seleção em massa, linhas compactas (foto pequena) e as colunas que a pessoa escolheu
         <div id="lista-estoque">
+          <AreaPaginada pag={pag}>
           <TabelaDados
             cartoes={vis.cartoes}
             linhas={pag.itens}
@@ -393,6 +394,7 @@ export function Estoque() {
               ...visiveis.map((c) => ({ id: c.id, titulo: c.nome, direita: c.num, classe: cx(c.id === 'origem' && 'min-w-[10rem] max-w-[16rem]', c.id === 'status' && 'whitespace-nowrap'), celula: (i: Linha) => (c.celula ? c.celula(i) : c.texto(i) || '—') })),
             ]}
           />
+          </AreaPaginada>
         </div>
       )}
       {dados && lista.length > 0 && <Paginacao {...pag} unidade="lote(s)" />}

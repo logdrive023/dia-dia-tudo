@@ -6,7 +6,7 @@
 //     detalhe ali mesmo (medida, gramas × fator, e o aviso quando o fator foi mudado à mão)
 // Venda antiga (de antes de a versão ser guardada na linha) aparece com a versão da data, marcada como "estimada".
 import { useState } from 'react'
-import { Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
+import { AreaPaginada, Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
 import { formatar } from '../../../core/domain/dinheiro'
 import { Pilula, Vazio, cx, dataBR, gramasTexto } from '../../../shared/ui/base'
 import { useApp, useFiltrosTela } from '../../../shared/ui/contexto'
@@ -62,11 +62,13 @@ export function UsadaEm({ usos, versoes, atual, moeda: m }: { usos: Uso[]; verso
         onLimpar={limpar} temAtivos={!!(tipo || busca || p('ude'))}
         resultados={lista.length} total={daVersao.length} unidade="uso(s)"
       />
+      <AreaPaginada pag={pag}>
       {!daVersao.length ? <Vazio texto={t('Nenhuma venda ou compra usou a v{n}.', { n: versao })} /> : !lista.length ? <VazioFiltro filtrando onLimpar={limpar} /> : (
         <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
           {pag.itens.map((u) => <LinhaUso key={u.id} u={u} moeda={m} />)}
         </ul>
       )}
+      </AreaPaginada>
       {lista.length > 0 && <Paginacao {...pag} unidade="uso(s)" />}
     </div>
   )

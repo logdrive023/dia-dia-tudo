@@ -19,7 +19,7 @@ import { AbasSituacao, FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo }
 import { useT } from '../../../shared/ui/i18n'
 import { type Acao } from '../../../shared/ui/menuAcoes'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
-import { Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
+import { AreaPaginada, Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
 import { SeloPendencias } from '../../../shared/ui/pendencias'
 import { baixarCSV } from '../../../shared/ui/csv'
 import { estaParada, minutosAberta, passaFiltroAberta, textoIdade } from '../model/vendasEmAberto'
@@ -212,6 +212,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
       ) : (
       <>
       {/* LISTAGEM PADRÃO (TabelaDados): só as colunas, as ações e o que abre; carregando/vazio/celular são dela */}
+      <AreaPaginada pag={pag}>
       <TabelaDados
         cartoes={vis.cartoes}
         linhas={pag.itens}
@@ -264,6 +265,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
           </>,
         }}
       />
+      </AreaPaginada>
       {!carregando && <Paginacao {...pag} unidade="venda(s)" />}
       </>
       )}

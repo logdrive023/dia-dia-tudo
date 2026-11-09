@@ -11,7 +11,7 @@ import { FiltroViagem, SeloViagem, passaViagem, viagensDasLinhas } from '../../.
 import { LigarCompras } from '../components/LigarCompras'
 import { Progresso } from './PagamentoCompra'
 import { GrupoVisao, useVisaoLista } from '../../../shared/ui/visaoLista'
-import { Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
+import { AreaPaginada, Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
 import { TabelaDados, SeloCodigo, SeloSituacao, type TomLista } from '../../../shared/ui/tabelaDados'
 import { formatar } from '../../../core/domain/dinheiro'
 import type { Id } from '../../../core/domain/tipos'
@@ -151,6 +151,7 @@ function ListaCompras() {
       />
 
       {/* LISTAGEM PADRÃO (TabelaDados): colunas · ordem · o que falta abre numa linha embaixo; celular = linha curta */}
+      <AreaPaginada pag={pag}>
       <TabelaDados
         cartoes={vis.cartoes}
         linhas={pag.itens}
@@ -203,6 +204,7 @@ function ListaCompras() {
           aberto: (c) => c.pendencias.length > 0 && <SeloPendencias pendencias={c.pendencias} moeda={c.moedaPrincipal} />,
         }}
       />
+      </AreaPaginada>
       {fila && <Paginacao {...pag} unidade="pedido(s)" />}
       {marcadas.length > 0 && (
         <PainelSelecao

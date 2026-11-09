@@ -5306,4 +5306,6 @@ export const ES: Record<string, string> = {
   'Alterar o padrão': 'Cambiar el estándar',
   'Regra de comissão': 'Regla de comisión',
   'Ver as regras': 'Ver las reglas',
+  // paginação
+  'Carregando os dados…': 'Cargando los datos…',
 }
