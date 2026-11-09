@@ -4,13 +4,10 @@
 //   Tela         — a tela da rota, respeitando quem pode abrir (funcionária cai na agenda)
 //   NovaVersao   — versão nova publicada: avisa e só recarrega no toque
 //   Recuperacao  — erro numa tela vira aviso com "Tentar de novo" (nunca tela branca)
-import { Component, type ReactNode, useEffect, useRef, useState } from 'react'
+import { Component, type ReactNode, useEffect, useRef, useState, Suspense } from 'react'
 import type { BackendNoAparelho } from '../adapters/noAparelho'
 import { type ProgressoDemo, aoProgressoDemo, carregarDemo } from '../adapters/demo'
 import { montandoCenario } from '../adapters/cenarios'
-import { PacoteVenda } from '../features/lote'
-import { Agenda } from '../features/agenda'
-import { Painel } from '../features/painel'
 import { Botao, Carregando, definirPadroes } from '../shared/ui/base'
 import { useApp, useConsulta } from '../shared/ui/contexto'
 import { IdiomaContexto, type Idioma, localeDe, traduzir, useT } from '../shared/ui/i18n'
@@ -18,7 +15,7 @@ import { useIdiomaAparelho } from '../shared/ui/idiomaAparelho'
 import { TELAS_LIBERAVEIS, type TelaLiberavel, useLiberado } from '../shared/ui/liberado'
 import { navParaHash } from '../shared/navegacao/rotas'
 import { NaoEncontrada } from './NaoEncontrada'
-import { SO_ADMIN, TELAS } from './telas'
+import { Agenda, PacoteVenda, Painel, SO_ADMIN, TELAS } from './telas'
 
 export function ComIdioma({ children }: { children: ReactNode }) {
   const { dados } = useConsulta('configuracoes', {})
@@ -51,7 +48,7 @@ export function Tela() {
   // funcionária abrindo um pacote (QR): a visão enxuta para VENDER (a ficha completa é do administrador)
   // endereço que não existe → a tela 404; sem tela nenhuma ainda → o início do perfil
   const T = nome === 'lote' && sessao.perfil !== 'admin' ? PacoteVenda : TELAS[nome] ?? (nome ? NaoEncontrada : sessao.perfil === 'admin' ? Painel : Agenda)
-  return <T />
+  return <Suspense fallback={<Carregando linhas={6} />}><T /></Suspense>
 }
 
 /**

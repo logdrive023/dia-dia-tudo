@@ -173,9 +173,11 @@ body.imprimindo-relatorio { overflow: hidden; }
    barras brilham de leve da esquerda para a direita */
 .carregando-esqueleto { animation: esqueleto-aparece 0.2s ease-out 0.15s both; }
 @keyframes esqueleto-aparece { from { opacity: 0; } to { opacity: 1; } }
-.esqueleto { background: linear-gradient(90deg, var(--borda) 0%, color-mix(in srgb, var(--borda) 45%, transparent) 50%, var(--borda) 100%); background-size: 200% 100%; animation: esqueleto-brilho 1.3s ease-in-out infinite; }
-@keyframes esqueleto-brilho { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-@media (prefers-reduced-motion: reduce) { .carregando-esqueleto, .esqueleto { animation: none; } }
+/* o brilho anda com transform (a placa de vídeo faz): background-position repintaria a barra a cada quadro */
+.esqueleto { position: relative; overflow: hidden; background: var(--borda); }
+.esqueleto::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--cartao) 55%, transparent), transparent); transform: translateX(-100%); animation: esqueleto-brilho 1.3s ease-in-out infinite; }
+@keyframes esqueleto-brilho { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .carregando-esqueleto, .esqueleto::after { animation: none; } }
 
 /* ENTRADA DE TELA (src/ui/Shell.tsx): ao trocar de tela, o conteúdo aparece e sobe um pouco (dá a sensação de carregar) */
 .entrada-tela { animation: entrada-tela 0.32s ease-out both; }
@@ -204,3 +206,6 @@ body.imprimindo-relatorio { overflow: hidden; }
   .etiquetas-ativa .etiqueta, .etiquetas-ativa .vaga { border: none !important; }
   .etiquetas-ativa .pagina-a4 { box-shadow: none !important; margin: 0 !important; height: 296mm !important; overflow: hidden !important; break-after: auto !important; }
 }
+
+/* toque sem a espera do "toque duplo" do navegador */
+button, a, input, select, label, [role='button'] { touch-action: manipulation; }

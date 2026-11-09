@@ -6,7 +6,13 @@
 //     salva etiqueta desbotada e foto escura
 //   · decodificar: tenta como veio (claro e invertido) e, se não der, de novo com o contraste realçado
 
-import jsQR from 'jsqr'
+type LeitorQr = typeof import('jsqr').default
+let jsQR: LeitorQr | undefined
+
+/** o decodificador próprio é pesado: baixa só quando a câmera abre */
+export async function prepararLeitor() {
+  jsQR ??= (await import('jsqr')).default
+}
 
 export function luminancia(rgba: Uint8ClampedArray, w: number, h: number) {
   const g = new Uint8ClampedArray(w * h)
@@ -65,6 +71,8 @@ export function suavizar(rgba: Uint8ClampedArray, w: number, h: number) {
 
 /** o texto do QR da imagem (ou undefined): como veio → realçada → suavizada e realçada (o pior caso) */
 export function decodificar(rgba: Uint8ClampedArray, w: number, h: number): string | undefined {
-  const tentar = (px: Uint8ClampedArray) => jsQR(px, w, h, { inversionAttempts: 'attemptBoth' })?.data?.trim() || undefined
+  const qr = jsQR
+  if (!qr) return undefined
+  const tentar = (px: Uint8ClampedArray) => qr(px, w, h, { inversionAttempts: 'attemptBoth' })?.data?.trim() || undefined
   return tentar(rgba) ?? tentar(realcar(rgba, w, h)) ?? tentar(realcar(suavizar(rgba, w, h), w, h))
 }

@@ -32,7 +32,7 @@ export function RegrasJuntar({ mesmaEtapa, saldoPequeno, onFechar }: { mesmaEtap
           {/* liga/desliga */}
           <input type="checkbox" role="switch" className="peer sr-only" checked={etapa} onChange={(e) => setEtapa(e.target.checked)} aria-label={t('Juntar só pacotes da mesma etapa')} />
           <span aria-hidden className={cx('relative mt-1 h-6 w-11 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--marca)]', etapa ? 'bg-[var(--marca)]' : 'bg-[var(--borda)]')}>
-            <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', etapa ? 'left-[22px]' : 'left-0.5')} />
+            <span className={cx('absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform', etapa && 'translate-x-5')} />
           </span>
         </label>
         <div className="flex items-start gap-3 rounded-2xl border border-[var(--borda)] p-3">

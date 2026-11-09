@@ -1,7 +1,7 @@
 // ESTOQUE: lista inteligente (filtros no endereço, favoritos, colunas escolhidas, tabela ou cartões, seleção em massa,
 // CSV), SEPARAR lote bruto em N lotes, ajustar, PRONTUÁRIO do lote (compra → triagem → venda) e RASTREIO.
 
-import { type ReactNode, useCallback, useState } from 'react'
+import { type ReactNode, useCallback, useState, useMemo } from 'react'
 import { FiltroViagem, SelosViagem, passaViagem, viagensDasLinhas } from '../../../shared/ui/seloViagem'
 import { GrupoVisao, useVisaoLista } from '../../../shared/ui/visaoLista'
 import { PainelSelecao } from '../../../shared/ui/painelSelecao'
@@ -183,7 +183,9 @@ export function Estoque() {
       const f = p(`f.${c.id}`)
       return !f || (c.tipo === 'simNao' ? String(v === true) === f : String(v ?? '') === f)
     })
-  const base = (dados ?? []).filter(
+  // filtrar só quando os dados ou os filtros mudam (marcar uma linha não refaz a lista)
+  const chaveFiltros = JSON.stringify(chavesFiltro.map((k) => [k, nav.params[k]]))
+  const base = useMemo(() => (dados ?? []).filter(
     (i) =>
       (!repor || i.repor > 0) &&
       (!termo || i.busca.includes(termo) || [i.nome, i.fornecedor, ...Object.values(i.campos)].some((v) => v !== undefined && v !== null && String(v).toLowerCase().includes(termo))) &&
@@ -192,10 +194,12 @@ export function Estoque() {
       (!p('compra') || i.busca.includes(p('compra').trim().toLowerCase())) &&
       passaViagem(p('vg'), i.compras.map((c) => c.viagem)) &&
       passaCampos(i),
-  )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [dados, chaveFiltros, termo, repor, modulo])
   const passaStatus = (i: Linha) =>
     status === 'todos' ? true : status === 'esgotado' ? i.saldo <= 0 : status === 'separado' ? i.saldo > 0 && !ehBruto(i.status) : status === 'bruto' ? ehBruto(i.status) : status ? i.status === status : repor || i.saldo > 0
-  const lista = base.filter(passaStatus)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const lista = useMemo(() => base.filter(passaStatus), [base, status])
   const unidade = dados?.[0]?.unidade ?? (modulo === 'cabelo' ? 'grama' : 'peca')
   const fq = (n: number) => qtd({ unidade }, n)
   const comSaldo = base.filter((i) => i.saldo > 0)

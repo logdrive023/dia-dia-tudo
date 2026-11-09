@@ -17,7 +17,7 @@ export function Chave({ ligado, onChange, rotulo, travado }: { ligado: boolean; 
 function BolinhaChave({ ligado }: { ligado: boolean }) {
   return (
     <span aria-hidden className={cx('relative inline-block h-6 w-11 shrink-0 rounded-full transition-colors', ligado ? 'bg-[var(--marca)]' : 'bg-[var(--borda)]')}>
-      <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', ligado ? 'left-[22px]' : 'left-0.5')} />
+      <span className={cx('absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform', ligado && 'translate-x-5')} />
     </span>
   )
 }

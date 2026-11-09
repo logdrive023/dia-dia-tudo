@@ -6,7 +6,7 @@
 // Chega-se aqui pelo menu, pelo cabeçalho do pacote ("🏷 Etiqueta"), pelo ⋯ de qualquer pacote, pela compra, pela
 // barra de seleção da Triagem e do Estoque e pelo cartão "pacotes novos" depois de separar (?sel=a,b já marcados).
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, memo } from 'react'
 import { PainelSelecao } from '../../../shared/ui/painelSelecao'
 import { Paginada } from '../../../shared/ui/paginacao'
 import type { Id } from '../../../core/domain/tipos'
@@ -18,6 +18,7 @@ import { ImprimirEtiquetas, RefazerEtiqueta } from '../../../shared/ui/etiquetas
 import { MenuAcoes } from '../../../shared/ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../../../shared/ui/fotos'
 import { useT } from '../../../shared/ui/i18n'
+import { useEvento } from '../hooks/useEvento'
 import { useCamposModulo } from '../model/comum'
 import { NumeroGrande, type Selo, GrupoNumeros } from '../../../shared/ui/numeroGrande'
 import { CampoFaixa, GrupoFiltro, FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
@@ -37,7 +38,7 @@ const FILTROS = ['compra', 'lote', 'pessoa', 'quem', 'impr', 'medida', 'pmin', '
 
 export function Etiquetas() {
   const t = useT()
-  const { ir, ajustarParams } = useApp()
+  const { ir, ajustarParams, nav } = useApp()
   const { executar } = useComando()
   const [filtro, setFiltro] = useParamTela<Filtro>('f', 'sem')
   const { p, setP, tirar } = useFiltrosTela()
@@ -62,7 +63,9 @@ export function Etiquetas() {
   const pmin = Number(p('pmin')) || 0
   const pmax = Number(p('pmax')) || 0
   const doLote = (i: Linha) => [i.codigo, ...(i.codigosAnteriores ?? []), i.pai?.codigo, ...(i.unificadoDe ?? [])].filter(Boolean).join(' ').toLowerCase()
-  const base = (dados ?? []).filter(
+  // filtrar e ordenar só quando os dados ou os filtros mudam (marcar um pacote não refaz a lista)
+  const chaveFiltros = JSON.stringify(nav.params)
+  const base = useMemo(() => (dados ?? []).filter(
     (i) =>
       (!termo || i.busca.includes(termo) || i.nome.toLowerCase().includes(termo)) &&
       (!compra || i.busca.includes(compra)) &&
@@ -78,14 +81,17 @@ export function Etiquetas() {
       (!pmax || i.saldo <= pmax) &&
       (!p('de') || i.entrada >= p('de')) &&
       (!p('ate') || i.entrada <= p('ate')),
-  )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [dados, chaveFiltros])
   const conta = (f: Filtro) => base.filter((i) => passaEtiqueta(i, f)).length
   // os que vieram marcados no endereço primeiro (quem veio de um pacote acha o pacote no alto), depois os mais novos;
   // marcar na tela não muda a ordem (a linha não pula)
-  const doEndereco = new Set(selUrl.split(',').filter(Boolean))
-  const lista = base
-    .filter((i) => passaEtiqueta(i, filtro))
-    .sort((a, b) => Number(doEndereco.has(b.id)) - Number(doEndereco.has(a.id)) || (a.criadoEm < b.criadoEm ? 1 : a.criadoEm > b.criadoEm ? -1 : 0))
+  const lista = useMemo(() => {
+    const doEndereco = new Set(selUrl.split(',').filter(Boolean))
+    return base
+      .filter((i) => passaEtiqueta(i, filtro))
+      .sort((a, b) => Number(doEndereco.has(b.id)) - Number(doEndereco.has(a.id)) || (a.criadoEm < b.criadoEm ? 1 : a.criadoEm > b.criadoEm ? -1 : 0))
+  }, [base, filtro, selUrl])
   const medidas = useMemo(
     () => [...new Set((dados ?? []).map((i) => i.campos.comprimento).filter((v) => v !== undefined && v !== null && v !== '').map(String))].sort((a, b) => Number(a) - Number(b)),
     [dados],
@@ -104,6 +110,11 @@ export function Etiquetas() {
     } else setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
     setUltimo(k)
   }
+  // estáveis: a linha fica em memo e só redesenha a que mudou
+  const alternarLinha = useEvento(marcarAte)
+  const abrirLinha = useEvento((id: Id) => ir('lote', { id }))
+  const imprimirLinha = useEvento((id: Id) => setImprimir([id]))
+  const refazerLinha = useEvento((id: Id) => ajustarParams({ refazer: id }))
   const todosFiltros = [...FILTROS, ...filtrosAttr]
   const avancados = todosFiltros.filter((k) => k !== 'busca' && p(k)).length
   const limpar = () => ajustarParams(Object.fromEntries(todosFiltros.map((k) => [k, undefined])))
@@ -207,7 +218,7 @@ export function Etiquetas() {
           </div>
           <Paginada itens={lista} padrao={50} unidade="pacote(s)" reiniciar={JSON.stringify([filtro, ...todosFiltros.map((k) => p(k))])}>{(pagina, inicio) => (
             <ul id="lista-etiquetas" className="grid gap-2 lg:grid-cols-2">
-              {pagina.map((i, k) => <LinhaEtiqueta key={i.id} i={i} marcado={sel.has(i.id)} onAlternar={(intervalo) => marcarAte(inicio + k, intervalo)} onAbrir={() => ir('lote', { id: i.id })} onImprimir={() => setImprimir([i.id])} onRefazer={() => ajustarParams({ refazer: i.id })} />)}
+              {pagina.map((i, k) => <LinhaEtiqueta key={i.id} i={i} indice={inicio + k} marcado={sel.has(i.id)} onAlternar={alternarLinha} onAbrir={abrirLinha} onImprimir={imprimirLinha} onRefazer={refazerLinha} />)}
             </ul>
           )}</Paginada>
         </>
@@ -244,7 +255,11 @@ export function Etiquetas() {
 }
 
 /** Uma linha: marcar, foto, código grande, rótulo, peso, compra de origem e a situação da etiqueta; Imprimir/Reimprimir. */
-function LinhaEtiqueta({ i, marcado, onAlternar, onAbrir, onImprimir, onRefazer }: { i: Linha; marcado: boolean; onAlternar(intervalo?: boolean): void; onAbrir(): void; onImprimir(): void; onRefazer(): void }) {
+const LinhaEtiqueta = memo(function LinhaEtiqueta({ i, indice, marcado, onAlternar: alternar, onAbrir: abrir, onImprimir: imprimir, onRefazer: refazer }: { i: Linha; indice: number; marcado: boolean; onAlternar(k: number, intervalo?: boolean): void; onAbrir(id: Id): void; onImprimir(id: Id): void; onRefazer(id: Id): void }) {
+  const onAlternar = (intervalo?: boolean) => alternar(indice, intervalo)
+  const onAbrir = () => abrir(i.id)
+  const onImprimir = () => imprimir(i.id)
+  const onRefazer = () => refazer(i.id)
   const t = useT()
   const parar = (e: React.SyntheticEvent) => e.stopPropagation()
   const origem = i.compras.map((c) => [c.codigo, c.fornecedor].filter(Boolean).join(' · ')).join(' + ')
@@ -278,4 +293,4 @@ function LinhaEtiqueta({ i, marcado, onAlternar, onAbrir, onImprimir, onRefazer 
       {i.etiquetaImpressaEm && <MenuAcoes className="shrink-0" acoes={[{ rotulo: 'Errou? Gerar nova', icone: '↻', onClick: onRefazer }]} />}
     </li>
   )
-}
+})

@@ -23,7 +23,7 @@ export function BarraFinanciamento({ progressoBp, status, className }: { progres
   return (
     <div className={className}>
       <div className="h-2.5 overflow-hidden rounded-full bg-[var(--marca-suave)]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={t('Quanto já voltou')}>
-        <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(pct, pct > 0 ? 3 : 0)}%`, background: cor }} />
+        <div className="h-full rounded-full transition-[width]" style={{ width: `${Math.max(pct, pct > 0 ? 3 : 0)}%`, background: cor }} />
       </div>
       <div className="mt-1 text-xs text-[var(--suave)]">{t('{p}% coberto', { p: pct })}</div>
     </div>

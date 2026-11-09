@@ -2,7 +2,7 @@
 // e o aviso de tela larga (tabela) × estreita (cartões).
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { brilho, decodificar } from './leitorImagem'
+import { brilho, decodificar, prepararLeitor } from './leitorImagem'
 import { BarraPartes } from './barras'
 import type { StatusLote } from '../../core/services/estoque'
 import { Botao, Janela, Pilula, cx, gramasTexto } from './base'
@@ -150,6 +150,7 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
         setCaps({ torch: !!c.torch, zoom: c.zoom && c.zoom.max > (c.zoom.min ?? 1) ? { min: c.zoom.min ?? 1, max: c.zoom.max, step: c.zoom.step } : undefined })
         video.current.srcObject = stream
         await video.current.play()
+        void prepararLeitor().catch(() => undefined) // sem ele, o leitor do navegador continua lendo
         const Ctor = temDetectorCodigo() ? (window as unknown as { BarcodeDetector: new (o?: object) => Detector }).BarcodeDetector : undefined
         let detector: Detector | undefined
         try { detector = Ctor ? new Ctor({ formats: ['qr_code', 'code_128', 'ean_13', 'code_39'] }) : undefined } catch { detector = Ctor ? new Ctor() : undefined }
@@ -253,7 +254,7 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
             </div>
             {ajustando && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
-                <p role="status" className="flex items-center gap-2 rounded-2xl bg-black/75 px-4 py-3 text-sm font-semibold text-white shadow-lg backdrop-blur">
+                <p role="status" className="flex items-center gap-2 rounded-2xl bg-black/80 px-4 py-3 text-sm font-semibold text-white shadow-lg">
                   <span aria-hidden className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   {ajustando}
                 </p>
@@ -262,8 +263,8 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
             {/* lanterna e zoom (quando o celular deixa) */}
             {(caps.torch || zooms.length > 1) && (
               <div className="absolute inset-x-0 bottom-2 flex flex-wrap justify-center gap-2 px-2">
-                {caps.torch && <button type="button" aria-pressed={lanterna} onClick={trocarLanterna} className={cx('min-h-11 touch-manipulation rounded-full px-4 text-sm font-semibold backdrop-blur transition active:scale-95', lanterna ? 'bg-yellow-300 text-black' : 'bg-black/55 text-white')}>🔦 {t(lanterna ? 'Lanterna ligada' : 'Lanterna')}</button>}
-                {zooms.length > 1 && zooms.map((z) => <button key={z} type="button" aria-pressed={zoom === z} onClick={() => trocarZoom(z)} className={cx('min-h-11 min-w-11 touch-manipulation rounded-full px-3 text-sm font-bold backdrop-blur transition active:scale-95', zoom === z ? 'bg-white text-black' : 'bg-black/55 text-white')}>{z}×</button>)}
+                {caps.torch && <button type="button" aria-pressed={lanterna} onClick={trocarLanterna} className={cx('min-h-11 touch-manipulation rounded-full px-4 text-sm font-semibold transition active:scale-95', lanterna ? 'bg-yellow-300 text-black' : 'bg-black/70 text-white')}>🔦 {t(lanterna ? 'Lanterna ligada' : 'Lanterna')}</button>}
+                {zooms.length > 1 && zooms.map((z) => <button key={z} type="button" aria-pressed={zoom === z} onClick={() => trocarZoom(z)} className={cx('min-h-11 min-w-11 touch-manipulation rounded-full px-3 text-sm font-bold transition active:scale-95', zoom === z ? 'bg-white text-black' : 'bg-black/70 text-white')}>{z}×</button>)}
               </div>
             )}
           </div>

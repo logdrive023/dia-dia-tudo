@@ -37,7 +37,7 @@ function emGrupos(acoes: Acao[]) {
 }
 
 /** `principal`: o menu é a AÇÃO PRINCIPAL da tela (botão cheio com o texto, ex.: "+ Nova venda ▾") e não o "⋯". */
-export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo, principal }: { acoes: Acao[]; rotulo?: string; className?: string; comRotulo?: boolean; principal?: string }) {
+export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo, principal, pergunta = 'O que vai vender agora?' }: { acoes: Acao[]; rotulo?: string; className?: string; comRotulo?: boolean; principal?: string; /** a frase no alto da folha do celular */ pergunta?: string }) {
   const t = useT()
   const id = useId()
   const botao = useRef<HTMLButtonElement>(null)
@@ -161,7 +161,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
       )}
       {folha && (
         <Janela aberta titulo={t((principal ?? rotulo).replace(/^\+\s*/, ''))} onFechar={() => setFolha(false)}>
-          <p className="mb-3 text-sm text-[var(--suave)]">{t('O que vai vender agora?')}</p>
+          <p className="mb-3 text-sm text-[var(--suave)]">{t(pergunta)}</p>
           <ul className="space-y-2">
             {acoes.map((a, k) => (
               <li key={k}>

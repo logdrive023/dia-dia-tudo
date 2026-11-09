@@ -35,7 +35,9 @@ describe('tela do caixa', () => {
     const total = await screen.findByTestId('saldo-total', {}, { timeout: 10000 })
     await waitFor(() => expect(total.textContent).toBe('Bs 200,00'))
 
-    fireEvent.click(screen.getByRole('button', { name: /Despesa/ }))
+    // "+ Lançar" abre as opções; cada uma já diz para que serve
+    fireEvent.click(screen.getByRole('button', { name: /Lançar/ }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Despesa/ }))
     const dialogo = await screen.findByRole('dialog')
     fireEvent.change(within(dialogo).getByLabelText(/Quanto\?/), { target: { value: '150' } })
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Lançar' }))
@@ -48,7 +50,8 @@ describe('tela do caixa', () => {
     expect(within(lista).getByText('−Bs 150,00')).toBeTruthy()
 
     // ver em dólar com a cotação digitada aqui (só para ver)
-    fireEvent.click(screen.getByRole('radio', { name: 'US$' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Moeda' }))
+    fireEvent.click(await screen.findByRole('radio', { name: 'US$' }))
     fireEvent.change(screen.getByLabelText('Cotação de US$'), { target: { value: '5' } })
     await waitFor(() => expect(screen.getByTestId('saldo-total').textContent).toBe('US$ 10,00'))
     // o lançamento continua em Bs

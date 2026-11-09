@@ -2,7 +2,7 @@
 // o que aparece na prévia é o que o comprador vê. As cores vêm de model/aparencia.ts, só nesta raiz.
 // Só dados públicos (o serviço não manda custo, fornecedor nem compra). "Quero este" abre o WhatsApp com a mensagem pronta;
 // "Adicionar à lista" junta vários pacotes para pedir tudo numa mensagem só (ListaCompras).
-import { useContext, useMemo, useState } from 'react'
+import { memo, useContext, useMemo, useState } from 'react'
 import { APARENCIA_PADRAO, type AparenciaVitrine, type MensagensVitrine, type ModoPrecoVitrine, type PacoteVitrine } from '../../../core/services/vitrine'
 import { cx } from '../../../shared/ui/base'
 import { useUrlFoto } from '../../../shared/ui/fotos'
@@ -17,7 +17,7 @@ import { CapaLoja } from './CapaLoja'
 /** a cor do cabelo vira a cor do desenho quando não há foto */
 const TOM_COR: Record<string, string> = { Preto: '#1f1b1a', Castanho: '#5b3a29', 'Castanho claro': '#8a5a3c', Loiro: '#c9a063', Ruivo: '#9a3b1f', Misturado: '#6b4a3a' }
 
-export function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens, naLista, listaCheia, onLista }: { p: PacoteVitrine; whatsapp?: string; loja: string; modoPreco: ModoPrecoVitrine; mensagens?: MensagensVitrine; naLista: boolean; listaCheia: boolean; onLista(): void }) {
+export const CartaoPacoteVitrine = memo(function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens, naLista, listaCheia, onLista }: { p: PacoteVitrine; whatsapp?: string; loja: string; modoPreco: ModoPrecoVitrine; mensagens?: MensagensVitrine; naLista: boolean; listaCheia: boolean; onLista(id: string): void }) {
   const t = useT()
   const idioma = useContext(IdiomaContexto)
   const url = useUrlFoto(p.foto)
@@ -39,7 +39,7 @@ export function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens, n
         )}
         <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-sm font-black text-[#1f1b1a] shadow">{p.medida} cm</span>
         {p.categoria !== 'Normal' && <span className="absolute right-3 top-3 rounded-full bg-[var(--marca)] px-2.5 py-1 text-xs font-bold text-[var(--sobre-marca)] shadow">{t(p.categoria)}</span>}
-        <span className="absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur">⚖️ {kg(p.gramas)}</span>
+        <span className="absolute bottom-3 left-3 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white">⚖️ {kg(p.gramas)}</span>
         {naLista && <span aria-hidden className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--marca)] text-sm font-black text-[var(--sobre-marca)] shadow">✓</span>}
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3 sm:p-4">
@@ -62,7 +62,7 @@ export function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens, n
           </a>
         ) : <span className="rounded-2xl bg-[var(--fundo)] px-3 py-2 text-center text-xs text-[var(--suave)]">{t('Peça pelo WhatsApp da loja')}</span>}
         {link && (
-          <button type="button" aria-pressed={naLista} disabled={!naLista && listaCheia} onClick={onLista}
+          <button type="button" aria-pressed={naLista} disabled={!naLista && listaCheia} onClick={() => onLista(p.id)}
             className={cx('min-h-11 rounded-2xl px-2 text-sm font-bold transition disabled:opacity-50', naLista ? 'bg-[var(--marca)] text-[var(--sobre-marca)]' : 'text-[var(--marca-texto)] ring-1 ring-[var(--borda)] hover:ring-[var(--marca)]')}>
             {naLista ? `✓ ${t('Na lista')}` : `+ ${t('Adicionar à lista')}`}
           </button>
@@ -70,7 +70,7 @@ export function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens, n
       </div>
     </article>
   )
-}
+})
 
 /** botão de filtro (chip) da vitrine */
 function Chip({ ativo, onClick, children }: { ativo: boolean; onClick(): void; children: React.ReactNode }) {
@@ -133,7 +133,7 @@ export function ConteudoLoja({ dados, colunas, limite, className }: { dados?: Da
             <p className="mb-3 mt-4 text-sm text-[var(--suave)]">{lista.length === 1 ? t('1 resultado') : t('{n} resultados', { n: lista.length })}</p>
             {!lista.length ? <p className="rounded-3xl bg-[var(--cartao)] p-8 text-center text-[var(--suave)]">{t('Nada com esses filtros.')}</p> : (
               <div className={cx('grid gap-3 sm:gap-4', colunas === 2 ? 'grid-cols-2' : colunas === 3 ? 'grid-cols-3' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4')}>
-                {(limite ? lista.slice(0, limite) : lista).map((p) => <CartaoPacoteVitrine key={p.id} p={p} whatsapp={dados.loja.whatsapp} loja={dados.loja.nome} modoPreco={dados.loja.modoPreco} mensagens={dados.loja.mensagens} naLista={compras.tem(p.id)} listaCheia={compras.cheia} onLista={() => compras.alternar(p.id)} />)}
+                {(limite ? lista.slice(0, limite) : lista).map((p) => <CartaoPacoteVitrine key={p.id} p={p} whatsapp={dados.loja.whatsapp} loja={dados.loja.nome} modoPreco={dados.loja.modoPreco} mensagens={dados.loja.mensagens} naLista={compras.tem(p.id)} listaCheia={compras.cheia} onLista={compras.alternar} />)}
               </div>
             )}
             {dados.loja.whatsapp && escolhidos.length > 0 && <ListaCompras pacotes={escolhidos} loja={dados.loja.nome} whatsapp={dados.loja.whatsapp} modoPreco={dados.loja.modoPreco} mensagens={dados.loja.mensagens} cheia={compras.cheia} onTirar={compras.tirar} onLimpar={compras.limpar} />}

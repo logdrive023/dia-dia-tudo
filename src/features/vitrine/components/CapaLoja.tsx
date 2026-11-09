@@ -28,7 +28,7 @@ export function CapaLoja({ aparencia, nome, descricao, resumo, zap }: { aparenci
         <h1 className="mt-1 break-words text-3xl font-black tracking-tight sm:text-4xl">{nome}</h1>
         {descricao && <p className="mt-2 max-w-xl text-white/85">{descricao}</p>}
         <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-          {resumo && <span className="rounded-full bg-white/15 px-3 py-1 font-semibold backdrop-blur">{resumo}</span>}
+          {resumo && <span className="rounded-full bg-white/15 px-3 py-1 font-semibold sm:backdrop-blur">{resumo}</span>}
           {zap && <a href={zap} target="_blank" rel="noreferrer" className="rounded-full bg-[#25d366] px-4 py-1.5 font-bold text-white shadow">{t('Falar no WhatsApp')}</a>}
         </div>
       </div>

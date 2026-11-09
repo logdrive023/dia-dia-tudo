@@ -188,7 +188,7 @@ function ImpostosOperacoes({ v, mudar }: { v: ConfigFiscal; mudar(p: Partial<Con
                       </span>
                       <b className="num shrink-0 text-2xl">{pct(i.taxaBp)}%</b>
                       <button type="button" role="switch" aria-checked={i.ligado} aria-label={`${i.sigla}: ${t(i.ligado ? 'ligado' : 'desligado')}`} onClick={() => trocar(k, { ligado: !i.ligado })} className={cx('relative h-6 w-11 shrink-0 rounded-full transition-colors', i.ligado ? 'bg-[var(--marca)]' : 'bg-[var(--borda)]')}>
-                        <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', i.ligado ? 'left-[22px]' : 'left-0.5')} />
+                        <span className={cx('absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform', i.ligado && 'translate-x-5')} />
                       </button>
                     </div>
                     {(i.porQue || i.naPratica || i.explica) && (

@@ -8,7 +8,7 @@
 // O menu se monta pelos módulos ativos e pelo perfil (admin vê tudo; funcionária só o dela).
 // "Configurações" abre uma sublista com os grupos e as seções (vêm da mesma lista da tela: configSecoes.ts).
 
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState, Suspense, lazy } from 'react'
 import { Botao, Janela, cx, useTravarFundo } from '../shared/ui/base'
 import { GrupoMenuCelular } from './GrupoMenuCelular'
 import { useApp, useConsulta } from '../shared/ui/contexto'
@@ -16,10 +16,11 @@ import { useLembrado } from '../shared/ui/filtros'
 import { useT } from '../shared/ui/i18n'
 import { Icone } from '../shared/ui/icones'
 import { abrirConversor } from '../shared/ui/compartilhados'
-import { JanelaFecharTurno } from '../features/caixa'
 import { TELAS_LIBERAVEIS, type TelaLiberavel, useLiberado } from '../shared/ui/liberado'
 import { PAI } from '../shared/navegacao/rotas'
 import { GRUPOS_CONFIG, secoesDoPerfil } from '../features/config'
+
+const JanelaFecharTurno = lazy(() => import('../features/caixa').then((m) => ({ default: m.JanelaFecharTurno })))
 
 export interface ItemMenu {
   tela: string
@@ -432,7 +433,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <p className="text-sm">{t('Você tem {n} lançamento(s) em dinheiro neste turno ainda sem a contagem. Conte o dinheiro e registre antes de sair: assim a diferença (se houver) fica clara para todo mundo.', { n: turno?.lancamentos ?? 0 })}</p>
         </Janela>
       )}
-      {avisoSair === 'fechar' && <JanelaFecharTurno onFechar={() => setAvisoSair(undefined)} aoFechar={() => setTimeout(sairDeVez, 1500)} />}
+      {avisoSair === 'fechar' && <Suspense fallback={null}><JanelaFecharTurno onFechar={() => setAvisoSair(undefined)} aoFechar={() => setTimeout(sairDeVez, 1500)} /></Suspense>}
     </div>
   )
 }

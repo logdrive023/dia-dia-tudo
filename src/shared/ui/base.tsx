@@ -113,7 +113,7 @@ export function Botao({
       {...p}
       disabled={disabled || carregando}
       aria-busy={carregando || undefined}
-      className={cx('touch-manipulation rounded-xl font-semibold transition duration-100 enabled:active:scale-[0.97] disabled:opacity-50 motion-reduce:transform-none', carregando && 'cursor-wait', !/(^|s)min-w-/.test(className ?? '') && 'min-w-min', grande ? 'min-h-12 px-5 py-3 text-base' : 'min-h-10 px-4 py-2 text-sm', estilos, className)}
+      className={cx('transition active:scale-[0.98] disabled:active:scale-100 motion-reduce:active:scale-100 touch-manipulation rounded-xl font-semibold transition duration-100 enabled:active:scale-[0.97] disabled:opacity-50 motion-reduce:transform-none', carregando && 'cursor-wait', !/(^|s)min-w-/.test(className ?? '') && 'min-w-min', grande ? 'min-h-12 px-5 py-3 text-base' : 'min-h-10 px-4 py-2 text-sm', estilos, className)}
     >
       {carregando ? (
         <span className="inline-flex items-center justify-center gap-2">
@@ -516,7 +516,7 @@ export function Titulo({ children, acao, subtitulo, icone }: { children: ReactNo
       <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
       <span className="absolute inset-0 bg-[radial-gradient(120%_140%_at_0%_0%,color-mix(in_srgb,var(--marca)_9%,transparent)_0%,transparent_55%)]" />
       <span className="absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,var(--marca),color-mix(in_srgb,var(--marca)_55%,#ec4899),transparent)]" />
-      <span className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[color-mix(in_srgb,var(--marca)_6%,transparent)] blur-2xl" />
+      <span className="absolute -right-16 -top-24 h-56 w-56 bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--marca)_9%,transparent),transparent)]" />
       </span>
       {/* SE AJUSTA SOZINHO a qualquer conteúdo: o título nunca fica mais estreito que ~18rem (não espreme); as ações
           ficam ao lado enquanto couberem e, se não, descem inteiras para a linha de baixo (e quebram entre si) */}

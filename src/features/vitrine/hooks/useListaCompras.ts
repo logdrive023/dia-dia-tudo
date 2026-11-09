@@ -1,6 +1,6 @@
 // A LISTA DE COMPRAS do comprador: fica neste aparelho (voltou depois, a lista está lá) e pacote que saiu da vitrine
 // some sozinho. A prévia do gerador não grava nada.
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 const CHAVE = 'tudo.vitrine.lista'
 /** o link do WhatsApp tem tamanho limitado: a lista cabe numa mensagem só */
@@ -28,11 +28,13 @@ export function useListaCompras(disponiveis: string[] | undefined, gravar: boole
     }
   }, [gravar, disponiveis, ids])
   const cheia = ids.length >= MAX_LISTA
+  // estável: o cartão do pacote fica em memo
+  const alternar = useCallback((id: string) => setEscolhidos((l) => (l.includes(id) ? l.filter((x) => x !== id) : l.length >= MAX_LISTA ? l : [...l, id])), [])
   return {
     ids,
     cheia,
     tem: (id: string) => ids.includes(id),
-    alternar: (id: string) => setEscolhidos(ids.includes(id) ? ids.filter((x) => x !== id) : cheia ? ids : [...ids, id]),
+    alternar,
     tirar: (id: string) => setEscolhidos(ids.filter((x) => x !== id)),
     limpar: () => setEscolhidos([]),
   }

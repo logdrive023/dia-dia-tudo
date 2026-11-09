@@ -37,7 +37,7 @@ export function MetasDoMes({ className, resumida }: { className?: string; resumi
                 <b className={cx('num shrink-0', m.batida ? 'text-[var(--bom)]' : 'text-[var(--texto)]')}>{m.batida ? '✓ ' : ''}{(m.pctBp / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}%</b>
               </div>
               <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-[var(--fundo)]" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={m.nome}>
-                <div className={cx('h-full rounded-full transition-all', m.batida ? 'bg-[var(--bom)]' : 'bg-[var(--marca)]')} style={{ width: `${pct}%` }} />
+                <div className={cx('h-full rounded-full transition-[width]', m.batida ? 'bg-[var(--bom)]' : 'bg-[var(--marca)]')} style={{ width: `${pct}%` }} />
               </div>
               {m.valor !== undefined && m.realizado !== undefined && (
                 <p className="num mt-1 text-xs text-[var(--suave)]">

@@ -1,6 +1,7 @@
 // CAIXA DO DIA — o que a tela do Caixa e as peças dela (saldo, lançar, fita dos dias) usam juntas: nomes da situação
 // do dia, os botões de lançar, as categorias de despesa e a moeda/cotação de visualização guardadas no aparelho.
 import { type TabelaCotacoes } from '../../../core/domain/dinheiro'
+import type { MovCaixa } from '../../../core/domain/tipos'
 import { cotacaoDigitada, lerCotacaoTexto } from '../../../shared/ui/compartilhados'
 
 
@@ -51,4 +52,18 @@ export function tabelaDaVisao(principal: string, textos: Record<string, string>)
     if (m !== principal && v) tab[m] = cotacaoDigitada(m, v, principal)
   }
   return tab
+}
+
+/** quanto entrou e saiu no dia, na moeda da visão. Um lançamento desfeito e o inverso dele se anulam: não contam */
+export function entrouSaiu(movimentos: MovCaixa[], converter: (v: number, moeda: string) => number | undefined) {
+  let entrou = 0
+  let saiu = 0
+  for (const m of movimentos) {
+    if (m.estornadoPor || m.estornaId) continue
+    const v = converter(m.delta, m.moeda)
+    if (v === undefined) continue
+    if (v > 0) entrou += v
+    else saiu -= v
+  }
+  return { entrou, saiu }
 }
