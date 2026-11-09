@@ -19,6 +19,8 @@ import { MenuAcoes } from '../../../shared/ui/menuAcoes'
 import { MiniaturaLote, marcadorLote } from '../../../shared/ui/fotos'
 import { useT } from '../../../shared/ui/i18n'
 import { useEvento } from '../hooks/useEvento'
+import { useListaVirtual } from '../../../shared/ui/listaVirtual'
+import { useTelaLarga } from '../../../shared/ui/estoqueUi'
 import { useCamposModulo } from '../model/comum'
 import { NumeroGrande, type Selo, GrupoNumeros } from '../../../shared/ui/numeroGrande'
 import { CampoFaixa, GrupoFiltro, FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
@@ -217,9 +219,7 @@ export function Etiquetas() {
             <span className="hidden w-full pb-1 text-xs text-[var(--suave)] lg:block">{t('Toque no pacote para marcar. Shift + clique marca todos entre dois.')}</span>
           </div>
           <Paginada itens={lista} padrao={50} unidade="pacote(s)" reiniciar={JSON.stringify([filtro, ...todosFiltros.map((k) => p(k))])}>{(pagina, inicio) => (
-            <ul id="lista-etiquetas" className="grid gap-2 lg:grid-cols-2">
-              {pagina.map((i, k) => <LinhaEtiqueta key={i.id} i={i} indice={inicio + k} marcado={sel.has(i.id)} onAlternar={alternarLinha} onAbrir={abrirLinha} onImprimir={imprimirLinha} onRefazer={refazerLinha} />)}
-            </ul>
+            <ListaEtiquetas pagina={pagina} inicio={inicio} sel={sel} onAlternar={alternarLinha} onAbrir={abrirLinha} onImprimir={imprimirLinha} onRefazer={refazerLinha} />
           )}</Paginada>
         </>
       )}
@@ -255,7 +255,18 @@ export function Etiquetas() {
 }
 
 /** Uma linha: marcar, foto, código grande, rótulo, peso, compra de origem e a situação da etiqueta; Imprimir/Reimprimir. */
-const LinhaEtiqueta = memo(function LinhaEtiqueta({ i, indice, marcado, onAlternar: alternar, onAbrir: abrir, onImprimir: imprimir, onRefazer: refazer }: { i: Linha; indice: number; marcado: boolean; onAlternar(k: number, intervalo?: boolean): void; onAbrir(id: Id): void; onImprimir(id: Id): void; onRefazer(id: Id): void }) {
+/** a lista da página: no celular (uma coluna), com 40+ pacotes, só desenha os de perto da tela */
+function ListaEtiquetas({ pagina, inicio, sel, ...acoes }: { pagina: Linha[]; inicio: number; sel: Set<Id>; onAlternar(k: number, intervalo?: boolean): void; onAbrir(id: Id): void; onImprimir(id: Id): void; onRefazer(id: Id): void }) {
+  const larga = useTelaLarga()
+  const virtual = useListaVirtual(pagina.length, { estimativa: 96, ativo: !larga, gap: 8, chave: (k) => pagina[k].id })
+  return (
+    <ul id="lista-etiquetas" ref={virtual.ref} style={virtual.estilo} className="grid gap-2 lg:grid-cols-2">
+      {virtual.fatia(pagina).map(({ item: i, indice }) => <LinhaEtiqueta key={i.id} i={i} indice={inicio + indice} posicao={indice} medir={virtual.medir} marcado={sel.has(i.id)} {...acoes} />)}
+    </ul>
+  )
+}
+
+const LinhaEtiqueta = memo(function LinhaEtiqueta({ i, indice, posicao, medir, marcado, onAlternar: alternar, onAbrir: abrir, onImprimir: imprimir, onRefazer: refazer }: { i: Linha; indice: number; posicao: number; medir?(el: Element | null): void; marcado: boolean; onAlternar(k: number, intervalo?: boolean): void; onAbrir(id: Id): void; onImprimir(id: Id): void; onRefazer(id: Id): void }) {
   const onAlternar = (intervalo?: boolean) => alternar(indice, intervalo)
   const onAbrir = () => abrir(i.id)
   const onImprimir = () => imprimir(i.id)
@@ -264,7 +275,7 @@ const LinhaEtiqueta = memo(function LinhaEtiqueta({ i, indice, marcado, onAltern
   const parar = (e: React.SyntheticEvent) => e.stopPropagation()
   const origem = i.compras.map((c) => [c.codigo, c.fornecedor].filter(Boolean).join(' · ')).join(' + ')
   return (
-    <li onClick={(e) => onAlternar(e.shiftKey)} className={cx('flex min-w-0 cursor-pointer select-none items-center gap-2 rounded-2xl border p-2 pr-3 shadow-sm', marcado ? 'border-[var(--marca)] bg-[var(--marca-suave)] ring-2 ring-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)]')}>
+    <li ref={medir} data-index={posicao} onClick={(e) => onAlternar(e.shiftKey)} className={cx('flex min-w-0 cursor-pointer select-none items-center gap-2 rounded-2xl border p-2 pr-3 shadow-sm', marcado ? 'border-[var(--marca)] bg-[var(--marca-suave)] ring-2 ring-[var(--marca)]' : 'border-[var(--borda)] bg-[var(--cartao)]')}>
       <span className="flex min-h-10 min-w-8 shrink-0 items-center justify-center">
         <input type="checkbox" className="h-5 w-5 cursor-pointer" aria-label={`${t('Selecionar')} ${i.codigo ?? i.nome}`} checked={marcado} onChange={() => undefined} onClick={(e) => (parar(e), onAlternar(e.shiftKey))} />
       </span>

@@ -24,6 +24,7 @@
     "responsivo:fotos": "node scripts/responsivo.mjs --fotos"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "3.13.12",
     "dexie": "4.0.10",
     "jsqr": "1.4.0",
     "react": "18.3.1",

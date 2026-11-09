@@ -10,7 +10,7 @@ import { type ProgressoDemo, aoProgressoDemo, carregarDemo } from '../adapters/d
 import { montandoCenario } from '../adapters/cenarios'
 import { Botao, Carregando, definirPadroes } from '../shared/ui/base'
 import { useApp, useConsulta } from '../shared/ui/contexto'
-import { IdiomaContexto, type Idioma, localeDe, traduzir, useT } from '../shared/ui/i18n'
+import { IdiomaContexto, type Idioma, localeDe, traduzir, useT, useDicionario } from '../shared/ui/i18n'
 import { useIdiomaAparelho } from '../shared/ui/idiomaAparelho'
 import { TELAS_LIBERAVEIS, type TelaLiberavel, useLiberado } from '../shared/ui/liberado'
 import { navParaHash } from '../shared/navegacao/rotas'
@@ -25,11 +25,13 @@ export function ComIdioma({ children }: { children: ReactNode }) {
   // funcionária: o idioma da equipe (espanhol no padrão — Configurações › O que a funcionária faz); admin: o do sistema
   const doPerfil = sessao.usuarioId && sessao.perfil === 'funcionario' ? dados?.config.funcionariaIdioma : dados?.config.idioma
   const idioma = (doAparelho ?? doPerfil ?? 'pt') as Idioma
+  const pronto = useDicionario(idioma)
   // antes de desenhar as telas: números/datas no formato do idioma e a moeda principal como padrão
   definirPadroes({ locale: localeDe(idioma), moeda: dados?.config.moedaPrincipal ?? 'BOB' })
   useEffect(() => {
     document.documentElement.lang = idioma === 'es' ? 'es' : 'pt-BR'
   }, [idioma])
+  if (!pronto) return <Carregando tela />
   return <IdiomaContexto.Provider value={idioma}>{children}</IdiomaContexto.Provider>
 }
 

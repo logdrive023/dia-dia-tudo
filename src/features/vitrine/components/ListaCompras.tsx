@@ -2,7 +2,7 @@
 // numerados, o total e o botão que manda tudo numa mensagem só. Fica dentro da loja para usar as cores dela.
 import { useContext, useState } from 'react'
 import type { MensagensVitrine, ModoPrecoVitrine, PacoteVitrine } from '../../../core/services/vitrine'
-import { IdiomaContexto, useT } from '../../../shared/ui/i18n'
+import { IdiomaContexto, useDicionario, useT } from '../../../shared/ui/i18n'
 import { MAX_LISTA } from '../hooks/useListaCompras'
 import { dinheiroLoja, kg } from '../model/formato'
 import { idiomaDaMensagem, mensagemLista, totalLista, valorPacote } from '../model/mensagem'
@@ -19,6 +19,7 @@ export function ListaCompras({ pacotes, loja, whatsapp, modoPreco, mensagens, ch
 }) {
   const t = useT()
   const idioma = useContext(IdiomaContexto)
+  useDicionario('es')
   const [aberta, setAberta] = useState(false)
   const texto = mensagemLista(idiomaDaMensagem(idioma, navigator.language), pacotes, loja, modoPreco, mensagens)
   const link = `https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`

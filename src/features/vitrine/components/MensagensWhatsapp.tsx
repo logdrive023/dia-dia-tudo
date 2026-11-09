@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import type { MensagensVitrine, ModoPrecoVitrine, PacoteVitrine, TipoMensagemVitrine } from '../../../core/services/vitrine'
 import { Botao, Campo, Cartao, Escolha } from '../../../shared/ui/base'
-import { type Idioma, useT } from '../../../shared/ui/i18n'
+import { type Idioma, useDicionario, useT } from '../../../shared/ui/i18n'
 import { kg } from '../model/formato'
 import { VARIAVEIS_MENSAGEM, mensagemLista, mensagemLoja, mensagemPacote, textoPronto, variaveisDesconhecidas } from '../model/mensagem'
 
@@ -31,6 +31,7 @@ export function MensagensWhatsapp({ valor, onChange, loja, pacotes, modoPreco }:
 }) {
   const t = useT()
   const area = useRef<HTMLTextAreaElement>(null)
+  useDicionario('es') // o texto pronto em espanhol
   const [idioma, setIdioma] = useState<Idioma>('es')
   const [qual, setQual] = useState<Qual>('pacote')
   const tipos: TipoMensagemVitrine[] = qual === 'loja' ? ['loja'] : [qual, 'perguntaPreco']

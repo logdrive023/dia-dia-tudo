@@ -14,7 +14,7 @@ import { linkWhatsApp, useCotacoes } from '../../../shared/ui/compartilhados'
 import { AbaAnexos } from '../../../shared/ui/anexos'
 import { LinhaDoTempo } from '../../../shared/ui/linhaTempo'
 import { MenuAcoes } from '../../../shared/ui/menuAcoes'
-import { useT } from '../../../shared/ui/i18n'
+import { useT, useDicionario } from '../../../shared/ui/i18n'
 import { DivisaoInterna } from '../components/DivisaoInterna'
 import { dividir, memoriaCalculo, pct } from '../../../core/domain/comissao'
 import { FaltaNaVenda } from '../components/FaltaNaVenda'
@@ -296,6 +296,7 @@ function NotaCompleta({ vendaId, linhas, moeda, onCorrigir }: { vendaId: Id; lin
   const t = useT()
   const { sessao, ir } = useApp()
   const consultaDoc = useConsulta('documentoVenda', { id: vendaId })
+  const notaPronta = useDicionario('es') // a nota sai sempre em espanhol
   const { dados: doc, erro } = consultaDoc
   const [modelo, setModelo] = useState<ModeloDocumentoId>()
   const [comImpostos, setComImpostos] = useState<boolean>()
@@ -305,7 +306,7 @@ function NotaCompleta({ vendaId, linhas, moeda, onCorrigir }: { vendaId: Id; lin
   const fimImpressao = useCallback(() => setImprimindo(false), [])
   // erro nunca vira "Carregando…" para sempre
   if (erro && !doc) return <ErroConsulta texto={erro} respostas={consultaDoc.respostas} onTentar={consultaDoc.recarregar} />
-  if (!doc) return <Carregando linhas={6} />
+  if (!doc || !notaPronta) return <Carregando linhas={6} />
   const md = modelo ?? doc.modeloPadrao
   const includeTaxesInPrint = comImpostos ?? doc.impostosNaNota
   const temImpostos = doc.impostos.linhas.length > 0

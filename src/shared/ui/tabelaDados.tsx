@@ -14,10 +14,11 @@
 //
 // Fica FORA daqui (é do módulo): a consulta, os filtros (FiltroLista), as regras e a paginação (usePaginacao/Paginacao).
 
-import { Fragment, type ReactNode, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { EsqueletoTabela } from './esqueleto'
 import { Botao, cx, inicialMaiuscula } from './base'
 import { useTelaLarga } from './estoqueUi'
+import { useListaVirtual } from './listaVirtual'
 import { useT } from './i18n'
 import { type Acao, MenuAcoes } from './menuAcoes'
 
@@ -143,6 +144,8 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
 }) {
   const t = useT()
   const larga = useTelaLarga()
+  // lista grande (40+ linhas): só as de perto da tela são desenhadas. Os cartões do computador ficam fora (estão em grade)
+  const virtual = useListaVirtual(linhas.length, { estimativa: larga ? 52 : 92, ativo: !carregando && !erro && !(larga && cartoes), chave: (i) => chave(linhas[i]) })
   const [abertas, setAbertas] = useState<Set<string>>(new Set())
   const alternar = (id: string) => setAbertas((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
@@ -163,13 +166,13 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
   // ---------- celular (linha curta que abre no lugar) e CARTÕES no computador: o mesmo conteúdo, outra disposição ----------
   if (celular && (!larga || cartoes))
     return (
-      <ul className={!larga ? 'divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]' : 'grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3'}>
-        {linhas.map((l) => {
+      <ul ref={virtual.ref} style={virtual.estilo} className={!larga ? 'divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]' : 'grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3'}>
+        {virtual.fatia(linhas).map(({ item: l, indice }) => {
           const id = chave(l)
           const aberta = abertas.has(id)
           const mais = acoes?.(l) ?? []
           return (
-            <li key={id} style={celular.tom?.(l) ? { boxShadow: `inset 4px 0 0 ${COR_TOM[celular.tom(l)!]}` } : undefined} className={cx(larga && 'overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm transition hover:border-[var(--marca)]', aberta && 'bg-[var(--marca-suave)]/40', marcada(l) && 'bg-[var(--marca-suave)] !border-[var(--marca)]', apagada(l) && 'opacity-75')}>
+            <li key={id} ref={virtual.medir} data-index={indice} style={celular.tom?.(l) ? { boxShadow: `inset 4px 0 0 ${COR_TOM[celular.tom(l)!]}` } : undefined} className={cx(larga && 'overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm transition hover:border-[var(--marca)]', aberta && 'bg-[var(--marca-suave)]/40', marcada(l) && 'bg-[var(--marca-suave)] !border-[var(--marca)]', apagada(l) && 'opacity-75')}>
               <div className="flex items-start gap-2 px-4 py-3">
                 {selecao && <span className="flex h-6 shrink-0 items-center">{caixa(l)}</span>}
                 {celular.midia && <span className="shrink-0">{celular.midia(l)}</span>}
@@ -241,7 +244,7 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
   const nCol = colunas.length + (selecao ? 1 : 0) + (temAcoes ? 1 : 0)
   return (
     <div className="overflow-x-auto rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-      <table className="w-full text-sm">
+      <table ref={virtual.ref} className="w-full text-sm">
         <thead className="border-b border-[var(--borda)] bg-[var(--fundo)] text-left">
           <tr>
             {selecao && <th className="w-10 px-2 py-2"><input type="checkbox" className="h-5 w-5 cursor-pointer" aria-label={t('Selecionar todos os filtrados')} checked={todos} onChange={selecao.onTodos} /></th>}
@@ -260,24 +263,25 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
             {temAcoes && <th className="w-12 px-2"><span className="sr-only">{t('Ações')}</span></th>}
           </tr>
         </thead>
-        <tbody>
-          {linhas.map((l) => {
+        {virtual.antes > 0 && <tbody aria-hidden><tr style={{ height: virtual.antes }}><td colSpan={nCol} /></tr></tbody>}
+          {/* um tbody por linha: é ele que tem a altura certa quando a linha tem detalhe embaixo */}
+          {virtual.fatia(linhas).map(({ item: l, indice }) => {
             const id = chave(l)
             const extra = detalhe?.(l)
             return (
-              <Fragment key={id}>
+              <tbody key={id} ref={virtual.medir} data-index={indice}>
                 <tr tabIndex={onAbrir ? 0 : undefined} role={onAbrir ? 'link' : undefined} aria-label={rotuloLinha?.(l)}
                   onClick={onAbrir && (() => onAbrir(l))} onKeyDown={onAbrir && ((e) => e.key === 'Enter' && e.target === e.currentTarget && onAbrir(l))}
-                  className={cx('border-t border-[var(--borda)] align-middle outline-none first:border-t-0', onAbrir && 'cursor-pointer hover:bg-[var(--marca-suave)]/50 focus-visible:bg-[var(--marca-suave)]', marcada(l) && 'bg-[var(--marca-suave)]', apagada(l) && 'text-[var(--suave)]')}>
+                  className={cx(indice > 0 && 'border-t border-[var(--borda)]', 'align-middle outline-none', onAbrir && 'cursor-pointer hover:bg-[var(--marca-suave)]/50 focus-visible:bg-[var(--marca-suave)]', marcada(l) && 'bg-[var(--marca-suave)]', apagada(l) && 'text-[var(--suave)]')}>
                   {selecao && <td className="w-10 px-2">{caixa(l)}</td>}
                   {colunas.map((c) => <td key={c.id} className={cx(pad, c.direita && 'num whitespace-nowrap text-right', c.larga && 'hidden xl:table-cell', c.classe)}>{c.celula(l)}</td>)}
                   {temAcoes && <td className="w-12 px-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><span className="flex flex-nowrap items-center justify-end gap-0.5">{acaoRapida?.(l)}{acoes && <MenuAcoes acoes={acoes(l)} />}</span></td>}
                 </tr>
                 {extra && <tr className="bg-[var(--fundo)]"><td colSpan={nCol} className="px-3 py-2">{extra}</td></tr>}
-              </Fragment>
+              </tbody>
             )
           })}
-        </tbody>
+        {virtual.depois > 0 && <tbody aria-hidden><tr style={{ height: virtual.depois }}><td colSpan={nCol} /></tr></tbody>}
       </table>
     </div>
   )

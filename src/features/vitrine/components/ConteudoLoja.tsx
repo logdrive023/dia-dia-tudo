@@ -6,7 +6,7 @@ import { memo, useContext, useMemo, useState } from 'react'
 import { APARENCIA_PADRAO, type AparenciaVitrine, type MensagensVitrine, type ModoPrecoVitrine, type PacoteVitrine } from '../../../core/services/vitrine'
 import { cx } from '../../../shared/ui/base'
 import { useUrlFoto } from '../../../shared/ui/fotos'
-import { IdiomaContexto, useT } from '../../../shared/ui/i18n'
+import { IdiomaContexto, useDicionario, useT } from '../../../shared/ui/i18n'
 import { estiloLoja } from '../model/aparencia'
 import { dinheiroLoja as dinheiro, kg, numeroFator as numero } from '../model/formato'
 import { idiomaDaMensagem, mensagemLoja, mensagemPacote } from '../model/mensagem'
@@ -20,6 +20,7 @@ const TOM_COR: Record<string, string> = { Preto: '#1f1b1a', Castanho: '#5b3a29',
 export const CartaoPacoteVitrine = memo(function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens, naLista, listaCheia, onLista }: { p: PacoteVitrine; whatsapp?: string; loja: string; modoPreco: ModoPrecoVitrine; mensagens?: MensagensVitrine; naLista: boolean; listaCheia: boolean; onLista(id: string): void }) {
   const t = useT()
   const idioma = useContext(IdiomaContexto)
+  useDicionario('es') // a mensagem do WhatsApp sai em espanhol mesmo com a página em português
   const url = useUrlFoto(p.foto)
   const cor = TOM_COR[p.cor ?? ''] ?? '#6d4c41'
   const porGrama = p.preco ? numero(p.preco.fator) : undefined
@@ -94,6 +95,7 @@ export interface DadosLoja {
 export function ConteudoLoja({ dados, colunas, limite, className }: { dados?: DadosLoja; colunas?: 2 | 3; /** a prévia desenha só os primeiros (a contagem do topo continua a real) */ limite?: number; className?: string }) {
   const t = useT()
   const idioma = useContext(IdiomaContexto)
+  useDicionario('es')
   // a prévia do gerador (com limite) não grava a lista no aparelho
   const compras = useListaCompras(useMemo(() => dados?.pacotes.map((p) => p.id), [dados?.pacotes]), !limite)
   const escolhidos = compras.ids.flatMap((id) => dados?.pacotes.find((p) => p.id === id) ?? [])

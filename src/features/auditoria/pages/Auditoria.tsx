@@ -13,6 +13,7 @@ import { baixarCSV } from '../../../shared/ui/csv'
 import { BotaoEscolha, FiltroLista, GrupoFiltro, VazioFiltro } from '../../../shared/ui/filtroPadrao'
 import { useT } from '../../../shared/ui/i18n'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
+import { useListaVirtual } from '../../../shared/ui/listaVirtual'
 import { AreaPaginada, Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
 import { corDoNome, iniciais } from '../../../shared/ui/tabelaDados'
 import type { CategoriaAuditoria, RefAuditoria } from '../../../core/services/auditoria'
@@ -53,6 +54,7 @@ export function Auditoria() {
   const { dados } = useConsulta('auditoria', { de: de || undefined, ate: ate || undefined, usuarioId: usuarioId || undefined, acao: acao || undefined, categoria: area || undefined, busca: busca || undefined })
   const linhas = dados?.linhas ?? []
   const pag = usePaginacao(linhas, { padrao: 50, reiniciar: JSON.stringify([busca, de, ate, usuarioId, acao, area]) })
+  const virtual = useListaVirtual(pag.itens.length, { estimativa: 72 })
   const abrirRef = (r: RefAuditoria) => ir(r.tela, r.params)
   const nomeUsuario = dados?.usuarios.find((u) => u.id === usuarioId)?.nome
   const ativos = [
@@ -89,11 +91,11 @@ export function Auditoria() {
       {!dados ? <Carregando /> : !dados.noPeriodo ? <Vazio texto="Nada registrado ainda." /> : !linhas.length ? <VazioFiltro filtrando onLimpar={limpar} /> : (
         <>
           <AreaPaginada pag={pag}>
-          <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-            {pag.itens.map((l) => {
+          <ul ref={virtual.ref} style={virtual.estilo} className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+            {virtual.fatia(pag.itens).map(({ item: l, indice }) => {
               const cor = COR_AREA[l.categoria]
               return (
-                <li key={l.id}>
+                <li ref={virtual.medir} data-index={indice} key={l.id}>
                   <div role="button" tabIndex={0} onClick={() => setAberto(l.id)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setAberto(l.id))}
                     className={cx('relative flex cursor-pointer gap-3 py-2.5 pl-4 pr-3 text-left hover:bg-[var(--fundo)] focus-visible:bg-[var(--fundo)]', l.categoria === 'recusa' && 'bg-[var(--ruim)]/5')}>
                     <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: cor }} />
