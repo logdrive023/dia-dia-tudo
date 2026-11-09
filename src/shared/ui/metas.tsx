@@ -1,6 +1,7 @@
 // METAS DO MÊS (cartão): Painel (administrador) e Vender (funcionária, as dela). Cada meta: nome, o que mede e a barra
 // de quanto já foi; com valor (Bs 750 de Bs 1.000 · faltam Bs 250 · Bs 13/dia) ou só a % — o administrador decide em
 // Configurações › Metas. Some sozinho quando não há meta ou está desligado.
+import { useState } from 'react'
 import { formatar } from '../../core/domain/dinheiro'
 import { cx } from './base'
 import { useApp, useConsulta } from './contexto'
@@ -12,8 +13,10 @@ const INDICADOR: Record<string, { nome: string; icone: string }> = {
   atendimentos: { nome: 'Atendimentos', icone: '✂️' },
 }
 
-export function MetasDoMes({ className }: { className?: string }) {
+/** `resumida`: só a primeira meta à vista; as outras abrem no lugar (o Painel inicial fica leve) */
+export function MetasDoMes({ className, resumida }: { className?: string; resumida?: boolean }) {
   const t = useT()
+  const [todas, setTodas] = useState(false)
   const { ir, sessao } = useApp()
   const { dados } = useConsulta('metas', {})
   if (!dados?.mostrar || !dados.metas.length) return null
@@ -24,8 +27,8 @@ export function MetasDoMes({ className }: { className?: string }) {
         <h2 className="text-base font-bold">🎯 {t('Metas do mês')}</h2>
         <span className="text-xs text-[var(--suave)]">{t('Faltam {n} dia(s)', { n: dados.diasRestantes })}{sessao.perfil === 'admin' && <> · <button type="button" className="font-semibold text-[var(--marca)]" onClick={() => ir('configSecao', { id: 'metas' })}>{t('Ajustar')}</button></>}</span>
       </div>
-      <ul className="grid gap-3 md:grid-cols-2">
-        {dados.metas.map((m) => {
+      <ul className={cx('grid gap-3', !resumida && 'md:grid-cols-2')}>
+        {(resumida && !todas ? dados.metas.slice(0, 1) : dados.metas).map((m) => {
           const pct = Math.min(100, m.pctBp / 100)
           return (
             <li key={m.id}>
@@ -46,6 +49,11 @@ export function MetasDoMes({ className }: { className?: string }) {
           )
         })}
       </ul>
+      {resumida && dados.metas.length > 1 && (
+        <button type="button" aria-expanded={todas} onClick={() => setTodas(!todas)} className="mt-1 min-h-10 rounded-lg px-1 text-sm font-semibold text-[var(--marca)]">
+          {todas ? t('Mostrar menos') : t('Ver todas as metas ({n})', { n: dados.metas.length })}
+        </button>
+      )}
     </section>
   )
 }

@@ -1,10 +1,11 @@
-// FILTROS DO PAINEL — o filtro padrão do sistema, sem busca: atalhos de período · Comparar · "⚙ Filtros · N" → painel em
-// grupos (moeda, unidade, impostos) com "Limpar · Pronto" → os filtros ligados em chips ✕.
+// FILTROS DO PAINEL — o filtro padrão do sistema, sem busca: atalhos de período · "⚙ Filtros · N" → painel em
+// grupos (comparação, moeda, unidade, impostos) com "Limpar · Pronto" → os filtros ligados em chips ✕.
 import { useState } from 'react'
-import { Campo, Escolha, Selecao, cx } from '../../../shared/ui/base'
+import { Campo, Escolha, Selecao } from '../../../shared/ui/base'
 import { BotaoFiltros, BotaoPeriodo, ChipsFiltros, type FiltroAtivo, GrupoFiltro, PainelFiltros } from '../../../shared/ui/filtroPadrao'
 import { calcularPeriodo, type Periodo, type Preset } from '../../../shared/ui/filtros'
 import { useT } from '../../../shared/ui/i18n'
+import { Interruptor } from '../../../shared/ui/interruptor'
 
 const PRESETS: { id: Exclude<Preset, 'livre'>; nome: string }[] = [{ id: 'hoje', nome: 'Hoje' }, { id: '7d', nome: '7 dias' }, { id: '30d', nome: '30 dias' }, { id: 'mes', nome: 'Este mês' }, { id: 'mesPassado', nome: 'Mês passado' }, { id: 'ano', nome: 'Ano' }]
 
@@ -44,17 +45,13 @@ export function FiltrosPainel(p: FiltrosPainelProps) {
           p.setPeriodo(pr ? calcularPeriodo(pr.id) : { preset: 'livre', de, ate })
         }} />
         <span className="min-w-0 flex-1" />
-        <button type="button" role="switch" aria-checked={p.comparar} onClick={() => p.setComparar(!p.comparar)} title={t('Comparar com o período anterior')} className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-1 text-sm">
-          <span className="hidden text-[var(--suave)] sm:inline">{t('Comparar')}</span>
-          <span aria-hidden className={cx('relative h-6 w-11 rounded-full transition-colors', p.comparar ? 'bg-[var(--marca)]' : 'bg-[var(--borda)]')}>
-            <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', p.comparar ? 'left-[22px]' : 'left-0.5')} />
-          </span>
-          <span className="sr-only sm:hidden">{t('Comparar')}</span>
-        </button>
         <BotaoFiltros ativos={ativos.length} aberto={aberto} onAlternar={() => setAberto(!aberto)} />
       </div>
       {aberto && (
         <PainelFiltros temAtivos={ativos.length > 0} onLimpar={limpar} onFechar={() => setAberto(false)}>
+          <GrupoFiltro titulo="Comparação" icone="📈">
+            <Interruptor ligado={p.comparar} onChange={p.setComparar} titulo="Comparar com o período anterior" texto="Mostra se o número subiu ou desceu." />
+          </GrupoFiltro>
           <GrupoFiltro titulo="Dinheiro e lugar" icone="💱">
             <Campo rotulo="Moeda"><Selecao valor={p.moeda === 'convertido' ? '' : p.moeda} onChange={(v) => p.setMoeda(v || 'convertido')} vazio={`${t('Tudo em')} ${p.principal}`} opcoes={p.moedas.map((m) => ({ id: m, nome: `${t('Só')} ${m}` }))} /></Campo>
             {p.locais.length > 0 && <Campo rotulo="Unidade"><Selecao valor={p.localId} onChange={p.setLocalId} vazio="Todas" opcoes={p.locais.map((l) => ({ id: l.id, nome: l.nome }))} /></Campo>}

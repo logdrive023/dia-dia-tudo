@@ -5405,4 +5405,15 @@ export const ES: Record<string, string> = {
   'Dom': 'Dom',
   '● Bolinha': '● Bolita',
   '■ Quadradinho': '■ Cuadradito',
+  // painel simplificado
+  'Como está o negócio e o que precisa de você.': 'Cómo va el negocio y qué necesita de usted.',
+  'Como está indo': 'Cómo va',
+  'Onde o cabelo está agora, da compra até ficar pronto para vender. Não depende do período escolhido.': 'Dónde está el cabello ahora, desde la compra hasta quedar listo para vender. No depende del período elegido.',
+  'Ver mais detalhes': 'Ver más detalles',
+  'Esconder os detalhes': 'Ocultar los detalles',
+  'Dinheiro, evolução, de onde vem, viagens e áreas': 'Dinero, evolución, de dónde viene, viajes y áreas',
+  'Resumo do período': 'Resumen del período',
+  'Comparação': 'Comparación',
+  'Mostra se o número subiu ou desceu.': 'Muestra si el número subió o bajó.',
+  'Ver todas as metas ({n})': 'Ver todas las metas ({n})',
 }
