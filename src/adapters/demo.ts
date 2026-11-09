@@ -478,7 +478,6 @@ async function montar(b: BackendNoAparelho) {
       nome: 'Cabelos da Família · Santa Cruz',
       descricao: 'Cabelo natural boliviano, separado por medida e pesado na balança. Atacado e varejo.',
       whatsapp: '+591 70000000',
-      mostrarPreco: true,
       ocultos: [l40],
     },
   })

@@ -1,6 +1,7 @@
 // A FUNCIONÁRIA NÃO VÊ O QUE NÃO PODE (regra do dono): com os dados de exemplo, entra a Sofia (funcionária do Centro)
 // e confere consulta por consulta — custo, fornecedor, sócias, salário, comissão das colegas, a venda de outra
 // unidade, a linha do tempo (caixa e registro de todos) e a origem do pacote nunca chegam até ela.
+import { podeVerDivisao } from '../core/services/visibilidade'
 import { describe, expect, it } from 'vitest'
 import type { BackendNoAparelho } from '../adapters/noAparelho'
 import { SENHA_DEMO, carregarDemo } from '../adapters/demo'
@@ -79,5 +80,15 @@ describe('funcionária: só o que é dela', () => {
     expect(c.config.socios).toEqual([])
     expect(c.historico).toEqual([])
     expect(Object.keys(c.config.cambio)).toEqual([])
+  })
+
+  it('divisão interna da venda: só o administrador ou a dona da linha, e só com divisão de verdade', () => {
+    const linha = { profissionalId: 'p1', comissaoBp: 4000 }
+    expect(podeVerDivisao({ perfil: 'admin', usuarioId: 'x' }, linha)).toBe(true)
+    expect(podeVerDivisao({ perfil: 'funcionaria', usuarioId: 'u', pessoaId: 'p1' }, linha)).toBe(true)
+    expect(podeVerDivisao({ perfil: 'funcionaria', usuarioId: 'u', pessoaId: 'p2' }, linha)).toBe(false)
+    expect(podeVerDivisao({ perfil: 'funcionaria', usuarioId: 'u', pessoaId: 'p1' }, {})).toBe(false)
+    expect(podeVerDivisao({ perfil: 'admin', usuarioId: 'x' }, { comissaoBp: 0 })).toBe(false)
+    expect(podeVerDivisao({ perfil: 'admin', usuarioId: 'x' }, { insumoPrincipal: 300 })).toBe(true)
   })
 })

@@ -45,6 +45,8 @@ describe('triagem: etiqueta à vista', () => {
     const folha = await screen.findByRole('dialog', { name: 'Imprimir etiquetas' })
     await waitFor(() => expect((within(folha).getByRole('button', { name: /Imprimir/ }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(within(folha).getByRole('button', { name: /Imprimir/ }))
+    await within(folha).findByText(/Enviado para a impressora/)
+    fireEvent.click(within(folha).getByRole('button', { name: /Confirmar impressão/ }))
     await within(folha).findByText(/Marcadas como impressas/)
     fireEvent.click(within(folha).getByRole('button', { name: /Voltar/ }))
     // tudo com etiqueta: a faixa de aviso some (o normal não aparece)

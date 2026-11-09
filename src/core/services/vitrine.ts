@@ -1,10 +1,11 @@
 // MINHA VITRINE: os pacotes PRONTOS PARA VENDER, como um comprador de fora veria (link #/loja).
 // Pronto = cabelo já separado na triagem (tem medida), com ETIQUETA impressa, com saldo e sem reserva.
-// O administrador escolhe (Minha vitrine): ligar/desligar, nome e texto da loja, WhatsApp, mostrar o preço (de qual
-// coluna da tabela) e esconder pacotes. O comprador vê: código, medida, categoria, cor, gramas, foto e o preço por grama
-// (se ligado) — NUNCA custo, fornecedor, compra ou viagem. O botão "Quero este" abre o WhatsApp com a mensagem pronta.
+// O administrador escolhe (Minha vitrine): ligar/desligar, nome e texto da loja, WhatsApp, como aparece o preço (entrar
+// em contato = padrão · preço da tabela · preço por pacote) e esconder pacotes. O comprador vê: código, medida, categoria,
+// cor, gramas, foto e o preço (se escolhido) — NUNCA custo, fornecedor, compra ou viagem. O botão abre o WhatsApp.
 // Hoje o link abre neste aparelho (os dados estão nele); com a API, o mesmo link vira público.
 import type { Id, Item } from '../domain/tipos'
+import { fatorValido } from '../domain/dinheiro'
 import { exigir } from '../domain/erros'
 import { type Ctx, lerConfig } from './contexto'
 import { type FotoResumo, leitorFotos } from './fotos'
@@ -30,21 +31,28 @@ export const BANNER_MAX = 700_000
 export const corValida = (c?: string) => /^#[0-9a-f]{6}$/i.test(c ?? '')
 export const bannerValido = (b?: string) => !!b && b.length <= BANNER_MAX && /^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(b)
 
+/** como o preço aparece: sem preço (o comprador chama no WhatsApp) · o da tabela · um preço digitado para cada pacote */
+export type ModoPrecoVitrine = 'contato' | 'tabela' | 'individual'
+export const MODOS_PRECO_VITRINE: ModoPrecoVitrine[] = ['contato', 'tabela', 'individual']
+
 export interface ConfigVitrine {
   ativa: boolean
   nome?: string
   descricao?: string
   /** WhatsApp para o "Quero este" (com código do país). Ex.: +591 70000000 */
   whatsapp?: string
-  mostrarPreco: boolean
-  /** a coluna da tabela de preço usada na vitrine (sem escolha: a primeira coluna da tabela) */
+  /** sem escolha: 'contato' */
+  modoPreco?: ModoPrecoVitrine
+  /** modo 'tabela': a coluna da tabela de preço (sem escolha: a primeira coluna) */
   colunaId?: string
+  /** modo 'individual': o preço por grama de cada pacote, como na tabela (ex.: "17,5") */
+  precos?: Record<Id, string>
   /** pacotes que o administrador escondeu da vitrine */
   ocultos: Id[]
   /** o visual da loja (o que não vier usa APARENCIA_PADRAO) */
   aparencia?: AparenciaVitrine
 }
-export const VITRINE_PADRAO: ConfigVitrine = { ativa: true, mostrarPreco: true, ocultos: [] }
+export const VITRINE_PADRAO: ConfigVitrine = { ativa: true, modoPreco: 'contato', ocultos: [] }
 
 export function validarVitrine(v: ConfigVitrine): ConfigVitrine {
   const w = (v.whatsapp ?? '').replace(/[^\d+]/g, '')
@@ -56,7 +64,10 @@ export function validarVitrine(v: ConfigVitrine): ConfigVitrine {
     exigir((a.slogan ?? '').length <= 80, 'A frase do topo pode ter até 80 letras.')
     exigir(!a.banner || bannerValido(a.banner), 'Banner inválido: envie uma imagem JPG, PNG ou WebP de até 500 KB.')
   }
-  return { ...VITRINE_PADRAO, ...v, aparencia: a, whatsapp: w || undefined, nome: v.nome?.trim() || undefined, descricao: v.descricao?.trim() || undefined, ocultos: [...new Set(v.ocultos ?? [])] }
+  exigir(MODOS_PRECO_VITRINE.includes(v.modoPreco ?? 'contato'), 'Modo de preço da vitrine inválido.')
+  const precos = Object.fromEntries(Object.entries(v.precos ?? {}).map(([id, f]): [Id, string] => [id, String(f).trim()]).filter(([, f]) => f))
+  exigir(Object.values(precos).every((f) => fatorValido(f)), 'Preço inválido: use só números. Ex.: 17,5.')
+  return { ...VITRINE_PADRAO, ...v, precos, aparencia: a, whatsapp: w || undefined, nome: v.nome?.trim() || undefined, descricao: v.descricao?.trim() || undefined, ocultos: [...new Set(v.ocultos ?? [])] }
 }
 
 export interface PacoteVitrine {
@@ -70,7 +81,7 @@ export interface PacoteVitrine {
   gramas: number
   /** só a imagem (de qual compra veio a foto não sai na vitrine) */
   foto?: Pick<FotoResumo, 'id' | 'miniatura'>
-  /** preço por grama da tabela (texto como na tabela, ex.: "17,5") */
+  /** preço por grama (texto como na tabela, ex.: "17,5"); sem ele, o comprador chama no WhatsApp */
   preco?: { fator: string; moeda: string }
   /** só para o administrador: escondido da vitrine */
   oculto?: boolean
@@ -87,6 +98,7 @@ export async function vitrine(ctx: Ctx, p: { publico?: boolean } = {}) {
   const conf: ConfigVitrine = { ...VITRINE_PADRAO, ...(cfg.vitrine ?? {}) }
   const publico = p.publico || ctx.sessao.perfil !== 'admin'
   const ocultos = new Set(conf.ocultos)
+  const modoPreco = conf.modoPreco ?? 'contato'
   const itens = (await ctx.repos.itens.listar()).filter(pronto).filter((i) => !publico || !ocultos.has(i.id))
   const F = await leitorFotos(ctx, { porId: new Map(itens.map((i) => [i.id, i])) })
   const tabelas = new Map<string, Awaited<ReturnType<typeof tabelaVigente>>>()
@@ -99,11 +111,14 @@ export async function vitrine(ctx: Ctx, p: { publico?: boolean } = {}) {
     const medida = Number(i.campos.comprimento)
     const categoria = String(i.campos.categoria || 'Normal')
     let preco: { fator: string; moeda: string } | undefined
-    if (conf.mostrarPreco) {
+    if (modoPreco === 'tabela') {
       const tb = await tabelaDe(categoria)
       const col = conf.colunaId && tb?.colunas.some((c) => c.id === conf.colunaId) ? conf.colunaId : tb?.colunas[0]?.id
       const f = tb && col ? tb.valores[`${medida}|${col}`] : undefined
-      if (f) preco = { fator: f, moeda: tb!.moeda }
+      if (tb && f) preco = { fator: f, moeda: tb.moeda }
+    } else if (modoPreco === 'individual') {
+      const f = conf.precos?.[i.id]
+      if (f) preco = { fator: f, moeda: cfg.moedaPrincipal }
     }
     pacotes.push({
       id: i.id,
@@ -126,8 +141,7 @@ export async function vitrine(ctx: Ctx, p: { publico?: boolean } = {}) {
       nome: conf.nome || cfg.nomeNegocio,
       descricao: conf.descricao,
       whatsapp: conf.whatsapp,
-      mostrarPreco: conf.mostrarPreco,
-      colunaId: conf.colunaId,
+      modoPreco,
       aparencia: { ...APARENCIA_PADRAO, ...conf.aparencia },
     },
     // vitrine desligada: o comprador não vê nada (o administrador continua vendo a prévia)

@@ -125,6 +125,7 @@ export function Etiquetas() {
     ...(p('de') || p('ate') ? [{ k: 'de,ate', rotulo: `📅 ${p('de') ? diaMes(p('de')) : '…'} – ${p('ate') ? diaMes(p('ate')) : '…'}` }] : []),
   ]
   const impressoOk = () => (setSel(new Set()), ajustarParams({ sel: undefined }))
+  const semSel = selecionados.filter((i) => !i.etiquetaImpressaEm)
 
   return (
     <div className={cx(selecionados.length > 0 && 'pb-24')}>
@@ -219,14 +220,20 @@ export function Etiquetas() {
           fatos={[(() => { const sem = selecionados.filter((i) => !i.etiquetaImpressaEm).length; return { icone: '🏷', texto: sem === selecionados.length ? t('todos sem etiqueta') : sem ? t('{n} sem etiqueta', { n: sem }) : t('todos já têm etiqueta') } })()]}
           onTirar={(id) => setSel((s) => { const n = new Set(s); n.delete(id); return n })}
           onLimpar={() => (setSel(new Set()), ajustarParams({ sel: undefined }))}
-          opcoes={[{ id: 'imprimir', icone: '🖨', principal: true, onClick: () => setImprimir(selecionados.map((i) => i.id)),
-            titulo: selecionados.length === 1 ? t('Imprimir 1 etiqueta') : t('Imprimir {n} etiquetas', { n: selecionados.length }),
+          opcoes={[
+          // seleção misturada: os dois caminhos com o número certo em cada um (imprimir só o que falta é o comum)
+          ...(semSel.length > 0 && semSel.length < selecionados.length ? [{ id: 'imprimirSem', icone: '🖨', principal: true, onClick: () => setImprimir(semSel.map((i) => i.id)),
+            titulo: t('Imprimir só as sem etiqueta ({n})', { n: semSel.length }),
+            legenda: 'Só os pacotes que ainda não têm etiqueta.',
+            ajuda: 'Não gera nova via de quem já tem etiqueta. Depois de imprimir, confirme que saiu certa. Ex.: de 23 marcados, 19 estão sem etiqueta → saem só essas 19.' }] : []),
+          { id: 'imprimir', icone: '🖨', principal: !(semSel.length > 0 && semSel.length < selecionados.length), onClick: () => setImprimir(selecionados.map((i) => i.id)),
+            titulo: semSel.length > 0 && semSel.length < selecionados.length ? t('Imprimir todas ({n})', { n: selecionados.length }) : selecionados.length === 1 ? t('Imprimir 1 etiqueta') : t('Imprimir {n} etiquetas', { n: selecionados.length }),
             legenda: 'Uma etiqueta por pacote, com o código, o peso de agora e o QR.',
-            ajuda: 'Imprime de uma vez as etiquetas dos marcados. Quem já tinha etiqueta ganha uma nova via com o peso de agora. Ex.: vendeu 2 kg de um pacote de 18 kg → a nova diz 16 kg.' },
+            ajuda: 'Imprime de uma vez as etiquetas dos marcados e, depois, você confirma que saíram certas. Quem já tinha etiqueta ganha uma nova via com o peso de agora. Ex.: vendeu 2 kg de um pacote de 18 kg → a nova diz 16 kg.' },
           { id: 'marcar', icone: '✓', onClick: async () => { const ids = selecionados.map((i) => i.id); if (await executar('marcarEtiquetasImpressas', { ids }, t('{n} etiqueta(s) marcada(s) como gerada(s).', { n: ids.length }))) impressoOk() },
             titulo: selecionados.length === 1 ? t('Marcar como gerada') : t('Marcar {n} como geradas', { n: selecionados.length }),
             legenda: 'Sem imprimir agora: o pacote sai de "Sem etiqueta".',
-            ajuda: 'Para quando a etiqueta já foi feita em outro lugar ou vai ser impressa depois. Fica registrado quem marcou e quando, igual a imprimir. Ex.: imprimiu as etiquetas de L-0021, L-0022 e L-0023 na outra loja → marque aqui.' }]}
+            ajuda: 'Para quando a etiqueta já foi feita em outro lugar ou vai ser impressa depois. Fica registrado quem marcou e quando, igual a confirmar a impressão. Ex.: imprimiu as etiquetas de L-0021, L-0022 e L-0023 na outra loja → marque aqui.' }]}
         />
       )}
 

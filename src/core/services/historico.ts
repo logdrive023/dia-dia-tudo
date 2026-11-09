@@ -90,6 +90,7 @@ const NOMES_ACAO: Record<string, string> = {
   salvarVendaAberta: 'Venda guardada em aberto',
   descartarVendaAberta: 'Venda em aberto descartada',
   tirarDaVendaAberta: 'Pacote saiu de uma venda em aberto',
+  reduzirNaVendaAberta: 'Parte do pacote saiu de uma venda em aberto',
   salvarCidade: 'Cidade cadastrada',
   impostosEstimados: 'Impostos estimados (registro)',
   redividirGastoViagem: 'Gasto da viagem redividido',

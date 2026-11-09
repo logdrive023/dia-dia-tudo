@@ -2,7 +2,7 @@
 // o que aparece na prévia é o que o comprador vê. As cores vêm de model/aparencia.ts, só nesta raiz.
 // Só dados públicos (o serviço não manda custo, fornecedor nem compra). "Quero este" abre o WhatsApp com a mensagem pronta.
 import { useState } from 'react'
-import { APARENCIA_PADRAO, type AparenciaVitrine, type PacoteVitrine } from '../../../core/services/vitrine'
+import { APARENCIA_PADRAO, type AparenciaVitrine, type ModoPrecoVitrine, type PacoteVitrine } from '../../../core/services/vitrine'
 import { cx, gramasTexto } from '../../../shared/ui/base'
 import { useUrlFoto } from '../../../shared/ui/fotos'
 import { useT } from '../../../shared/ui/i18n'
@@ -17,16 +17,18 @@ export const kg = (g: number) => (g >= 1000 ? `${(g / 1000).toLocaleString(undef
 /** a cor do cabelo vira a cor do desenho quando não há foto */
 const TOM_COR: Record<string, string> = { Preto: '#1f1b1a', Castanho: '#5b3a29', 'Castanho claro': '#8a5a3c', Loiro: '#c9a063', Ruivo: '#9a3b1f', Misturado: '#6b4a3a' }
 
-function mensagem(p: PacoteVitrine, loja: string) {
-  return `Olá, ${loja}! Tenho interesse no pacote ${p.codigo ?? ''}: ${p.medida} cm${p.categoria !== 'Normal' ? ` ${p.categoria}` : ''}${p.cor ? ` · ${p.cor}` : ''} · ${kg(p.gramas)}. Ainda está disponível?`
+function mensagem(p: PacoteVitrine, loja: string, perguntaPreco: boolean) {
+  return `Olá, ${loja}! Tenho interesse no pacote ${p.codigo ?? ''}: ${p.medida} cm${p.categoria !== 'Normal' ? ` ${p.categoria}` : ''}${p.cor ? ` · ${p.cor}` : ''} · ${kg(p.gramas)}. Ainda está disponível?${perguntaPreco ? ' Qual é o valor?' : ''}`
 }
 
-export function CartaoPacoteVitrine({ p, whatsapp, loja, mostrarPreco }: { p: PacoteVitrine; whatsapp?: string; loja: string; mostrarPreco: boolean }) {
+export function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco }: { p: PacoteVitrine; whatsapp?: string; loja: string; modoPreco: ModoPrecoVitrine }) {
   const t = useT()
   const url = useUrlFoto(p.foto)
   const cor = TOM_COR[p.cor ?? ''] ?? '#6d4c41'
   const porGrama = p.preco ? numero(p.preco.fator) : undefined
-  const link = whatsapp ? `https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem(p, loja))}` : undefined
+  // sem preço para mostrar, o caminho é um só: falar com a loja
+  const contato = modoPreco === 'contato' || !porGrama
+  const link = whatsapp ? `https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(mensagem(p, loja, contato))}` : undefined
   return (
     <article className="group flex flex-col overflow-hidden rounded-3xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
       <div className="relative aspect-[4/5] overflow-hidden" style={{ background: `linear-gradient(160deg, ${cor}22, ${cor}55)` }}>
@@ -48,17 +50,17 @@ export function CartaoPacoteVitrine({ p, whatsapp, loja, mostrarPreco }: { p: Pa
           <p className="text-xs text-[var(--suave)]">{p.codigo}{p.origem ? ` · ${t(p.origem)}` : ''}</p>
         </div>
         <div className="mt-auto">
-          {mostrarPreco && p.preco && porGrama ? (
+          {!contato && p.preco && porGrama ? (
             <>
               <p className="num text-lg font-black text-[var(--marca-texto)]">{dinheiro(porGrama, p.preco.moeda)}<span className="text-xs font-semibold text-[var(--suave)]"> /g</span></p>
               <p className="num text-xs text-[var(--suave)]">{t('o pacote')}: {dinheiro(porGrama * p.gramas, p.preco.moeda)}</p>
             </>
-          ) : <p className="text-sm font-semibold text-[var(--suave)]">{t('Consultar preço')}</p>}
+          ) : modoPreco !== 'contato' && <p className="text-sm font-semibold text-[var(--suave)]">{t('Consultar preço')}</p>}
         </div>
         {link ? (
           <a href={link} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-[#25d366] px-3 text-sm font-bold text-white transition hover:brightness-105">
             <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-3.3-.8-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .5l-.3.5-.4.5c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1.1c.2-.3.4-.2.6-.1l2 .9c.3.1.5.2.5.3.1.2.1.7-.1 1.3z" /></svg>
-            {t('Quero este')}
+            {t(contato ? 'Entrar em contato' : 'Quero este')}
           </a>
         ) : <span className="rounded-2xl bg-[var(--fundo)] px-3 py-2 text-center text-xs text-[var(--suave)]">{t('Peça pelo WhatsApp da loja')}</span>}
       </div>
@@ -78,7 +80,7 @@ function Chip({ ativo, onClick, children }: { ativo: boolean; onClick(): void; c
 
 
 export interface DadosLoja {
-  loja: { ativa: boolean; nome: string; descricao?: string; whatsapp?: string; mostrarPreco: boolean; aparencia: AparenciaVitrine }
+  loja: { ativa: boolean; nome: string; descricao?: string; whatsapp?: string; modoPreco: ModoPrecoVitrine; aparencia: AparenciaVitrine }
   pacotes: PacoteVitrine[]
   filtros: { medidas: number[]; cores: string[]; categorias: string[] }
   gramas: number
@@ -95,7 +97,7 @@ export function ConteudoLoja({ dados, colunas, limite, className }: { dados?: Da
   const zap = dados?.loja.whatsapp ? `https://wa.me/${dados.loja.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá, ${dados.loja.nome}! Vi a vitrine e quero saber mais.`)}` : undefined
   return (
     <div className={cx('text-[var(--texto)]', className)} style={estiloLoja(aparencia)}>
-      <CapaLoja aparencia={aparencia} nome={dados?.loja.nome ?? '…'} descricao={dados?.loja.descricao} resumo={dados ? `${t('{n} pacote(s) disponíveis', { n: dados.pacotes.length })} · ${kg(dados.gramas)}` : undefined} zap={zap} />
+      <CapaLoja aparencia={aparencia} nome={dados?.loja.nome ?? '…'} descricao={dados?.loja.descricao} resumo={dados ? `${dados.pacotes.length === 1 ? t('1 pacote disponível') : t('{n} pacotes disponíveis', { n: dados.pacotes.length })} · ${kg(dados.gramas)}` : undefined} zap={zap} />
       <main className="mx-auto -mt-5 max-w-6xl px-4 pb-16">
         {!dados ? (
           <div className="rounded-3xl bg-[var(--cartao)] p-10 text-center text-[var(--suave)] shadow-sm">{t('Carregando…')}</div>
@@ -120,16 +122,16 @@ export function ConteudoLoja({ dados, colunas, limite, className }: { dados?: Da
                 </div>
               )}
             </div>
-            <p className="mb-3 mt-4 text-sm text-[var(--suave)]">{t('{n} resultado(s)', { n: lista.length })}</p>
+            <p className="mb-3 mt-4 text-sm text-[var(--suave)]">{lista.length === 1 ? t('1 resultado') : t('{n} resultados', { n: lista.length })}</p>
             {!lista.length ? <p className="rounded-3xl bg-[var(--cartao)] p-8 text-center text-[var(--suave)]">{t('Nada com esses filtros.')}</p> : (
               <div className={cx('grid gap-3 sm:gap-4', colunas === 2 ? 'grid-cols-2' : colunas === 3 ? 'grid-cols-3' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4')}>
-                {(limite ? lista.slice(0, limite) : lista).map((p) => <CartaoPacoteVitrine key={p.id} p={p} whatsapp={dados.loja.whatsapp} loja={dados.loja.nome} mostrarPreco={dados.loja.mostrarPreco} />)}
+                {(limite ? lista.slice(0, limite) : lista).map((p) => <CartaoPacoteVitrine key={p.id} p={p} whatsapp={dados.loja.whatsapp} loja={dados.loja.nome} modoPreco={dados.loja.modoPreco} />)}
               </div>
             )}
           </>
         )}
       </main>
-      <footer className="pb-8 text-center text-xs text-[var(--suave)]">{t('Preço por grama · peso conferido na balança · envio a combinar')}</footer>
+      <footer className="pb-8 text-center text-xs text-[var(--suave)]">{t(dados?.loja.modoPreco === 'contato' ? 'Peso conferido na balança · envio a combinar' : 'Preço por grama · peso conferido na balança · envio a combinar')}</footer>
     </div>
   )
 }

@@ -29,6 +29,15 @@ function linhasSoMinhas<T extends { linhas?: { profissionalId?: Id }[]; profissi
   if (!Array.isArray(t?.linhas)) return t
   return { ...t, linhas: t.linhas.map((l) => ((l.profissionalId ?? t.profissionalId) === eu ? l : Object.fromEntries(Object.entries(l).filter(([k]) => !DA_LINHA.includes(k))))) } as T
 }
+/**
+ * "Divisão interna" da venda (comissão e insumos da linha): só quando a linha tem divisão de verdade e quem está logado
+ * é o administrador ou a profissional DONA da linha. A tela usa isto; `venda` já tira a comissão das colegas da resposta.
+ */
+export function podeVerDivisao(s: { perfil?: string; pessoaId?: Id; usuarioId?: Id }, l: { profissionalId?: Id; comissaoBp?: number; insumoPrincipal?: number }) {
+  if (!l.comissaoBp && !l.insumoPrincipal) return false
+  return s.perfil === 'admin' || (!!l.profissionalId && l.profissionalId === (s.pessoaId ?? s.usuarioId))
+}
+
 /** o que é dela mesma: a comissão e o salário DELA aparecem */
 const PROPRIOS: Partial<Record<string, string[]>> = {
   comissoes: ['comissaoPrincipal', 'comissaoBp', 'baseComissao'],

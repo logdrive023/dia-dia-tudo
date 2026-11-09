@@ -53,7 +53,7 @@ export function useModoCaixa() {
   const [teclado, setTeclado] = useState(false)
   const [feita, setFeita] = useState<Feita>()
   /** o pacote lido está noutra venda EM ABERTO: pergunta antes de tirar de lá */
-  const [deOutraAberta, setDeOutraAberta] = useState<{ p: Pacote; abertaId: Id; quem: string }>()
+  const [deOutraAberta, setDeOutraAberta] = useState<{ p: Pacote; abertaId: Id; quem: string; guardado: number }>()
   /** a venda atual já foi guardada em aberto (o caixa salva sozinho) */
   const [guardada, setGuardada] = useState<string>()
   /** leu um pacote que já deu baixa: o servidor diz para onde foi (JaSaiu) */
@@ -188,12 +188,13 @@ export function useModoCaixa() {
     bipe(ok !== false)
   }
 
-  const adicionar = (i: Pacote, jaConfirmou = false) => {
+  /** parte = gramas escolhidas no aviso de "está noutra venda" (sem ela, entra o pacote inteiro) */
+  const adicionar = (i: Pacote, jaConfirmou = false, parte?: number) => {
     const outra = !jaConfirmou ? abertas?.find((a) => a.id !== vendaId && a.linhas.some((l) => l.itemId === i.id)) : undefined
     if (outra) {
       setBusca('')
       bipe(false)
-      return setDeOutraAberta({ p: i, abertaId: outra.id, quem: [outra.cliente ?? t('sem cliente'), outra.porNome && t('guardada por {p}', { p: outra.porNome })].filter(Boolean).join(' · ') })
+      return setDeOutraAberta({ p: i, abertaId: outra.id, quem: [outra.cliente ?? t('sem cliente'), outra.porNome && t('guardada por {p}', { p: outra.porNome })].filter(Boolean).join(' · '), guardado: outra.linhas.filter((l) => l.itemId === i.id).reduce((s, l) => s + l.quantidade, 0) })
     }
     setBusca('')
     setTeclado(false)
@@ -202,7 +203,7 @@ export function useModoCaixa() {
     if (linhas.some((l) => l.itemId === i.id)) return avisar(t('{c} já está na venda.', { c }), false)
     if (i.saldo <= 0) return (setJaSaiu(i.codigo ?? i.id), setAviso(undefined), bipe(false))
     setJaSaiu(undefined)
-    const q = i.unidade === 'grama' ? i.saldo : 1
+    const q = parte ?? (i.unidade === 'grama' ? i.saldo : 1)
     const p = precoDe(i, q)
     setLinhas((ls) => [...ls, { id: novoId(), itemId: i.id, quantidade: q }])
     setFeita(undefined)
@@ -364,6 +365,14 @@ export function useModoCaixa() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abertaUrl, abertas])
   const outrasAbertas = (abertas ?? []).filter((a) => a.id !== vendaId)
+  /** continuar a venda em aberto onde o pacote já está: a que estava na tela fica guardada, nada se perde */
+  const irParaAberta = async (id: string) => {
+    if (linhas.length) {
+      clearTimeout(timer.current)
+      await guardar()
+    }
+    retomar(id)
+  }
 
   const pagar = async (pags: PagamentoTela[], troco?: number) => {
     const semPreco = vistas.find((l) => l.preco.erro)
@@ -424,7 +433,7 @@ export function useModoCaixa() {
     vendedorId && `🧑 ${(pessoas ?? []).find((x) => x.id === vendedorId)?.nome ?? ''}`,
     localId && localId !== sessao.localId && `🏪 ${listaLocais.find((l) => l.id === localId)?.nome ?? ''}`,
   ].filter((x): x is string => !!x)
-  return { t, ir, sessao, nav, ajustarParams, executar, ocupado, executarCfg, cot, cfg, estoqueTodo, tabelas, versoesTab, pessoas, locais, abertas, raiz, w, tablet, toque, vendaId, setVendaId, linhas, setLinhas, busca, setBusca, aviso, setAviso, conferindo, setConferindo, mais, setMais, pessoaId, setPessoaId, colunaId, setColunaId, desconto, setDesconto, descontoPct, setDescontoPct, modoDesconto, setModoDesconto, moedaEscolhida, setMoedaEscolhida, cotDigitadas, setCotDigitadas, obs, setObs, editando, setEditando, pagando, setPagando, lendo, setLendo, teclado, setTeclado, feita, setFeita, deOutraAberta, setDeOutraAberta, guardada, setGuardada, jaSaiu, setJaSaiu, vendedorId, setVendedorId, localId, setLocalId, campo, lendoRef, focar, modulosVenda, estoque, porId, pessoa, tabelaDe, padraoDe, colunaDe, precoDe, vistas, moedaVenda, comTabela, tbVenda, opcoesPreco, padraoVenda, clienteTemColuna, bruto, baseDesconto, principal, moedasCobranca, mc, cotSistema, cotTexto, cotValor, cotValida, cotacaoCobranca, cotTab, cotSugeridas, cotacaoDe, naCobranca, daCobranca, escolherMoeda, pct, pctInvalido, descontoPedido, descontoValido, descontoCobranca, descontoTexto, total, totalCobrado, fatorDesconto, custo, custoConfirmado, setCustoConfirmado, perguntarCusto, setPerguntarCusto, sm, textoCobranca, avisar, adicionar, naoAchou, pistola, loteUrl, loteLido, remover, abrirPagamento, algoAberto, textoRecibo, linhasEntrada, descontoEntrada, backend, rascunho, atual, timer, fechando, guardar, chaveRascunho, tinhaLinhas, abertaUrl, retomada, retomar, outrasAbertas, pagar, vendaFeita, editandoLinha, vendedores, listaLocais, resumoOpcoes }
+  return { irParaAberta, t, ir, sessao, nav, ajustarParams, executar, ocupado, executarCfg, cot, cfg, estoqueTodo, tabelas, versoesTab, pessoas, locais, abertas, raiz, w, tablet, toque, vendaId, setVendaId, linhas, setLinhas, busca, setBusca, aviso, setAviso, conferindo, setConferindo, mais, setMais, pessoaId, setPessoaId, colunaId, setColunaId, desconto, setDesconto, descontoPct, setDescontoPct, modoDesconto, setModoDesconto, moedaEscolhida, setMoedaEscolhida, cotDigitadas, setCotDigitadas, obs, setObs, editando, setEditando, pagando, setPagando, lendo, setLendo, teclado, setTeclado, feita, setFeita, deOutraAberta, setDeOutraAberta, guardada, setGuardada, jaSaiu, setJaSaiu, vendedorId, setVendedorId, localId, setLocalId, campo, lendoRef, focar, modulosVenda, estoque, porId, pessoa, tabelaDe, padraoDe, colunaDe, precoDe, vistas, moedaVenda, comTabela, tbVenda, opcoesPreco, padraoVenda, clienteTemColuna, bruto, baseDesconto, principal, moedasCobranca, mc, cotSistema, cotTexto, cotValor, cotValida, cotacaoCobranca, cotTab, cotSugeridas, cotacaoDe, naCobranca, daCobranca, escolherMoeda, pct, pctInvalido, descontoPedido, descontoValido, descontoCobranca, descontoTexto, total, totalCobrado, fatorDesconto, custo, custoConfirmado, setCustoConfirmado, perguntarCusto, setPerguntarCusto, sm, textoCobranca, avisar, adicionar, naoAchou, pistola, loteUrl, loteLido, remover, abrirPagamento, algoAberto, textoRecibo, linhasEntrada, descontoEntrada, backend, rascunho, atual, timer, fechando, guardar, chaveRascunho, tinhaLinhas, abertaUrl, retomada, retomar, outrasAbertas, pagar, vendaFeita, editandoLinha, vendedores, listaLocais, resumoOpcoes }
 }
 
 /** tudo o que o modo caixa sabe e faz (o resultado do useModoCaixa) */

@@ -270,6 +270,41 @@ describe('vendas em aberto (sair no meio não perde)', () => {
     expect((await b.consulta('logDetalhado', { acao: 'tirarDaVendaAberta' })).linhas).toHaveLength(1)
   }, 60000)
 
+  it('pacote noutra venda em aberto: dá para vender só uma parte; a outra fica com o resto', async () => {
+    let c = ''
+    let saldo = 0
+    const { b, campo } = await abrir(async (bb) => {
+      const p = (await bb.consulta('estoque', { moduloId: 'cabelo' })).find((i) => i.codigo && i.saldo > 200 && i.campos.comprimento)
+      if (!p) throw new Error('sem pacote')
+      c = p.codigo ?? ''
+      saldo = p.saldo
+      await bb.comando('salvarVendaAberta', { id: 'va-2', linhas: [{ id: 'l1', itemId: p.id, quantidade: p.saldo }] })
+    })
+    await ler(campo, c)
+    fireEvent.change(await screen.findByLabelText(/Vender só uma parte/, {}, { timeout: 10000 }), { target: { value: '100' } })
+    await screen.findByText(/A outra venda fica com/)
+    fireEvent.click(screen.getByRole('button', { name: 'Vender a parte' }))
+    await waitFor(() => expect(linhas()).toHaveLength(1), { timeout: 10000 })
+    await waitFor(async () => {
+      const outra = (await b.consulta('vendasAbertas', {})).find((a) => a.id === 'va-2')
+      expect(outra?.linhas[0].quantidade).toBe(saldo - 100)
+    }, { timeout: 10000 })
+  }, 60000)
+
+  it('pacote noutra venda em aberto: "Ir para a venda existente" retoma aquela', async () => {
+    let c = ''
+    const { campo } = await abrir(async (bb) => {
+      const p = (await bb.consulta('estoque', { moduloId: 'cabelo' })).find((i) => i.codigo && i.saldo > 0 && i.campos.comprimento)
+      if (!p) throw new Error('sem pacote')
+      c = p.codigo ?? ''
+      await bb.comando('salvarVendaAberta', { id: 'va-2', linhas: [{ id: 'l1', itemId: p.id, quantidade: p.saldo }] })
+    })
+    await ler(campo, c)
+    fireEvent.click(await screen.findByRole('button', { name: 'Ir para a venda existente' }, { timeout: 10000 }))
+    await waitFor(() => expect(linhas()).toHaveLength(1), { timeout: 10000 })
+    await screen.findByText(/Venda em aberto retomada/)
+  }, 60000)
+
   it('servidor: vender (de qualquer tela) um pacote que estava em aberto tira ele de lá e registra', async () => {
     const { b } = await novoBackend()
     await carregarDemo(b)

@@ -39,7 +39,7 @@ describe('escolher o preço da tabela na venda', () => {
 
     // o seletor aparece com o padrão (sem precisar mexer)
     const seletor = await screen.findByRole('region', { name: 'Preço da tabela' })
-    expect(within(seletor).getByText('padrão')).toBeTruthy()
+    expect(within(seletor).getByText('Padrão')).toBeTruthy()
     const padrao = fatorDaTabela(tabela, 60, comPreco[0].id).fator!
     await waitFor(() => expect(fatorNaLinha()).toContain(`× ${padrao.replace('.', ',')}`))
 
@@ -50,7 +50,7 @@ describe('escolher o preço da tabela na venda', () => {
     // troca para outra coluna: a linha recalcula na hora
     await escolher(outra.nome)
     await waitFor(() => expect(fatorNaLinha()).toContain(`× ${fatorDaTabela(tabela, 60, outra.id).fator!.replace('.', ',')}`))
-    expect(within(seletor).getByText('escolhido')).toBeTruthy()
+    expect(within(seletor).getByText('Escolhido')).toBeTruthy()
     // troca de novo e volta ao padrão
     if (terceira) {
       await escolher(terceira.nome)

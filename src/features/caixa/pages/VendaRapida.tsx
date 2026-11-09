@@ -23,7 +23,7 @@ import { LeitorCodigo } from '../../../shared/ui/estoqueUi'
 import { useT } from '../../../shared/ui/i18n'
 import { acharPorCodigo } from '../../../shared/ui/leitorPistola'
 import { CHAVE_MODO_DESCONTO, Miniatura, NAO_SEPARADO, bipe } from '../components/pecas'
-import { Conferir, EditarQuantidade, Pagamento } from '../components/janelas'
+import { ConflitoVendaAberta, Conferir, EditarQuantidade, Pagamento } from '../components/janelas'
 import { ItensDaVenda } from '../components/ItensDaVenda'
 import { CobrarEm, OpcoesVenda, TotalVenda } from '../components/Cobranca'
 import { AvisoLeitura, JaSaiu } from '../components/Avisos'
@@ -42,7 +42,7 @@ export function VendaRapida() {
 
 function ModoCaixa() {
   const nc = useModoCaixa()
-  const { t, ir, sessao, executar, ocupado, executarCfg, cfg, versoesTab, abertas, raiz, tablet, toque, vendaId, linhas, setLinhas, busca, setBusca, aviso, setAviso, conferindo, setConferindo, mais, setMais, pessoaId, setPessoaId, setColunaId, desconto, setDesconto, descontoPct, setDescontoPct, modoDesconto, setModoDesconto, setCotDigitadas, obs, setObs, setEditando, pagando, setPagando, lendo, setLendo, teclado, setTeclado, feita, setFeita, deOutraAberta, setDeOutraAberta, guardada, jaSaiu, setJaSaiu, vendedorId, setVendedorId, localId, setLocalId, campo, focar, estoque, porId, colunaDe, precoDe, vistas, moedaVenda, tbVenda, opcoesPreco, padraoVenda, clienteTemColuna, bruto, principal, moedasCobranca, mc, cotTexto, cotValida, cotSugeridas, naCobranca, escolherMoeda, pctInvalido, descontoValido, descontoCobranca, total, totalCobrado, custo, setCustoConfirmado, perguntarCusto, setPerguntarCusto, sm, adicionar, pistola, remover, abrirPagamento, retomar, outrasAbertas, pagar, vendaFeita, editandoLinha, vendedores, listaLocais, resumoOpcoes } = nc
+  const { irParaAberta, t, ir, sessao, executar, ocupado, executarCfg, cfg, versoesTab, abertas, raiz, tablet, toque, vendaId, linhas, setLinhas, busca, setBusca, aviso, setAviso, conferindo, setConferindo, mais, setMais, pessoaId, setPessoaId, setColunaId, desconto, setDesconto, descontoPct, setDescontoPct, modoDesconto, setModoDesconto, setCotDigitadas, obs, setObs, setEditando, pagando, setPagando, lendo, setLendo, teclado, setTeclado, feita, setFeita, deOutraAberta, setDeOutraAberta, guardada, jaSaiu, setJaSaiu, vendedorId, setVendedorId, localId, setLocalId, campo, focar, estoque, porId, colunaDe, precoDe, vistas, moedaVenda, tbVenda, opcoesPreco, padraoVenda, clienteTemColuna, bruto, principal, moedasCobranca, mc, cotTexto, cotValida, cotSugeridas, naCobranca, escolherMoeda, pctInvalido, descontoValido, descontoCobranca, total, totalCobrado, custo, setCustoConfirmado, perguntarCusto, setPerguntarCusto, sm, adicionar, pistola, remover, abrirPagamento, retomar, outrasAbertas, pagar, vendaFeita, editandoLinha, vendedores, listaLocais, resumoOpcoes } = nc
   const opcoes = (
     <OpcoesVenda
       aberto={mais}
@@ -113,12 +113,21 @@ function ModoCaixa() {
       {!linhas.length && outrasAbertas.length > 0 && <VendasEmAberto abertas={outrasAbertas} onRetomar={retomar} />}
       {linhas.length > 0 && guardada && <AvisoGuardado className="mb-3" titulo="Venda guardada em aberto" quando={guardada} texto="Pode sair ou fechar o app: nada se perde. Ela volta aqui no Modo caixa." />}
       {deOutraAberta && (
-        <Confirmar
-          titulo="Este pacote está numa venda em aberto"
-          texto={t('{c} está na venda em aberto de {q}. Para vender aqui, ele SAI daquela venda (fica anotado no histórico).', { c: deOutraAberta.p.codigo ?? deOutraAberta.p.nome, q: deOutraAberta.quem })}
-          rotulo="Tirar de lá e vender aqui"
+        <ConflitoVendaAberta
+          codigo={deOutraAberta.p.codigo ?? deOutraAberta.p.nome}
+          quem={deOutraAberta.quem}
+          saldo={deOutraAberta.p.saldo}
+          guardado={deOutraAberta.guardado}
+          grama={deOutraAberta.p.unidade === 'grama'}
           onFechar={() => (setDeOutraAberta(undefined), focar())}
-          onConfirmar={async () => {
+          onIrPara={() => { const x = deOutraAberta; setDeOutraAberta(undefined); void irParaAberta(x.abertaId) }}
+          onParte={async (q) => {
+            const x = deOutraAberta
+            setDeOutraAberta(undefined)
+            const ok = await executar('reduzirNaVendaAberta', { id: x.abertaId, itemId: x.p.id, quantidade: q, para: t('outra venda no caixa') })
+            if (ok) adicionar(x.p, true, q)
+          }}
+          onTirar={async () => {
             const x = deOutraAberta
             setDeOutraAberta(undefined)
             const ok = await executar('tirarDaVendaAberta', { id: x.abertaId, itemId: x.p.id, para: t('outra venda no caixa') })

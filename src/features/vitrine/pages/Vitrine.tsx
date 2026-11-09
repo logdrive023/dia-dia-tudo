@@ -3,7 +3,7 @@
 // o GERADOR (textos, cores, banner e fundo com prévia ao vivo) e a lista com o interruptor "na vitrine" por pacote.
 // A regra (o que entra e o que o comprador vê) é do serviço: src/core/services/vitrine.ts. A página do comprador: Loja.tsx.
 import type { ConfigVitrine } from '../../../core/services/vitrine'
-import { Botao, Carregando, Titulo, Vazio, cx, gramasTexto } from '../../../shared/ui/base'
+import { Botao, Campo, Carregando, Entrada, Titulo, Vazio, cx, gramasTexto } from '../../../shared/ui/base'
 import { useApp, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { Chave } from '../../../shared/ui/interruptor'
@@ -20,7 +20,7 @@ export function MinhaVitrine() {
   const { dados: tabelas } = useConsulta('tabelasPreco', { moduloId: 'cabelo' })
   const { executar, ocupado } = useComando()
   if (!dados || !conf) return <Carregando />
-  const atual: ConfigVitrine = { ativa: true, mostrarPreco: true, ocultos: [], ...(conf.config.vitrine ?? {}) }
+  const atual: ConfigVitrine = { ativa: true, ocultos: [], ...(conf.config.vitrine ?? {}) }
   const salvar = (v: Partial<ConfigVitrine>, aviso?: string) => executar('salvarConfig', { vitrine: { ...atual, ...v } } as never, aviso)
   const visiveis = dados.pacotes.filter((x) => !x.oculto)
   const colunas = [...new Map((tabelas ?? []).flatMap((tb) => tb.colunas).map((c) => [c.id, c])).values()]
@@ -34,6 +34,14 @@ export function MinhaVitrine() {
     }
   }
   type P = (typeof dados.pacotes)[number]
+  const modo = dados.loja.modoPreco
+  const salvarPreco = (id: string, v: string) => salvar({ precos: { ...atual.precos, [id]: v.trim() } })
+  /** modo "Preço por pacote": salva ao sair do campo (só se mudou) */
+  const campoPreco = (x: P) => {
+    const salvo = atual.precos?.[x.id] ?? ''
+    return <Entrada key={salvo} aria-label={`${t('Preço por grama')} ${x.codigo ?? ''}`} inputMode="decimal" placeholder="0,00" className="num w-24 text-right" defaultValue={salvo} onBlur={(e) => { if (e.target.value.trim() !== salvo) void salvarPreco(x.id, e.target.value) }} />
+  }
+  const precoTexto = (x: P) => (x.preco ? `${x.preco.moeda === 'BOB' ? 'Bs' : x.preco.moeda} ${x.preco.fator}/g` : t(modo === 'contato' ? 'Entrar em contato' : modo === 'individual' ? 'sem preço digitado' : 'sem preço na tabela'))
   const kg = (g: number) => (g >= 1000 ? `${(g / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : gramasTexto(g))
   return (
     <div>
@@ -60,7 +68,7 @@ export function MinhaVitrine() {
               colunas={[
                 { id: 'pacote', titulo: 'Pacote', classe: 'w-full min-w-[12rem]', celula: (x) => <span className={cx(x.oculto && 'opacity-50')}><b className="font-mono text-[var(--marca)]">{x.codigo}</b> <span className="font-semibold">{x.medida} cm{x.categoria !== 'Normal' ? ` · ${t(x.categoria)}` : ''}{x.cor ? ` · ${t(x.cor)}` : ''}</span></span> },
                 { id: 'gramas', titulo: 'Disponível', direita: true, classe: 'whitespace-nowrap', celula: (x) => kg(x.gramas) },
-                { id: 'preco', titulo: 'Preço/g', direita: true, classe: 'whitespace-nowrap', celula: (x) => (x.preco ? `${x.preco.moeda === 'BOB' ? 'Bs' : x.preco.moeda} ${x.preco.fator}` : '—') },
+                ...(modo === 'contato' ? [] : [{ id: 'preco', titulo: 'Preço/g', direita: true, classe: 'whitespace-nowrap', celula: (x: P) => (modo === 'individual' ? campoPreco(x) : precoTexto(x)) }]),
                 { id: 'na', titulo: 'Na vitrine', classe: 'whitespace-nowrap', celula: (x) => <Chave ligado={!x.oculto} rotulo={`${t('Na vitrine')} ${x.codigo ?? ''}`} travado={ocupado} onChange={(v) => salvar({ ocultos: v ? atual.ocultos.filter((y) => y !== x.id) : [...atual.ocultos, x.id] })} /> },
               ]}
               celular={{
@@ -68,8 +76,11 @@ export function MinhaVitrine() {
                 valor: (x) => kg(x.gramas),
                 codigo: (x) => x.codigo ?? '',
                 situacao: (x) => ({ texto: t(x.oculto ? 'Escondido' : 'Na vitrine'), tom: x.oculto ? 'suave' : 'bom' }),
-                resumo: (x) => (x.preco ? `${x.preco.moeda === 'BOB' ? 'Bs' : x.preco.moeda} ${x.preco.fator}/g` : t('sem preço na tabela')),
-                aberto: (x) => <Botao variante="secundario" onClick={() => salvar({ ocultos: x.oculto ? atual.ocultos.filter((y) => y !== x.id) : [...atual.ocultos, x.id] })}>{t(x.oculto ? 'Mostrar na vitrine' : 'Esconder da vitrine')}</Botao>,
+                resumo: precoTexto,
+                aberto: (x) => <div className="space-y-2">
+                  {modo === 'individual' && <Campo rotulo="Preço por grama">{campoPreco(x)}</Campo>}
+                  <Botao variante="secundario" onClick={() => salvar({ ocultos: x.oculto ? atual.ocultos.filter((y) => y !== x.id) : [...atual.ocultos, x.id] })}>{t(x.oculto ? 'Mostrar na vitrine' : 'Esconder da vitrine')}</Botao>
+                </div>,
               }}
             />
           )}

@@ -7,6 +7,7 @@ import { CaminhoDoCabelo } from '../../../shared/ui/caminhoCabelo'
 import { useCallback, useState } from 'react'
 import { fatorValido, formatar, multiplicarFator } from '../../../core/domain/dinheiro'
 import type { Id, Transacao } from '../../../core/domain/tipos'
+import { podeVerDivisao } from '../../../core/services/visibilidade'
 import { Abas, Botao, Campo, Carregando, Cartao, Entrada, GramasInput, Janela, Pagina, Pilula, Selecao, ValorInput, cx, dataBR, ErroTela, loc, Confirmar } from '../../../shared/ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { linkWhatsApp, useCotacoes } from '../../../shared/ui/compartilhados'
@@ -308,7 +309,7 @@ function NotaCompleta({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transac
   const includeTaxesInPrint = comImpostos ?? doc.impostosNaNota
   const temImpostos = doc.impostos.linhas.length > 0
   const admin = sessao.perfil === 'admin'
-  const internas = linhas.filter((l) => (l.comissaoBp !== undefined || !!l.insumoPrincipal) && (admin || (l.profissionalId && l.profissionalId === (sessao.pessoaId ?? sessao.usuarioId))))
+  const internas = linhas.filter((l) => podeVerDivisao(sessao, l))
   const mudou = md !== doc.modeloPadrao || includeTaxesInPrint !== doc.impostosNaNota
   return (
     <div className="space-y-4">

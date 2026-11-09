@@ -53,7 +53,7 @@ describe('gerador da vitrine', () => {
 })
 
 describe('aparência da vitrine: regras', () => {
-  const vitrine = (aparencia: object) => ({ vitrine: { ativa: true, mostrarPreco: true, ocultos: [], aparencia } }) as never
+  const vitrine = (aparencia: object) => ({ vitrine: { ativa: true, ocultos: [], aparencia } }) as never
   const cores = { corPrimaria: '#7c3aed', corSecundaria: '#a21caf', fundo: 'tema' }
 
   it('recusa cor fora do formato, fundo desconhecido e banner que não seja imagem enviada', async () => {

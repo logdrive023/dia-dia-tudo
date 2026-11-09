@@ -17,7 +17,7 @@ describe('minha vitrine', () => {
     ] } as any)
     await b.comando('marcarEtiquetasImpressas', { ids: ['A', 'B'] } as any) // C sem etiqueta: não está pronto
     await b.comando('salvarTabelaPreco', { id: 'tg', moduloId: 'cabelo', nome: 'Geral', moeda: 'BOB', unidadeMedida: 'cm', fatorPor: 'grama', linhas: [50, 60], colunas: [{ id: 'venda', nome: 'Venda' }], valores: { '60|venda': '17,5', '50|venda': '8' } } as any)
-    await b.comando('salvarConfig', { vitrine: { ativa: true, nome: 'Cabelos da Família', whatsapp: '+591 7000-0000', mostrarPreco: true, ocultos: ['B'] } } as never)
+    await b.comando('salvarConfig', { vitrine: { ativa: true, nome: 'Cabelos da Família', whatsapp: '+591 7000-0000', modoPreco: 'tabela', ocultos: ['B'] } } as never)
     // admin: vê os prontos, com o escondido marcado
     const adm = (await b.consulta('vitrine', {})) as any
     expect(adm.pacotes.map((x: any) => x.id).sort()).toEqual(['A', 'B'])
@@ -34,10 +34,24 @@ describe('minha vitrine', () => {
     expect(pub.loja.nome).toBe('Cabelos da Família')
   })
 
+  it('preço: o padrão é entrar em contato; dá para usar a tabela ou digitar por pacote', async () => {
+    const { b, sessao } = await novoBackend('2026-11-05')
+    const montar = async (vitrine: object) => {
+      await b.comando('salvarConfig', { vitrine: { ativa: true, ocultos: [], ...vitrine } } as never)
+      return (await b.consulta('vitrine', { publico: true })) as any
+    }
+    expect((await montar({})).loja.modoPreco).toBe('contato')
+    await expect(montar({ modoPreco: 'leilao' })).rejects.toThrow(/Modo de preço/)
+    await expect(montar({ modoPreco: 'individual', precos: { A: 'abc' } })).rejects.toThrow(/Preço inválido/)
+    expect((await montar({ modoPreco: 'individual', precos: { A: '19,5', B: '  ' } })).loja.modoPreco).toBe('individual')
+    expect(JSON.stringify(await montar({ modoPreco: 'tabela', colunaId: 'venda' }))).not.toContain('colunaId')
+    expect(sessao).toBeTruthy()
+  })
+
   it('vitrine desligada: o comprador não vê nada; WhatsApp inválido é recusado', async () => {
     const { b, sessao } = await novoBackend('2026-11-05')
-    await b.comando('salvarConfig', { vitrine: { ativa: false, mostrarPreco: false, ocultos: [] } } as never)
-    await expect(b.comando('salvarConfig', { vitrine: { ativa: true, mostrarPreco: true, ocultos: [], whatsapp: '123' } } as never)).rejects.toThrow(/código do país/)
+    await b.comando('salvarConfig', { vitrine: { ativa: false, ocultos: [] } } as never)
+    await expect(b.comando('salvarConfig', { vitrine: { ativa: true, ocultos: [], whatsapp: '123' } } as never)).rejects.toThrow(/código do país/)
     Object.assign(sessao, { usuarioId: '', perfil: undefined, nome: '' })
     expect(((await b.consulta('vitrine', { publico: true })) as any).pacotes).toEqual([])
   })

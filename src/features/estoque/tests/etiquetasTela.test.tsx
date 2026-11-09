@@ -73,6 +73,8 @@ describe('tela Etiquetas', () => {
     await waitFor(() => expect((within(dialogo).getByRole('button', { name: /Imprimir/ }) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(within(dialogo).getByRole('button', { name: /Imprimir/ }))
     expect(print).toHaveBeenCalled()
+    await within(dialogo).findByText(/Enviado para a impressora/)
+    fireEvent.click(within(dialogo).getByRole('button', { name: /Confirmar impressão/ }))
     await within(dialogo).findByText(/Marcadas como impressas/)
     fireEvent.click(within(dialogo).getByRole('button', { name: /Voltar/ }))
 

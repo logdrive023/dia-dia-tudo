@@ -115,6 +115,9 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
   }, [])
   const video = useRef<HTMLVideoElement>(null)
   const trilha = useRef<MediaStreamTrack>()
+  // tocou em zoom/lanterna: o leitor descansa um instante para o toque responder na hora (decodificar ocupa o celular)
+  const pausaLeitura = useRef(0)
+  const zoomPedido = useRef(1)
   const [erro, setErro] = useState<string>()
   const [caps, setCaps] = useState<Capacidades>({})
   const [lanterna, setLanterna] = useState(false)
@@ -147,9 +150,11 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
         const tela = document.createElement('canvas')
         const ctx2d = tela.getContext('2d', { willReadFrequently: true })
         let volta = 0
+        let voltaPropria = 0
         const ler = async () => {
           const v = video.current
           if (!vivo || !v) return
+          if (Date.now() < pausaLeitura.current) { timer = setTimeout(ler, 120); return }
           volta++
           try {
             // 1) o leitor do navegador (rápido; lê código de barras também)
@@ -158,8 +163,10 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
               if (r[0]?.rawValue && vivo && (onLer(r[0].rawValue.trim()), !ref.current.continuo)) return
             }
             // 2) o leitor próprio: o QUADRADO do meio (onde a pessoa mira) e, a cada 4 voltas, a imagem inteira
-            if (ctx2d && v.videoWidth) {
-              const inteiro = volta % 4 === 0
+            // com o leitor do navegador, o próprio só entra de vez em quando (ele é lento e travava os toques no celular)
+            if (ctx2d && v.videoWidth && (!detector || volta % 4 === 0)) {
+              voltaPropria++
+              const inteiro = voltaPropria % 4 === 0
               const lado = Math.min(v.videoWidth, v.videoHeight) * (inteiro ? 1 : 0.7)
               const sx = inteiro ? 0 : (v.videoWidth - lado) / 2
               const sy = inteiro ? 0 : (v.videoHeight - lado) / 2
@@ -173,7 +180,7 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
               const texto = decodificar(img.data, tela.width, tela.height)
               if (texto && vivo && (onLer(texto), !ref.current.continuo)) return
               // dicas: pouca luz (brilho baixo) e demora
-              if (volta % 6 === 0) setDica(brilho(img.data) < 60 ? 'escuro' : Date.now() - inicio > 5000 ? 'demora' : undefined)
+              if (voltaPropria % (detector ? 2 : 6) === 0) setDica(brilho(img.data) < 60 ? 'escuro' : Date.now() - inicio > 5000 ? 'demora' : undefined)
             }
           } catch {
             /* quadro ruim: tenta de novo */
@@ -192,8 +199,15 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
     }
   }, [onLer])
   const aplicar = (c: MediaTrackConstraintSet) => { try { void trilha.current?.applyConstraints({ advanced: [c] }) } catch { /* o aparelho não deixou */ } }
-  const trocarLanterna = () => { const v = !lanterna; setLanterna(v); aplicar({ torch: v } as MediaTrackConstraintSet) }
-  const trocarZoom = (z: number) => { setZoom(z); aplicar({ zoom: z } as MediaTrackConstraintSet) }
+  const trocarLanterna = () => { const v = !lanterna; pausaLeitura.current = Date.now() + 400; setLanterna(v); aplicar({ torch: v } as MediaTrackConstraintSet) }
+  // o botão acende na hora; a câmera recebe só o ÚLTIMO zoom tocado (toques rápidos não enfileiram trocas na câmera)
+  const trocarZoom = (z: number) => {
+    if (z === zoom) return
+    pausaLeitura.current = Date.now() + 500
+    zoomPedido.current = z
+    setZoom(z)
+    setTimeout(() => zoomPedido.current === z && aplicar({ zoom: z } as MediaTrackConstraintSet), 80)
+  }
   const zooms = caps.zoom ? [1, 2, 3].filter((z) => z >= caps.zoom!.min && z <= caps.zoom!.max) : []
   const enviar = () => { const c = digitado.trim(); if (c) (ref.current.ultimo = undefined, onLer(c), setDigitado('')) }
   const certos = lidos.filter((x) => x.ok).length

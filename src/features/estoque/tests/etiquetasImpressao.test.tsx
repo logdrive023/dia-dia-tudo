@@ -66,6 +66,10 @@ describe('impressão de etiquetas', () => {
     await within(folha).findByText('2 etiqueta(s)')
     fireEvent.click(within(folha).getByRole('button', { name: /Imprimir/ }))
     expect(print).toHaveBeenCalled()
+    // imprimir NÃO marca: só a confirmação depois de ver o papel
+    await within(folha).findByText(/Enviado para a impressora/)
+    expect((await b.consulta('fichaItem', { id: ids[0] })).item.etiquetaImpressaEm).toBeFalsy()
+    fireEvent.click(within(folha).getByRole('button', { name: /Confirmar impressão/ }))
     await within(folha).findByText(/Marcadas como impressas/)
     const fichas = await Promise.all(ids.map((id) => b.consulta('fichaItem', { id })))
     expect(fichas.map((f) => !!f.item.etiquetaImpressaEm)).toEqual([true, false])
@@ -86,8 +90,10 @@ describe('impressão de etiquetas', () => {
     expect(debaixo.classList.contains('etiquetas-ativa')).toBe(false)
     expect(document.body.classList.contains('imprimindo-etiquetas')).toBe(true)
     // o tamanho do papel (@page) só vem da janela que imprime
-    expect(debaixo.querySelector('style')!.textContent).not.toContain('@page')
-    expect(decima.querySelector('style')!.textContent).toContain('@page')
+    expect(debaixo.dataset.pagina).toBeUndefined()
+    expect(decima.dataset.pagina).toContain('@page')
+    // o site publicado bloqueia <style> no meio da página: a janela não pode depender de nenhum
+    expect(decima.querySelector('style')).toBeNull()
   }, 30000)
 
   it('acima do limite por vez (10 folhas A4 = 210) o Imprimir fica desligado', async () => {

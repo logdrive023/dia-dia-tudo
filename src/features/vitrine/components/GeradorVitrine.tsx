@@ -70,6 +70,7 @@ export function GeradorVitrine({ publicado, nomeNegocio, dados, colunasPreco, sa
       setEnviando(false)
     }
   }
+  const modoPreco = publicado.modoPreco ?? 'contato'
   // o que a prévia mostra: a loja de verdade com o rascunho por cima
   const previa: DadosLoja = { ...dados, loja: { ...dados.loja, nome: r.nome.trim() || nomeNegocio, descricao: r.descricao.trim() || undefined, whatsapp: r.whatsapp.replace(/[^\d+]/g, '') || undefined, aparencia: a } }
   const estreita = aparelho === 'celular'
@@ -142,9 +143,13 @@ export function GeradorVitrine({ publicado, nomeNegocio, dados, colunasPreco, sa
           <Cartao titulo={t('Funcionamento')} ajuda="Entra na vitrine o cabelo já separado na triagem, com etiqueta e com saldo. Estes ajustes valem na hora.">
             <div className="space-y-3">
               <Interruptor ligado={publicado.ativa} onChange={(v) => void salvar({ ativa: v }, t(v ? 'Vitrine ligada.' : 'Vitrine desligada: o comprador não vê nada.'))} titulo="Vitrine ligada" texto="Desligada, o link mostra “vitrine fechada”. Você continua vendo a prévia aqui." />
-              <Interruptor ligado={publicado.mostrarPreco} onChange={(v) => void salvar({ mostrarPreco: v })} titulo="Mostrar o preço" texto="O preço por grama da tabela (e o valor do pacote inteiro). Desligado, aparece “Consultar preço”." />
-              {publicado.mostrarPreco && colunasPreco.length > 0 && (
-                <Campo rotulo="Preço de qual coluna da tabela"><Selecao valor={publicado.colunaId} vazio="A primeira coluna" onChange={(v) => void salvar({ colunaId: v || undefined })} opcoes={colunasPreco} /></Campo>
+              <div>
+                <p className="mb-1 text-sm font-semibold text-[var(--suave)]">{t('Preço na vitrine')}</p>
+                <Escolha rotulo="Preço na vitrine" valor={modoPreco} onChange={(v) => void salvar({ modoPreco: v })} opcoes={[{ id: 'contato', nome: 'Entrar em contato' }, { id: 'tabela', nome: 'Preço da tabela' }, { id: 'individual', nome: 'Preço por pacote' }]} />
+                <p className="mt-1 text-xs text-[var(--suave)]">{t(modoPreco === 'contato' ? 'O comprador não vê valor: o botão chama a loja no WhatsApp.' : modoPreco === 'tabela' ? 'Mostra o preço por grama que está na sua tabela.' : 'Digite o preço de cada pacote na lista “Pacotes prontos”, aqui embaixo.')}</p>
+              </div>
+              {modoPreco === 'tabela' && colunasPreco.length > 0 && (
+                <Campo rotulo="Qual preço mostrar"><Selecao valor={publicado.colunaId} vazio="O primeiro da tabela" onChange={(v) => void salvar({ colunaId: v || undefined })} opcoes={colunasPreco} /></Campo>
               )}
             </div>
           </Cartao>

@@ -15,13 +15,14 @@ import { TabelaDados, SeloCodigo, corDoNome, iniciais } from '../../../shared/ui
 import { formatar } from '../../../core/domain/dinheiro'
 import { Campo, Confirmar, Pilula, Selecao, Titulo, Vazio, cx, dataBR, diaCurto, hora, moedaPadrao } from '../../../shared/ui/base'
 import { useApp, useComando, useConsulta, useFiltrosTela } from '../../../shared/ui/contexto'
-import { FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo } from '../../../shared/ui/filtroPadrao'
+import { AbasSituacao, FiltroLista, GrupoFiltro, VazioFiltro, type FiltroAtivo } from '../../../shared/ui/filtroPadrao'
 import { useT } from '../../../shared/ui/i18n'
 import { type Acao } from '../../../shared/ui/menuAcoes'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
 import { Paginacao, usePaginacao } from '../../../shared/ui/paginacao'
 import { SeloPendencias } from '../../../shared/ui/pendencias'
 import { baixarCSV } from '../../../shared/ui/csv'
+import { estaParada, minutosAberta, passaFiltroAberta, textoIdade } from '../model/vendasEmAberto'
 
 /** as abas (situação): concluídas · com pendência · EM ABERTO (começou no caixa e saiu) · canceladas · todas */
 const ABAS = [{ id: '', nome: 'Concluídas' }, { id: 'pendencia', nome: 'Com pendência' }, { id: 'abertas', nome: 'Em aberto' }, { id: 'canceladas', nome: 'Canceladas' }, { id: 'todas', nome: 'Todas' }] as const
@@ -62,7 +63,12 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
   const aba = p('aba') as (typeof ABAS)[number]['id']
   const pendencia = p('pendencia')
   const termo = p('busca').trim().toLowerCase()
-  const abertasFiltradas = (abertas ?? []).filter((a) => !termo || [a.cliente, a.porNome, ...a.linhas.map((l) => `${l.codigo ?? ''} ${l.nome}`)].filter(Boolean).join(' ').toLowerCase().includes(termo))
+  const abertasBusca = (abertas ?? []).filter((a) => !termo || [a.cliente, a.porNome, ...a.linhas.map((l) => `${l.codigo ?? ''} ${l.nome}`)].filter(Boolean).join(' ').toLowerCase().includes(termo))
+  // os filtros rápidos da aba "Em aberto" (funcionária só vê as dela: "Minhas" seria igual a "Todas")
+  const qualAberta = p('quais')
+  const abertasFiltradas = abertasBusca.filter((a) => passaFiltroAberta(qualAberta, a))
+  const contaAbertas = (id: string) => abertasBusca.filter((a) => passaFiltroAberta(id, a)).length
+  const FILTROS_ABERTAS = [{ id: '', nome: 'Todas' }, ...(admin ? [{ id: 'minhas', nome: 'Minhas' }] : []), { id: 'recentes', nome: 'Até 1 hora' }, { id: 'paradas', nome: 'Paradas há 1 dia ou mais' }]
   const ordem = p('ordem') || 'data'
   const carregando = !concluidas || !canceladas
   type V = NonNullable<typeof concluidas>[number]
@@ -168,13 +174,17 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
       />
 
       {aba === 'abertas' ? (
-        // EM ABERTO: a mesma listagem padrão — quem · total / o que tem dentro · quando guardou / quem guardou
+        // EM ABERTO: filtros rápidos e a mesma listagem padrão — quem · total / o que tem dentro · há quanto tempo / quem guardou
+        <>
+        {!!abertas?.length && <div className="mb-3"><AbasSituacao rotulo="Tempo em aberto" valor={qualAberta} onChange={(id) => setP('quais', id)} opcoes={FILTROS_ABERTAS.map((f) => ({ ...f, n: contaAbertas(f.id), tom: f.id === 'paradas' ? 'alerta' as const : undefined }))} /></div>}
         <TabelaDados
           cartoes={vis.cartoes}
           linhas={abertasFiltradas}
           chave={(a) => a.id}
           carregando={!abertas}
-          vazio={<Vazio texto="Nenhuma venda em aberto. Começou no caixa e saiu? Ela aparece aqui para retomar." />}
+          vazio={abertas?.length && (qualAberta || termo)
+            ? <VazioFiltro texto="Nenhuma venda em aberto com esse filtro." filtrando onLimpar={() => ajustarParams({ quais: undefined, busca: undefined })} />
+            : <Vazio texto="Nenhuma venda em aberto. Começou no caixa e saiu? Ela aparece aqui para retomar." />}
           onAbrir={(a) => ir('vendaRapida', { aberta: a.id })}
           rotuloAbrir="Retomar no caixa"
           rotuloLinha={(a) => `${a.cliente ?? t('Sem cliente')} · ${a.linhas.length}`}
@@ -185,19 +195,20 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
           colunas={[
             { id: 'quem', titulo: 'Cliente', celula: (a) => <><b className="block">{a.cliente ?? t('Sem cliente')}</b><span className="text-xs text-[var(--suave)]">{a.porNome ? t('guardada por {p}', { p: a.porNome }) : ''}</span></> },
             { id: 'itens', titulo: 'Pacotes', classe: 'max-w-72', celula: (a) => <span className="line-clamp-2">{a.linhas.map((l) => `${l.codigo ?? '—'} ${l.nome}`).join(' + ')}</span> },
-            { id: 'quando', titulo: 'Guardada', classe: 'num whitespace-nowrap', celula: (a) => <>{dataBR(a.salvaEm)}<span className="block text-xs text-[var(--suave)]">{hora(a.salvaEm)}</span></> },
+            { id: 'quando', titulo: 'Em aberto', classe: 'whitespace-nowrap', celula: (a) => <><b className={cx('block text-sm', estaParada(minutosAberta(a.abertaEm)) && 'text-[var(--alerta)]')}>{textoIdade(minutosAberta(a.abertaEm), t)}</b><span className="num text-xs text-[var(--suave)]">{dataBR(a.salvaEm)} {hora(a.salvaEm)}</span></> },
             { id: 'total', titulo: 'Total', direita: true, celula: (a) => <b>{a.total !== undefined && a.moedaTotal ? formatar(a.total, a.moedaTotal) : '—'}</b> },
           ]}
           celular={{
             titulo: (a) => a.cliente ?? t('Sem cliente'),
             valor: (a) => (a.total !== undefined && a.moedaTotal ? formatar(a.total, a.moedaTotal) : '—'),
-            valorSub: (a) => `${dataBR(a.salvaEm).slice(0, 5)} ${hora(a.salvaEm)}`,
+            valorSub: (a) => textoIdade(minutosAberta(a.abertaEm), t),
             resumo: (a) => a.linhas.map((l) => l.codigo ?? '—').join(', '),
             situacao: () => ({ texto: 'Em aberto', tom: 'alerta' }),
             alerta: (a) => (a.linhas.some((l) => l.saldo < l.quantidade) ? { texto: t('um pacote já saiu do estoque'), tom: 'ruim' } : undefined),
-            fatos: (a) => [a.porNome && `👤 ${a.porNome}`, `📦 ${t('{n} pacote(s)', { n: a.linhas.length })}`],
+            fatos: (a) => [a.porNome && `👤 ${a.porNome}`, `📦 ${t('{n} pacote(s)', { n: a.linhas.length })}`, `🕘 ${dataBR(a.salvaEm).slice(0, 5)} ${hora(a.salvaEm)}`],
           }}
         />
+        </>
       ) : (
       <>
       {/* LISTAGEM PADRÃO (TabelaDados): só as colunas, as ações e o que abre; carregando/vazio/celular são dela */}

@@ -1,5 +1,6 @@
-// ESCOLHA DO PREÇO DA TABELA (modo caixa, embaixo de "Nesta venda") — uma linha compacta e sempre à vista:
-//   🏷 Preço da tabela · Tabela geral v2          [ LP · padrão  Bs 688,90 ▾ ]
+// ESCOLHA DO PREÇO DA TABELA (modo caixa, embaixo de "Nesta venda") — sempre à vista e em duas linhas (cabe no celular):
+//   🏷 Preço da tabela · Tabela geral v2                 ▾
+//      P.W. (Paraguai)  [Padrão]        ← o preço que está valendo, inteiro e em destaque
 // Um toque abre as opções: cada comprador (coluna) da tabela com o TOTAL que daria para os pacotes da venda e a
 // diferença para o padrão; a escolhida em destaque. Tocar troca na hora (a tela recalcula tudo: linhas, total,
 // desconto, impostos, cobrança) e o que aparece é o que é salvo. NÃO é obrigatório: sem mexer, vale o padrão.
@@ -44,17 +45,16 @@ export function EscolhaPreco({ tabela, versao, opcoes, valor, padrao, porque, mo
   const mudou = valor !== padrao
   return (
     <section aria-label={t('Preço da tabela')} className={cx('overflow-hidden rounded-2xl border bg-[var(--cartao)] shadow-sm', mudou ? 'border-[var(--marca)]' : 'border-[var(--borda)]')}>
-      <button type="button" aria-expanded={aberto} onClick={() => setAberto(!aberto)} className="flex min-h-12 w-full items-center gap-2 px-4 py-2 text-left">
-        <span aria-hidden>🏷</span>
+      <button type="button" aria-expanded={aberto} onClick={() => setAberto(!aberto)} className="flex min-h-14 w-full items-start gap-2 px-4 py-2.5 text-left">
+        <span aria-hidden className="mt-0.5">🏷</span>
         <span className="min-w-0 flex-1">
-          <b className="block text-sm">{t('Preço da tabela')}</b>
-          <span className="block truncate text-xs text-[var(--suave)]">{tabela}{versao ? ` · v${versao}` : ''}</span>
+          <span className="block truncate text-xs text-[var(--suave)]">{t('Preço da tabela')} · {tabela}{versao ? ` · v${versao}` : ''}</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <b className="min-w-0 break-words text-base">{atual.nome}</b>
+            <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold', mudou ? 'bg-[var(--marca)] text-white' : 'bg-[var(--bom)]/15 text-[var(--bom)]')}>{mudou ? t('Escolhido') : t('Padrão')}</span>
+          </span>
         </span>
-        <span className={cx('inline-flex min-w-0 shrink items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1', mudou ? 'bg-[var(--marca)] text-white ring-[var(--marca)]' : 'bg-[var(--fundo)] ring-[var(--borda)]')}>
-          <span className="truncate">{atual.nome}</span>
-          <span className={cx('shrink-0 font-normal', mudou ? 'text-white/80' : 'text-[var(--suave)]')}>{mudou ? t('escolhido') : t('padrão')}</span>
-          <span aria-hidden className={cx('shrink-0 transition-transform', aberto && 'rotate-180')}>▾</span>
-        </span>
+        <span aria-hidden className={cx('mt-2 shrink-0 text-[var(--suave)] transition-transform', aberto && 'rotate-180')}>▾</span>
       </button>
       {aberto && (
         <div className="border-t border-[var(--borda)] p-2">
@@ -66,10 +66,11 @@ export function EscolhaPreco({ tabela, versao, opcoes, valor, padrao, porque, mo
               return (
                 <li key={o.id}>
                   <button type="button" role="radio" aria-checked={sel} disabled={o.total === undefined} onClick={() => (onEscolher(o.id === padrao ? undefined : o.id), setAberto(false))}
-                    className={cx('flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm transition disabled:opacity-50', sel ? 'bg-[var(--marca-suave)] font-semibold text-[var(--marca)] ring-1 ring-[var(--marca)]' : 'hover:bg-[var(--fundo)]')}>
+                    className={cx('flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-1.5 text-left text-sm transition disabled:opacity-50', sel ? 'bg-[var(--marca-suave)] font-semibold text-[var(--marca)] ring-1 ring-[var(--marca)]' : 'hover:bg-[var(--fundo)]')}>
                     <span aria-hidden className={cx('flex h-4 w-4 shrink-0 items-center justify-center rounded-full ring-2', sel ? 'ring-[var(--marca)]' : 'ring-[var(--borda)]')}>{sel && <span className="h-2 w-2 rounded-full bg-[var(--marca)]" />}</span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate">{o.nome}{o.id === padrao && <span className="ml-1.5 rounded-full bg-[var(--bom)]/15 px-1.5 text-[10px] font-bold text-[var(--bom)]">★ {t('padrão')} · {t(porque)}</span>}</span>
+                      <span className="block break-words">{o.nome}</span>
+                      {o.id === padrao && <span className="mt-0.5 inline-block rounded-full bg-[var(--bom)]/15 px-1.5 text-[10px] font-bold text-[var(--bom)]">★ {t('Padrão')} · {t(porque)}</span>}
                       {o.semPreco ? <span className="block text-[11px] font-normal text-[var(--alerta)]">{t('sem preço para {n} pacote(s)', { n: o.semPreco })}</span> : null}
                     </span>
                     <span className="num shrink-0 text-right">

@@ -4,7 +4,7 @@
 // Tipo (Configurações › Códigos, trocável em cada impressão): QR + código de barras (Code 128, leitor "pistola"), só QR
 // (celular) ou sem etiqueta (o código aparece grande para escrever à mão).
 
-import { type CSSProperties, memo, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { type CSSProperties, memo, useDeferredValue, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Id } from '../../core/domain/tipos'
 import type { Etiqueta } from '../../core/services/fotos'
@@ -151,7 +151,7 @@ function UmaEtiqueta({ e, s, barras, qr = true }: { e: Etiqueta; s: MedidasEtiqu
   const largura = qr ? s.w - s.qr - 4.5 : s.w - 3
   const tamCodigo = Math.min(s.codigo, largura / (0.62 * Math.max(1, e.codigo.length)))
   return (
-    <div className="etiqueta flex overflow-hidden bg-white text-black" style={{ width: `${s.w}mm`, height: `${s.h}mm`, padding: '1.5mm', gap: '1.5mm', border: '0.2mm dashed #bbb', boxSizing: 'border-box', breakInside: 'avoid' }}>
+    <div className="etiqueta flex overflow-hidden bg-white text-black" style={{ width: `${s.w}mm`, height: `${s.h}mm`, padding: '1.5mm', gap: '1.5mm', border: '0.2mm dashed #bbb', boxSizing: 'border-box', breakInside: 'avoid', '--qr-tam': `${s.qr}mm` } as CSSProperties}>
       {qr && <QR texto={e.qr ? enderecoDoQr(e.qr) : enderecoDoLote(e.id)} className="shrink-0" />}
       <div className="flex min-w-0 flex-1 flex-col justify-between" style={{ fontSize: `${s.texto}mm`, lineHeight: 1.15 }}>
         <b className="font-mono" style={{ fontSize: `${tamCodigo}mm`, lineHeight: 1, whiteSpace: 'nowrap' }}>{e.codigo}</b>
@@ -165,7 +165,6 @@ function UmaEtiqueta({ e, s, barras, qr = true }: { e: Etiqueta; s: MedidasEtiqu
           {foto && s.foto > 0 && <img src={foto} alt="" className="shrink-0 object-cover" style={{ width: `${s.foto}mm`, height: `${s.foto}mm`, borderRadius: '1mm' }} />}
         </div>
       </div>
-      <style>{`.etiqueta svg:not(.barras){width:${s.qr}mm;height:${s.qr}mm}`}</style>
     </div>
   )
 }
@@ -352,7 +351,8 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   const previaAdiada = useDeferredValue(propsPrevia)
   const atualizandoPrevia = previaAdiada !== propsPrevia
 
-  // mandou imprimir: o lote sai de Etiquetas › "Sem etiqueta" (fica "impressa em 03/11 por Paula")
+  // IMPRIMIR só manda para a impressora; o pacote continua em "Sem etiqueta" até a pessoa CONFIRMAR que saiu certa no
+  // papel (papel pode enroscar, o celular pode só gerar um PDF). Quem confirma: o administrador (ou "Só marcar").
   // SÓ ESTA JANELA vai para o papel: se outra janela de etiquetas ficou aberta por baixo (ex.: aberta de duas telas),
   // ela não sai junto (antes: 1 etiqueta virava 3 páginas). O @page (tamanho do papel) também só vale para esta.
   // vez = quantas vezes mandou imprimir (cada toque imprime de novo, mesmo se o celular não avisar que terminou)
@@ -366,9 +366,11 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
     window.print()
   }, [vez, atualizandoPrevia])
   useEffect(() => () => document.body.classList.remove('imprimindo-etiquetas'), [])
-  const imprimir = async () => {
-    setVez((n) => n + 1)
-    if (sessao.perfil !== 'admin') return
+  const imprimir = () => setVez((n) => n + 1)
+  const enviou = vez > 0
+  const admin = sessao.perfil === 'admin'
+  // viu no papel e saiu certa: agora sim o lote sai de Etiquetas › "Sem etiqueta" (fica "impressa em 03/11 por Paula")
+  const confirmar = async () => {
     const feitos = ids.filter((id) => copiasDe(id) > 0)
     if (feitos.length && (await executar('marcarEtiquetasImpressas', { ids: feitos }))) (setImpresso(true), onImpresso?.())
   }
@@ -382,7 +384,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
   }, [onFechar])
-  // ATALHO Ctrl+P / ⌘P: imprime pelo fluxo daqui (papel certo + marca como impressa) — não a página inteira do navegador
+  // ATALHO Ctrl+P / ⌘P: imprime pelo fluxo daqui (papel certo) — não a página inteira do navegador
   const podeImprimir = !!dados && !!total && !passou
   useEffect(() => {
     const atalho = (e: KeyboardEvent) => {
@@ -398,32 +400,18 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   // "2 folhas A4 (21 + 4)": quantas etiquetas em cada folha
   const resumoFolhas = !a4 ? '' : folhas <= 1 ? t('1 folha A4') : t('{n} folhas A4 ({a})', { n: folhas, a: paginas.map((v) => v.filter(Boolean).length).join(' + ') })
   const pagina = tamanho === 'a4' ? '@page{size:A4;margin:0}' : `@page{size:${medRolo.w}mm ${medRolo.h}mm;margin:0}`
+  // TAMANHO DO PAPEL (@page): muda com a escolha, e o site publicado proíbe <style> no meio da página (CSP style-src
+  // 'self'). Folha de estilo criada por código passa pela regra; o resto da impressão está fixo no index.css.
+  useLayoutEffect(() => {
+    if (!ativa || !('adoptedStyleSheets' in document)) return
+    const folha = new CSSStyleSheet()
+    folha.replaceSync(pagina)
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, folha]
+    return () => { document.adoptedStyleSheets = document.adoptedStyleSheets.filter((f) => f !== folha) }
+  }, [ativa, pagina])
   const secao = 'rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm'
   const conteudo = (
-    <div id="etiquetas-impressao" role="dialog" aria-modal="true" aria-label={t('Imprimir etiquetas')} className={cx('fixed inset-0 z-[60] flex flex-col bg-[var(--fundo)] text-[var(--texto)]', ativa && 'etiquetas-ativa')}>
-      <style>{`${ativa ? pagina : ''}
-@media print{
-  body.imprimindo-etiquetas>*:not(.etiquetas-ativa){display:none!important}
-  html:has(body.imprimindo-etiquetas),body.imprimindo-etiquetas{margin:0!important;padding:0!important;height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important}
-  .etiquetas-ativa{position:static!important;inset:auto!important;height:auto!important;background:#fff!important;overflow:visible!important;display:block!important}
-  .etiquetas-ativa .nao-imprimir{display:none!important}
-  .etiquetas-ativa .folha>div{display:block!important;padding:0!important;margin:0!important;gap:0!important;max-width:none!important}
-  .etiquetas-ativa .pequena{display:block!important}
-  .etiquetas-ativa .pequena .etiqueta{height:${(medRolo.h - 0.3).toFixed(1)}mm!important;break-inside:avoid}
-  .etiquetas-ativa .folha,.etiquetas-ativa .previa{padding:0!important;margin:0!important;overflow:visible!important;border:none!important;background:none!important;box-shadow:none!important;display:block!important}
-  .etiquetas-ativa .escala{width:auto!important;height:auto!important;overflow:visible!important;margin:0!important}
-  .etiquetas-ativa .escala>div{transform:none!important}
-  .etiquetas-ativa .grade{gap:0!important}
-  .etiquetas-ativa .etiqueta{border:none!important}
-  .etiquetas-ativa .vaga{border:none!important}
-  .etiquetas-ativa .pagina-a4{box-shadow:none!important;margin:0!important;break-after:page}
-  .etiquetas-ativa .pagina-a4:last-child{break-after:auto}
-  .etiquetas-ativa .pequena .etiqueta{break-after:page}
-  .etiquetas-ativa .pequena .etiqueta:last-child{break-after:auto}
-  .etiquetas-ativa .pagina-a4{height:296mm!important;overflow:hidden!important;break-after:auto!important}
-  .etiquetas-ativa .escala{break-after:page}
-  .etiquetas-ativa .escala:last-child{break-after:auto}
-}`}</style>
+    <div id="etiquetas-impressao" role="dialog" aria-modal="true" aria-label={t('Imprimir etiquetas')} data-pagina={ativa ? pagina : undefined} style={{ '--etiqueta-altura': `${(medRolo.h - 0.3).toFixed(1)}mm` } as CSSProperties} className={cx('fixed inset-0 z-[60] flex flex-col bg-[var(--fundo)] text-[var(--texto)]', ativa && 'etiquetas-ativa')}>
       {/* topo: voltar · título · quantas */}
       <header className="nao-imprimir flex items-center gap-2 border-b border-[var(--borda)] bg-[var(--cartao)] px-3 py-2">
         <Botao variante="leve" onClick={onFechar}>← {t('Voltar')}</Botao>
@@ -583,17 +571,20 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
             {a4 && total > 0 && <span className="text-[var(--suave)]"> · {resumoFolhas}{sobram > 0 ? ` · ${t('sobram {n} na última', { n: sobram })}` : ''}</span>}
             {passou && <span role="alert" className="block font-semibold text-[var(--ruim)]">{t('Máximo {n} por vez: diminua as cópias ou imprima em partes.', { n: limite })}</span>}
             {impresso && <span role="status" className="block font-semibold text-[var(--bom)]">✓ {t('Marcadas como impressas: o pacote saiu de “Sem etiqueta”.')}</span>}
+            {enviou && !impresso && <span role="status" className="block font-semibold text-[var(--marca)]">🖨 {admin ? t('Enviado para a impressora. Saiu certa no papel? Confirme: até lá o pacote continua em “Sem etiqueta”.') : t('Enviado para a impressora.')}</span>}
           </div>
-          {sessao.perfil === 'admin' && !impresso && (
+          {admin && !impresso && !enviou && (
             <Botao variante="secundario" className="min-h-12 flex-1 sm:flex-none" disabled={!dados || !pacotes} onClick={soMarcar} aria-label={t('Só marcar como gerada')} title={t('Marca as etiquetas como geradas sem imprimir agora (o pacote sai de "Sem etiqueta").')}>
               ✓ <span className="sm:hidden">{t('Só marcar')}</span><span className="hidden sm:inline">{t('Só marcar como gerada')}</span>
             </Botao>
           )}
-          {impresso ? (
-            // JÁ IMPRESSO: terminar é o principal; imprimir de novo fica ao lado (papel enroscou, faltou uma)
+          {enviou || impresso ? (
+            // JÁ MANDOU: confirmar (ou terminar) é o principal; imprimir de novo fica ao lado (papel enroscou, faltou uma)
             <>
               <Botao variante="secundario" className="min-h-12 flex-1 sm:flex-none" disabled={!podeImprimir} onClick={imprimir}>🖨 {t('Imprimir de novo')}</Botao>
-              <Botao grande className="flex-1 sm:flex-none" onClick={onFechar}>✓ {t('Concluir')}</Botao>
+              {admin && !impresso
+                ? <Botao grande className="flex-1 sm:flex-none" disabled={!pacotes} onClick={confirmar}>✓ {t('Confirmar impressão')}</Botao>
+                : <Botao grande className="flex-1 sm:flex-none" onClick={onFechar}>✓ {t('Concluir')}</Botao>}
             </>
           ) : (
             <Botao grande className="flex-1 sm:flex-none" disabled={!podeImprimir} onClick={imprimir} title={t('Atalho: Ctrl+P')}>

@@ -16,6 +16,7 @@ import { TabelaDados, SeloCodigo, SeloSituacao, type TomLista } from '../../../s
 import { formatar } from '../../../core/domain/dinheiro'
 import type { Id } from '../../../core/domain/tipos'
 import { Botao, Campo, Confirmar, Selecao, cx, dataBR, gramasTexto, moedaPadrao, Titulo } from '../../../shared/ui/base'
+import { AcaoIcone } from '../../../shared/ui/acoesPagina'
 import { useApp, useParamTela, useComando, useConsulta, useFiltrosTela } from '../../../shared/ui/contexto'
 import { FiltroPendencia, SeloPendencias } from '../../../shared/ui/pendencias'
 import { useT } from '../../../shared/ui/i18n'
@@ -113,7 +114,10 @@ function ListaCompras() {
   return (
     <div>
       {/* CABEÇALHO PADRÃO: nome da tela · para que serve · a ação principal à direita */}
-      <Titulo subtitulo={t('O cabelo vai para a Triagem assim que a compra é registrada; aqui ficam o pagamento e a entrega.')} acao={<Botao onClick={() => ir('novaCompra')}>+ {t('Nova compra')}</Botao>}>
+      <Titulo subtitulo={t('O cabelo vai para a Triagem assim que a compra é registrada; aqui ficam o pagamento e a entrega.')} acao={<>
+          <Botao onClick={() => ir('novaCompra')}>+ {t('Nova compra')}</Botao>
+          {sessao.perfil === 'admin' && <AcaoIcone icone="⚙️" rotulo="Etapas e regras" dica="O caminho do pedido: as etapas da compra e o que cada uma pede." lado="direita" onClick={() => ir('config', { aba: 'etapas' })} />}
+        </>}>
         {t('Pedidos de compra')}
       </Titulo>
 
@@ -132,7 +136,6 @@ function ListaCompras() {
         ] }}
         periodo={{ de, ate, onChange: (d, a) => ajustarParams({ de: d, ate: a }) }}
         extra={<FiltroViagem nasLinhas={daAba.map((c) => [c.viagem])} valor={vg} onChange={(v) => ajustarParams({ vg: v || undefined })} />}
-        acaoTopo={sessao.perfil === 'admin' && <button type="button" onClick={() => ir('config', { aba: 'etapas' })} className="min-h-10 whitespace-nowrap rounded-xl px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙ {t('Etapas e regras')}</button>}
         busca={busca} onBusca={setBusca} placeholder="Buscar código (atual ou antigo), sigla, fornecedor, item…"
         ativos={ativosCompra} onTirar={tirarFiltro} onLimpar={limparCompra}
         resultados={fila ? lista.length : undefined} total={contaAba[aba]} unidade="pedido(s)"

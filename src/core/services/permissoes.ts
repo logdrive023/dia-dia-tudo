@@ -20,6 +20,7 @@ export const COMANDOS_FUNCIONARIO = new Set<NomeComando>([
   'salvarVendaAberta',
   'descartarVendaAberta',
   'tirarDaVendaAberta',
+  'reduzirNaVendaAberta',
   'salvarCidade',
   'atenderAgendamento',
   'criarServicoRapido',

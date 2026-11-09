@@ -58,7 +58,9 @@ describe('dados de exemplo: a vitrine', () => {
     expect(pub.pacotes.length).toBe(adm.pacotes.length - 1)
     expect(new Set(pub.pacotes.map((x: any) => x.medida)).size).toBeGreaterThanOrEqual(6)
     expect(pub.pacotes.some((x: any) => x.categoria === 'Tinte')).toBe(true)
-    expect(pub.pacotes.filter((x: any) => x.preco).length).toBeGreaterThan(0)
+    // o padrão da loja é "entrar em contato": sem valor na vitrine pública
+    expect(pub.loja.modoPreco).toBe('contato')
+    expect(pub.pacotes.filter((x: any) => x.preco)).toHaveLength(0)
   }, 120000)
 })
 

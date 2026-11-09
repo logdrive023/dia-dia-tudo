@@ -94,7 +94,8 @@ export function Triagem() {
   // leitor pistola: Enter com o código exato abre o pacote
   const pistola = usePistola(dados?.lotes, (l) => ir('lote', { id: l.id }))
   if (erro) return <ErroTela texto={erro} />
-  if (!dados) return <Carregando />
+  // carregando: o contorno da tela (título, números e lista), o mesmo jeito da Compra — nada pula quando os dados chegam
+  if (!dados) return <div><Titulo subtitulo={t('Separe o cabelo bruto por medida; o que fica pronto vai para o estoque.')}>{t('Triagem')}</Titulo><Carregando formato="cartoes" linhas={4} /><div className="mt-3"><Carregando formato="tabela" colunas={5} linhas={6} /></div></div>
 
   const cols = dados.colunas
   const colDe = (id: string) => cols.find((c) => c.id === id)

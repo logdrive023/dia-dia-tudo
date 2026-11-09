@@ -83,6 +83,7 @@ export const comandos = {
   anotarTurno: turnos.anotarTurno,
   prepararQrEtiquetas: estoque.prepararQrEtiquetas,
   tirarDaVendaAberta: vendasAbertas.tirarDaVendaAberta,
+  reduzirNaVendaAberta: vendasAbertas.reduzirNaVendaAberta,
   salvarCidade: cidades.salvarCidade,
   pagarCompra: compras.pagarCompra,
   cancelarCompra: compras.cancelarCompra,

@@ -6,7 +6,7 @@ import { formasEmUso } from '../../../core/domain/formas'
 import { formatar } from '../../../core/domain/dinheiro'
 import { novoId } from '../../../core/domain/ids'
 import type { Id } from '../../../core/domain/tipos'
-import { Botao, Campo, Info, Janela, ValorInput, cx, ehToque, gramasTexto } from '../../../shared/ui/base'
+import { Botao, Campo, Entrada, Info, Janela, ValorInput, cx, ehToque, gramasTexto } from '../../../shared/ui/base'
 import { EditorPagamentos, type PagamentoTela, useCotacoes } from '../../../shared/ui/compartilhados'
 import { useApp, useConsulta } from '../../../shared/ui/contexto'
 import { StatusBadge } from '../../../shared/ui/estoqueUi'
@@ -41,7 +41,8 @@ export function EditarQuantidade({ titulo, grama, valor, max, onSalvar, onFechar
         </span>
         <div className="flex items-center gap-2">
           <input
-            autoFocus
+            // computador: já pronto para digitar; celular: só abre o teclado se a pessoa tocar (não cobre a tela)
+            autoFocus={!ehToque()}
             inputMode="numeric"
             aria-label={grama ? t('Gramas') : t('Quantidade')}
             value={texto}
@@ -54,6 +55,47 @@ export function EditarQuantidade({ titulo, grama, valor, max, onSalvar, onFechar
         </div>
       </div>
       <p className={cx('mt-2 text-sm', erro ? 'font-semibold text-[var(--ruim)]' : 'text-[var(--suave)]')}>{erro ?? `${t('Disponível')}: ${grama ? gramasTexto(max) : max}`}</p>
+    </Janela>
+  )
+}
+
+/**
+ * O pacote lido está noutra venda em aberto: continuar aquela, vender só uma parte (por grama) ou trazer o pacote para
+ * cá. Nada aqui mexe em estoque — só o FECHAR mexe; a parte apenas ajusta o que a outra venda guardou.
+ */
+export function ConflitoVendaAberta({ codigo, quem, saldo, guardado, grama, onIrPara, onParte, onTirar, onFechar }: { codigo: string; quem: string; saldo: number; guardado: number; grama: boolean; onIrPara(): void; onParte(q: number): void; onTirar(): void; onFechar(): void }) {
+  const t = useT()
+  const [texto, setTexto] = useState('')
+  const [ocupado, setOcupado] = useState(false)
+  const q = Number(texto.replace(/\D/g, ''))
+  const fica = Math.min(guardado, saldo - q)
+  const invalido = q >= saldo
+  const uma = (f: () => void) => () => { setOcupado(true); f() }
+  return (
+    <Janela
+      aberta
+      titulo={t('Este pacote está numa venda em aberto')}
+      onFechar={onFechar}
+      rodape={<Botao variante="secundario" grande className="w-full" disabled={ocupado} onClick={uma(onTirar)}>{t('Tirar de lá e vender aqui')}</Botao>}
+    >
+      <p className="text-sm">{t('{c} está na venda em aberto de {q}.', { c: codigo, q: quem })}{grama ? ` ${t('Ela guardou {g} de {s}.', { g: gramasTexto(guardado), s: gramasTexto(saldo) })}` : ''}</p>
+      <Botao grande className="mt-3 w-full" disabled={ocupado} onClick={uma(onIrPara)}>{t('Ir para a venda existente')}</Botao>
+      <p className="mt-1 text-center text-xs text-[var(--suave)]">{t('A venda que está aqui fica guardada em aberto.')}</p>
+      {grama && saldo > 1 && (
+        <div className="mt-4 border-t border-[var(--borda)] pt-3">
+          <div className="flex items-end gap-2">
+            <div className="min-w-0 flex-1">
+              <Campo rotulo="Vender só uma parte (gramas)">
+                <Entrada inputMode="numeric" className="num w-full" placeholder={t('Ex.: {n}', { n: Math.min(100, saldo - 1) })} value={texto} onChange={(e) => setTexto(e.target.value)} />
+              </Campo>
+            </div>
+            <Botao variante="secundario" className="min-h-11 shrink-0" disabled={ocupado || !q || invalido} onClick={uma(() => onParte(q))}>{t('Vender a parte')}</Botao>
+          </div>
+          <p className={cx('mt-1 text-xs', invalido ? 'font-semibold text-[var(--ruim)]' : 'text-[var(--suave)]')}>
+            {invalido ? t('Isso é o pacote inteiro: use "Tirar de lá e vender aqui".') : q ? t('A outra venda fica com {g}. O estoque só muda ao fechar.', { g: gramasTexto(fica) }) : t('O estoque só muda ao fechar a venda.')}
+          </p>
+        </div>
+      )}
     </Janela>
   )
 }
