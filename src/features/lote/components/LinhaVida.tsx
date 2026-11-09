@@ -4,11 +4,11 @@
 // Ex.: 🛒 P-0001 · Atacado Norte · 40 kg → ✂️ T-0001 · 40 kg → 39,3 kg → 📦 L-0002 entrou 18 kg → 🏷 impressa →
 //      💰 V-0006 · Ana Paula · −1,5 kg → ✂️ separado: L-0025 3 kg (60 cm) · L-0026 1,9 kg (40 cm) → ● agora 8,258 kg.
 
-import type { Id } from '../../core/domain/tipos'
-import type { ResultadoConsulta } from '../../core/services'
-import { cx, dataBR, gramasTexto } from './base'
-import { useApp } from './contexto'
-import { useT } from './i18n'
+import type { Id } from '../../../core/domain/tipos'
+import type { ResultadoConsulta } from '../../../core/services/index'
+import { cx, dataBR, gramasTexto } from '../../../shared/ui/base'
+import { useApp } from '../../../shared/ui/contexto'
+import { useT } from '../../../shared/ui/i18n'
 
 type Genealogia = ResultadoConsulta<'genealogia'>
 

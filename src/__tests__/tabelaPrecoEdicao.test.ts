@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   adicionarMedidas, ajustarPct, comValor, contarMudancas, copiarColuna, invalidos, moverColuna, normalizarFator, preencherVazios,
   tirarColuna, tirarMedida, trocarMedida, type GradeEdicao,
-} from '../shared/ui/tabelaPrecoEdicao'
+} from '../features/precos/model/tabelaPrecoEdicao'
 
 const base: GradeEdicao = {
   nome: 'Tabela geral (Normal)',

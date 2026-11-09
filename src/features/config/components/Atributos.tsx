@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { type AtributosConfig, type CampoDef } from '../../../core/modulos'
 import { Botao, Campo, Carregando, Cartao, Entrada, Escolha, Pilula, Selecao, Vazio, cx } from '../../../shared/ui/base'
-import { BarraSalvar } from '../../../shared/ui/barraSalvar'
+import { BarraSalvar } from './BarraSalvar'
 import { useAvisoSaida, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { Chave } from '../../../shared/ui/interruptor'

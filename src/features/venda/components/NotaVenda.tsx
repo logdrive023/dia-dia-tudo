@@ -4,11 +4,11 @@
 // mesmo com o sistema em português ou no tema escuro. Diz sempre "sin validez fiscal": não é factura.
 import { createPortal } from 'react-dom'
 import { useEffect } from 'react'
-import { formatar } from '../../core/domain/dinheiro'
-import { MODELOS_DOCUMENTO, TEXTO_NOTA, type ModeloDocumentoId } from '../../core/dados/documentos'
-import type { DocumentoVenda } from '../../core/services/documentos'
-import { cx, dataBR } from './base'
-import { traduzir } from './i18n'
+import { formatar } from '../../../core/domain/dinheiro'
+import { MODELOS_DOCUMENTO, TEXTO_NOTA, type ModeloDocumentoId } from '../../../core/dados/documentos'
+import type { DocumentoVenda } from '../../../core/services/documentos'
+import { cx, dataBR } from '../../../shared/ui/base'
+import { traduzir } from '../../../shared/ui/i18n'
 
 const es = (s: string) => traduzir('es', s)
 const num = (n: number) => n.toLocaleString('es-BO')

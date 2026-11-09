@@ -2,17 +2,17 @@
 // Tudo passa pelos comandos normais: salvo neste aparelho na hora (fila de saída) e sincronizado quando houver sinal.
 
 import { useState } from 'react'
-import { BarraLimite } from './barras'
-import { formatar } from '../../core/domain/dinheiro'
-import { dataLocal } from '../../core/domain/datas'
-import { novoId } from '../../core/domain/ids'
-import type { Id } from '../../core/domain/tipos'
-import type { CategoriaViagem, SaldoCarteira } from '../../core/services/viagens'
-import { Botao, Campo, Cartao, Confirmar, Entrada, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto } from './base'
-import { useApp, useComando, useConsulta } from './contexto'
-import { Anexos } from './compartilhados'
-import { useLembrado } from './filtros'
-import { useT } from './i18n'
+import { BarraLimite } from '../../../shared/ui/barras'
+import { formatar } from '../../../core/domain/dinheiro'
+import { dataLocal } from '../../../core/domain/datas'
+import { novoId } from '../../../core/domain/ids'
+import type { Id } from '../../../core/domain/tipos'
+import type { CategoriaViagem, SaldoCarteira } from '../../../core/services/viagens'
+import { Botao, Campo, Cartao, Confirmar, Entrada, Janela, Pilula, Selecao, ValorInput, Vazio, cx, dataBR, gramasTexto } from '../../../shared/ui/base'
+import { useApp, useComando, useConsulta } from '../../../shared/ui/contexto'
+import { Anexos } from '../../../shared/ui/compartilhados'
+import { useLembrado } from '../../../shared/ui/filtros'
+import { useT } from '../../../shared/ui/i18n'
 
 /** "Salvo neste aparelho · sincroniza quando houver sinal" (só quando os dados ficam no aparelho). */
 export function AvisoNoAparelho({ className }: { className?: string }) {

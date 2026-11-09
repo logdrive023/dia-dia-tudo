@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { novoId } from '../../../core/domain/ids'
 import type { Socio } from '../../../core/services/contexto'
 import { Botao, Carregando, Cartao, Entrada, cx, loc } from '../../../shared/ui/base'
-import { BarraSalvar } from '../../../shared/ui/barraSalvar'
+import { BarraSalvar } from './BarraSalvar'
 import { useAvisoSaida, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 

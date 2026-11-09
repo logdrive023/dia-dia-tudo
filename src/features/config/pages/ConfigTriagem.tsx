@@ -7,7 +7,7 @@ import { COLUNA_LAVAGEM, COLUNA_VENDIDO, type ColunaTriagem } from '../../../cor
 import { Botao, Cartao, Carregando, Confirmar, Entrada, Escolha, Info, Pilula, Vazio, cx } from '../../../shared/ui/base'
 
 const DICA_LAVAGEM = 'Opcional. Se lavar, digite o peso depois. Ex.: 6.000 g → 5.700 g (−300 g).'
-import { BarraSalvar } from '../../../shared/ui/barraSalvar'
+import { BarraSalvar } from '../components/BarraSalvar'
 import { useApp, useAvisoSaida, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 

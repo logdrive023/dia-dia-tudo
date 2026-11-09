@@ -10,13 +10,13 @@
 // Celular: tudo em coluna e a barra "Total · FECHAR" presa embaixo; com espaço: venda | cobrança fixa ao lado.
 
 import { AvisoAbaixoDoCusto } from '../../../shared/ui/abaixoDoCusto'
-import { AvisoGuardado } from '../../../shared/ui/avisoGuardado'
-import { EscolhaPreco } from '../../../shared/ui/escolhaPreco'
+import { AvisoGuardado } from '../components/AvisoGuardado'
+import { EscolhaPreco } from '../components/EscolhaPreco'
 import { ImpostosDaOperacao, QuadroImpostosOperacao } from '../../../shared/ui/impostosOperacao'
 import { Trilha } from '../../../shared/ui/trilha'
 import { formatar, moeda as moedaDe } from '../../../core/domain/dinheiro'
 import { Botao, Confirmar, Info, cx, gramasTexto, Titulo, Vazio } from '../../../shared/ui/base'
-import { BuscaPacote } from '../../../shared/ui/buscaPacote'
+import { BuscaPacote } from '../components/BuscaPacote'
 import { useApp, useConsulta } from '../../../shared/ui/contexto'
 import { linkWhatsApp } from '../../../shared/ui/compartilhados'
 import { LeitorCodigo } from '../../../shared/ui/estoqueUi'

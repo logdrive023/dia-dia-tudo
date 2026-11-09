@@ -5,9 +5,9 @@
 // desconto, impostos, cobrança) e o que aparece é o que é salvo. NÃO é obrigatório: sem mexer, vale o padrão.
 // Linha com valor mudado à mão fica de fora da troca e aparece avisada.
 import { useState } from 'react'
-import { formatar } from '../../core/domain/dinheiro'
-import { cx } from './base'
-import { useT } from './i18n'
+import { formatar } from '../../../core/domain/dinheiro'
+import { cx } from '../../../shared/ui/base'
+import { useT } from '../../../shared/ui/i18n'
 
 export interface OpcaoPreco {
   id: string

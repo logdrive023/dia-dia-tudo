@@ -45,14 +45,19 @@ export function useNovaCompra({ modulos, base, form }: { modulos: { id: string; 
 
   const [obs, setObs] = useState('')
   const [estado, setEstado] = useState<string[]>([])
-  // VIAGEM: as abertas (funcionária vê só as dela); vem escolhida a viagem aberta de quem comprou (ou de quem registra)
+  // VIAGEM: as abertas (funcionária vê só as dela). A compra JÁ VEM LIGADA à viagem aberta de quem comprou (ou de quem
+  // registra) ou, sem essa, à ÚNICA viagem aberta. A tela diz por quê e o ✕ / "Sem viagem" tira (viagemEscolhida = '').
   const { dados: vgs } = useConsulta('viagens', { status: 'aberta' })
   const viagensAbertas = vgs?.linhas ?? []
   const [viagemEscolhida, setViagemEscolhida] = useState<string>()
   const quemViaja = compradorId ?? sessao.pessoaId
-  const viagemSugerida = quemViaja ? viagensAbertas.find((v) => v.viajantes.some((x) => x.id === quemViaja)) : undefined
+  const viagemDeQuemViaja = quemViaja ? viagensAbertas.find((v) => v.viajantes.some((x) => x.id === quemViaja)) : undefined
+  // campo escondido em Configurações › Formulário: nada de ligar sem a pessoa ver (e sem ter como tirar)
+  const campoViagemVisivel = form.campos.some((c) => c.id === 'viagem' && c.visivel)
+  const viagemSugerida = campoViagemVisivel ? viagemDeQuemViaja ?? (viagensAbertas.length === 1 ? viagensAbertas[0] : undefined) : undefined
+  const motivoViagem: 'viajante' | 'unica' = viagemDeQuemViaja ? 'viajante' : 'unica'
   const [abertos, setAbertos] = useState<Set<CampoFormId>>(() => new Set(form.campos.filter((c) => c.aberto || c.obrigatorio).map((c) => c.id)))
-  const viagemId = viagemEscolhida === undefined ? (abertos.has('viagem') ? viagemSugerida?.id : undefined) : viagemEscolhida || undefined
+  const viagemId = viagemEscolhida === undefined ? viagemSugerida?.id : viagemEscolhida || undefined
   const viagemAtual = viagensAbertas.find((v) => v.id === viagemId)
   const nomeViagem = (v: (typeof viagensAbertas)[number]) => [v.codigo, v.nome, v.destino].filter(Boolean).join(' · ')
   const [tentou, setTentou] = useState(false)
@@ -182,9 +187,10 @@ export function useNovaCompra({ modulos, base, form }: { modulos: { id: string; 
     setFocarCampo(undefined)
   }, [focarCampo])
 
-  // a viagem NÃO abre sozinha: fica no "+ Viagem"; ao abrir já vem a viagem de quem comprou (se houver). O X fecha.
-  const abrir = (c: CampoFormId) => (setAbertos(new Set([...abertos, c])), setFocarCampo(c))
-  const estaAberto = (c: CampoFormId) => abertos.has(c) || (c === 'comprador' && porComprador)
+  // a viagem abre sozinha só quando já vem ligada (a pessoa vê e pode tirar). Sem sugestão, fica no "+ Viagem".
+  // Tirou no ✕ e abriu de novo pelo "+ Viagem": a sugestão volta (viagemEscolhida = undefined).
+  const abrir = (c: CampoFormId) => (c === 'viagem' && setViagemEscolhida(undefined), setAbertos(new Set([...abertos, c])), setFocarCampo(c))
+  const estaAberto = (c: CampoFormId) => abertos.has(c) || (c === 'comprador' && porComprador) || (c === 'viagem' && viagemEscolhida === undefined && !!viagemSugerida)
   // TROCAR fornecedor ou módulo com algo preenchido: pergunta e começa limpo (só o módulo/fornecedor novo fica)
   const preenchido = linhas.some((l) => l.quantidade || l.total || l.itemId) || estado.length > 0 || !!obs.trim() || (anexos?.length ?? 0) > 0 || !!codigo.trim()
   const limparRascunho = (cabelo: boolean) => {
@@ -307,7 +313,7 @@ export function useNovaCompra({ modulos, base, form }: { modulos: { id: string; 
     else void salvar()
   }
 
-  return { modulos, base, form, ordemPassos, t, ir, marcarSujo, sessao, admin, executar, ocupado, id, setId, cfgCampo, visivel, obrig, moduloId, setModuloId, ehCabelo, modulo, pessoaId, setPessoaIdBruto, compradorId, setCompradorId, moeda, codigos, regraCompra, modoEscolhido, setModoEscolhido, modoCodigo, codigo, setCodigo, codigoOk, setCodigoOk, marcarCodigo, porComprador, previsto, codigoMostrado, obs, setObs, estado, setEstado, vgs, viagensAbertas, viagemEscolhida, setViagemEscolhida, quemViaja, viagemSugerida, abertos, setAbertos, viagemId, viagemAtual, nomeViagem, tentou, setTentou, focarCampo, setFocarCampo, attrAbertos, setAttrAbertos, passosAbertos, setPassosAbertos, alternarPasso, irPasso, linhaAberta, setLinhaAberta, novaLinha, linhas, setLinhas, att, cotCompra, cfgMoedas, moedasValor, moedaDig, textoCot, totalDigitado, attValor, tabelas, catalogo, cfgApp, formaPaga, setFormaPaga, fila, conta, anexos, tabela, modCfg, etapasFluxo, camposTipo, extras, recentes, siglas, ultima, coluna, setColuna, colunaUsual, existeColuna, col, nomeColuna, aplicarPessoa, fatorDaLinha, totalLinha, total, pagas, totalPago, todasPagas, pesoTotal, custoKg, descLinha, faltasLinha, mostrarCodigo, faltas, pode, comRevisar, aplicavel, campos, caixa, abrir, estaAberto, preenchido, limparRascunho, ultimoFornecedor, trocando, setTrocando, confirmou, setPessoaId, trocarModulo, confirmarTroca, fecharTroca, notasMoeda, salvar, aoTeclar }
+  return { modulos, base, form, ordemPassos, t, ir, marcarSujo, sessao, admin, executar, ocupado, id, setId, cfgCampo, visivel, obrig, moduloId, setModuloId, ehCabelo, modulo, pessoaId, setPessoaIdBruto, compradorId, setCompradorId, moeda, codigos, regraCompra, modoEscolhido, setModoEscolhido, modoCodigo, codigo, setCodigo, codigoOk, setCodigoOk, marcarCodigo, porComprador, previsto, codigoMostrado, obs, setObs, estado, setEstado, vgs, viagensAbertas, viagemEscolhida, setViagemEscolhida, quemViaja, viagemSugerida, motivoViagem, abertos, setAbertos, viagemId, viagemAtual, nomeViagem, tentou, setTentou, focarCampo, setFocarCampo, attrAbertos, setAttrAbertos, passosAbertos, setPassosAbertos, alternarPasso, irPasso, linhaAberta, setLinhaAberta, novaLinha, linhas, setLinhas, att, cotCompra, cfgMoedas, moedasValor, moedaDig, textoCot, totalDigitado, attValor, tabelas, catalogo, cfgApp, formaPaga, setFormaPaga, fila, conta, anexos, tabela, modCfg, etapasFluxo, camposTipo, extras, recentes, siglas, ultima, coluna, setColuna, colunaUsual, existeColuna, col, nomeColuna, aplicarPessoa, fatorDaLinha, totalLinha, total, pagas, totalPago, todasPagas, pesoTotal, custoKg, descLinha, faltasLinha, mostrarCodigo, faltas, pode, comRevisar, aplicavel, campos, caixa, abrir, estaAberto, preenchido, limparRascunho, ultimoFornecedor, trocando, setTrocando, confirmou, setPessoaId, trocarModulo, confirmarTroca, fecharTroca, notasMoeda, salvar, aoTeclar }
 }
 
 /** tudo o que o formulário da compra sabe e faz (o resultado do useNovaCompra) */

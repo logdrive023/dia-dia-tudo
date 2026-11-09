@@ -10,7 +10,7 @@ import { useT } from '../../../shared/ui/i18n'
 import { type Acao, MenuAcoes } from '../../../shared/ui/menuAcoes'
 import { ImprimirEtiquetas } from '../../../shared/ui/etiquetas'
 import { FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
-import { FiltrosProntos, PARAMS_PRONTOS, agruparProntos, filtrarProntos, useFiltroProntos, ativosProntos } from '../../../shared/ui/filtrosProntos'
+import { FiltrosProntos, PARAMS_PRONTOS, agruparProntos, filtrarProntos, useFiltroProntos, ativosProntos } from './FiltrosProntos'
 import { type Lote } from '../model/comum'
 
 const MAX_PRONTOS = 12

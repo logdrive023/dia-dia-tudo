@@ -3,7 +3,7 @@ import { fatorValido } from '../../../core/domain/dinheiro'
 import { cx } from '../../../shared/ui/base'
 import { useT } from '../../../shared/ui/i18n'
 import { MenuAcoes, type Acao } from '../../../shared/ui/menuAcoes'
-import { chave } from '../../../shared/ui/tabelaPrecoEdicao'
+import { chave } from '../model/tabelaPrecoEdicao'
 import { type Rascunho } from '../model/tipos'
 
 export interface CelulaCtl {

@@ -1,7 +1,7 @@
 // AVISO "GUARDADO": o mesmo selo verde sempre que o sistema salva sozinho (ex.: a venda do caixa guardada em aberto).
 // Diz O QUE foi guardado, QUANDO e o que isso garante ("pode sair, nada se perde"). Fica à vista, sem cobrir nada.
-import { cx } from './base'
-import { useT } from './i18n'
+import { cx } from '../../../shared/ui/base'
+import { useT } from '../../../shared/ui/i18n'
 
 export function AvisoGuardado({ titulo, quando, texto, className }: { titulo: string; quando?: string; texto?: string; className?: string }) {
   const t = useT()

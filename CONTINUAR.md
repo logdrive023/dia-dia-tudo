@@ -289,7 +289,7 @@ O texto para quem usa está em Novidades (`src/features/novidades/model/novidade
 - **Pedido em abas**: Resumo (`ItensCompra` + `DestinoCompra`: barra, números e pacotes), Pagamento (etapas; cancelar
   concluída vira confirmação com motivo), Conta do fornecedor, Anexos, Histórico.
 - **Pacote em abas**: Resumo = `VidaDoPacote` (🛒 → ✂️ → 🏷 → 💰, cada passo clicável) + números; Detalhes = Linha da vida
-  (`src/shared/ui/linhaVida.tsx`, timeline com gramas por passo) + atributos; Histórico (dias em blocos, ícone/cor por tipo,
+  (`src/features/lote/components/LinhaVida.tsx`, timeline com gramas por passo) + atributos; Histórico (dias em blocos, ícone/cor por tipo,
   referência obrigatória à vista); Arquivos. ⓘ ao lado da situação explica Bruto · Preparando · Não identificado ·
   Disponível · Parcial · Esgotado.
 - **Venda em abas**: total e ações no alto; Resumo · Linha do tempo · Arquivos · Correções. Linha do tempo (todas) mostra

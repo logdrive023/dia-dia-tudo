@@ -9,7 +9,7 @@ import { Titulo, Vazio, cx } from '../../../shared/ui/base'
 import { useApp, useConsulta } from '../../../shared/ui/contexto'
 import { TrocarMinhaSenha } from '../components/Usuarios'
 import { useT } from '../../../shared/ui/i18n'
-import { PreferenciasCabecalho } from '../../../shared/ui/preferencias'
+import { PreferenciasCabecalho } from '../components/Preferencias'
 import { GRUPOS_CONFIG, type SecaoConfig, buscarSecoes, grupoConfig, secaoConfig, secoesDoPerfil } from '../model/configSecoes'
 
 export function Config() {

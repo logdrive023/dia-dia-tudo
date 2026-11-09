@@ -4,7 +4,7 @@ import type { TabelaPreco } from '../../../core/domain/tipos'
 import { Botao, Campo, Entrada, Escolha, Janela, Selecao, cx } from '../../../shared/ui/base'
 import { useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
-import { type Alvo, ajustarPct, copiarColuna, preencherVazios } from '../../../shared/ui/tabelaPrecoEdicao'
+import { type Alvo, ajustarPct, copiarColuna, preencherVazios } from '../model/tabelaPrecoEdicao'
 import { CATEGORIAS, type Ferramenta, type Rascunho } from '../model/tipos'
 
 export function JanelaMedida({ titulo, inicial, uma, onFechar, onOk }: { titulo: string; inicial?: string; uma?: boolean; onFechar(): void; onOk(txt: string): string | void }) {

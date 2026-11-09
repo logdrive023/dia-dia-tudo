@@ -130,10 +130,6 @@ await passo(2, 'Registrar a compra (5 kg bruto, Bs 2.000) e ligar à viagem', as
   // com 1 viagem aberta, a compra já vem ligada a ela? (o resumo de "Detalhes" diz "✈️ sem viagem" quando não)
   semViagemPorPadrao = /sem viagem/i.test(await texto())
   await pg.getByRole('button', { name: /Próximo: Detalhes/ }).click()
-  if (semViagemPorPadrao) {
-    await pg.getByRole('button', { name: '+ Viagem' }).click()
-    await pg.locator('select', { hasText: 'SP - Lote Inicial' }).selectOption({ index: 1 })
-  }
   await pg.getByRole('button', { name: /Registrar pedido/ }).click()
 }, async () => {
   const feito = await aviso(/Compra P-\d+ registrada/).catch(() => '')
@@ -142,7 +138,7 @@ await passo(2, 'Registrar a compra (5 kg bruto, Bs 2.000) e ligar à viagem', as
   return [
     chec('Aviso de feito na hora', feito, feito),
     chec('O pedido mostra a viagem ligada', /SP - Lote Inicial/.test(tx)),
-    chec('Com 1 viagem aberta, a compra já vem ligada a ela', !semViagemPorPadrao, semViagemPorPadrao ? 'veio "sem viagem": precisou abrir "+ Viagem" e escolher (o pedido oferece "Ligar a uma viagem" depois)' : '', true),
+    chec('Com 1 viagem aberta, a compra já vem ligada a ela', !semViagemPorPadrao, semViagemPorPadrao ? 'veio "sem viagem"' : ''),
     chec('O cabelo bruto entrou esperando a triagem', /Aguardando|Para separar|triagem/i.test(tx)),
     await semBotaoDentroDeBotao(),
   ]

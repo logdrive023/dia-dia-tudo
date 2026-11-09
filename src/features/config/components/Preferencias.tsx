@@ -3,12 +3,12 @@
 // (emoji de bandeira vira "BR"/"BO" no Windows). No celular só o ícone/bandeira; com espaço, o nome também.
 // Tema vale para este aparelho; idioma vale para todo o sistema.
 import { useState, type ReactNode } from 'react'
-import { Bandeira } from './bandeira'
-import { cx } from './base'
-import { useApp, useComando, useConsulta } from './contexto'
-import { salvarIdiomaAparelho, useIdiomaAparelho } from './idiomaAparelho'
-import { useT } from './i18n'
-import { type Tema, TEMAS, lerTema, salvarTema } from './tema'
+import { Bandeira } from '../../../shared/ui/bandeira'
+import { cx } from '../../../shared/ui/base'
+import { useApp, useComando, useConsulta } from '../../../shared/ui/contexto'
+import { salvarIdiomaAparelho, useIdiomaAparelho } from '../../../shared/ui/idiomaAparelho'
+import { useT } from '../../../shared/ui/i18n'
+import { type Tema, TEMAS, lerTema, salvarTema } from '../../../shared/ui/tema'
 
 const ICONE_TEMA: Record<Tema, ReactNode> = {
   claro: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>,

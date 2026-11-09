@@ -2,11 +2,11 @@
 // Cada pendência numa linha: a CLASSE (💰 Dinheiro · 📎 Documento) e o NÍVEL (Urgente · Atenção), o que falta, DESDE
 // QUANDO ("há 3 dias · desde 02/11"), o valor (quando é dinheiro), um ⓘ que explica por que importa e como resolver, e
 // o botão que resolve. As regras de quando falta são do servidor (pendenciasVenda): aqui só o desenho.
-import { diasEntre, dataLocal } from '../../core/domain/datas'
-import { formatar } from '../../core/domain/dinheiro'
-import type { Pendencia } from '../../core/services/pendencias'
-import { Botao, Info, cx, dataBR } from './base'
-import { useT } from './i18n'
+import { diasEntre, dataLocal } from '../../../core/domain/datas'
+import { formatar } from '../../../core/domain/dinheiro'
+import type { Pendencia } from '../../../core/services/pendencias'
+import { Botao, Info, cx, dataBR } from '../../../shared/ui/base'
+import { useT } from '../../../shared/ui/i18n'
 
 /** a classe, a explicação (tooltip) e o rótulo da ação de cada pendência da venda */
 const SOBRE: Record<string, { classe: 'dinheiro' | 'documento'; porque: string; acao: string }> = {

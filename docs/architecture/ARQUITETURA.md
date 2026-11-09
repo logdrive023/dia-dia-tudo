@@ -1,6 +1,6 @@
 # Arquitetura por domínio
 
-**Atualizado:** 07/11/2026 · **Situação:** vigente
+**Atualizado:** 08/11/2026 · **Situação:** vigente
 
 Reorganizada em 06/11/2026. Objetivo: trabalhar num domínio (ex.: estoque) sem precisar entender vendas, compras ou
 financeiro, e manter uma peça compartilhada num lugar só. As regras abaixo **são testadas**
@@ -46,6 +46,9 @@ app ─► features ─► shared ─► core ◄─ adapters
 - **features**: um domínio **não importa o app** e **só usa outro domínio pelo `index.ts` dele** (o contrato público).
 - **app** usa os domínios só pelo `index.ts`.
 - **Sem ciclo de import novo**. Os 3 antigos (2 no core, 1 nas Configurações) estão listados no teste para resolver.
+- **Tela não acessa persistência**: domínio não importa `adapters/`. As 4 telas de ferramenta do aparelho que ainda importam (Entrar, Dados, Modo teste, Moedas) estão listadas no teste; nenhuma nova entra.
+- **O que só um domínio usa fica nele**: peça em `shared/` usada por um domínio só reprova no teste (nasce no domínio; sobe para `shared/` quando o segundo domínio precisar).
+- **Imports relativos, sem atalho `@/`**: as regras acima leem o caminho relativo de cada import; um alias passaria por fora delas.
 
 ## Um domínio
 

@@ -12,7 +12,7 @@ import { Barras } from '../../../shared/ui/graficos'
 import { useT } from '../../../shared/ui/i18n'
 import { LinhaDoTempo } from '../../../shared/ui/linhaTempo'
 import { NumeroGrande, NumeroPequeno } from '../../../shared/ui/numeroGrande'
-import { AvisoNoAparelho, BarraOrcamento, CarteiraViagem, LinhaGasto } from '../../../shared/ui/viagem'
+import { AvisoNoAparelho, BarraOrcamento, CarteiraViagem, LinhaGasto } from './PainelViajante'
 import { NOME_STATUS, type Dados } from '../model/tipos'
 
 /**

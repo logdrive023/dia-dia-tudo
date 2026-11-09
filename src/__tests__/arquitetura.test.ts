@@ -70,6 +70,27 @@ describe('arquitetura por domínio', () => {
     expect(violam).toEqual([])
   })
 
+  it('tela não acessa persistência direto: domínio não importa adapters (só os conhecidos)', () => {
+    // telas de ferramenta do aparelho (backup, modo teste, câmbio, entrar com dados de exemplo): resolver e tirar daqui
+    const CONHECIDOS = new Set(['features/acesso/pages/Entrar.tsx', 'features/config/components/Dados.tsx', 'features/config/components/ModoTeste.tsx', 'features/config/components/Moedas.tsx'])
+    const violam = [...imports].filter(([a, alvos]) => camada(a) === 'features' && !CONHECIDOS.has(a) && alvos.some((r) => camada(r) === 'adapters')).map(([a]) => a)
+    expect(violam).toEqual([])
+  })
+
+  it('shared não é depósito: o que só UM domínio usa fica dentro dele', () => {
+    // só a compra usa: descer para features/compra quando a tela for mexida, e tirar daqui
+    const CONHECIDOS = new Set(['shared/ui/cartaoSecao.tsx', 'shared/ui/valorMoeda.tsx'])
+    const usadoPor = new Map<string, Set<string>>()
+    for (const [a, alvos] of imports) for (const r of alvos) if (camada(r) === 'shared') usadoPor.set(r, (usadoPor.get(r) ?? new Set()).add(dominio(a) ?? camada(a)))
+    const violam = [...usadoPor].filter(([r, quem]) => quem.size === 1 && !quem.has('shared') && !quem.has('app') && !CONHECIDOS.has(r)).map(([r, quem]) => `${r} → só ${[...quem][0]}`)
+    expect(violam).toEqual([])
+  })
+
+  it('imports relativos: atalho "@/" esconderia o caminho das regras de camada acima', () => {
+    const violam = arquivos.filter((a) => /from\s+['"]@\//.test(readFileSync(join(SRC, a), 'utf8')))
+    expect(violam).toEqual([])
+  })
+
   it('nenhum ciclo de import novo', () => {
     // ciclos antigos, conhecidos (fila do CONTINUAR.md): resolver e tirar daqui
     const CONHECIDOS = [

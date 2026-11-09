@@ -2,8 +2,8 @@
 // botões; sem alteração, fica parada no fim do conteúdo. Cada tela continua com a própria lógica de salvar.
 
 import type { ReactNode } from 'react'
-import { cx } from './base'
-import { useT } from './i18n'
+import { cx } from '../../../shared/ui/base'
+import { useT } from '../../../shared/ui/i18n'
 
 export function BarraSalvar({ sujo, aviso, children }: { sujo: boolean; aviso?: ReactNode; children: ReactNode }) {
   const t = useT()

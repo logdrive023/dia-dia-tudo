@@ -1,8 +1,8 @@
 // EDIÇÃO DA TABELA DE PREÇO (rascunho): funções puras usadas pela tela. Nada aqui grava — publicar continua sendo
 // salvarTabelaPreco (cada publicação vira uma versão nova). Fatores sempre como texto com vírgula ("3,5").
 
-import { fatorValido } from '../../core/domain/dinheiro'
-import type { TabelaPreco } from '../../core/domain/tipos'
+import { fatorValido } from '../../../core/domain/dinheiro'
+import type { TabelaPreco } from '../../../core/domain/tipos'
 
 export type GradeEdicao = Pick<TabelaPreco, 'nome' | 'categoria' | 'validaDesde' | 'linhas' | 'colunas' | 'valores'>
 export type Coluna = TabelaPreco['colunas'][number]

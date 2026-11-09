@@ -7,7 +7,7 @@ import { MOEDAS } from '../../../core/domain/dinheiro'
 import type { ModoCompra } from '../../../core/services/codigos'
 import { CAMPOS_FORM, type CampoForm, FORM_COMPRA_PADRAO, type FormCompraConfig } from '../../../core/services/formCompra'
 import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, ErroTela, Escolha, Selecao, cx } from '../../../shared/ui/base'
-import { BarraSalvar } from '../../../shared/ui/barraSalvar'
+import { BarraSalvar } from '../components/BarraSalvar'
 import { useApp, useAvisoSaida, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 

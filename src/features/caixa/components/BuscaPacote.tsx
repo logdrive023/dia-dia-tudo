@@ -10,12 +10,12 @@
 // O que é "pacote", o preço e o que fazer ao escolher vêm de quem usa: aqui é só a busca e a lista.
 
 import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useId, useRef, useState } from 'react'
-import type { Id } from '../../core/domain/tipos'
-import { Info, cx, gramasTexto } from './base'
-import type { FotoResumo } from '../../core/services/fotos'
-import { marcadorLote, useUrlFoto } from './fotos'
-import { useT } from './i18n'
-import { buscarPacotes } from './leitorPistola'
+import type { Id } from '../../../core/domain/tipos'
+import { Info, cx, gramasTexto } from '../../../shared/ui/base'
+import type { FotoResumo } from '../../../core/services/fotos'
+import { marcadorLote, useUrlFoto } from '../../../shared/ui/fotos'
+import { useT } from '../../../shared/ui/i18n'
+import { buscarPacotes } from '../../../shared/ui/leitorPistola'
 
 export interface PacoteBusca {
   id: Id

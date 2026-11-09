@@ -2,7 +2,7 @@
 // Uma seção = um arquivo (a lista das seções e onde cada uma aparece fica em ../configSecoes.ts).
 import { useState } from 'react'
 import { Botao, Campo, Carregando, Cartao, Entrada, Selecao } from '../../../shared/ui/base'
-import { BarraSalvar } from '../../../shared/ui/barraSalvar'
+import { BarraSalvar } from './BarraSalvar'
 import { useAvisoSaida, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { MODELOS_DOCUMENTO } from '../../../core/dados/documentos'

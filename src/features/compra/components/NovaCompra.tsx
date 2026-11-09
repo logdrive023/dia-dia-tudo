@@ -37,7 +37,7 @@ export function NovaCompraTela() {
 
 function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: string; icone: string }[]; base?: Transacao; form: FormCompraConfig }) {
   const nc = useNovaCompra({ modulos, base, form })
-  const { ordemPassos, t, ir, admin, ocupado, id, obrig, moduloId, ehCabelo, modulo, pessoaId, compradorId, setCompradorId, moeda, regraCompra, setModoEscolhido, modoCodigo, codigo, setCodigo, marcarCodigo, porComprador, codigoMostrado, obs, setObs, estado, setEstado, viagensAbertas, viagemEscolhida, setViagemEscolhida, viagemSugerida, setAbertos, viagemId, viagemAtual, nomeViagem, tentou, passosAbertos, alternarPasso, irPasso, setLinhaAberta, novaLinha, linhas, setLinhas, cfgApp, formaPaga, setFormaPaga, conta, anexos, tabela, etapasFluxo, recentes, siglas, ultima, setColuna, colunaUsual, col, nomeColuna, totalLinha, total, pagas, totalPago, todasPagas, pesoTotal, custoKg, descLinha, faltasLinha, mostrarCodigo, faltas, pode, comRevisar, campos, caixa, abrir, estaAberto, trocando, setPessoaId, trocarModulo, confirmarTroca, fecharTroca, salvar, aoTeclar } = nc
+  const { ordemPassos, t, ir, admin, ocupado, id, obrig, moduloId, ehCabelo, modulo, pessoaId, compradorId, setCompradorId, moeda, regraCompra, setModoEscolhido, modoCodigo, codigo, setCodigo, marcarCodigo, porComprador, codigoMostrado, obs, setObs, estado, setEstado, viagensAbertas, viagemEscolhida, setViagemEscolhida, viagemSugerida, motivoViagem, setAbertos, viagemId, viagemAtual, nomeViagem, tentou, passosAbertos, alternarPasso, irPasso, setLinhaAberta, novaLinha, linhas, setLinhas, cfgApp, formaPaga, setFormaPaga, conta, anexos, tabela, etapasFluxo, recentes, siglas, ultima, setColuna, colunaUsual, col, nomeColuna, totalLinha, total, pagas, totalPago, todasPagas, pesoTotal, custoKg, descLinha, faltasLinha, mostrarCodigo, faltas, pode, comRevisar, campos, caixa, abrir, estaAberto, trocando, setPessoaId, trocarModulo, confirmarTroca, fecharTroca, salvar, aoTeclar } = nc
   // o botão não descreve o erro: aponta para ele (os campos que faltam ficam em vermelho ao tocar; a lista fica no title)
   const rotuloFalta = faltas.length ? t(faltas.length === 1 ? 'Preencha o que falta' : 'Preencha o que falta ({n})', { n: faltas.length }) : ''
   const botaoRegistrar = (extra?: string) => (
@@ -87,7 +87,7 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
     if (c === 'comprador') setCompradorId(undefined)
     else if (c === 'estado') setEstado([])
     else if (c === 'obs') setObs('')
-    else if (c === 'viagem') setViagemEscolhida(undefined)
+    else if (c === 'viagem') setViagemEscolhida('') // '' = sem viagem (undefined traria a sugestão de volta na hora)
     else if (c === 'codigo') (setCodigo(''), setModoEscolhido(form.padroes.modoCodigo))
     else if (c === 'coluna') setColuna(undefined)
   }
@@ -166,9 +166,9 @@ function NovaCompra({ modulos, base, form }: { modulos: { id: string; nome: stri
       case 'viagem':
         return (
           <Bloco obrigatorio={obrig(c)} campo={c} numero={numeroDe[c]} plano={!numeroDe[c]} {...fechoEExemplo(c)} titulo="Viagem" acao={<Info texto="Compra feita numa viagem de compra: os gastos da viagem são divididos entre as compras dela e o resultado da viagem conta com esta." />}>
-            <Selecao valor={viagemId ?? ''} onChange={(v) => setViagemEscolhida(v)} vazio={t('Sem viagem')} opcoes={viagensAbertas.map((v) => ({ id: v.id, nome: nomeViagem(v) }))} />
+            <Selecao valor={viagemId ?? ''} onChange={(v) => (setViagemEscolhida(v), setAbertos((s) => new Set(s).add('viagem')))} vazio={t('Sem viagem')} opcoes={viagensAbertas.map((v) => ({ id: v.id, nome: nomeViagem(v) }))} />
             {viagemSugerida && viagemId === viagemSugerida.id && viagemEscolhida === undefined
-              ? <p className="mt-1 text-xs text-[var(--suave)]">{t('Escolhida porque quem comprou está nesta viagem.')}</p>
+              ? <p className="mt-1 text-xs text-[var(--suave)]">{t(motivoViagem === 'unica' ? 'Ligada à única viagem aberta. Não foi nessa viagem? Escolha “Sem viagem”.' : 'Escolhida porque quem comprou está nesta viagem.')}</p>
               : !viagemId && <p className="mt-1 text-xs text-[var(--suave)]">{t('Comprou numa viagem? Escolha aqui. Esqueceu? Dá para ligar depois, em Compras.')}</p>}
             <Falta se={tentou && obrig('viagem') && !viagemId} texto={t('viagem')} />
           </Bloco>

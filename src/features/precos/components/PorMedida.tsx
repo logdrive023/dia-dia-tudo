@@ -3,7 +3,7 @@
 import { Botao, cx } from '../../../shared/ui/base'
 import { useT } from '../../../shared/ui/i18n'
 import { MenuAcoes, type Acao } from '../../../shared/ui/menuAcoes'
-import { chave, precosDaMedida } from '../../../shared/ui/tabelaPrecoEdicao'
+import { chave, precosDaMedida } from '../model/tabelaPrecoEdicao'
 import { type Rascunho } from '../model/tipos'
 import { Celula, type CelulaCtl } from './GradeEditavel'
 

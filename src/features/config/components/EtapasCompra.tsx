@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { novoId } from '../../../core/domain/ids'
 import { ETAPA_FINAL, type EtapaDef, type FluxoCompraConfig } from '../../../core/modulos'
 import { Botao, Campo, Carregando, Cartao, Confirmar, Entrada, Escolha, Pilula, Vazio } from '../../../shared/ui/base'
-import { BarraSalvar } from '../../../shared/ui/barraSalvar'
+import { BarraSalvar } from './BarraSalvar'
 import { useAvisoSaida, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 

@@ -4,10 +4,10 @@
 // muda regra nenhuma, só escolhe o que mostrar.
 
 import { useEffect, useState } from 'react'
-import { Info, cx, gramasTexto } from './base'
-import { type FiltroAtivo, GrupoFiltro } from './filtroPadrao'
-import { useApp, useParamTela } from './contexto'
-import { useT } from './i18n'
+import { Info, cx, gramasTexto } from '../../../shared/ui/base'
+import { type FiltroAtivo, GrupoFiltro } from '../../../shared/ui/filtroPadrao'
+import { useApp, useParamTela } from '../../../shared/ui/contexto'
+import { useT } from '../../../shared/ui/i18n'
 
 /** o mínimo que o filtro precisa de um lote */
 export interface LoteFiltravel {

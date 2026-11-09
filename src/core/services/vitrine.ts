@@ -10,6 +10,26 @@ import { type Ctx, lerConfig } from './contexto'
 import { type FotoResumo, leitorFotos } from './fotos'
 import { tabelaVigente } from './precos'
 
+/** o fundo da página da loja: 'tema' segue o claro/escuro de quem abre; os outros valem para todo comprador */
+export type FundoVitrine = 'tema' | 'claro' | 'escuro' | 'gradiente' | 'pontos'
+export const FUNDOS_VITRINE: FundoVitrine[] = ['tema', 'claro', 'escuro', 'gradiente', 'pontos']
+
+/** O VISUAL DA LOJA (Minha vitrine › gerador): cores, frase e banner que o comprador vê */
+export interface AparenciaVitrine {
+  /** a frase pequena acima do nome (sem ela: "Vitrine de cabelo") */
+  slogan?: string
+  /** a imagem do topo: SÓ imagem enviada (data:), porque o site publicado não carrega imagem de outros endereços (CSP) */
+  banner?: string
+  corPrimaria: string
+  corSecundaria: string
+  fundo: FundoVitrine
+}
+export const APARENCIA_PADRAO: AparenciaVitrine = { corPrimaria: '#7c3aed', corSecundaria: '#a21caf', fundo: 'tema' }
+/** tamanho máximo do banner guardado (o texto da imagem): ele fica na configuração, que é lida em toda tela */
+export const BANNER_MAX = 700_000
+export const corValida = (c?: string) => /^#[0-9a-f]{6}$/i.test(c ?? '')
+export const bannerValido = (b?: string) => !!b && b.length <= BANNER_MAX && /^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(b)
+
 export interface ConfigVitrine {
   ativa: boolean
   nome?: string
@@ -21,13 +41,22 @@ export interface ConfigVitrine {
   colunaId?: string
   /** pacotes que o administrador escondeu da vitrine */
   ocultos: Id[]
+  /** o visual da loja (o que não vier usa APARENCIA_PADRAO) */
+  aparencia?: AparenciaVitrine
 }
 export const VITRINE_PADRAO: ConfigVitrine = { ativa: true, mostrarPreco: true, ocultos: [] }
 
 export function validarVitrine(v: ConfigVitrine): ConfigVitrine {
   const w = (v.whatsapp ?? '').replace(/[^\d+]/g, '')
   exigir(!w || /^\+?\d{8,15}$/.test(w), 'WhatsApp: use o número com o código do país. Ex.: +591 70000000.')
-  return { ...VITRINE_PADRAO, ...v, whatsapp: w || undefined, nome: v.nome?.trim() || undefined, descricao: v.descricao?.trim() || undefined, ocultos: [...new Set(v.ocultos ?? [])] }
+  const a = v.aparencia ? { ...APARENCIA_PADRAO, ...v.aparencia, slogan: v.aparencia.slogan?.trim() || undefined, banner: v.aparencia.banner || undefined } : undefined
+  if (a) {
+    exigir(corValida(a.corPrimaria) && corValida(a.corSecundaria), 'Cor inválida: use o formato #7c3aed.')
+    exigir(FUNDOS_VITRINE.includes(a.fundo), 'Fundo da vitrine inválido.')
+    exigir((a.slogan ?? '').length <= 80, 'A frase do topo pode ter até 80 letras.')
+    exigir(!a.banner || bannerValido(a.banner), 'Banner inválido: envie uma imagem JPG, PNG ou WebP de até 500 KB.')
+  }
+  return { ...VITRINE_PADRAO, ...v, aparencia: a, whatsapp: w || undefined, nome: v.nome?.trim() || undefined, descricao: v.descricao?.trim() || undefined, ocultos: [...new Set(v.ocultos ?? [])] }
 }
 
 export interface PacoteVitrine {
@@ -99,6 +128,7 @@ export async function vitrine(ctx: Ctx, p: { publico?: boolean } = {}) {
       whatsapp: conf.whatsapp,
       mostrarPreco: conf.mostrarPreco,
       colunaId: conf.colunaId,
+      aparencia: { ...APARENCIA_PADRAO, ...conf.aparencia },
     },
     // vitrine desligada: o comprador não vê nada (o administrador continua vendo a prévia)
     pacotes: publico && !conf.ativa ? [] : pacotes,
