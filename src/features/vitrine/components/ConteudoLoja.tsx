@@ -1,24 +1,23 @@
 // A LOJA EM SI (topo, filtros, pacotes): a MESMA peça na página do comprador (#/loja) e na prévia ao vivo do gerador —
 // o que aparece na prévia é o que o comprador vê. As cores vêm de model/aparencia.ts, só nesta raiz.
-// Só dados públicos (o serviço não manda custo, fornecedor nem compra). "Quero este" abre o WhatsApp com a mensagem pronta.
-import { useContext, useState } from 'react'
+// Só dados públicos (o serviço não manda custo, fornecedor nem compra). "Quero este" abre o WhatsApp com a mensagem pronta;
+// "Adicionar à lista" junta vários pacotes para pedir tudo numa mensagem só (ListaCompras).
+import { useContext, useMemo, useState } from 'react'
 import { APARENCIA_PADRAO, type AparenciaVitrine, type MensagensVitrine, type ModoPrecoVitrine, type PacoteVitrine } from '../../../core/services/vitrine'
-import { cx, gramasTexto } from '../../../shared/ui/base'
+import { cx } from '../../../shared/ui/base'
 import { useUrlFoto } from '../../../shared/ui/fotos'
 import { IdiomaContexto, useT } from '../../../shared/ui/i18n'
 import { estiloLoja } from '../model/aparencia'
+import { dinheiroLoja as dinheiro, kg, numeroFator as numero } from '../model/formato'
 import { idiomaDaMensagem, mensagemLoja, mensagemPacote } from '../model/mensagem'
+import { useListaCompras } from '../hooks/useListaCompras'
+import { ListaCompras } from './ListaCompras'
 import { CapaLoja } from './CapaLoja'
-
-const SIMBOLO: Record<string, string> = { BOB: 'Bs', USD: 'US$', BRL: 'R$', PYG: '₲' }
-const numero = (fator: string) => Number(fator.replace(/\./g, '').replace(',', '.'))
-const dinheiro = (v: number, moeda: string) => `${SIMBOLO[moeda] ?? moeda} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-export const kg = (g: number) => (g >= 1000 ? `${(g / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} kg` : gramasTexto(g))
 
 /** a cor do cabelo vira a cor do desenho quando não há foto */
 const TOM_COR: Record<string, string> = { Preto: '#1f1b1a', Castanho: '#5b3a29', 'Castanho claro': '#8a5a3c', Loiro: '#c9a063', Ruivo: '#9a3b1f', Misturado: '#6b4a3a' }
 
-export function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens }: { p: PacoteVitrine; whatsapp?: string; loja: string; modoPreco: ModoPrecoVitrine; mensagens?: MensagensVitrine }) {
+export function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens, naLista, listaCheia, onLista }: { p: PacoteVitrine; whatsapp?: string; loja: string; modoPreco: ModoPrecoVitrine; mensagens?: MensagensVitrine; naLista: boolean; listaCheia: boolean; onLista(): void }) {
   const t = useT()
   const idioma = useContext(IdiomaContexto)
   const url = useUrlFoto(p.foto)
@@ -28,7 +27,7 @@ export function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens }:
   const contato = modoPreco === 'contato' || !porGrama
   const link = whatsapp ? `https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(mensagemPacote(idiomaDaMensagem(idioma, navigator.language), p, loja, kg(p.gramas), contato, mensagens))}` : undefined
   return (
-    <article className="group flex flex-col overflow-hidden rounded-3xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+    <article className={cx('group flex flex-col overflow-hidden rounded-3xl border bg-[var(--cartao)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg', naLista ? 'border-[var(--marca)] ring-2 ring-[var(--marca)]' : 'border-[var(--borda)]')}>
       <div className="relative aspect-[4/5] overflow-hidden" style={{ background: `linear-gradient(160deg, ${cor}22, ${cor}55)` }}>
         {url ? <img src={url} alt={`${p.medida} cm ${p.cor ?? ''}`} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" /> : (
           // sem foto: mechas desenhadas na cor do cabelo
@@ -41,6 +40,7 @@ export function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens }:
         <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-sm font-black text-[#1f1b1a] shadow">{p.medida} cm</span>
         {p.categoria !== 'Normal' && <span className="absolute right-3 top-3 rounded-full bg-[var(--marca)] px-2.5 py-1 text-xs font-bold text-[var(--sobre-marca)] shadow">{t(p.categoria)}</span>}
         <span className="absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur">⚖️ {kg(p.gramas)}</span>
+        {naLista && <span aria-hidden className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--marca)] text-sm font-black text-[var(--sobre-marca)] shadow">✓</span>}
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3 sm:p-4">
         <div>
@@ -61,6 +61,12 @@ export function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens }:
             {t(contato ? 'Entrar em contato' : 'Quero este')}
           </a>
         ) : <span className="rounded-2xl bg-[var(--fundo)] px-3 py-2 text-center text-xs text-[var(--suave)]">{t('Peça pelo WhatsApp da loja')}</span>}
+        {link && (
+          <button type="button" aria-pressed={naLista} disabled={!naLista && listaCheia} onClick={onLista}
+            className={cx('min-h-11 rounded-2xl px-2 text-sm font-bold transition disabled:opacity-50', naLista ? 'bg-[var(--marca)] text-[var(--sobre-marca)]' : 'text-[var(--marca-texto)] ring-1 ring-[var(--borda)] hover:ring-[var(--marca)]')}>
+            {naLista ? `✓ ${t('Na lista')}` : `+ ${t('Adicionar à lista')}`}
+          </button>
+        )}
       </div>
     </article>
   )
@@ -88,6 +94,9 @@ export interface DadosLoja {
 export function ConteudoLoja({ dados, colunas, limite, className }: { dados?: DadosLoja; colunas?: 2 | 3; /** a prévia desenha só os primeiros (a contagem do topo continua a real) */ limite?: number; className?: string }) {
   const t = useT()
   const idioma = useContext(IdiomaContexto)
+  // a prévia do gerador (com limite) não grava a lista no aparelho
+  const compras = useListaCompras(useMemo(() => dados?.pacotes.map((p) => p.id), [dados?.pacotes]), !limite)
+  const escolhidos = compras.ids.flatMap((id) => dados?.pacotes.find((p) => p.id === id) ?? [])
   const [medida, setMedida] = useState<number>()
   const [cor, setCor] = useState<string>()
   const [categoria, setCategoria] = useState<string>()
@@ -124,9 +133,10 @@ export function ConteudoLoja({ dados, colunas, limite, className }: { dados?: Da
             <p className="mb-3 mt-4 text-sm text-[var(--suave)]">{lista.length === 1 ? t('1 resultado') : t('{n} resultados', { n: lista.length })}</p>
             {!lista.length ? <p className="rounded-3xl bg-[var(--cartao)] p-8 text-center text-[var(--suave)]">{t('Nada com esses filtros.')}</p> : (
               <div className={cx('grid gap-3 sm:gap-4', colunas === 2 ? 'grid-cols-2' : colunas === 3 ? 'grid-cols-3' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4')}>
-                {(limite ? lista.slice(0, limite) : lista).map((p) => <CartaoPacoteVitrine key={p.id} p={p} whatsapp={dados.loja.whatsapp} loja={dados.loja.nome} modoPreco={dados.loja.modoPreco} mensagens={dados.loja.mensagens} />)}
+                {(limite ? lista.slice(0, limite) : lista).map((p) => <CartaoPacoteVitrine key={p.id} p={p} whatsapp={dados.loja.whatsapp} loja={dados.loja.nome} modoPreco={dados.loja.modoPreco} mensagens={dados.loja.mensagens} naLista={compras.tem(p.id)} listaCheia={compras.cheia} onLista={() => compras.alternar(p.id)} />)}
               </div>
             )}
+            {dados.loja.whatsapp && escolhidos.length > 0 && <ListaCompras pacotes={escolhidos} loja={dados.loja.nome} whatsapp={dados.loja.whatsapp} modoPreco={dados.loja.modoPreco} mensagens={dados.loja.mensagens} cheia={compras.cheia} onTirar={compras.tirar} onLimpar={compras.limpar} />}
           </>
         )}
       </main>

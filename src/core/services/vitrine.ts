@@ -35,9 +35,9 @@ export const bannerValido = (b?: string) => !!b && b.length <= BANNER_MAX && /^d
 export type ModoPrecoVitrine = 'contato' | 'tabela' | 'individual'
 export const MODOS_PRECO_VITRINE: ModoPrecoVitrine[] = ['contato', 'tabela', 'individual']
 
-/** o texto que já vem escrito no WhatsApp: botão do pacote, pergunta do preço e botão da loja */
-export type TipoMensagemVitrine = 'pacote' | 'perguntaPreco' | 'loja'
-export const TIPOS_MENSAGEM_VITRINE: TipoMensagemVitrine[] = ['pacote', 'perguntaPreco', 'loja']
+/** o texto que já vem escrito no WhatsApp: botão do pacote, lista de compras, pergunta do preço e botão da loja */
+export type TipoMensagemVitrine = 'pacote' | 'lista' | 'perguntaPreco' | 'loja'
+export const TIPOS_MENSAGEM_VITRINE: TipoMensagemVitrine[] = ['pacote', 'lista', 'perguntaPreco', 'loja']
 export const MENSAGEM_VITRINE_MAX = 500
 /** só o que o dono reescreveu; o que não vier usa o texto pronto */
 export type MensagensVitrine = Partial<Record<'pt' | 'es', Partial<Record<TipoMensagemVitrine, string>>>>

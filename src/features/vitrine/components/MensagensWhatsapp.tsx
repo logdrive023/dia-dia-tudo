@@ -1,30 +1,39 @@
 // O TEXTO DO WHATSAPP (gerador da vitrine): já vem pronto e cada idioma pode ser reescrito, com a prévia da mensagem
 // mudando enquanto digita. Faz parte do rascunho: só vale para o comprador depois de "Salvar e publicar".
 import { useRef, useState } from 'react'
-import type { MensagensVitrine, PacoteVitrine, TipoMensagemVitrine } from '../../../core/services/vitrine'
+import type { MensagensVitrine, ModoPrecoVitrine, PacoteVitrine, TipoMensagemVitrine } from '../../../core/services/vitrine'
 import { Botao, Campo, Cartao, Escolha } from '../../../shared/ui/base'
 import { type Idioma, useT } from '../../../shared/ui/i18n'
-import { VARIAVEIS_MENSAGEM, mensagemLoja, mensagemPacote, textoPronto, variaveisDesconhecidas } from '../model/mensagem'
-import { kg } from './ConteudoLoja'
+import { kg } from '../model/formato'
+import { VARIAVEIS_MENSAGEM, mensagemLista, mensagemLoja, mensagemPacote, textoPronto, variaveisDesconhecidas } from '../model/mensagem'
 
 const MAX = 500
 const classeTexto = 'w-full rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-base outline-none focus:border-[var(--marca)]'
-const EXEMPLO: PacoteVitrine = { id: 'exemplo', codigo: 'L-0001', medida: 60, categoria: 'Normal', cor: 'Preto', gramas: 1000 }
+const EXEMPLOS: PacoteVitrine[] = [
+  { id: 'exemplo-1', codigo: 'L-0001', medida: 60, categoria: 'Normal', cor: 'Preto', gramas: 1000 },
+  { id: 'exemplo-2', codigo: 'L-0002', medida: 50, categoria: 'Normal', cor: 'Castanho', gramas: 500 },
+  { id: 'exemplo-3', codigo: 'L-0003', medida: 40, categoria: 'Normal', cor: 'Loiro', gramas: 250 },
+]
+type Qual = 'pacote' | 'lista' | 'loja'
 
-export function MensagensWhatsapp({ valor, onChange, loja, pacote, semPreco }: {
+/** como o WhatsApp mostra: *assim* fica em negrito */
+function ComNegrito({ texto }: { texto: string }) {
+  return <>{texto.split(/(\*[^*\n]+\*)/g).map((x, k) => (/^\*[^*\n]+\*$/.test(x) ? <b key={k}>{x.slice(1, -1)}</b> : x))}</>
+}
+
+export function MensagensWhatsapp({ valor, onChange, loja, pacotes, modoPreco }: {
   valor?: MensagensVitrine
   onChange(m: MensagensVitrine | undefined): void
   loja: string
-  /** o primeiro pacote da vitrine, para a prévia ficar real */
-  pacote?: PacoteVitrine
-  /** a loja não mostra preço: a pergunta do valor vai junto */
-  semPreco: boolean
+  /** os pacotes da vitrine, para a prévia ficar real */
+  pacotes: PacoteVitrine[]
+  modoPreco: ModoPrecoVitrine
 }) {
   const t = useT()
   const area = useRef<HTMLTextAreaElement>(null)
   const [idioma, setIdioma] = useState<Idioma>('es')
-  const [qual, setQual] = useState<'pacote' | 'loja'>('pacote')
-  const tipos: TipoMensagemVitrine[] = qual === 'pacote' ? ['pacote', 'perguntaPreco'] : ['loja']
+  const [qual, setQual] = useState<Qual>('pacote')
+  const tipos: TipoMensagemVitrine[] = qual === 'loja' ? ['loja'] : [qual, 'perguntaPreco']
   const texto = (tipo: TipoMensagemVitrine) => valor?.[idioma]?.[tipo] ?? textoPronto(idioma, tipo)
   const mudar = (tipo: TipoMensagemVitrine, v: string) => onChange({ ...valor, [idioma]: { ...valor?.[idioma], [tipo]: v } })
   const inserir = (id: string) => {
@@ -40,16 +49,17 @@ export function MensagensWhatsapp({ valor, onChange, loja, pacote, semPreco }: {
     onChange({ ...valor, [idioma]: doIdioma })
   }
   const estranhas = [...new Set(tipos.flatMap((x) => variaveisDesconhecidas(texto(x))))]
-  const exemplo = pacote ?? EXEMPLO
-  const previa = qual === 'pacote' ? mensagemPacote(idioma, exemplo, loja, kg(exemplo.gramas), semPreco, valor) : mensagemLoja(idioma, loja, valor)
-  const variaveis = qual === 'pacote' ? VARIAVEIS_MENSAGEM : VARIAVEIS_MENSAGEM.filter((v) => v.id === 'loja')
+  const exemplos = pacotes.length ? pacotes.slice(0, 3) : EXEMPLOS
+  const semPreco = modoPreco === 'contato' || !exemplos[0].preco
+  const previa = qual === 'pacote' ? mensagemPacote(idioma, exemplos[0], loja, kg(exemplos[0].gramas), semPreco, valor) : qual === 'lista' ? mensagemLista(idioma, exemplos, loja, modoPreco, valor) : mensagemLoja(idioma, loja, valor)
+  const variaveis = VARIAVEIS_MENSAGEM.filter((v) => (v.em as readonly string[]).includes(qual))
   return (
     <Cartao titulo={t('Mensagem do WhatsApp')} ajuda="O texto que já aparece escrito quando o comprador toca no botão. Ele ainda pode mudar antes de enviar. Ex.: troque a saudação pelo jeito da sua loja.">
       <div className="space-y-3">
         <Escolha<Idioma> rotulo="Idioma da mensagem" valor={idioma} onChange={setIdioma} opcoes={[{ id: 'es', nome: 'Español' }, { id: 'pt', nome: 'Português' }]} />
-        <Escolha<'pacote' | 'loja'> rotulo="Qual mensagem" valor={qual} onChange={setQual} opcoes={[{ id: 'pacote', nome: 'Botão do pacote' }, { id: 'loja', nome: 'Botão da loja' }]} />
-        <Campo rotulo={qual === 'pacote' ? 'Mensagem do pacote' : 'Mensagem da loja'}>
-          <textarea ref={area} rows={4} maxLength={MAX} className={classeTexto} value={texto(qual)} onChange={(e) => mudar(qual, e.target.value)} />
+        <Escolha<Qual> rotulo="Qual mensagem" valor={qual} onChange={setQual} opcoes={[{ id: 'pacote', nome: 'Um pacote' }, { id: 'lista', nome: 'Lista de compras' }, { id: 'loja', nome: 'Botão da loja' }]} />
+        <Campo rotulo={qual === 'pacote' ? 'Mensagem do pacote' : qual === 'lista' ? 'Mensagem da lista' : 'Mensagem da loja'}>
+          <textarea ref={area} rows={qual === 'lista' ? 6 : 4} maxLength={MAX} className={classeTexto} value={texto(qual)} onChange={(e) => mudar(qual, e.target.value)} />
         </Campo>
         <div>
           <p className="mb-1 text-xs text-[var(--suave)]">{t('Inserir no texto')}</p>
@@ -57,7 +67,7 @@ export function MensagensWhatsapp({ valor, onChange, loja, pacote, semPreco }: {
             {variaveis.map((v) => <button key={v.id} type="button" onClick={() => inserir(v.id)} className="min-h-10 rounded-full bg-[var(--marca-suave)] px-3 text-sm font-semibold text-[var(--marca)]">+ {t(v.rotulo)}</button>)}
           </div>
         </div>
-        {qual === 'pacote' && (
+        {qual !== 'loja' && (
           <Campo rotulo="Pergunta quando o preço não aparece" ajuda="Vai no fim da mensagem quando o comprador não vê o valor. Deixe em branco para não perguntar.">
             <textarea rows={2} maxLength={MAX} className={classeTexto} value={texto('perguntaPreco')} onChange={(e) => mudar('perguntaPreco', e.target.value)} />
           </Campo>
@@ -66,7 +76,7 @@ export function MensagensWhatsapp({ valor, onChange, loja, pacote, semPreco }: {
         <div>
           <p className="mb-1 text-xs font-bold uppercase tracking-wider text-[var(--suave)]">{t('Prévia no WhatsApp')}</p>
           <div className="rounded-xl bg-[#e5ddd5] p-3">
-            <p data-testid="previa-whatsapp" className="ml-auto w-fit max-w-[90%] whitespace-pre-wrap break-words rounded-lg bg-[#dcf8c6] px-3 py-2 text-sm text-[#111111]">{previa}</p>
+            <p data-testid="previa-whatsapp" className="ml-auto w-fit max-w-[90%] whitespace-pre-wrap break-words rounded-lg bg-[#dcf8c6] px-3 py-2 text-sm text-[#111111]"><ComNegrito texto={previa} /></p>
           </div>
         </div>
         {personalizado && <Botao variante="leve" className="w-full" onClick={restaurar}>↺ {t('Voltar ao texto pronto')}</Botao>}
