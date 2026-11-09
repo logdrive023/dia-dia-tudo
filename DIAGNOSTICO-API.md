@@ -285,7 +285,7 @@ diferentes pedem `locais.feriados_regiao`, que só deve entrar quando existir es
 - `itens.etiqueta_impressa_em` significa **confirmada no papel**, não enviada à impressora.
 - QR: `itens.qr_codigo` único, inclusive entre apagados; códigos trocados em `item_qr_anteriores`; leituras recusadas em
   `qr_leituras`. Abre pela consulta `pacoteDoQr`, só logado.
-- Vitrine: `modoPreco` fica em `configuracoes`; por pacote, `itens.vitrine_oculto` e `itens.vitrine_fator`.
+- Vitrine: `modoPreco` e `mensagens` (texto do WhatsApp por idioma) ficam em `configuracoes`; por pacote, `itens.vitrine_oculto` e `itens.vitrine_fator`.
 
 ### 3.10 Migrações previstas
 

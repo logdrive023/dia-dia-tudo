@@ -52,6 +52,30 @@ describe('gerador da vitrine', () => {
   }, 30000)
 })
 
+describe('mensagem do WhatsApp no gerador', () => {
+  it('vem pronta em espanhol, a prévia muda enquanto digita e só vale depois de publicar', async () => {
+    const { b } = await montar()
+    const previa = screen.getByTestId('previa-whatsapp')
+    expect(previa.textContent).toContain('Me interesa el paquete')
+    fireEvent.change(screen.getByLabelText(/^Mensagem do pacote/), { target: { value: 'Buen día {loja}, quiero {codigo}' } })
+    expect(previa.textContent).toMatch(/^Buen día .+, quiero L-0001/)
+    expect((await b.consulta('vitrine', { publico: true })).loja.mensagens).toBeUndefined()
+    fireEvent.click(screen.getByRole('radio', { name: 'Português' }))
+    expect(previa.textContent).toContain('Tenho interesse no pacote')
+    fireEvent.click(screen.getByRole('radio', { name: 'Español' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar e publicar' }))
+    await waitFor(async () => expect((await b.consulta('vitrine', { publico: true })).loja.mensagens?.es?.pacote).toBe('Buen día {loja}, quiero {codigo}'))
+    await screen.findByText('Tudo publicado')
+    fireEvent.click(screen.getByRole('button', { name: /Voltar ao texto pronto/ }))
+    expect(screen.getByTestId('previa-whatsapp').textContent).toContain('Me interesa el paquete')
+  }, 30000)
+
+  it('recusa mensagem longa demais', async () => {
+    const { b } = await novoBackend()
+    await expect(b.comando('salvarConfig', { vitrine: { ativa: true, ocultos: [], mensagens: { es: { pacote: 'a'.repeat(501) } } } } as never)).rejects.toThrow(/até 500 letras/)
+  })
+})
+
 describe('aparência da vitrine: regras', () => {
   const vitrine = (aparencia: object) => ({ vitrine: { ativa: true, ocultos: [], aparencia } }) as never
   const cores = { corPrimaria: '#7c3aed', corSecundaria: '#a21caf', fundo: 'tema' }

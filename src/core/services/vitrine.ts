@@ -35,6 +35,13 @@ export const bannerValido = (b?: string) => !!b && b.length <= BANNER_MAX && /^d
 export type ModoPrecoVitrine = 'contato' | 'tabela' | 'individual'
 export const MODOS_PRECO_VITRINE: ModoPrecoVitrine[] = ['contato', 'tabela', 'individual']
 
+/** o texto que já vem escrito no WhatsApp: botão do pacote, pergunta do preço e botão da loja */
+export type TipoMensagemVitrine = 'pacote' | 'perguntaPreco' | 'loja'
+export const TIPOS_MENSAGEM_VITRINE: TipoMensagemVitrine[] = ['pacote', 'perguntaPreco', 'loja']
+export const MENSAGEM_VITRINE_MAX = 500
+/** só o que o dono reescreveu; o que não vier usa o texto pronto */
+export type MensagensVitrine = Partial<Record<'pt' | 'es', Partial<Record<TipoMensagemVitrine, string>>>>
+
 export interface ConfigVitrine {
   ativa: boolean
   nome?: string
@@ -47,12 +54,27 @@ export interface ConfigVitrine {
   colunaId?: string
   /** modo 'individual': o preço por grama de cada pacote, como na tabela (ex.: "17,5") */
   precos?: Record<Id, string>
+  /** o texto do WhatsApp reescrito pelo dono */
+  mensagens?: MensagensVitrine
   /** pacotes que o administrador escondeu da vitrine */
   ocultos: Id[]
   /** o visual da loja (o que não vier usa APARENCIA_PADRAO) */
   aparencia?: AparenciaVitrine
 }
 export const VITRINE_PADRAO: ConfigVitrine = { ativa: true, modoPreco: 'contato', ocultos: [] }
+
+function validarMensagens(m?: MensagensVitrine): MensagensVitrine | undefined {
+  const r: MensagensVitrine = {}
+  for (const idioma of ['pt', 'es'] as const) {
+    for (const tipo of TIPOS_MENSAGEM_VITRINE) {
+      const texto = m?.[idioma]?.[tipo]
+      if (texto === undefined) continue
+      exigir(typeof texto === 'string' && texto.trim().length <= MENSAGEM_VITRINE_MAX, `A mensagem do WhatsApp pode ter até ${MENSAGEM_VITRINE_MAX} letras.`)
+      r[idioma] = { ...r[idioma], [tipo]: texto.trim() }
+    }
+  }
+  return Object.keys(r).length ? r : undefined
+}
 
 export function validarVitrine(v: ConfigVitrine): ConfigVitrine {
   const w = (v.whatsapp ?? '').replace(/[^\d+]/g, '')
@@ -67,7 +89,7 @@ export function validarVitrine(v: ConfigVitrine): ConfigVitrine {
   exigir(MODOS_PRECO_VITRINE.includes(v.modoPreco ?? 'contato'), 'Modo de preço da vitrine inválido.')
   const precos = Object.fromEntries(Object.entries(v.precos ?? {}).map(([id, f]): [Id, string] => [id, String(f).trim()]).filter(([, f]) => f))
   exigir(Object.values(precos).every((f) => fatorValido(f)), 'Preço inválido: use só números. Ex.: 17,5.')
-  return { ...VITRINE_PADRAO, ...v, precos, aparencia: a, whatsapp: w || undefined, nome: v.nome?.trim() || undefined, descricao: v.descricao?.trim() || undefined, ocultos: [...new Set(v.ocultos ?? [])] }
+  return { ...VITRINE_PADRAO, ...v, precos, mensagens: validarMensagens(v.mensagens), aparencia: a, whatsapp: w || undefined, nome: v.nome?.trim() || undefined, descricao: v.descricao?.trim() || undefined, ocultos: [...new Set(v.ocultos ?? [])] }
 }
 
 export interface PacoteVitrine {
@@ -142,6 +164,7 @@ export async function vitrine(ctx: Ctx, p: { publico?: boolean } = {}) {
       descricao: conf.descricao,
       whatsapp: conf.whatsapp,
       modoPreco,
+      mensagens: conf.mensagens,
       aparencia: { ...APARENCIA_PADRAO, ...conf.aparencia },
     },
     // vitrine desligada: o comprador não vê nada (o administrador continua vendo a prévia)

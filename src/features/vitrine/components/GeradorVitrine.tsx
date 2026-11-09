@@ -11,6 +11,7 @@ import { Interruptor } from '../../../shared/ui/interruptor'
 import { useRascunhoVitrine } from '../hooks/useRascunhoVitrine'
 import { OPCOES_FUNDO, PALETAS, estiloLoja, primariaLegivel } from '../model/aparencia'
 import { ConteudoLoja, type DadosLoja } from './ConteudoLoja'
+import { MensagensWhatsapp } from './MensagensWhatsapp'
 
 /** a cor: o seletor do aparelho + o código (#7c3aed); enquanto digita um código incompleto, a prévia fica na última válida */
 function CampoCor({ rotulo, valor, onChange }: { rotulo: string; valor: string; onChange(v: string): void }) {
@@ -55,7 +56,7 @@ export function GeradorVitrine({ publicado, nomeNegocio, dados, colunasPreco, sa
   const [aparelho, setAparelho] = useState<'celular' | 'computador'>('celular')
   const [enviando, setEnviando] = useState(false)
   const publicar = async () => {
-    if (await salvar({ nome: r.nome, descricao: r.descricao, whatsapp: r.whatsapp, aparencia: a }, t('Vitrine publicada.'))) desfazer()
+    if (await salvar({ nome: r.nome, descricao: r.descricao, whatsapp: r.whatsapp, aparencia: a, mensagens: r.mensagens }, t('Vitrine publicada.'))) desfazer()
   }
   const enviarBanner = async (f?: File) => {
     if (!f) return
@@ -72,7 +73,7 @@ export function GeradorVitrine({ publicado, nomeNegocio, dados, colunasPreco, sa
   }
   const modoPreco = publicado.modoPreco ?? 'contato'
   // o que a prévia mostra: a loja de verdade com o rascunho por cima
-  const previa: DadosLoja = { ...dados, loja: { ...dados.loja, nome: r.nome.trim() || nomeNegocio, descricao: r.descricao.trim() || undefined, whatsapp: r.whatsapp.replace(/[^\d+]/g, '') || undefined, aparencia: a } }
+  const previa: DadosLoja = { ...dados, loja: { ...dados.loja, nome: r.nome.trim() || nomeNegocio, descricao: r.descricao.trim() || undefined, whatsapp: r.whatsapp.replace(/[^\d+]/g, '') || undefined, mensagens: r.mensagens, aparencia: a } }
   const estreita = aparelho === 'celular'
   return (
     <section aria-label={t('Gerador da vitrine')} className="mb-6">
@@ -138,6 +139,8 @@ export function GeradorVitrine({ publicado, nomeNegocio, dados, colunasPreco, sa
               ))}
             </div>
           </Cartao>
+
+          <MensagensWhatsapp valor={r.mensagens} onChange={(m) => mudar({ mensagens: m })} loja={previa.loja.nome} pacote={dados.pacotes[0]} semPreco={modoPreco === 'contato' || !dados.pacotes[0]?.preco} />
 
           {/* estes valem na hora (não fazem parte do rascunho) */}
           <Cartao titulo={t('Funcionamento')} ajuda="Entra na vitrine o cabelo já separado na triagem, com etiqueta e com saldo. Estes ajustes valem na hora.">
