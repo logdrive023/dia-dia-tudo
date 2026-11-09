@@ -5289,4 +5289,21 @@ export const ES: Record<string, string> = {
   'Os itens': 'Los artículos',
   '1 pacote': '1 paquete',
   '{n} pacotes': '{n} paquetes',
+  // leitor: aviso ao trocar zoom e lanterna
+  'Ajustando o zoom…': 'Ajustando el zoom…',
+  'Ligando a lanterna…': 'Encendiendo la linterna…',
+  'Desligando a lanterna…': 'Apagando la linterna…',
+  // divisão interna da venda
+  'A comissão segue esta ordem: ajuste na venda › % do serviço › % da profissional › padrão do salão. Os insumos saem antes da divisão.': 'La comisión sigue este orden: ajuste en la venta › % del servicio › % de la profesional › estándar del salón. Los insumos salen antes de la división.',
+  'Mudar a regra vale para as próximas vendas; esta continua como foi feita.': 'Cambiar la regla vale para las próximas ventas; esta sigue como se hizo.',
+  'Ajustada só nesta venda': 'Ajustada solo en esta venta',
+  'Corrigir esta venda': 'Corregir esta venta',
+  'Definida no serviço': 'Definida en el servicio',
+  'Alterar no serviço': 'Cambiar en el servicio',
+  'Definida no cadastro da profissional': 'Definida en el registro de la profesional',
+  'Alterar na profissional': 'Cambiar en la profesional',
+  'Padrão do salão': 'Estándar del salón',
+  'Alterar o padrão': 'Cambiar el estándar',
+  'Regra de comissão': 'Regla de comisión',
+  'Ver as regras': 'Ver las reglas',
 }

@@ -15,7 +15,7 @@ import { AbaAnexos } from '../../../shared/ui/anexos'
 import { LinhaDoTempo } from '../../../shared/ui/linhaTempo'
 import { MenuAcoes } from '../../../shared/ui/menuAcoes'
 import { useT } from '../../../shared/ui/i18n'
-import { MemoriaLinha } from '../../../shared/ui/linhaServico'
+import { DivisaoInterna } from '../components/DivisaoInterna'
 import { dividir, memoriaCalculo, pct } from '../../../core/domain/comissao'
 import { FaltaNaVenda } from '../components/FaltaNaVenda'
 import { ErroConsulta } from '../../../shared/ui/consultando'
@@ -122,7 +122,7 @@ export function DetalheVenda() {
           </Cartao>
         ) : (
           // RESUMO = a NOTA DE VENTA (o documento, com prévia fiel e impressão); o caminho do cabelo fica só no Histórico
-          <ResumoNota vendaId={v.id} linhas={v.linhas} moeda={v.moedaPrincipal} />
+          <ResumoNota vendaId={v.id} linhas={v.linhas} moeda={v.moedaPrincipal} onCorrigir={sessao.perfil === 'admin' && (v.etapa === 'concluido' || v.etapa === 'agendado') ? () => setCorrigir(true) : undefined} />
         )}
       </div>
       {receber && <Receber vendaId={v.id} falta={faltaReceber} moeda={v.moedaPrincipal} onFechar={() => setReceber(false)} onPronto={() => undefined} />}
@@ -263,7 +263,7 @@ function RastreioCompleto({ vendaId }: { vendaId: Id }) {
  * detalhe dos impostos — que só valem aqui (o padrão fica em Configurações › Geral); a prévia muda na hora e é a mesma
  * que sai no papel. Embaixo, fora do papel, a divisão interna (comissão e insumos), para quem pode ver.
  */
-function ResumoNota(p: { vendaId: Id; linhas: Transacao['linhas']; moeda: string }) {
+function ResumoNota(p: { vendaId: Id; linhas: Transacao['linhas']; moeda: string; onCorrigir?(): void }) {
   const { sessao } = useApp()
   // a NOTA (documento fiscal: NIT/CI da cliente, divisão interna) é do administrador; a funcionária vê os itens dela
   // (as linhas já chegam filtradas pela visibilidade) — sem pedir uma consulta que o servidor recusa
@@ -291,7 +291,7 @@ function ItensDaVenda({ linhas, moeda }: { linhas: Transacao['linhas']; moeda: s
   )
 }
 
-function NotaCompleta({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transacao['linhas']; moeda: string }) {
+function NotaCompleta({ vendaId, linhas, moeda, onCorrigir }: { vendaId: Id; linhas: Transacao['linhas']; moeda: string; onCorrigir?(): void }) {
   const t = useT()
   const { sessao, ir } = useApp()
   const consultaDoc = useConsulta('documentoVenda', { id: vendaId })
@@ -354,13 +354,7 @@ function NotaCompleta({ vendaId, linhas, moeda }: { vendaId: Id; linhas: Transac
       <p className="text-xs text-[var(--suave)]">{t('É uma nota de venda (documento comercial), não uma factura: o sistema não está ligado ao SIN, por isso não tem código de autorização nem QR.')}</p>
 
       {/* FORA DO PAPEL: a divisão interna de cada serviço (comissão, insumos) */}
-      {internas.length > 0 && (
-        <Cartao titulo={t('Divisão interna (não sai na nota)')}>
-          <ul className="divide-y divide-[var(--borda)] text-sm">
-            {internas.map((l) => <li key={l.id} className="py-2"><b>{l.descricao}</b><MemoriaLinha linha={l} moeda={moeda} /></li>)}
-          </ul>
-        </Cartao>
-      )}
+      {internas.length > 0 && <DivisaoInterna linhas={internas} moeda={moeda} onCorrigir={onCorrigir} />}
       {imprimindo && <ImprimirNota doc={doc} modelo={md} includeTaxesInPrint={includeTaxesInPrint} comDivisao={comDivisao} onPronto={fimImpressao} />}
     </div>
   )

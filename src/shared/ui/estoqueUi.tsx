@@ -89,6 +89,10 @@ type Capacidades = { torch?: boolean; zoom?: { min: number; max: number; step?: 
 /** o que a tela respondeu a uma leitura (modo contínuo): aparece na lista de dentro do leitor */
 export interface RespostaLeitura { ok: boolean; texto: string }
 
+/** o aviso de "ajustando": o mínimo para dar para ler e o máximo se a câmera não responder */
+const AJUSTE_MIN_MS = 450
+const AJUSTE_MAX_MS = 3000
+
 /**
  * `continuo`: a câmera NÃO fecha a cada código — lê um atrás do outro (o mesmo código lido de novo em poucos segundos é
  * ignorado), mostra embaixo o que entrou ("✓ L-0002 · 1,2 kg" / "✗ já saiu") e "Concluir (N)" volta para a tela.
@@ -117,7 +121,9 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
   const trilha = useRef<MediaStreamTrack>()
   // tocou em zoom/lanterna: o leitor descansa um instante para o toque responder na hora (decodificar ocupa o celular)
   const pausaLeitura = useRef(0)
-  const zoomPedido = useRef(1)
+  // a câmera leva um instante para trocar: o aviso aparece no toque (senão parece que o botão não pegou e a pessoa toca de novo)
+  const [ajustando, setAjustando] = useState<string>()
+  const vezAjuste = useRef(0)
   const [erro, setErro] = useState<string>()
   const [caps, setCaps] = useState<Capacidades>({})
   const [lanterna, setLanterna] = useState(false)
@@ -198,15 +204,35 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
       stream?.getTracks().forEach((x) => x.stop())
     }
   }, [onLer])
-  const aplicar = (c: MediaTrackConstraintSet) => { try { void trilha.current?.applyConstraints({ advanced: [c] }) } catch { /* o aparelho não deixou */ } }
-  const trocarLanterna = () => { const v = !lanterna; pausaLeitura.current = Date.now() + 400; setLanterna(v); aplicar({ torch: v } as MediaTrackConstraintSet) }
+  /** mostra o aviso já e, depois de a tela desenhar, pede à câmera; toque novo vence o anterior (só o último é aplicado) */
+  const aplicar = (c: MediaTrackConstraintSet, aviso: string) => {
+    const vez = ++vezAjuste.current
+    const inicio = Date.now()
+    setAjustando(aviso)
+    pausaLeitura.current = inicio + AJUSTE_MAX_MS
+    const terminar = () => {
+      if (vez !== vezAjuste.current) return
+      pausaLeitura.current = Date.now() + 150
+      // rápido demais piscaria sem dar para ler
+      setTimeout(() => { if (vez === vezAjuste.current) setAjustando(undefined) }, Math.max(0, AJUSTE_MIN_MS - (Date.now() - inicio)))
+    }
+    setTimeout(terminar, AJUSTE_MAX_MS) // câmera que não responde não deixa o aviso preso
+    setTimeout(() => {
+      if (vez !== vezAjuste.current) return
+      Promise.resolve().then(() => trilha.current?.applyConstraints({ advanced: [c] })).then(terminar, terminar) // recusou: o aparelho não deixou
+    }, 80)
+  }
+  const trocarLanterna = () => {
+    if (ajustando) return // o segundo toque de quem achou que não pegou não desfaz o primeiro
+    const v = !lanterna
+    setLanterna(v)
+    aplicar({ torch: v } as MediaTrackConstraintSet, t(v ? 'Ligando a lanterna…' : 'Desligando a lanterna…'))
+  }
   // o botão acende na hora; a câmera recebe só o ÚLTIMO zoom tocado (toques rápidos não enfileiram trocas na câmera)
   const trocarZoom = (z: number) => {
     if (z === zoom) return
-    pausaLeitura.current = Date.now() + 500
-    zoomPedido.current = z
     setZoom(z)
-    setTimeout(() => zoomPedido.current === z && aplicar({ zoom: z } as MediaTrackConstraintSet), 80)
+    aplicar({ zoom: z } as MediaTrackConstraintSet, t('Ajustando o zoom…'))
   }
   const zooms = caps.zoom ? [1, 2, 3].filter((z) => z >= caps.zoom!.min && z <= caps.zoom!.max) : []
   const enviar = () => { const c = digitado.trim(); if (c) (ref.current.ultimo = undefined, onLer(c), setDigitado('')) }
@@ -225,11 +251,19 @@ export function LeitorCodigo({ onLer: onLerTexto, onFechar, abrirLote = true, co
                 {['left-0 top-0 border-l-4 border-t-4 rounded-tl-2xl', 'right-0 top-0 border-r-4 border-t-4 rounded-tr-2xl', 'left-0 bottom-0 border-l-4 border-b-4 rounded-bl-2xl', 'right-0 bottom-0 border-r-4 border-b-4 rounded-br-2xl'].map((c) => <span key={c} className={cx('absolute h-8 w-8 border-white', c)} />)}
               </div>
             </div>
+            {ajustando && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+                <p role="status" className="flex items-center gap-2 rounded-2xl bg-black/75 px-4 py-3 text-sm font-semibold text-white shadow-lg backdrop-blur">
+                  <span aria-hidden className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  {ajustando}
+                </p>
+              </div>
+            )}
             {/* lanterna e zoom (quando o celular deixa) */}
             {(caps.torch || zooms.length > 1) && (
-              <div className="absolute inset-x-0 bottom-2 flex justify-center gap-2">
-                {caps.torch && <button type="button" aria-pressed={lanterna} onClick={trocarLanterna} className={cx('min-h-10 rounded-full px-4 text-sm font-semibold backdrop-blur', lanterna ? 'bg-yellow-300 text-black' : 'bg-black/55 text-white')}>🔦 {t(lanterna ? 'Lanterna ligada' : 'Lanterna')}</button>}
-                {zooms.length > 1 && zooms.map((z) => <button key={z} type="button" aria-pressed={zoom === z} onClick={() => trocarZoom(z)} className={cx('min-h-10 min-w-10 rounded-full px-3 text-sm font-bold backdrop-blur', zoom === z ? 'bg-white text-black' : 'bg-black/55 text-white')}>{z}×</button>)}
+              <div className="absolute inset-x-0 bottom-2 flex flex-wrap justify-center gap-2 px-2">
+                {caps.torch && <button type="button" aria-pressed={lanterna} onClick={trocarLanterna} className={cx('min-h-11 touch-manipulation rounded-full px-4 text-sm font-semibold backdrop-blur transition active:scale-95', lanterna ? 'bg-yellow-300 text-black' : 'bg-black/55 text-white')}>🔦 {t(lanterna ? 'Lanterna ligada' : 'Lanterna')}</button>}
+                {zooms.length > 1 && zooms.map((z) => <button key={z} type="button" aria-pressed={zoom === z} onClick={() => trocarZoom(z)} className={cx('min-h-11 min-w-11 touch-manipulation rounded-full px-3 text-sm font-bold backdrop-blur transition active:scale-95', zoom === z ? 'bg-white text-black' : 'bg-black/55 text-white')}>{z}×</button>)}
               </div>
             )}
           </div>

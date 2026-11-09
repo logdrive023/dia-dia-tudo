@@ -1,6 +1,6 @@
 // CONFIGURAÇÕES › Catálogo: serviços e produtos, preço, comissão e insumos (RegraComissaoSalao).
 // Uma seção = um arquivo (a lista das seções e onde cada uma aparece fica em ../configSecoes.ts).
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { formatar } from '../../../core/domain/dinheiro'
 import { novoId } from '../../../core/domain/ids'
 import { COMISSAO_PADRAO_BP, dividir, memoriaCalculo, pct } from '../../../core/domain/comissao'
@@ -18,7 +18,7 @@ export function Catalogo() {
   const [moduloId, setModuloId] = useState('salao')
   const { dados } = useConsulta('catalogo', { moduloId })
   const { executar, ocupado } = useComando()
-  const { avisar } = useApp()
+  const { avisar, nav, ajustarParams } = useApp()
   const mod = mods.find((m) => m.id === moduloId)
   const tipo = mod?.tiposItem[0]
   const moeda = cfg?.config.moedaPrincipal ?? moedaPadrao()
@@ -64,6 +64,15 @@ export function Catalogo() {
           }
         : { id: novoId(), nome: '', novo: true, categoria: '', regra: 'padrao', comissaoPct: '', insumoMoeda: moeda, insumos: [] },
     )
+  // veio de "Alterar no serviço" (divisão interna da venda): abre direto o serviço daquela linha
+  const servicoPedido = typeof nav.params.servico === 'string' ? nav.params.servico : undefined
+  useEffect(() => {
+    if (!servicoPedido || !dados) return
+    const i = dados.find((x) => x.id === servicoPedido)
+    if (i) abrir(i)
+    ajustarParams({ servico: undefined })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicoPedido, dados])
   const salvar = async () => {
     if (!ed || !tipo) return
     const n = Number(ed.comissaoPct.replace(',', '.'))
