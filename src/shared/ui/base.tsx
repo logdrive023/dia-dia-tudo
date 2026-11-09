@@ -511,11 +511,13 @@ export function Titulo({ children, acao, subtitulo, icone }: { children: ReactNo
   for (let i = 0; i < 3 && !temIcone(modulo) && PAI[modulo]; i++) modulo = PAI[modulo]
   const nomeIcone = icone ?? (temIcone(modulo) ? modulo : undefined)
   return (
-    <header className="relative mb-4 overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-3 py-3 xs:px-4 xs:py-4 shadow-[0_1px_2px_rgba(16,24,40,.04),0_4px_16px_-8px_rgba(16,24,40,.08)] sm:px-5">
-      {/* brilho da marca (decoração: não pega toque, não é lido) */}
-      <span aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_140%_at_0%_0%,color-mix(in_srgb,var(--marca)_9%,transparent)_0%,transparent_55%)]" />
-      <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,var(--marca),color-mix(in_srgb,var(--marca)_55%,#ec4899),transparent)]" />
-      <span aria-hidden className="pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[color-mix(in_srgb,var(--marca)_6%,transparent)] blur-2xl" />
+    <header className="relative mb-4 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-3 py-3 xs:px-4 xs:py-4 shadow-[0_1px_2px_rgba(16,24,40,.04),0_4px_16px_-8px_rgba(16,24,40,.08)] sm:px-5">
+      {/* brilho da marca (decoração: não pega toque, não é lido). Só ELA é recortada: a dica dos botões precisa sair do cartão */}
+      <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+      <span className="absolute inset-0 bg-[radial-gradient(120%_140%_at_0%_0%,color-mix(in_srgb,var(--marca)_9%,transparent)_0%,transparent_55%)]" />
+      <span className="absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,var(--marca),color-mix(in_srgb,var(--marca)_55%,#ec4899),transparent)]" />
+      <span className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[color-mix(in_srgb,var(--marca)_6%,transparent)] blur-2xl" />
+      </span>
       {/* SE AJUSTA SOZINHO a qualquer conteúdo: o título nunca fica mais estreito que ~18rem (não espreme); as ações
           ficam ao lado enquanto couberem e, se não, descem inteiras para a linha de baixo (e quebram entre si) */}
       <div className="relative flex flex-wrap items-center gap-x-4 gap-y-3">

@@ -1,5 +1,5 @@
 // AÇÕES DO CABEÇALHO (padrão do sistema): botões com ícone + nome (o nome some no celular, o ícone fica) e uma DICA
-// que aparece ao passar o mouse ou focar pelo teclado ("Ler código: aponte a câmera para a etiqueta…"). Para o leitor
+// que aparece ao passar o mouse ou focar pelo teclado (no toque não: o hover "gruda" depois de tocar) ("Ler código: aponte a câmera para a etiqueta…"). Para o leitor
 // de tela, o nome é o rótulo e a dica é a descrição. Hierarquia: `principal` = botão cheio; o resto = secundário.
 
 import { type ReactNode, useId } from 'react'
@@ -12,7 +12,7 @@ export function Dica({ id, texto, lado = 'centro' }: { id: string; texto: string
   const t = useT()
   return (
     <span id={id} role="tooltip"
-      className={cx('pointer-events-none absolute top-full z-40 mt-2 w-max max-w-[min(16rem,calc(100vw-2rem))] rounded-lg bg-[var(--texto)] px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-[var(--cartao)] opacity-0 shadow-lg transition-opacity delay-150 group-hover:opacity-100 group-focus-visible:opacity-100',
+      className={cx('pointer-events-none absolute top-full z-40 mt-2 w-max max-w-[min(16rem,calc(100vw-2rem))] rounded-lg bg-[var(--texto)] px-2.5 py-1.5 text-left text-xs font-medium leading-snug text-[var(--cartao)] opacity-0 shadow-lg transition-opacity delay-150 [@media(hover:hover)]:group-hover:opacity-100 group-focus-visible:opacity-100',
         lado === 'direita' ? 'right-0' : 'left-1/2 -translate-x-1/2')}>
       {t(texto)}
     </span>
