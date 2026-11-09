@@ -77,7 +77,7 @@ export function FormViagem({ viagem }: { viagem?: Viagem }) {
               <li key={p.id}>
                 <button type="button" onClick={() => (marcarSujo(false), ir('viagem', { id: p.id }))} className="flex w-full items-center gap-3 rounded-2xl border-2 border-l-[6px] border-[var(--borda)] p-3 text-left hover:border-sky-500" style={{ borderLeftColor: 'var(--bom)' }}>
                   <span className="min-w-0 flex-1">
-                    <b className="font-mono">{p.codigo}</b> <span className="rounded-full bg-[var(--bom)]/12 px-2 text-[11px] font-semibold text-[var(--bom)]">{t('em andamento')}</span>
+                    <b className="font-mono">{p.codigo}</b> <span className="rounded-full bg-[var(--bom)]/12 px-2 text-[11px] font-semibold text-[var(--bom)]">{t('Em andamento')}</span>
                     <b className="block truncate text-sm">{p.nome}</b>
                     <span className="num block truncate text-xs text-[var(--suave)]">{[p.destino && `📍 ${p.destino}`, `📅 ${dataBR(p.inicio)}${p.fim ? ` – ${dataBR(p.fim)}` : ''}`].filter(Boolean).join(' · ')}</span>
                   </span>

@@ -62,7 +62,7 @@ export function Historico({ id, versoes, usosPorVersao, onVerUsos }: { id: strin
                     {v.numero === a && <Pilula>{t('era')}</Pilula>}
                     {v.numero === b && <Pilula tom="marca">{t('ficou')}</Pilula>}
                   </div>
-                  <p className="mt-0.5 text-xs text-[var(--suave)]">{t('publicada em')} {dataHora(v.em)}{v.por ? ` · ${t('por {q}', { q: v.por })}` : ''}</p>
+                  <p className="mt-0.5 text-xs text-[var(--suave)]">{t('Publicada em')} {dataHora(v.em)}{v.por ? ` · ${t('por {q}', { q: v.por })}` : ''}</p>
                   {usosPorVersao && (
                     <button type="button" disabled={!usosPorVersao[v.numero]} onClick={() => onVerUsos?.(v.numero)} className="mt-1 inline-flex min-h-8 items-center gap-1 rounded-full bg-[var(--fundo)] px-2.5 text-xs font-semibold text-[var(--marca)] ring-1 ring-[var(--borda)] disabled:text-[var(--suave)]">
                       🧾 {t('{n} uso(s) com esta versão', { n: usosPorVersao[v.numero] ?? 0 })}{usosPorVersao[v.numero] ? ' →' : ''}

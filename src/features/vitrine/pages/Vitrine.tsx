@@ -51,7 +51,7 @@ export function MinhaVitrine() {
       </Titulo>
 
       <GrupoNumeros colunas={4}>
-        <NumeroGrande rotulo="Na vitrine" icone="🛍️" valor={String(visiveis.length)} tom={atual.ativa ? 'bom' : undefined} selos={atual.ativa ? undefined : [{ texto: t('vitrine desligada'), tom: 'alerta' }]} />
+        <NumeroGrande rotulo="Na vitrine" icone="🛍️" valor={String(visiveis.length)} tom={atual.ativa ? 'bom' : undefined} selos={atual.ativa ? undefined : [{ texto: t('Vitrine desligada'), tom: 'alerta' }]} />
         <NumeroGrande rotulo="Disponível" icone="⚖️" valor={kg(visiveis.reduce((s, x) => s + x.gramas, 0))} />
         <NumeroGrande rotulo="Medidas" icone="📏" valor={String(new Set(visiveis.map((x) => x.medida)).size)} />
         <NumeroGrande rotulo="Escondidos" icone="🙈" valor={String(dados.pacotes.length - visiveis.length)} ajuda="Pacotes prontos que você tirou da vitrine (continuam no estoque e à venda no caixa)." />

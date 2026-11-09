@@ -64,8 +64,8 @@ export function ComparaViagens() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--borda)] px-4 py-3">
             <b>{t('Quanto custou cada kg')}</b>
             <span className="flex items-center gap-3 text-xs text-[var(--suave)]">
-              <span className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm bg-[var(--marca)]" />{t('cabelo')}</span>
-              <span className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm bg-[var(--alerta)]" />{t('gastos da viagem')}</span>
+              <span className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm bg-[var(--marca)]" />{t('Cabelo')}</span>
+              <span className="inline-flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm bg-[var(--alerta)]" />{t('Gastos da viagem')}</span>
             </span>
             <Info texto="Custo por kg = o que se pagou pelo cabelo ÷ kg + o gasto da viagem (combustível, hospedagem…) ÷ kg. Quanto menor, melhor." />
           </div>
@@ -84,7 +84,7 @@ export function ComparaViagens() {
                       <span className="h-full bg-[var(--marca)]" style={{ width: `${(cab / maxKg) * 100}%` }} />
                       <span className="h-full bg-[var(--alerta)]" style={{ width: `${(via / maxKg) * 100}%` }} />
                     </span>
-                    <span className="num mt-0.5 block text-[11px] text-[var(--suave)]">{t('cabelo')} {v(cab)}/kg + {t('viagem')} {v(via)}/kg</span>
+                    <span className="num mt-0.5 block text-[11px] text-[var(--suave)]">{t('Cabelo')} {v(cab)}/kg + {t('viagem')} {v(via)}/kg</span>
                   </button>
                 </li>
               )

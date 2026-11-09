@@ -157,7 +157,7 @@ export function CampoCidade({ valor, onChange, opcoes, permitirNovo = true, rotu
                         className={cx('flex min-h-10 w-full items-center gap-2 px-3 text-left text-sm', k === destaque ? 'bg-[var(--marca-suave)]' : 'hover:bg-[var(--marca-suave)]', o.texto === valor && 'font-bold')}>
                         <span aria-hidden className="w-4 shrink-0 text-xs">{o.capital ? '⭐' : o.texto === valor ? '✓' : ''}</span>
                         <span className="min-w-0 flex-1 truncate"><Marcado texto={o.nome} busca={busca} /></span>
-                        {o.extra && <span className="shrink-0 rounded-full bg-[var(--fundo)] px-2 text-[10px] font-semibold text-[var(--suave)]">{t('cadastrada')}</span>}
+                        {o.extra && <span className="shrink-0 rounded-full bg-[var(--fundo)] px-2 text-[10px] font-semibold text-[var(--suave)]">{t('Cadastrada')}</span>}
                         {o.departamento && <span className="shrink-0 text-xs text-[var(--suave)]">{o.departamento}</span>}
                       </button>
                     </li>

@@ -23,7 +23,7 @@ import { NOME_STATUS, TOM_STATUS, type LinhaLista } from '../model/tipos'
 export function TabelaViagens({ linhas, onGasto }: { linhas: LinhaLista[]; onGasto?(id: string): void }) {
   const t = useT()
   const { ir } = useApp()
-  const resultado = (v: LinhaLista) => (v.prospeccao ? <span className="text-[var(--suave)]">{t('sem compra')}</span> : <b style={{ color: v.resultado < 0 ? 'var(--ruim)' : 'var(--bom)' }}>{formatar(v.resultado, v.moeda)}</b>)
+  const resultado = (v: LinhaLista) => (v.prospeccao ? <span className="text-[var(--suave)]">{t('Sem compra')}</span> : <b style={{ color: v.resultado < 0 ? 'var(--ruim)' : 'var(--bom)' }}>{formatar(v.resultado, v.moeda)}</b>)
   const periodo = (v: LinhaLista) => `${dataBR(v.inicio)}${v.fim ? ` → ${dataBR(v.fim)}` : ''}`
   return (
     <TabelaDados
@@ -55,7 +55,7 @@ export function TabelaViagens({ linhas, onGasto }: { linhas: LinhaLista[]; onGas
         valorSub: (v) => `${t('Gastos')} ${formatar(v.gasto, v.moeda)}`,
         codigo: (v) => v.codigo,
         situacao: (v) => ({ texto: NOME_STATUS[v.status], tom: v.status === 'aberta' ? 'marca' : 'suave' }),
-        alerta: (v) => (v.acimaOrcamento ? { texto: 'passou do orçamento', tom: 'ruim' } : v.prospeccao ? { texto: 'prospecção', tom: 'suave' } : undefined),
+        alerta: (v) => (v.acimaOrcamento ? { texto: 'Passou do orçamento', tom: 'ruim' } : v.prospeccao ? { texto: 'prospecção', tom: 'suave' } : undefined),
         tom: (v) => (v.acimaOrcamento ? 'ruim' : v.status === 'aberta' ? 'marca' : undefined),
         fatos: (v) => [
           v.destino ? `📍 ${v.destino}` : undefined,
@@ -140,7 +140,7 @@ export function Comparativo({ linhas, moeda, uma }: { linhas: NonNullable<Return
                 </span>
                 <span className="ml-auto shrink-0 text-right">
                   <b className={cx('num block text-xl leading-tight', melhor && 'text-[var(--bom)]')}>{x.custoKgReal !== undefined ? formatar(x.custoKgReal, moeda) : '—'}</b>
-                  <span className="text-[11px] text-[var(--suave)]">{t('por kg (real)')}</span>
+                  <span className="text-[11px] text-[var(--suave)]">{t('Por kg (real)')}</span>
                 </span>
               </div>
               <div className="num mt-2 flex flex-wrap gap-1.5 text-xs">

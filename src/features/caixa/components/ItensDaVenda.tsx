@@ -51,7 +51,7 @@ export function ItensDaVenda({ vistas, onConferir, onEditar, onRemover, onPreco 
                 <span className="block font-mono text-lg font-black leading-tight">{l.item.codigo ?? '—'} <span aria-hidden className="text-sm font-semibold text-[var(--marca)]">🔎</span></span>
                 <span className="block truncate text-sm">{l.item.nome}</span>
                 <SeloReserva i={l.item} />
-                {origemCurta(l.item) && <span className="block truncate text-xs text-[var(--suave)]">{t('de')} {origemCurta(l.item)}</span>}
+                {origemCurta(l.item) && <span className="block truncate text-xs text-[var(--suave)]">{t('De')} {origemCurta(l.item)}</span>}
                 {faltou(l) && <span className="block text-xs font-semibold text-[var(--ruim)]">⚠ {l.item.saldo <= 0 ? t('vendido ou baixado em outro lugar: tire da venda') : t('o peso mudou: toque nas gramas')}</span>}
               </span>
             </button>

@@ -97,7 +97,7 @@ export function QuadroImpostosOperacao({ produto, servico, compra, moeda, classN
           <span className="mt-0.5 flex items-center justify-between gap-2 text-xs">
             <span className="min-w-0 truncate text-[var(--suave)]">{dados.linhas.map((l) => `${l.sigla} ${pct(l.taxaBp)}`).join(' · ')} · {t('estimado')}</span>
             <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-[var(--marca)]">
-              {t(aberto ? 'fechar' : 'ver detalhe')}
+              {t(aberto ? 'Fechar' : 'Ver detalhe')}
               <span aria-hidden className={cx('transition-transform', aberto && 'rotate-180')}>▾</span>
             </span>
           </span>

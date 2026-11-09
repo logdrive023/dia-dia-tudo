@@ -130,7 +130,7 @@ export function Separar({ ids, onFechar, onSeparou, voltarRotulo }: { ids: Id[];
               <span className="min-w-0 flex-1 text-sm">{juntar ? lotes.map((l) => `${l.codigo ?? ''} ${gramasTexto(l.saldo)}`).join(' + ') : <><b className="font-mono">{lotes[0].codigo}</b> · {t('tudo')}</>}</span>
               <b className="whitespace-nowrap text-2xl font-black">{gramasTexto(usar)}</b>
             </div>
-            {usar !== total && <p className="num text-xs text-[var(--suave)]">{t('de {g}: o resto continua bruto para separar outro dia.', { g: gramasTexto(total) })}</p>}
+            {usar !== total && <p className="num text-xs text-[var(--suave)]">{t('De {g}: o resto continua bruto para separar outro dia.', { g: gramasTexto(total) })}</p>}
           </div>
           {!juntar && (
             <div className="flex flex-wrap gap-x-4">

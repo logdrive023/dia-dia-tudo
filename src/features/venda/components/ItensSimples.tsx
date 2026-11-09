@@ -28,7 +28,7 @@ export function ItensSimples({ moduloId, moeda, onAdd, rotulo = 'Itens', profiss
               <li key={i.id} className="rounded-xl border border-[var(--borda)] p-2">
                 <div className="flex justify-between gap-2">
                   <span className="font-semibold">{i.nome}</span>
-                  {i.controlaEstoque && <span className="text-xs text-[var(--suave)]">{t('tem')} {saldo ?? 0}</span>}
+                  {i.controlaEstoque && <span className="text-xs text-[var(--suave)]">{t('Tem')} {saldo ?? 0}</span>}
                 </div>
                 <div className="mt-2 flex gap-2">
                   <ValorInput moeda={m} valor={preco} onChange={(v) => setPrecos({ ...precos, [i.id]: v })} />

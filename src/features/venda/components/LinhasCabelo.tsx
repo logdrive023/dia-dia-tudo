@@ -233,7 +233,7 @@ export function LinhasCabelo({ moduloId, pessoaId, onAdd, opcional, jaUsado }: {
           <span aria-hidden>·</span>
           <span className="num font-semibold">{totalPrev !== undefined ? formatar(totalPrev, moedaTabela) : '—'}</span>
           {nomeColuna && <span className="text-[var(--suave)]">({nomeColuna})</span>}
-          <button type="button" className="min-h-10 px-2 font-semibold text-[var(--marca)] underline-offset-4 hover:underline" onClick={() => setTrocarPreco(true)}>{t('trocar')}</button>
+          <button type="button" className="min-h-10 px-2 font-semibold text-[var(--marca)] underline-offset-4 hover:underline" onClick={() => setTrocarPreco(true)}>{t('Trocar')}</button>
         </div>
       )}
       {medida && (

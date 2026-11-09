@@ -68,7 +68,7 @@ export function Moedas() {
                     <Bandeira pais={paisDaMoeda(m.moeda)} />
                     <span className="min-w-0 flex-1">
                       <b className="num block">1 {info?.simbolo ?? m.moeda} = {n4(m.base)} {simboloP}</b>
-                      <span className="num block text-xs text-[var(--suave)]">{t('venda')} {n4(m.venda)} · {t('compra')} {n4(m.compra)}</span>
+                      <span className="num block text-xs text-[var(--suave)]">{t('Venda')} {n4(m.venda)} · {t('compra')} {n4(m.compra)}</span>
                     </span>
                     <Pilula pequena tom={m.modo === 'fixo' ? 'alerta' : 'marca'}>{t(m.modo === 'fixo' ? 'Fixo' : 'Dinâmico')}</Pilula>
                     <span aria-hidden className={cx('text-xs text-[var(--suave)] transition-transform', abre && 'rotate-90')}>▸</span>

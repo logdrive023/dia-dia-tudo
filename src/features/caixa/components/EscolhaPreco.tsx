@@ -71,7 +71,7 @@ export function EscolhaPreco({ tabela, versao, opcoes, valor, padrao, porque, mo
                     <span className="min-w-0 flex-1">
                       <span className="block break-words">{o.nome}</span>
                       {o.id === padrao && <span className="mt-0.5 inline-block rounded-full bg-[var(--bom)]/15 px-1.5 text-[10px] font-bold text-[var(--bom)]">★ {t('Padrão')} · {t(porque)}</span>}
-                      {o.semPreco ? <span className="block text-[11px] font-normal text-[var(--alerta)]">{t('sem preço para {n} pacote(s)', { n: o.semPreco })}</span> : null}
+                      {o.semPreco ? <span className="block text-[11px] font-normal text-[var(--alerta)]">{t('Sem preço para {n} pacote(s)', { n: o.semPreco })}</span> : null}
                     </span>
                     <span className="num shrink-0 text-right">
                       <b className="block">{o.total !== undefined ? formatar(o.total, moeda) : '—'}</b>

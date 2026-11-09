@@ -198,12 +198,12 @@ export function FichaEmprestimo() {
                   <div className={cx('flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-3 py-2', proxima ? 'bg-[var(--marca-suave)] ring-1 ring-[var(--marca)]/40' : 'bg-[var(--fundo)]')}>
                     <span className="min-w-0 flex-1 text-sm">
                       <b className="num block">{p.numero}ª · {dataBR(p.vencimento)}</b>
-                      {proxima && <span className="block text-xs font-semibold text-[var(--marca)]">{t('próxima')}</span>}
+                      {proxima && <span className="block text-xs font-semibold text-[var(--marca)]">{t('Próxima')}</span>}
                       {p.diasAtraso > 0 && <span className="block text-xs font-semibold text-[var(--ruim)]">{t('{n} dia(s) de atraso', { n: p.diasAtraso })}</span>}
                     </span>
                     <span className="num text-right text-sm">
                       <b className={cx('block', paga && 'text-[var(--suave)] line-through')}>{formatar(p.valor, e.moeda)}</b>
-                      {p.falta > 0 && p.falta < p.valor && <span className="block text-xs">{t('falta')} {formatar(p.falta, e.moeda)}</span>}
+                      {p.falta > 0 && p.falta < p.valor && <span className="block text-xs">{t('Falta')} {formatar(p.falta, e.moeda)}</span>}
                     </span>
                     <Pilula tom={TOM[p.status]}>{t(p.status)}</Pilula>
                   </div>

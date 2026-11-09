@@ -112,7 +112,7 @@ export function Financiamentos() {
                 <div className="flex flex-wrap gap-x-3 text-xs text-[var(--suave)]">
                   <span>{t('{n} entrega(s)', { n: f.entregas })}</span>
                   {f.viagem && <span>✈ {f.viagem.codigo}</span>}
-                  {f.abaterComissoes && <span>{t('abate das comissões')}</span>}
+                  {f.abaterComissoes && <span>{t('Abate das comissões')}</span>}
                 </div>
                 <SeloPrazo prazo={f.prazo} status={f.status} hoje={hoje} />
               </button>
@@ -146,7 +146,7 @@ function LinhaFinanciamento({ passos, moeda, nomeForma }: { passos: PassoFinanci
               {p.efeito !== undefined && p.efeito !== 0 && (
                 <div className="text-right">
                   <div className={cx('num font-bold', p.efeito > 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>{p.efeito > 0 ? '+' : '−'}{formatar(Math.abs(p.efeito), moeda)}</div>
-                  {p.saldoDepois !== undefined && <div className="num text-xs text-[var(--suave)]">{t('saldo')} {formatar(p.saldoDepois, moeda)}</div>}
+                  {p.saldoDepois !== undefined && <div className="num text-xs text-[var(--suave)]">{t('Saldo')} {formatar(p.saldoDepois, moeda)}</div>}
                 </div>
               )}
             </div>

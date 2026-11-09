@@ -105,11 +105,11 @@ function Agora({ caixa, moeda }: { caixa?: CartaoDados; moeda: string }) {
     { id: 'compras', icone: '🛒', nome: 'Compras em aberto', valor: String(o.compras.abertas), sub: o.compras.abertas ? `${gramasTexto(o.compras.gramas)} · ${formatar(o.compras.valor, moeda)}` : undefined, aviso: o.compras.urgentes ? { texto: t('{n} urgente(s)', { n: o.compras.urgentes }), tom: 'ruim' } : undefined, ok: t('nada pendente'), abrir: () => ir('comprar') },
     { id: 'separar', icone: '✂️', nome: 'Para separar', valor: o.triagem.separar ? gramasTexto(o.triagem.gramas) : '0', sub: o.triagem.separar ? t('{n} pacote(s)', { n: o.triagem.separar }) : undefined, aviso: o.triagem.parados ? { texto: t('{n} parado(s)', { n: o.triagem.parados }), tom: 'ruim' } : o.triagem.paraDepois ? { texto: t('{n} para depois', { n: o.triagem.paraDepois }), tom: 'alerta' } : undefined, ok: t('tudo separado'), abrir: () => ir('triagem') },
     { id: 'pronto', icone: '📦', nome: 'Pronto para vender', valor: gramasTexto(o.estoque.disponivel), sub: [t('{n} lote(s)', { n: o.estoque.lotes }), o.estoque.prontoValor ? formatar(o.estoque.prontoValor, moeda) : ''].filter(Boolean).join(' · '), abrir: () => ir('estoque', { status: 'separado' }) },
-    { id: 'etiqueta', icone: '🏷', nome: 'Sem etiqueta', valor: String(o.etiqueta.sem), aviso: o.etiqueta.velhas ? { texto: t('{n} peso mudou', { n: o.etiqueta.velhas }), tom: 'ruim' } : o.etiqueta.sem ? { texto: t('falta imprimir'), tom: 'alerta' } : undefined, ok: t('tudo em dia'), abrir: () => ir('etiquetas') },
+    { id: 'etiqueta', icone: '🏷', nome: 'Sem etiqueta', valor: String(o.etiqueta.sem), aviso: o.etiqueta.velhas ? { texto: t('{n} peso mudou', { n: o.etiqueta.velhas }), tom: 'ruim' } : o.etiqueta.sem ? { texto: t('Falta imprimir'), tom: 'alerta' } : undefined, ok: t('tudo em dia'), abrir: () => ir('etiquetas') },
   ] : []
   return (
     <div className="min-w-0 bg-[var(--fundo)]/40 p-4 sm:p-5">
-      <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--suave)]">{t('Agora')} · <span className="font-semibold normal-case tracking-normal">{t('o caminho do cabelo')}</span></p>
+      <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--suave)]">{t('Agora')} · <span className="font-semibold normal-case tracking-normal">{t('O caminho do cabelo')}</span></p>
       {!o ? <p className="mt-3 text-sm text-[var(--suave)]">{t('Carregando…')}</p> : (
         <ol className="mt-2">
           {passos.map((x, k) => (
@@ -134,7 +134,7 @@ function Agora({ caixa, moeda }: { caixa?: CartaoDados; moeda: string }) {
       {caixa && (
         <button type="button" onClick={() => ir('caixa')} className="mt-2 flex w-full items-center gap-3 rounded-xl border-t border-[var(--borda)] pt-3 text-left">
           <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--bom)]/12 text-base">💵</span>
-          <span className="min-w-0 flex-1 text-sm font-semibold">{t('Caixa agora')}<span className="block text-xs font-normal text-[var(--suave)]">{t('na mão + no banco')}</span></span>
+          <span className="min-w-0 flex-1 text-sm font-semibold">{t('Caixa agora')}<span className="block text-xs font-normal text-[var(--suave)]">{t('Na mão + no banco')}</span></span>
           <b className="num shrink-0 text-base">{fmt(caixa.valor, caixa.formato, caixa.moeda)}</b>
           <span aria-hidden className="shrink-0 text-[var(--suave)]">›</span>
         </button>

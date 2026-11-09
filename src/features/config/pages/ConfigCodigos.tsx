@@ -176,7 +176,7 @@ function Previa({ rotulo, codigos }: { rotulo: string; codigos: string[] }) {
   return (
     <p className="flex flex-wrap items-center gap-1 text-sm" aria-live="polite">
       <span className="text-[var(--suave)]">{t(rotulo)}:</span>
-      {codigos.length ? codigos.map((c) => <span key={c} className="rounded-lg bg-[var(--marca-suave)] px-2 py-0.5 font-mono font-bold text-[var(--marca)]">{c}</span>) : <span className="text-[var(--ruim)]">{t('confira o prefixo e as casas')}</span>}
+      {codigos.length ? codigos.map((c) => <span key={c} className="rounded-lg bg-[var(--marca-suave)] px-2 py-0.5 font-mono font-bold text-[var(--marca)]">{c}</span>) : <span className="text-[var(--ruim)]">{t('Confira o prefixo e as casas')}</span>}
       {codigos.length > 0 && <span className="text-[var(--suave)]">…</span>}
     </p>
   )
@@ -237,7 +237,7 @@ function LinhaSigla({ p, outras }: { p: PessoaSigla; outras: PessoaSigla[] }) {
             onKeyDown={(e) => e.key === 'Enter' && salvar()}
           />
           {p.padrao && limpa === p.sigla && <Pilula>{t('sugerida')}</Pilula>}
-          {!p.padrao && <button type="button" className="min-h-10 px-2 text-xs font-semibold text-[var(--marca)]" disabled={ocupado} onClick={() => salvar('')} title={t('Voltar para a sugerida pelo nome')}>{t('padrão')}</button>}
+          {!p.padrao && <button type="button" className="min-h-10 px-2 text-xs font-semibold text-[var(--marca)]" disabled={ocupado} onClick={() => salvar('')} title={t('Voltar para a sugerida pelo nome')}>{t('Padrão')}</button>}
         </div>
         {dono && <p className="mt-1 text-xs text-[var(--ruim)]">{t('A sigla {s} já é de {p}.', { s: limpa, p: dono.nome })}{livres.length ? ` ${t('Livres')}: ` : ''}{livres.slice(0, 3).map((s) => <button key={s} type="button" className="mx-0.5 rounded bg-[var(--fundo)] px-1.5 font-mono font-bold text-[var(--marca)]" onClick={() => (setV(s), salvar(s))}>{s}</button>)}</p>}
         {invalida && <p className="mt-1 text-xs text-[var(--ruim)]">{t('De 1 a 5 letras (o número é a sequência).')}</p>}

@@ -73,7 +73,7 @@ function ComoCalcula({ simbolo }: { simbolo: string }) {
       {/* 4) sem preço */}
       <span className="flex items-start gap-2 rounded-lg bg-[var(--fundo)] px-2.5 py-2 text-xs leading-relaxed text-[var(--suave)]">
         <b className="text-sm leading-none text-[var(--texto)]">–</b>
-        <span><b className="text-[var(--texto)]">{t('sem preço')}</b>: {t('digite o valor na hora da venda')}</span>
+        <span><b className="text-[var(--texto)]">{t('Sem preço')}</b>: {t('digite o valor na hora da venda')}</span>
       </span>
     </span>
   )

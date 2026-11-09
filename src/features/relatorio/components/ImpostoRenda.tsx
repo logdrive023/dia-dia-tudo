@@ -186,7 +186,7 @@ function Visao({ d, v }: { d: IR; v(n: number): string }) {
       </p>
       {/* o estado de resultados do exercício e os ajustes tributários */}
       <section className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-        <p className="border-b border-[var(--borda)] px-4 py-3 font-bold">{t('Do lucro contábil ao IUE')} <span className="text-xs font-normal text-[var(--suave)]">{t('estado de resultados (padrão boliviano) + ajustes')}</span></p>
+        <p className="border-b border-[var(--borda)] px-4 py-3 font-bold">{t('Do lucro contábil ao IUE')} <span className="text-xs font-normal text-[var(--suave)]">{t('Estado de resultados (padrão boliviano) + ajustes')}</span></p>
         <ul className="num divide-y divide-[var(--borda)] text-sm">
           {d.resultado.linhas.filter((l) => l.id !== 'iue' && l.id !== 'neta').map((l) => <li key={l.id} className={cx('flex justify-between gap-3 px-4 py-1.5', l.tipo !== 'conta' && 'font-bold')}><span>{l.rotulo}</span><span className="whitespace-nowrap">{v(l.valor)}</span></li>)}
           {d.resultado.ajustes.map((a) => <li key={a.id} className="flex justify-between gap-3 px-4 py-1.5 text-[var(--alerta)]"><span>{t(a.rotulo)}</span><span className="whitespace-nowrap">{v(a.valor)}</span></li>)}
@@ -375,7 +375,7 @@ function Documentos({ d, v }: { d: IR; v(n: number): string }) {
               <b className="num whitespace-nowrap">{v(x.valor)}</b>
               <div className="w-48"><Selecao valor={x.documento} onChange={(doc) => executar('classificarDocumentoFiscal', { alvo: 'despesa', id: x.id, documento: doc as never, dedutivel: x.dedutivel || doc !== 'sem' }, t('Documento marcado.'))} opcoes={DOC} /></div>
               <label className={cx('flex min-h-10 items-center gap-1.5 text-xs', x.documento === 'sem' && 'opacity-50')}>
-                <input type="checkbox" className="h-4 w-4" disabled={x.documento === 'sem'} checked={x.dedutivel} onChange={(e) => executar('classificarDocumentoFiscal', { alvo: 'despesa', id: x.id, documento: x.documento as never, dedutivel: e.target.checked })} />{t('dedutível')}
+                <input type="checkbox" className="h-4 w-4" disabled={x.documento === 'sem'} checked={x.dedutivel} onChange={(e) => executar('classificarDocumentoFiscal', { alvo: 'despesa', id: x.id, documento: x.documento as never, dedutivel: e.target.checked })} />{t('Dedutível')}
               </label>
             </li>
           ))}

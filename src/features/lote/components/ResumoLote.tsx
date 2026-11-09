@@ -152,7 +152,7 @@ export function ResumoTriagem({ dados, gen, campos, onEtiqueta, onRastreio }: Re
             {dados.separacoes.map((s) => (
               <li key={s.id} className="num flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-[var(--fundo)] px-3 py-2 text-sm">
                 <span>{q(s.pesoBruto)} <span aria-hidden className="text-[var(--suave)]">→</span> <b className="text-[var(--bom)]">{q(s.pesoLiquido)}</b></span>
-                <span className="rounded-full bg-[var(--alerta)]/12 px-2 py-0.5 text-xs font-bold text-[var(--alerta)]">{t('perda')} {(s.perdaPct / 100).toLocaleString()}% · {q(s.perda)}</span>
+                <span className="rounded-full bg-[var(--alerta)]/12 px-2 py-0.5 text-xs font-bold text-[var(--alerta)]">{t('Perda')} {(s.perdaPct / 100).toLocaleString()}% · {q(s.perda)}</span>
                 <span className="text-xs text-[var(--suave)]">{t('{n} pacote(s)', { n: s.partes.length })} · {dataBR(s.em)}{s.por ? ` · ${s.por}` : ''}</span>
               </li>
             ))}

@@ -92,10 +92,10 @@ function ListaCompras() {
   const valorAberto = abertas.reduce((s, c) => s + c.totalPrincipal, 0)
   const paradas = abertas.filter((c) => c.pendencias.some((p) => p.id === 'paradaTriagem')).length
   const resumo: { nome: string; valor: string; selos: Selo[]; icone: string; cor: string; tom?: boolean; ativo: boolean; abrir(): void }[] = [
-    { nome: 'Em aberto', valor: String(abertas.length), selos: paradas ? [{ texto: `⏰ ${t('{n} parada(s) na triagem', { n: paradas })}`, tom: 'ruim' }] : [{ texto: t('nada parado'), tom: 'bom' }], icone: '🛒', cor: 'var(--marca)', ativo: aba === 'abertas' && !pendencia, abrir: () => filtrar('abertas', '') },
+    { nome: 'Em aberto', valor: String(abertas.length), selos: paradas ? [{ texto: `⏰ ${t('{n} parada(s) na triagem', { n: paradas })}`, tom: 'ruim' }] : [{ texto: t('Nada parado'), tom: 'bom' }], icone: '🛒', cor: 'var(--marca)', ativo: aba === 'abertas' && !pendencia, abrir: () => filtrar('abertas', '') },
     { nome: 'Valor em aberto', valor: formatar(valorAberto, moedaP), selos: pesoAberto ? [{ texto: `${formatar(Math.round((valorAberto * 1000) / pesoAberto), moedaP)}/kg`, tom: 'bom' }] : [], icone: '💵', cor: 'var(--bom)', ativo: false, abrir: () => filtrar('abertas', '') },
     { nome: 'Peso em aberto', valor: gramasTexto(pesoAberto), selos: [{ texto: t('{n} pedido(s)', { n: abertas.length }), tom: 'alerta' }], icone: '⚖️', cor: 'var(--alerta)', ativo: false, abrir: () => filtrar('abertas', '') },
-    { nome: 'Com pendência', valor: String(comPend.length), selos: urgentes ? [{ texto: `● ${t('{n} urgente(s)', { n: urgentes })}`, tom: 'ruim' }] : [{ texto: t('nada urgente'), tom: 'bom' }], icone: '⚠️', cor: urgentes ? 'var(--ruim)' : 'var(--alerta)', tom: urgentes > 0, ativo: pendencia === 'qualquer', abrir: () => filtrar('todas', 'qualquer') },
+    { nome: 'Com pendência', valor: String(comPend.length), selos: urgentes ? [{ texto: `● ${t('{n} urgente(s)', { n: urgentes })}`, tom: 'ruim' }] : [{ texto: t('Nada urgente'), tom: 'bom' }], icone: '⚠️', cor: urgentes ? 'var(--ruim)' : 'var(--alerta)', tom: urgentes > 0, ativo: pendencia === 'qualquer', abrir: () => filtrar('todas', 'qualquer') },
   ]
   const nomePend = (id: string) => (id === 'qualquer' ? 'Com pendência' : opcoesPend.find((o) => o.id === id)?.nome ?? id)
   const ativosCompra = [

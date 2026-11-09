@@ -140,7 +140,7 @@ function CartaoPessoa({ n, eu, nomeLocal, onClick, chefe, largura }: PropsNo & {
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
           <b className="truncate">{n.pessoa.nome}</b>
-          {souEu && <span className="shrink-0 rounded-full bg-[var(--marca)] px-1.5 py-px text-[10px] font-bold text-white">{t('você')}</span>}
+          {souEu && <span className="shrink-0 rounded-full bg-[var(--marca)] px-1.5 py-px text-[10px] font-bold text-white">{t('Você')}</span>}
         </span>
         <span className="block truncate text-xs text-[var(--suave)]">{[n.pessoa.cargo, local && `🏢 ${local}`].filter(Boolean).join(' · ') || '—'}</span>
         {chefe && <span className="block truncate text-xs text-[var(--suave)]">↑ {t('responde a')} {chefe}</span>}

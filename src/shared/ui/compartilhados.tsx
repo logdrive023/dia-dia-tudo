@@ -259,7 +259,7 @@ export function Conversor() {
                   <li key={m.codigo} className="rounded-xl bg-[var(--fundo)] p-3">
                     <div className="num flex justify-between text-lg font-bold"><span>{m.nome}</span><span>{v(dados?.cotacoes) === undefined ? '—' : formatar(v(dados?.cotacoes)!, m.codigo)}</span></div>
                     {(venda !== v(dados?.cotacoes) || compra !== v(dados?.cotacoes)) && (
-                      <div className="num flex justify-between text-xs text-[var(--suave)]"><span>{t('venda')} {venda === undefined ? '—' : formatar(venda, m.codigo)}</span><span>{t('compra')} {compra === undefined ? '—' : formatar(compra, m.codigo)}</span></div>
+                      <div className="num flex justify-between text-xs text-[var(--suave)]"><span>{t('Venda')} {venda === undefined ? '—' : formatar(venda, m.codigo)}</span><span>{t('Compra')} {compra === undefined ? '—' : formatar(compra, m.codigo)}</span></div>
                     )}
                   </li>
                 )

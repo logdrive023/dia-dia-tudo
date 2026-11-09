@@ -177,9 +177,9 @@ export function AbaCompras({ d }: { d: Dados }) {
               </button>
               <span className="num shrink-0 text-right">
                 {gramasTexto(c.gramas)} · <b>{formatar(c.valor, d.moeda)}</b>
-                <span className="block text-xs text-[var(--suave)]">{t('pago')} {formatar(c.pago, d.moeda)}</span>
+                <span className="block text-xs text-[var(--suave)]">{t('Pago')} {formatar(c.pago, d.moeda)}</span>
               </span>
-              <Botao variante="leve" onClick={() => setTirar(c.id)}>{t('tirar')}</Botao>
+              <Botao variante="leve" onClick={() => setTirar(c.id)}>{t('Tirar')}</Botao>
             </li>
           ))}
         </ul>
@@ -336,7 +336,7 @@ export function AbaContas({ d, onAdiantar }: { d: Dados; onAdiantar(): void }) {
                 {/* aqui é a carteira DA VIAGEM: o que saiu do caixa da loja entrou nela (+), o que voltou ao caixa saiu dela (−) */}
                 <span className={cx('num shrink-0 text-right font-semibold', m.delta < 0 ? 'text-[var(--bom)]' : 'text-[var(--texto)]')}>
                   {m.delta < 0 ? '+' : '−'}{formatar(Math.abs(m.delta), m.moeda)}
-                  <span className="block text-[11px] font-normal text-[var(--suave)]">{t(m.delta < 0 ? 'levou' : 'voltou ao caixa')}</span>
+                  <span className="block text-[11px] font-normal text-[var(--suave)]">{t(m.delta < 0 ? 'Levou' : 'Voltou ao caixa')}</span>
                 </span>
               </li>
             ))}

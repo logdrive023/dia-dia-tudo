@@ -57,7 +57,7 @@ export function DinheiroPainel({ p, cartao, mostrarCaixa }: { p: DadosPainel; ca
                 <span className="shrink-0 font-semibold">{m.moeda}</span>
                 <span className="num text-right">
                   <b>{formatar(m.total, m.moeda)}</b>
-                  <span className="block text-xs text-[var(--suave)]">{t('mão')} {formatar(m.mao, m.moeda)} · {t('banco')} {formatar(m.banco, m.moeda)}</span>
+                  <span className="block text-xs text-[var(--suave)]">{t('Mão')} {formatar(m.mao, m.moeda)} · {t('banco')} {formatar(m.banco, m.moeda)}</span>
                 </span>
               </li>
             ))}

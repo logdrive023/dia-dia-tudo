@@ -44,7 +44,7 @@ export function useLargo() {
   return useMidia('(min-width: 768px)', true)
 }
 
-const SEMANA = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+const SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 const min = (h?: string) => (h ? Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5)) : 0)
 
 /** Agendado / Feito / Pago / Falta receber (atendimento) — as pílulas do item. */

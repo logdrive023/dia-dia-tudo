@@ -247,7 +247,7 @@ export function Triagem() {
   const ativosFila = [
     ...(fp('sf') ? [{ k: 'sf', rotulo: `👤 ${fp('sf')}` }] : []),
     ...(fp('sc') ? [{ k: 'sc', rotulo: `🛒 ${fp('sc')}` }] : []),
-    ...(fp('sd') ? [{ k: 'sd', rotulo: t('parado há {n}+ dias', { n: fp('sd') }) }] : []),
+    ...(fp('sd') ? [{ k: 'sd', rotulo: t('Parado há {n}+ dias', { n: fp('sd') }) }] : []),
     ...(fp('set') ? [{ k: 'set', rotulo: t(fp('set') === 'sem' ? 'Sem etiqueta' : 'Com etiqueta') }] : []),
   ]
   const viagensFila = viagensDasLinhas(daAba.flatMap((l) => l.compras.map((c) => c.viagem)))
@@ -330,10 +330,10 @@ export function Triagem() {
       {/* abas = NÚMEROS GRANDES na fileira padrão (mesmo cartão de Compras, Estoque e Etiquetas): tocar troca a lista */}
       <GrupoNumeros colunas={4} abas rotulo="Triagem" className="!mb-0 !mt-0">
         {([
-          { id: 'separar', nome: 'Para separar', icone: '⏳', cor: paradosN ? 'var(--ruim)' : 'var(--alerta)', valor: separarTodos.length ? gramasTexto(gSeparar) : t('Tudo separado ✓'), selos: separarTodos.length ? [{ texto: t('{n} pacote(s)', { n: separarTodos.length }) }, ...seloJuntados(separarTodos), ...(paradosN ? [{ texto: `⏰ ${t('{n} parado(s)', { n: paradosN })}`, tom: 'ruim' }] : [])] : [{ texto: t('nada esperando'), tom: 'bom' }] },
+          { id: 'separar', nome: 'Para separar', icone: '⏳', cor: paradosN ? 'var(--ruim)' : 'var(--alerta)', valor: separarTodos.length ? gramasTexto(gSeparar) : t('Tudo separado ✓'), selos: separarTodos.length ? [{ texto: t('{n} pacote(s)', { n: separarTodos.length }) }, ...seloJuntados(separarTodos), ...(paradosN ? [{ texto: `⏰ ${t('{n} parado(s)', { n: paradosN })}`, tom: 'ruim' }] : [])] : [{ texto: t('Nada esperando'), tom: 'bom' }] },
           { id: 'prontos', nome: 'Prontos', icone: '✅', cor: 'var(--bom)', valor: gramasTexto(tt.pronto), selos: [{ texto: t('{n} pacote(s)', { n: dados.lotes.filter(ehPronto).length }) }, ...seloJuntados(dados.lotes.filter(ehPronto)), ...(tt.prontoValor ? [{ texto: formatar(tt.prontoValor, moedaPadrao()), tom: 'bom' }] : [])] },
           { id: 'depois', nome: 'Para depois', icone: '❓', cor: '#a78bfa', valor: gramasTexto(tt.naoIdentificado.g), selos: [{ texto: t('{n} pacote(s)', { n: tt.naoIdentificado.n }), ...(tt.naoIdentificado.n ? { tom: 'alerta' } : {}) }, ...seloJuntados(aguardando.filter((l) => l.campos.estado === NAO_ID))] },
-          { id: 'triagens', nome: 'Triagens feitas', icone: '✂️', cor: 'var(--marca)', valor: gramasTexto(tt.triadoSemana), selos: [{ texto: t('nesta semana'), tom: 'marca' }, { texto: t('{n} triagem(ns)', { n: tt.triagensSemana.n }) }, ...(tt.triagensSemana.n ? [{ texto: `🔗 ${t('{j} juntando', { j: tt.triagensSemana.juntando })}`, ...(tt.triagensSemana.juntando ? { tom: 'marca' } : {}) }] : [])] },
+          { id: 'triagens', nome: 'Triagens feitas', icone: '✂️', cor: 'var(--marca)', valor: gramasTexto(tt.triadoSemana), selos: [{ texto: t('Nesta semana'), tom: 'marca' }, { texto: t('{n} triagem(ns)', { n: tt.triagensSemana.n }) }, ...(tt.triagensSemana.n ? [{ texto: `🔗 ${t('{j} juntando', { j: tt.triagensSemana.juntando })}`, ...(tt.triagensSemana.juntando ? { tom: 'marca' } : {}) }] : [])] },
         ] as { id: string; nome: string; icone: string; cor: string; valor: string; selos: { texto: string; tom?: string }[] }[]).map((a) => (
           <NumeroGrande key={a.id} role="tab" rotulo={a.nome} icone={a.icone} cor={a.cor} valor={a.valor} selos={a.selos as Selo[]} ativo={abaReal === a.id} colorirValor={abaReal === a.id} onClick={() => irAba(a.id)} />
         ))}
@@ -517,7 +517,7 @@ export function Triagem() {
                 resumo: (l) => [...new Set(l.compras.map((c) => c.fornecedor).filter(Boolean))].join(', ') || undefined,
                 codigo: (l) => l.codigo,
                 situacao: (l) => { const col = colDe(l.fase); return col && !col.entrada ? { texto: col.nome, tom: 'marca' } : undefined },
-                alerta: (l) => (l.atrasado ? { texto: t('parado'), tom: 'ruim' } : sobraPequena(l) ? { texto: t('só {g}', { g: gramasTexto(l.saldo) }), tom: 'alerta' } : l.campos.estado === NAO_ID ? { texto: t('para depois'), tom: 'alerta' } : undefined),
+                alerta: (l) => (l.atrasado ? { texto: t('Parado'), tom: 'ruim' } : sobraPequena(l) ? { texto: t('só {g}', { g: gramasTexto(l.saldo) }), tom: 'alerta' } : l.campos.estado === NAO_ID ? { texto: t('Para depois'), tom: 'alerta' } : undefined),
                 // bruto ainda não tem etiqueta (sai na separação): o selo só aparece depois de separado; 🔗 = juntado
                 marca: (l) => <>{juntado(l) && <span className="font-semibold text-[var(--marca)]">🔗 {l.unificado > 0 ? t('{n} lotes', { n: l.unificado }) : t('juntado')}</span>}<SelosViagem vs={viagensDasLinhas(l.compras.map((c) => c.viagem))} curto soLeitura />{!precisaSeparar(l) && <SeloEtiqueta soLeitura id={l.id} impressaEm={l.etiqueta.impressaEm} por={l.etiqueta.por} via={l.etiqueta.via} />}</>,
                 fatos: (l) => [...l.compras.map((c) => `🛒 ${c.codigo ?? ''}`), l.pai && `🧬 ${t('separado de')} ${l.pai.codigo ?? '?'}`],

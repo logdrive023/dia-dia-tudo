@@ -151,7 +151,7 @@ export function OpcoesVenda(p: OpcoesVendaProps) {
       <div className="rounded-xl border border-dashed border-[var(--borda)]">
         <button type="button" aria-expanded={p.aberto} onClick={p.onAlternar} className="flex min-h-11 w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-sm">
           <span className="font-semibold text-[var(--marca)]">{p.aberto ? '− ' : '+ '}{t(temQuem ? 'Cliente, quem vendeu e unidade' : 'Cliente')}</span>
-          <span className="rounded-full bg-[var(--fundo)] px-2 py-0.5 text-[11px] font-bold text-[var(--suave)]">{t('opcional')}</span>
+          <span className="rounded-full bg-[var(--fundo)] px-2 py-0.5 text-[11px] font-bold text-[var(--suave)]">{t('Opcional')}</span>
           {!p.aberto && p.resumo.length > 0 && <span className="flex flex-wrap gap-1">{p.resumo.map((r) => <span key={r} className="rounded-full bg-[var(--marca-suave)] px-2 py-0.5 text-xs font-semibold text-[var(--marca)]">{r}</span>)}</span>}
         </button>
         {p.aberto && (

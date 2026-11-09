@@ -109,7 +109,7 @@ function LinhaUso({ u, moeda }: { u: Uso; moeda: string }) {
                 <span className="min-w-0">
                   {l.medida !== undefined ? `${l.medida} cm` : l.descricao}{l.coluna ? ` · ${l.coluna}` : ''}
                   <span className="num ml-2 text-xs text-[var(--suave)]">{gramasTexto(l.gramas)}{l.fator !== undefined ? ` × ${l.fator}` : ''}</span>
-                  {l.manual && l.fatorTabela && <span className="ml-2 text-xs font-semibold text-[var(--alerta)]">{t('a tabela dava {f}', { f: l.fatorTabela })}</span>}
+                  {l.manual && l.fatorTabela && <span className="ml-2 text-xs font-semibold text-[var(--alerta)]">{t('A tabela dava {f}', { f: l.fatorTabela })}</span>}
                 </span>
                 <span className="num">{formatar(l.total, moeda)}{l.desconto ? <span className="ml-1 text-xs text-[var(--suave)]">(−{formatar(l.desconto, moeda)})</span> : null}</span>
               </li>

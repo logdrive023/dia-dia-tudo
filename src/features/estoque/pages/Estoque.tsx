@@ -88,12 +88,12 @@ function VeioDe({ i }: { i: Linha }) {
       <SelosViagem vs={viagensDasLinhas(i.compras.map((c) => c.viagem))} curto />
       {i.pai && (
         <div className="flex min-w-0 items-center gap-1 text-[var(--suave)]">
-          <span aria-hidden className="shrink-0">✂</span>{t('de')}
+          <span aria-hidden className="shrink-0">✂</span>{t('De')}
           <button type="button" onClick={abrir('lote', i.pai.id)} onKeyDown={parar} className={cx(linkLeve, 'font-mono')} title={t('Ver lote de origem')}>{i.pai.codigo ?? i.pai.nome}</button>
         </div>
       )}
-      {!!i.unificadoDe?.length && <div className="truncate text-[var(--suave)]" title={i.unificadoDe.join(' + ')}><span aria-hidden>🔗</span> {t('juntado de')} <span className="font-mono">{i.unificadoDe.join(' + ')}</span></div>}
-      {vazio && <span className="text-[var(--suave)]">{t('cadastro')}</span>}
+      {!!i.unificadoDe?.length && <div className="truncate text-[var(--suave)]" title={i.unificadoDe.join(' + ')}><span aria-hidden>🔗</span> {t('Juntado de')} <span className="font-mono">{i.unificadoDe.join(' + ')}</span></div>}
+      {vazio && <span className="text-[var(--suave)]">{t('Cadastro')}</span>}
     </div>
   )
 }
@@ -109,7 +109,7 @@ function Peso({ i, esquerda }: { i: Linha; esquerda?: boolean }) {
       <div className="num whitespace-nowrap text-base font-bold leading-tight">{qtd(i, i.saldo)}</div>
       {mudou && (
         <>
-          <div className="num whitespace-nowrap text-xs text-[var(--suave)]">{t('de {q}', { q: qtd(i, ini) })}</div>
+          <div className="num whitespace-nowrap text-xs text-[var(--suave)]">{t('De {q}', { q: qtd(i, ini) })}</div>
           <div className={cx('mt-0.5 h-1 w-full max-w-[6rem] overflow-hidden rounded-full bg-[var(--borda)]', !esquerda && 'ml-auto')} role="img" aria-label={`${Math.round(pct)}%`}><div className="h-full rounded-full bg-[var(--marca)]" style={{ width: `${pct}%` }} /></div>
         </>
       )}
@@ -275,10 +275,10 @@ export function Estoque() {
       {/* NÚMEROS GRANDES (fileira padrão): tocar filtra a lista pela situação; o filtro ligado fica destacado */}
       <GrupoNumeros colunas={admin ? 5 : 4}>
         <NumeroGrande rotulo="Em estoque" icone="📦" cor="var(--marca)" valor={fq(somar(comSaldo))} selos={[{ texto: t('{n} lote(s)', { n: comSaldo.length }), tom: 'marca' }]} ativo={!status} onClick={() => setP('status', '')} carregando={!dados} />
-        <NumeroGrande rotulo="Disponível" icone="✅" cor="var(--bom)" colorirValor valor={fq(somar(disponiveis))} selos={[{ texto: t('{n} lote(s)', { n: disponiveis.length }) }, { texto: t('pronto para vender'), tom: 'bom' }]} ativo={status === 'separado'} onClick={() => setP('status', status === 'separado' ? '' : 'separado')} carregando={!dados} />
-        <NumeroGrande rotulo="Para separar" icone="⏳" cor="var(--alerta)" colorirValor={brutos.length > 0} valor={fq(somar(brutos))} selos={[{ texto: t('{n} lote(s)', { n: brutos.length }) }, ...(brutos.length ? [{ texto: t('bruto'), tom: 'alerta' as const }] : [])]} ativo={status === 'bruto'} onClick={() => setP('status', status === 'bruto' ? '' : 'bruto')} carregando={!dados} />
-        <NumeroGrande rotulo="Esgotados" icone="⭕" cor="var(--suave)" valor={String(base.length - comSaldo.length)} selos={[{ texto: t('sem saldo') }]} ativo={status === 'esgotado'} onClick={() => setP('status', status === 'esgotado' ? '' : 'esgotado')} carregando={!dados} />
-        {admin && <NumeroGrande rotulo="Valor em estoque" icone="💵" cor="#0ea5e9" valor={formatar(comSaldo.reduce((s, i) => s + (custoAgora(i) ?? 0), 0), moedaPadrao())} selos={[{ texto: t('a custo'), tom: 'marca' }, { texto: t('o que ainda tem') }]} carregando={!dados} />}
+        <NumeroGrande rotulo="Disponível" icone="✅" cor="var(--bom)" colorirValor valor={fq(somar(disponiveis))} selos={[{ texto: t('{n} lote(s)', { n: disponiveis.length }) }, { texto: t('Pronto para vender'), tom: 'bom' }]} ativo={status === 'separado'} onClick={() => setP('status', status === 'separado' ? '' : 'separado')} carregando={!dados} />
+        <NumeroGrande rotulo="Para separar" icone="⏳" cor="var(--alerta)" colorirValor={brutos.length > 0} valor={fq(somar(brutos))} selos={[{ texto: t('{n} lote(s)', { n: brutos.length }) }, ...(brutos.length ? [{ texto: t('Bruto'), tom: 'alerta' as const }] : [])]} ativo={status === 'bruto'} onClick={() => setP('status', status === 'bruto' ? '' : 'bruto')} carregando={!dados} />
+        <NumeroGrande rotulo="Esgotados" icone="⭕" cor="var(--suave)" valor={String(base.length - comSaldo.length)} selos={[{ texto: t('Sem saldo') }]} ativo={status === 'esgotado'} onClick={() => setP('status', status === 'esgotado' ? '' : 'esgotado')} carregando={!dados} />
+        {admin && <NumeroGrande rotulo="Valor em estoque" icone="💵" cor="#0ea5e9" valor={formatar(comSaldo.reduce((s, i) => s + (custoAgora(i) ?? 0), 0), moedaPadrao())} selos={[{ texto: t('A custo'), tom: 'marca' }, { texto: t('O que ainda tem') }]} carregando={!dados} />}
       </GrupoNumeros>
 
       {/* FILTRO PADRÃO: busca (aceita a pistola) + 📷 + ⚙ Filtros → painel em grupos (situação · medidas · o cabelo ·

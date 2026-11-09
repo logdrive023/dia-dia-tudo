@@ -62,7 +62,7 @@ export function DesfazerMistura({ loteId, onFechar, onFeito }: { loteId: Id; onF
             {dados.fontes.map((f) => (
               <CartaoPacote key={f.id} marcado={marcadas.has(f.id)} onMarcar={(v) => marcar(f.id, v)}
                 p={{ id: f.id, codigo: f.codigo, g: f.g, custo: f.custo !== undefined ? formatar(f.custo, m) : undefined, compras: f.compras }}
-                nota={marcadas.has(f.id) ? <span className="text-[var(--bom)]">✓ {t('volta com {g}', { g: gramasTexto(f.g) })}</span> : <span className="text-[var(--suave)]">{t('fica na mistura')}</span>} />
+                nota={marcadas.has(f.id) ? <span className="text-[var(--bom)]">✓ {t('volta com {g}', { g: gramasTexto(f.g) })}</span> : <span className="text-[var(--suave)]">{t('Fica na mistura')}</span>} />
             ))}
           </div>
           {/* COMO VAI FICAR: uma frase por pacote, na ordem */}

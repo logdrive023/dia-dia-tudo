@@ -64,7 +64,7 @@ export function DivisaoValores({ vendaId }: { vendaId: Id }) {
       <section aria-label={t('Estado de resultado da venda')} className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
         <div className="flex flex-wrap items-baseline gap-x-2 border-b border-[var(--borda)] px-4 py-3">
           <b>{t('Estado de resultado da venda')}</b>
-          <span className="text-xs text-[var(--suave)]">{t('padrão boliviano · NC (CTNAC) e Ley 843')}</span>
+          <span className="text-xs text-[var(--suave)]">{t('Padrão boliviano · NC (CTNAC) e Ley 843')}</span>
           <Info texto="A mesma ordem do Estado de Resultados do relatório contábil, para uma venda só: primeiro o que está na factura (preço de lista, descontos, total faturado); depois o IVA (do fisco), o custo e o IT. O IUE é anual (sobre o lucro do ano) e por isso não se reparte por venda. Impostos estimados." />
         </div>
         {/* cabeçalho das colunas */}
@@ -91,7 +91,7 @@ export function DivisaoValores({ vendaId }: { vendaId: Id }) {
                 <tbody className="divide-y divide-[var(--borda)]">
                   {d.linhas.map((l) => (
                     <tr key={l.id}>
-                      <td className="px-4 py-2"><span className="block font-semibold">{l.descricao}</span>{l.desconto > 0 && <span className="block text-xs text-[var(--suave)]">{t('desconto')} {formatar(l.desconto, m)}</span>}</td>
+                      <td className="px-4 py-2"><span className="block font-semibold">{l.descricao}</span>{l.desconto > 0 && <span className="block text-xs text-[var(--suave)]">{t('Desconto')} {formatar(l.desconto, m)}</span>}</td>
                       <td className="whitespace-nowrap px-2 py-2 text-right">{formatar(l.facturado, m)}</td>
                       {d.verCusto && <>
                         <td className="whitespace-nowrap px-2 py-2 text-right text-[var(--suave)]">{contabil(-(l.custo ?? 0) - (l.servicos ?? 0), m)}</td>
@@ -111,7 +111,7 @@ export function DivisaoValores({ vendaId }: { vendaId: Id }) {
       <section aria-label={t('Dividir o valor')} className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
         <div className="flex flex-wrap items-baseline gap-x-2 border-b border-[var(--borda)] px-4 py-3">
           <b>{t('Dividir o valor')}</b>
-          <span className="text-xs text-[var(--suave)]">{t('com quem, por % ou valor fixo')}</span>
+          <span className="text-xs text-[var(--suave)]">{t('Com quem, por % ou valor fixo')}</span>
           <Info texto="Só registro: grava com quem esta venda é dividida (ex.: 30% do lucro para a sócia, Bs 200 fixos para quem indicou). Não mexe no caixa nem muda a venda. Fica no histórico." />
         </div>
         <div className="space-y-3 p-4">
@@ -130,7 +130,7 @@ export function DivisaoValores({ vendaId }: { vendaId: Id }) {
                   {p.modo === 'pct' ? (
                     <>
                       <div className="relative w-24"><Entrada inputMode="decimal" aria-label={t('Porcentagem')} value={p.pctBp !== undefined ? String(p.pctBp / 100).replace('.', ',') : ''} onChange={(e) => { const n = Number(e.target.value.replace(',', '.')); mudar(i, { pctBp: e.target.value.trim() && Number.isFinite(n) ? Math.round(n * 100) : undefined }) }} className="num pr-7" /><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--suave)]">%</span></div>
-                      <span className="text-sm text-[var(--suave)]">{t('de')}</span>
+                      <span className="text-sm text-[var(--suave)]">{t('De')}</span>
                       <div className="min-w-[9rem] flex-1"><Selecao valor={p.base} onChange={(x) => mudar(i, { base: x as ParteDivisao['base'] })} opcoes={BASES.filter((b) => b.id !== 'lucro' || d.verCusto).map((b) => ({ id: b.id, nome: `${t(b.nome)} (${v(d.bases[b.id])})` }))} /></div>
                     </>
                   ) : <div className="min-w-[9rem] flex-1"><ValorInput moeda={m} valor={p.valor} onChange={(x) => mudar(i, { valor: x })} /></div>}

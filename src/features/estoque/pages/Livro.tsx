@@ -209,7 +209,7 @@ export function Livro() {
                         </span>
                       )}
                       <b className={s.entrou - s.saiu < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{sinalGramas(s.entrou - s.saiu)}</b>
-                      <span className="ml-2 hidden rounded-full bg-[var(--cartao)] px-2 py-0.5 font-sans text-[11px] font-semibold text-[var(--marca)] ring-1 ring-[var(--borda)] xs:inline">{t(fechado ? 'abrir' : 'fechar')}</span>
+                      <span className="ml-2 hidden rounded-full bg-[var(--cartao)] px-2 py-0.5 font-sans text-[11px] font-semibold text-[var(--marca)] ring-1 ring-[var(--borda)] xs:inline">{t(fechado ? 'Abrir' : 'fechar')}</span>
                     </span>
                   </button>
                   {!fechado && (
@@ -232,10 +232,10 @@ export function Livro() {
 type FechamentoCompra = ResultadoConsulta<'livroCabelo'>['porCompra'][number]
 type FiltroFech = '' | 'fecha' | 'naoFecha' | 'comEstoque' | 'acabou'
 const PARTES_FECH = [
-  { k: 'emPacotes', nome: 'em pacotes', cor: 'var(--marca)' },
-  { k: 'vendido', nome: 'vendido', cor: 'var(--bom)' },
-  { k: 'perda', nome: 'perda', cor: 'var(--ruim)' },
-  { k: 'diferenca', nome: 'diferença', cor: 'var(--alerta)' },
+  { k: 'emPacotes', nome: 'Em pacotes', cor: 'var(--marca)' },
+  { k: 'vendido', nome: 'Vendido', cor: 'var(--bom)' },
+  { k: 'perda', nome: 'Perda', cor: 'var(--ruim)' },
+  { k: 'diferenca', nome: 'Diferença', cor: 'var(--alerta)' },
 ] as const
 
 /**
@@ -260,10 +260,10 @@ function FechamentoCompras({ compras, aberto, onAlternar, onAbrir }: { compras: 
       {aberto && (!compras.length ? <Vazio compacto texto="Nenhuma compra de cabelo ainda." /> : (
         <div className="mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            <NumeroGrande rotulo="Fecham" icone="✓" cor="var(--bom)" valor={String(n('fecha'))} ativo={filtro === 'fecha'} onClick={() => alternar('fecha')} selos={[{ texto: t('cada grama tem lugar'), tom: 'bom' }]} />
-            <NumeroGrande rotulo="Não fecham" icone="⚠" cor="var(--alerta)" colorirValor={n('naoFecha') > 0} valor={String(n('naoFecha'))} ativo={filtro === 'naoFecha'} onClick={() => alternar('naoFecha')} selos={n('naoFecha') ? [{ texto: t('conferir'), tom: 'alerta' }] : [{ texto: t('nada a conferir'), tom: 'bom' }]} />
+            <NumeroGrande rotulo="Fecham" icone="✓" cor="var(--bom)" valor={String(n('fecha'))} ativo={filtro === 'fecha'} onClick={() => alternar('fecha')} selos={[{ texto: t('Cada grama tem lugar'), tom: 'bom' }]} />
+            <NumeroGrande rotulo="Não fecham" icone="⚠" cor="var(--alerta)" colorirValor={n('naoFecha') > 0} valor={String(n('naoFecha'))} ativo={filtro === 'naoFecha'} onClick={() => alternar('naoFecha')} selos={n('naoFecha') ? [{ texto: t('Conferir'), tom: 'alerta' }] : [{ texto: t('Nada a conferir'), tom: 'bom' }]} />
             <NumeroGrande rotulo="Com estoque" icone="📦" cor="var(--marca)" valor={String(n('comEstoque'))} ativo={filtro === 'comEstoque'} onClick={() => alternar('comEstoque')} selos={[{ texto: gramasTexto(compras.reduce((s, c) => s + c.emPacotes, 0)), tom: 'marca' }]} />
-            <NumeroGrande rotulo="Acabou" icone="✔" cor="var(--suave)" valor={String(n('acabou'))} ativo={filtro === 'acabou'} onClick={() => alternar('acabou')} selos={[{ texto: t('tudo vendido ou perdido') }]} />
+            <NumeroGrande rotulo="Acabou" icone="✔" cor="var(--suave)" valor={String(n('acabou'))} ativo={filtro === 'acabou'} onClick={() => alternar('acabou')} selos={[{ texto: t('Tudo vendido ou perdido') }]} />
           </div>
           <Entrada type="search" aria-label={t('Buscar compra ou fornecedor')} placeholder={t('Buscar compra ou fornecedor')} value={busca} onChange={(e) => setBusca(e.target.value)} />
           {/* legenda das cores da barra (uma vez) */}

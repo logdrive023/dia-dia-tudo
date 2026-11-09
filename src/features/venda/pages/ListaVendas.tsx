@@ -136,9 +136,9 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
       {/* NÚMEROS GRANDES (fileira padrão) do que está filtrado: tocar abre a aba correspondente */}
       <GrupoNumeros colunas={4}>
         <NumeroGrande rotulo="Vendido" icone="💰" cor="var(--marca)" valor={formatar(vendido, moeda)} selos={[{ texto: t('{n} venda(s)', { n: conc.length }), tom: 'marca' }]} ativo={!aba} onClick={() => irAba('')} carregando={carregando} />
-        <NumeroGrande rotulo="Ticket médio" icone="🧾" cor="var(--bom)" valor={conc.length ? formatar(Math.round(vendido / conc.length), moeda) : '—'} selos={[{ texto: t('por venda') }]} ajuda="Vendido ÷ número de vendas. Ex.: Bs 900 em 3 vendas = Bs 300." carregando={carregando} />
-        <NumeroGrande rotulo="Com pendência" icone="⚠️" cor="var(--alerta)" colorirValor={comPend.length > 0} valor={String(comPend.length)} selos={comPend.length ? [...(faltaReceber ? [{ texto: `● ${t('{n} falta receber', { n: faltaReceber })}`, tom: 'ruim' as const }] : []), { texto: t('toque para ver') }] : [{ texto: `✓ ${t('tudo em dia')}`, tom: 'bom' }]} ativo={aba === 'pendencia'} onClick={() => irAba('pendencia')} carregando={carregando} />
-        <NumeroGrande rotulo="Canceladas" icone="✕" cor="var(--suave)" valor={String(canc.length)} selos={[{ texto: t('estornadas') }]} ajuda="Venda cancelada: o estoque volta e cada pagamento é estornado. Nada é apagado." ativo={aba === 'canceladas'} onClick={() => irAba('canceladas')} carregando={carregando} />
+        <NumeroGrande rotulo="Ticket médio" icone="🧾" cor="var(--bom)" valor={conc.length ? formatar(Math.round(vendido / conc.length), moeda) : '—'} selos={[{ texto: t('Por venda') }]} ajuda="Vendido ÷ número de vendas. Ex.: Bs 900 em 3 vendas = Bs 300." carregando={carregando} />
+        <NumeroGrande rotulo="Com pendência" icone="⚠️" cor="var(--alerta)" colorirValor={comPend.length > 0} valor={String(comPend.length)} selos={comPend.length ? [...(faltaReceber ? [{ texto: `● ${t('{n} falta receber', { n: faltaReceber })}`, tom: 'ruim' as const }] : []), { texto: t('Toque para ver') }] : [{ texto: `✓ ${t('tudo em dia')}`, tom: 'bom' }]} ativo={aba === 'pendencia'} onClick={() => irAba('pendencia')} carregando={carregando} />
+        <NumeroGrande rotulo="Canceladas" icone="✕" cor="var(--suave)" valor={String(canc.length)} selos={[{ texto: t('Estornadas') }]} ajuda="Venda cancelada: o estoque volta e cada pagamento é estornado. Nada é apagado." ativo={aba === 'canceladas'} onClick={() => irAba('canceladas')} carregando={carregando} />
       </GrupoNumeros>
 
       {/* FILTRO PADRÃO: abas da situação · período · busca · ⚙ Filtros (quando · pagamento · quem · onde) → chips ✕ */}
@@ -204,7 +204,7 @@ export function ListaVendas({ novaVenda, aviso }: { novaVenda: ReactNode; aviso?
             valorSub: (a) => textoIdade(minutosAberta(a.abertaEm), t),
             resumo: (a) => a.linhas.map((l) => l.codigo ?? '—').join(', '),
             situacao: () => ({ texto: 'Em aberto', tom: 'alerta' }),
-            alerta: (a) => (a.linhas.some((l) => l.saldo < l.quantidade) ? { texto: t('um pacote já saiu do estoque'), tom: 'ruim' } : undefined),
+            alerta: (a) => (a.linhas.some((l) => l.saldo < l.quantidade) ? { texto: t('Um pacote já saiu do estoque'), tom: 'ruim' } : undefined),
             fatos: (a) => [a.porNome && `👤 ${a.porNome}`, `📦 ${t('{n} pacote(s)', { n: a.linhas.length })}`, `🕘 ${dataBR(a.salvaEm).slice(0, 5)} ${hora(a.salvaEm)}`],
           }}
         />

@@ -42,7 +42,7 @@ export function Celula({ k, rotulo, valor, antes, comBase, c }: { k: string; rot
       className={cx('num flex h-12 w-[4.75rem] flex-col items-center justify-center rounded-lg leading-tight hover:ring-1 hover:ring-[var(--marca)]', mudou && 'bg-[var(--marca-suave)]', ruim && 'bg-[var(--ruim)]/10')}
     >
       <span className={cx(!valor ? 'text-[var(--suave)] opacity-40' : mudou ? 'font-bold text-[var(--marca)]' : 'font-semibold', ruim && 'text-[var(--ruim)]')}>{valor || '–'}</span>
-      {mudou && <span className="text-[10px] text-[var(--suave)]">{t('era {v}', { v: antes || '–' })}</span>}
+      {mudou && <span className="text-[10px] text-[var(--suave)]">{t('Era {v}', { v: antes || '–' })}</span>}
     </button>
   )
 }

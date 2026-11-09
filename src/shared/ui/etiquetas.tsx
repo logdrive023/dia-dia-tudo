@@ -101,7 +101,7 @@ export function Barras({ texto, className, style }: { texto: string; className?:
   if (!conf.ok)
     return (
       <span role="img" aria-label={t('Sem código de barras: {m}', { m: t(MOTIVO_SEM_BARRAS[conf.problema]) })} className={cx('flex items-center justify-center border border-dashed border-black px-0.5 text-center text-[6px] font-semibold leading-tight text-black', className)} style={style}>
-        {t('sem barras')} · {t(MOTIVO_SEM_BARRAS[conf.problema])}
+        {t('Sem barras')} · {t(MOTIVO_SEM_BARRAS[conf.problema])}
       </span>
     )
   const { d, largura, altura } = desenho!
@@ -658,7 +658,7 @@ export function AvisoPacotesNovos() {
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Botao onClick={() => setImprimir(true)}>🏷 {t('Imprimir etiquetas')}</Botao>
         <Botao variante="leve" onClick={() => (fechar(), avisar(t('Ficam em Etiquetas › Sem etiqueta para imprimir depois.')))}>{t('Depois')}</Botao>
-        <button type="button" onClick={() => ir('etiquetas')} className="min-h-10 text-xs font-semibold text-[var(--marca)] hover:underline">{t('ficam em Etiquetas para imprimir depois')} ›</button>
+        <button type="button" onClick={() => ir('etiquetas')} className="min-h-10 text-xs font-semibold text-[var(--marca)] hover:underline">{t('Ficam em Etiquetas para imprimir depois')} ›</button>
       </div>
       {imprimir && <ImprimirEtiquetas ids={ids} onImpresso={fechar} onFechar={() => setImprimir(false)} />}
     </div>

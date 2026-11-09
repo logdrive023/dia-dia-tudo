@@ -44,7 +44,7 @@ export function Passo({ n, de, titulo, resumo, ajuda, exemplo, aberto, feito, op
         {/* a explicação com exemplo: no ⓘ (fora do botão do título: botão dentro de botão não vale) */}
         {aberto && <Info texto={ajuda} exemplo={exemplo} />}
         <button type="button" tabIndex={-1} aria-hidden onClick={onAlternar} className="flex min-h-14 shrink-0 items-center gap-2 pl-1 sm:pl-2">
-          <span className="num hidden whitespace-nowrap text-xs text-[var(--suave)] sm:inline">{t('passo {n} de {t}', { n, t: de })}</span>
+          <span className="num hidden whitespace-nowrap text-xs text-[var(--suave)] sm:inline">{t('Passo {n} de {t}', { n, t: de })}</span>
           <span className={cx('text-[var(--suave)] transition-transform', aberto && 'rotate-90')}>›</span>
         </button>
       </div>

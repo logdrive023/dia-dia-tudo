@@ -81,10 +81,10 @@ export function Pessoas() {
                   <button type="button" onClick={() => ir('pessoa', { id: c.pessoaId })} className="relative flex w-full items-center gap-3 p-3 pl-4 text-left hover:bg-[var(--fundo)]">
                     <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: deve ? 'var(--bom)' : 'var(--ruim)' }} />
                     <AvatarPessoa nome={c.nome} />
-                    <span className="min-w-0 flex-1"><b className="block truncate">{c.nome}</b><span className="num block text-xs text-[var(--suave)]">{t('último movimento')} {dataBR(c.ultimo)}</span></span>
+                    <span className="min-w-0 flex-1"><b className="block truncate">{c.nome}</b><span className="num block text-xs text-[var(--suave)]">{t('Último movimento')} {dataBR(c.ultimo)}</span></span>
                     <span className="shrink-0 text-right">
                       <b className={cx('num block', deve ? 'text-[var(--bom)]' : 'text-[var(--ruim)]')}>{formatar(Math.abs(c.saldo), m)}</b>
-                      <span className="block text-xs text-[var(--suave)]">{t(deve ? 'me deve' : 'eu devo')}</span>
+                      <span className="block text-xs text-[var(--suave)]">{t(deve ? 'Me deve' : 'Eu devo')}</span>
                     </span>
                     <span aria-hidden className="text-[var(--suave)]">›</span>
                   </button>
@@ -226,7 +226,7 @@ export function FichaPessoa() {
                   <>
                     <span aria-hidden className={cx('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold', entra ? 'bg-[var(--bom)]/12 text-[var(--bom)]' : 'bg-[var(--ruim)]/10 text-[var(--ruim)]')}>{entra ? '+' : '−'}</span>
                     <span className="min-w-0 flex-1 text-sm"><span className="block truncate">{l.descricao}</span><span className="num block text-xs text-[var(--suave)]">{dataBR(l.data)}</span></span>
-                    <span className="num shrink-0 text-right text-sm"><b className={entra ? 'text-[var(--bom)]' : 'text-[var(--ruim)]'}>{entra ? '+' : ''}{formatar(l.delta, mc)}</b><span className="block text-xs text-[var(--suave)]">{t('saldo')} {formatar(l.saldo, mc)}</span></span>
+                    <span className="num shrink-0 text-right text-sm"><b className={entra ? 'text-[var(--bom)]' : 'text-[var(--ruim)]'}>{entra ? '+' : ''}{formatar(l.delta, mc)}</b><span className="block text-xs text-[var(--suave)]">{t('Saldo')} {formatar(l.saldo, mc)}</span></span>
                     {tela && <span aria-hidden className="text-[var(--suave)]">›</span>}
                   </>
                 )
@@ -259,7 +259,7 @@ export function FichaPessoa() {
             {dados.emprestimos.map((e) => (
               <li key={e.id}>
                 <button type="button" className="flex w-full items-center gap-3 py-2 text-left hover:bg-[var(--fundo)]" onClick={() => ir('emprestimo', { id: e.id })}>
-                  <span className="min-w-0 flex-1 text-sm"><b className="block">{t(e.direcao === 'dado' ? 'Emprestei' : 'Peguei')} {formatar(e.principal, e.moeda)}</b><span className="num block text-xs text-[var(--suave)]">{t('falta')} {formatar(e.saldo, e.moeda)}</span></span>
+                  <span className="min-w-0 flex-1 text-sm"><b className="block">{t(e.direcao === 'dado' ? 'Emprestei' : 'Peguei')} {formatar(e.principal, e.moeda)}</b><span className="num block text-xs text-[var(--suave)]">{t('Falta')} {formatar(e.saldo, e.moeda)}</span></span>
                   <Pilula tom={e.status === 'atrasada' ? 'ruim' : e.status === 'quitado' ? 'bom' : 'marca'}>{t(e.status)}</Pilula>
                   <span aria-hidden className="text-[var(--suave)]">›</span>
                 </button>

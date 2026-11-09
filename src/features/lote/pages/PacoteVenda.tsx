@@ -34,7 +34,7 @@ export function PacoteVenda() {
           ) : (
             <>
               <span className="num text-5xl font-black">{marcadorLote(dados.campos, dados.nome)}</span>
-              <span className="mt-1 text-xs font-semibold uppercase text-[var(--suave)]">{t('sem foto')}</span>
+              <span className="mt-1 text-xs font-semibold uppercase text-[var(--suave)]">{t('Sem foto')}</span>
             </>
           )}
         </span>

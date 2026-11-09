@@ -42,7 +42,7 @@ export function ParaOndeFoi({ dados, admin, onTrocarLote }: { dados: DadosPedido
           <ul className="px-2 pb-2">
             {dados.lotes.map((l) => (
               <LinhaPacote key={l.id} id={l.id} codigo={l.codigo} nome={l.nome} foto={l.foto} marcador={marcadorLote(l.campos, l.nome)}
-                situacao={l.aguardando ? { texto: `${t('aguardando triagem')} · ${t('{n} dia(s)', { n: l.aguardando.dias })}`, tom: 'marca' } : l.saldo <= 0 ? { texto: t('esgotado'), tom: 'suave' } : { texto: t('em estoque'), tom: 'bom' }}
+                situacao={l.aguardando ? { texto: `${t('aguardando triagem')} · ${t('{n} dia(s)', { n: l.aguardando.dias })}`, tom: 'marca' } : l.saldo <= 0 ? { texto: t('Esgotado'), tom: 'suave' } : { texto: t('Em estoque'), tom: 'bom' }}
                 valor={l.unidade === 'grama' ? gramasTexto(l.saldo) : l.saldo}
                 onAbrir={() => ir('lote', { id: l.id })}
                 acoes={admin ? [

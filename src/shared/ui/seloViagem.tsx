@@ -164,7 +164,7 @@ export function EscolhaViagem({ valor, onEscolher, conta, bloqueio, topo }: {
                         {conta && (
                           <span className="shrink-0 text-right">
                             <b className="num block text-lg leading-none">{n}</b>
-                            <span className="text-[11px] text-[var(--suave)]">{t('nesta lista')}</span>
+                            <span className="text-[11px] text-[var(--suave)]">{t('Nesta lista')}</span>
                           </span>
                         )}
                       </button>

@@ -156,7 +156,7 @@ export function Miniatura({ item, tamanho = 'h-14 w-14' }: { item: Pick<Pacote, 
       ) : (
         <>
           <span className="num block font-black leading-none">{marcadorLote(item.campos, item.nome)}</span>
-          <span className="mt-0.5 block whitespace-nowrap text-[8px] font-semibold uppercase leading-none text-[var(--suave)]">{t('sem foto')}</span>
+          <span className="mt-0.5 block whitespace-nowrap text-[8px] font-semibold uppercase leading-none text-[var(--suave)]">{t('Sem foto')}</span>
         </>
       )}
     </span>

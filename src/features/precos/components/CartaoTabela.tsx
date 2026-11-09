@@ -49,7 +49,7 @@ export function CartaoTabela({ x, tb }: { x: Linha; tb?: TabelaPreco }) {
             <div className="mt-1 h-1.5 rounded-full" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--marca) 20%, transparent), var(--marca))' }} />
             <div className="mt-0.5 flex justify-between text-[11px] text-[var(--suave)]"><span>{x.medidaMin} {x.unidadeMedida}</span><span>{x.medidaMax} {x.unidadeMedida}</span></div>
           </div>
-        ) : <p className="text-sm text-[var(--suave)]">{t('sem preços ainda')}</p>}
+        ) : <p className="text-sm text-[var(--suave)]">{t('Sem preços ainda')}</p>}
       </div>
       {/* PRÉVIA EM MAPA DE CALOR: bate o olho e vê onde tem preço e como sobe com a medida */}
       {medidas.length > 0 && cols.length > 0 && (

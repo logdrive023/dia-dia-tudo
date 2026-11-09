@@ -62,7 +62,7 @@ export function CabecalhoFicha({ midia, titulo, codigo, anteriores, selos, detal
             {(partes.length > 0 || !!anteriores?.length) && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {partes.map((x, k) => <span key={k} className="num inline-flex min-h-7 items-center rounded-full bg-[var(--fundo)] px-2.5 text-xs text-[var(--suave)] ring-1 ring-[var(--borda)]">{x}</span>)}
-                {!!anteriores?.length && <span className="inline-flex min-h-7 items-center rounded-full bg-[var(--fundo)] px-2.5 text-xs text-[var(--suave)] ring-1 ring-[var(--borda)]">{t('antes')}: <span className="ml-1 font-mono">{anteriores.join(', ')}</span></span>}
+                {!!anteriores?.length && <span className="inline-flex min-h-7 items-center rounded-full bg-[var(--fundo)] px-2.5 text-xs text-[var(--suave)] ring-1 ring-[var(--borda)]">{t('Antes')}: <span className="ml-1 font-mono">{anteriores.join(', ')}</span></span>}
               </div>
             )}
           </div>

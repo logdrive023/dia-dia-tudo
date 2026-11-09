@@ -76,8 +76,8 @@ export function AvisoFeriado({ f, compacto }: { f: FeriadoNoDia; compacto?: bool
 export function LegendaCalendario({ tipos, categorias }: { tipos: { id: string; nome: string; cor: string }[]; categorias: CategoriaFeriado[] }) {
   return (
     <Legenda className="mt-3" grupos={[
-      { titulo: 'Eventos', dica: '● bolinha', itens: [...tipos.map((x) => ({ id: x.id, nome: x.nome, cor: x.cor })), { id: 'feito', nome: 'já feito', cor: 'var(--suave)', forma: 'apagada' as const, dica: 'A bolinha fica mais clara quando o atendimento ou a parcela já foi feito.' }] },
-      { titulo: 'Feriados', dica: '■ quadradinho', itens: categorias.map((c) => ({ id: c, nome: CAT_FERIADO[c].nome, cor: CAT_FERIADO[c].cor, forma: 'quadrado' as const, dica: 'Só informativo: não bloqueia nada. Liga e desliga em ⚙ Filtros.' })) },
+      { titulo: 'Eventos', dica: '● Bolinha', itens: [...tipos.map((x) => ({ id: x.id, nome: x.nome, cor: x.cor })), { id: 'feito', nome: 'Já feito', cor: 'var(--suave)', forma: 'apagada' as const, dica: 'A bolinha fica mais clara quando o atendimento ou a parcela já foi feito.' }] },
+      { titulo: 'Feriados', dica: '■ Quadradinho', itens: categorias.map((c) => ({ id: c, nome: CAT_FERIADO[c].nome, cor: CAT_FERIADO[c].cor, forma: 'quadrado' as const, dica: 'Só informativo: não bloqueia nada. Liga e desliga em ⚙ Filtros.' })) },
     ]} />
   )
 }

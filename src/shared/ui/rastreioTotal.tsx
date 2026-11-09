@@ -68,7 +68,7 @@ export function Caminho({ g, onSeparar, onVender }: { g: Genealogia; onSeparar?(
     <nav aria-label={t('Caminho')} className="flex min-w-0 flex-wrap items-center gap-1">
       {c.compras.length
         ? mais(c.compras, (x) => <Chip key={x.id} tipo="compra" ativo={aqui === 'compra'} titulo={aqui === 'compra' ? t('você está aqui') : undefined} onClick={() => ir('pedido', { id: x.id })}>{x.codigo ?? t('Compra')}{x.fornecedor ? ` · ${x.fornecedor}` : ''}</Chip>)
-        : <Chip tipo="compra" fantasma>{t('sem compra (cadastro)')}</Chip>}
+        : <Chip tipo="compra" fantasma>{t('Sem compra (cadastro)')}</Chip>}
       {(c.triagens.length > 0 || onSeparar) && <>{seta}{c.triagens.length
         ? mais(c.triagens, (x) => <Chip key={x.id} tipo="triagem" ativo={aqui === 'triagem' && g.foco === x.id} onClick={() => ir('triagem', { aba: 'triagens', t: x.id })}>{x.codigo}</Chip>, 3)
         : <Botao className={botao} onClick={onSeparar}>✂️ {t('Separar agora')}</Botao>}</>}
@@ -103,11 +103,11 @@ export function RastreioTotal({ g, admin = true }: { g: Genealogia; admin?: bool
   const soma = (xs: { g: number }[]) => xs.reduce((s, x) => s + x.g, 0)
   const esperando = g.lotes.filter((l) => l.bruto).reduce((s, l) => s + Math.max(0, l.saldo), 0)
   const partes = [
-    { nome: 'vendido', g: tt.vendido, cor: COR.venda },
-    { nome: 'em estoque', g: tt.emEstoque - esperando, cor: COR.lote },
-    { nome: 'esperando triagem', g: esperando, cor: COR.triagem },
-    { nome: 'perda', g: tt.perda, cor: 'var(--ruim)' },
-    { nome: 'cancelado', g: tt.cancelado, cor: 'var(--suave)' },
+    { nome: 'Vendido', g: tt.vendido, cor: COR.venda },
+    { nome: 'Em estoque', g: tt.emEstoque - esperando, cor: COR.lote },
+    { nome: 'Esperando triagem', g: esperando, cor: COR.triagem },
+    { nome: 'Perda', g: tt.perda, cor: 'var(--ruim)' },
+    { nome: 'Cancelado', g: tt.cancelado, cor: 'var(--suave)' },
   ]
   const barra = partes.filter((p) => p.g > 0)
   const somaBarra = barra.reduce((s, p) => s + p.g, 0)
@@ -116,7 +116,7 @@ export function RastreioTotal({ g, admin = true }: { g: Genealogia; admin?: bool
   /** de onde veio: os códigos (um toque abre); gramas só quando veio de mais de um lugar */
   const origem = (xs: Ligacao[]) => xs.length > 0 && (
     <div className="flex flex-wrap items-center gap-1">
-      <span className="text-xs text-[var(--suave)]">{t('de')}</span>
+      <span className="text-xs text-[var(--suave)]">{t('De')}</span>
       {xs.map((x) => <Chip key={x.tipo + x.id} tipo={x.tipo} onClick={() => abrir(x.tipo, x.id)}>{x.codigo ?? '—'}{xs.length > 1 ? <span className="num font-normal"> · {gramasTexto(x.g)}</span> : null}</Chip>)}
     </div>
   )
@@ -128,7 +128,7 @@ export function RastreioTotal({ g, admin = true }: { g: Genealogia; admin?: bool
           <span className="flex flex-wrap items-center gap-x-2">
             <b className="font-mono text-xs" style={{ color: COR[tipo] }}>{p.codigo}</b>
             {p.data && <span className="num text-xs text-[var(--suave)]">{dataBR(p.data)}</span>}
-            {g.foco === id && <span className="rounded-full bg-[var(--marca)] px-2 text-[11px] font-bold text-white">{t('você está aqui')}</span>}
+            {g.foco === id && <span className="rounded-full bg-[var(--marca)] px-2 text-[11px] font-bold text-white">{t('Você está aqui')}</span>}
           </span>
           {p.nome && <b className="block truncate leading-tight">{p.nome}</b>}
         </button>
@@ -141,13 +141,13 @@ export function RastreioTotal({ g, admin = true }: { g: Genealogia; admin?: bool
   // o que aconteceu com os gramas do pacote: uma frase quando é uma coisa só; a barra quando dividiu
   const vidaLote = (l: Lote) => {
     const ps = [
-      { nome: 'vendido', g: l.vendido, cor: COR.venda },
-      { nome: 'triado', g: l.triado, cor: COR.triagem },
+      { nome: 'Vendido', g: l.vendido, cor: COR.venda },
+      { nome: 'Triado', g: l.triado, cor: COR.triagem },
       { nome: l.bruto ? 'esperando triagem' : 'em estoque', g: Math.max(0, l.saldo), cor: l.bruto ? COR.triagem : COR.lote },
-      { nome: 'ajuste', g: Math.max(0, l.ajustes), cor: 'var(--ruim)' },
-      { nome: 'cancelado', g: l.cancelado, cor: 'var(--suave)' },
+      { nome: 'Ajuste', g: Math.max(0, l.ajustes), cor: 'var(--ruim)' },
+      { nome: 'Cancelado', g: l.cancelado, cor: 'var(--suave)' },
     ].filter((p) => p.g > 0)
-    if (!ps.length) return <span className="text-xs text-[var(--suave)]">{t('nada em estoque')}</span>
+    if (!ps.length) return <span className="text-xs text-[var(--suave)]">{t('Nada em estoque')}</span>
     if (ps.length === 1) {
       const frase = ps[0].nome === 'vendido' ? 'tudo vendido' : ps[0].nome === 'triado' ? 'tudo foi para a triagem' : ps[0].nome === 'em estoque' ? 'tudo em estoque' : ps[0].nome
       return <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: ps[0].cor }}><span aria-hidden className="inline-block size-2 rounded-full" style={{ background: ps[0].cor }} />{t(frase)}</span>
@@ -194,7 +194,7 @@ export function RastreioTotal({ g, admin = true }: { g: Genealogia; admin?: bool
           {origem(x.entradas)}
           <p className="num flex flex-wrap items-center gap-x-2 text-xs text-[var(--suave)]">
             <span>{[x.juntou && `🔗 ${t('juntou')}`, x.separou && `✂️ ${t('separou')}`].filter(Boolean).join(' · ')}</span>
-            <span className={cx('rounded-full px-2 py-0.5 font-semibold', x.perda > 0 ? 'bg-[var(--ruim)]/10 text-[var(--ruim)]' : 'bg-[var(--fundo)]')}>{t('perda')} {gramasTexto(x.perda)} · {fmt(x.perdaPct, 'percentual')}</span>
+            <span className={cx('rounded-full px-2 py-0.5 font-semibold', x.perda > 0 ? 'bg-[var(--ruim)]/10 text-[var(--ruim)]' : 'bg-[var(--fundo)]')}>{t('Perda')} {gramasTexto(x.perda)} · {fmt(x.perdaPct, 'percentual')}</span>
           </p>
         </>,
       })),
@@ -204,7 +204,7 @@ export function RastreioTotal({ g, admin = true }: { g: Genealogia; admin?: bool
       id: 'venda', icone: ICONE.venda, cor: COR.venda, titulo: 'Vendas', explica: 'para onde foi', vazio: 'Ainda não foi vendido.',
       itens: g.vendas.map((v, k) => cartao('venda', v.id, {
         codigo: v.codigo, nome: v.cliente, data: v.data, peso: gramasTexto(v.g),
-        corpo: <>{origem(v.lotes)}{v.agendada && <span className="w-fit rounded-full bg-[var(--alerta)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--alerta)]">{t('agendada')}</span>}</>,
+        corpo: <>{origem(v.lotes)}{v.agendada && <span className="w-fit rounded-full bg-[var(--alerta)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--alerta)]">{t('Agendada')}</span>}</>,
         historico: <LinhaDoTempo id={v.id} prefixo={`rv${k}`} simples />,
       })),
     },

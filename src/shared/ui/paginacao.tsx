@@ -100,10 +100,14 @@ export function AreaPaginada({ pag, children }: { pag: { ancora: RefObject<HTMLD
   return <div ref={pag.ancora} className="scroll-mt-4" style={pag.carregando ? { minHeight: pag.altura } : undefined}>{pag.carregando ? <CarregandoPagina /> : children}</div>
 }
 
-function Seta({ direcao, forte, ...p }: { direcao: 'anterior' | 'proxima'; forte?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+/** no celular só a seta (alvo de 44 px); do sm para cima a seta vem com o nome */
+function Seta({ direcao, forte, nome, ...p }: { direcao: 'anterior' | 'proxima'; forte?: boolean; nome: string } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const seta = <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d={direcao === 'anterior' ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'} /></svg>
   return (
-    <button type="button" {...p} className={cx('flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-xl transition active:scale-95 disabled:cursor-not-allowed disabled:bg-[var(--fundo)] disabled:text-[var(--borda)] disabled:active:scale-100', forte ? 'bg-[var(--marca)] text-white hover:brightness-110' : 'bg-[var(--marca-suave)] text-[var(--marca)] hover:brightness-95')}>
-      <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d={direcao === 'anterior' ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'} /></svg>
+    <button type="button" {...p} className={cx('flex h-11 min-w-11 shrink-0 touch-manipulation items-center justify-center gap-1 rounded-xl text-sm font-semibold transition active:scale-95 disabled:cursor-not-allowed disabled:bg-transparent disabled:text-[var(--suave)] disabled:opacity-50 disabled:ring-1 disabled:ring-[var(--borda)] disabled:active:scale-100 sm:px-3', forte ? 'bg-[var(--marca)] text-white hover:brightness-110' : 'bg-[var(--marca-suave)] text-[var(--marca)] hover:brightness-95')}>
+      {direcao === 'anterior' && seta}
+      <span className="hidden sm:inline">{nome}</span>
+      {direcao === 'proxima' && seta}
     </button>
   )
 }
@@ -114,24 +118,24 @@ export function Paginacao({ pagina, paginas, de, ate, total, porPagina, irPara, 
   if (total <= 0) return null
   return (
     // CELULAR: em cima ‹ Página [3] de 13 › com alvos grandes, a barrinha de onde está e, embaixo, o intervalo e o tamanho.
-    // COMPUTADOR: tudo numa linha.
-    <nav aria-label={t('Páginas')} className="mt-3 flex flex-col gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-      <div className="flex items-center justify-between gap-2 sm:order-2 sm:justify-end">
-        <Seta direcao="anterior" disabled={carregando || pagina <= 1} aria-label={t('Página anterior')} onClick={() => irPara(pagina - 1)} />
+    // COMPUTADOR: o intervalo à esquerda, ‹ Anterior · Página [3] de 13 · Próxima › à direita e a barrinha embaixo.
+    <nav aria-label={t('Páginas')} className="mt-3 flex flex-col gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:grid sm:grid-cols-[1fr_auto] sm:items-center sm:gap-x-4 sm:px-4">
+      <div className="flex items-center justify-between gap-2 sm:order-2 sm:justify-end sm:gap-3">
+        <Seta direcao="anterior" nome={t('Anterior')} disabled={carregando || pagina <= 1} aria-label={t('Página anterior')} onClick={() => irPara(pagina - 1)} />
         {/* ir direto para uma página: a atual em destaque, escolher outra na lista */}
         <label className="num flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm text-[var(--suave)]">
           <span>{t('Página')}</span>
           <span className="relative inline-flex items-center">
-            <select aria-label={t('Página')} aria-current="page" value={pagina} disabled={carregando} onChange={(e) => irPara(Number(e.target.value))} className="h-11 cursor-pointer appearance-none rounded-xl bg-[var(--fundo)] pl-3 pr-7 text-base font-bold text-[var(--texto)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--marca)]">
+            <select aria-label={t('Página')} aria-current="page" value={pagina} disabled={carregando} onChange={(e) => irPara(Number(e.target.value))} className="h-11 cursor-pointer appearance-none rounded-xl bg-[var(--fundo)] pl-3 pr-7 text-base font-bold text-[var(--texto)] outline-none ring-1 ring-[var(--borda)] focus-visible:ring-2 focus-visible:ring-[var(--marca)]">
               {Array.from({ length: paginas }, (_, k) => <option key={k + 1} value={k + 1}>{k + 1}</option>)}
             </select>
             <span aria-hidden className="pointer-events-none absolute right-2.5 text-xs text-[var(--suave)]">▾</span>
           </span>
           <span className="whitespace-nowrap">{t('de {n}', { n: paginas })}</span>
         </label>
-        <Seta direcao="proxima" forte disabled={carregando || pagina >= paginas} aria-label={t('Próxima página')} onClick={() => irPara(pagina + 1)} />
+        <Seta direcao="proxima" nome={t('Próxima')} forte disabled={carregando || pagina >= paginas} aria-label={t('Próxima página')} onClick={() => irPara(pagina + 1)} />
       </div>
-      <div aria-hidden className="h-1 overflow-hidden rounded-full bg-[var(--fundo)] sm:hidden">
+      <div aria-hidden className="h-1 overflow-hidden rounded-full bg-[var(--fundo)] sm:order-3 sm:col-span-2">
         <div className="h-full rounded-full bg-[var(--marca)] transition-[width] duration-300" style={{ width: `${(pagina / paginas) * 100}%` }} />
       </div>
       <div className="num flex items-center justify-between gap-3 text-sm text-[var(--suave)] sm:order-1 sm:justify-start">

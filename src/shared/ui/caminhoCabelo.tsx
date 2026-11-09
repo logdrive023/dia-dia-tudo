@@ -123,7 +123,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
       <div className="bg-[linear-gradient(180deg,var(--marca-suave),transparent)] px-3 pb-6 pt-4 sm:px-5 sm:pb-8 sm:pt-5">
         <div className="mb-4 flex flex-wrap items-baseline gap-x-2">
           <h2 className="text-base font-bold sm:text-lg">🧬 {t('Caminho do cabelo')}</h2>
-          <span className="text-xs text-[var(--suave)]">{t('por onde ele passou e para onde vai · toque num código para abrir')}</span>
+          <span className="text-xs text-[var(--suave)]">{t('Por onde ele passou e para onde vai · toque num código para abrir')}</span>
         </div>
         {/* 0. A SITUAÇÃO AGORA, em uma frase */}
         <p className="num mb-4 rounded-xl bg-[var(--cartao)] px-3 py-2 text-sm shadow-sm ring-1 ring-[var(--borda)]">
@@ -157,7 +157,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
                 {estado === 'falta' && !e.itens.length ? (
                   <p className="num flex min-h-12 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-[var(--suave)]">
                     <b>{t(NOME[e.id])}</b>
-                    <span className="rounded-full bg-[var(--fundo)] px-2 py-0.5 text-[11px] font-bold">{t('ainda vai passar')}</span>
+                    <span className="rounded-full bg-[var(--fundo)] px-2 py-0.5 text-[11px] font-bold">{t('Ainda vai passar')}</span>
                     {e.n > 0 && <span>· {e.resumo}</span>}
                   </p>
                 ) : (
@@ -187,7 +187,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
         <div className="border-b border-[var(--borda)] px-3 pb-3 pt-4 sm:px-5">
           <div className="mb-2 flex flex-wrap items-baseline gap-x-2">
             <h3 className="text-base font-bold">📋 {t('Detalhe de cada etapa')}</h3>
-            <span className="text-xs text-[var(--suave)]">{t('escolha uma etapa para ver só ela')}</span>
+            <span className="text-xs text-[var(--suave)]">{t('Escolha uma etapa para ver só ela')}</span>
           </div>
           <div role="radiogroup" aria-label={t('Ver o detalhe de')} className="sem-barra -mx-1 flex gap-1 overflow-x-auto rounded-xl bg-[var(--fundo)] p-1">
             {[{ id: '' as const, nome: t('Tudo'), n: etapas.reduce((s, e) => s + e.n, 0) }, ...etapas.filter((e) => e.n > 0 || filtro === e.id).map((e) => ({ id: e.id, nome: `${ICONE[e.id]} ${t(NOME[e.id])}`, n: e.n }))].map((f) => (
@@ -226,7 +226,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
                       <button type="button" onClick={() => ir('lote', { id: l.id })} className="num flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-left text-sm hover:bg-[var(--fundo)]">
                         <b className="font-mono text-[var(--marca)]">{l.codigo ?? '—'}</b>
                         <span className="min-w-0 flex-1 truncate">{l.nome}</span>
-                        <span className="text-xs text-[var(--suave)]">{t('entrou')} {gramasTexto(l.bruto ? entrouBruto(l) : l.entrou)} · {t('vendeu')} {gramasTexto(l.vendido)}</span>
+                        <span className="text-xs text-[var(--suave)]">{t('Entrou')} {gramasTexto(l.bruto ? entrouBruto(l) : l.entrou)} · {t('vendeu')} {gramasTexto(l.vendido)}</span>
                         <b>{gramasTexto(l.saldo)}</b>
                         <span aria-hidden className="text-[var(--suave)]">›</span>
                       </button>
@@ -245,7 +245,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
                     <span>{t('Entrou')} <b>{gramasTexto(x.entradas.reduce((a, e) => a + e.g, 0))}</b></span>
                     <span aria-hidden className="text-[var(--suave)]">→</span>
                     <span>{t('Saiu')} <b className="text-[var(--bom)]">{gramasTexto(x.saidas.reduce((a, e) => a + e.g, 0))}</b></span>
-                    <span className="rounded-full bg-[var(--alerta)]/12 px-2 py-0.5 text-xs font-bold text-[var(--alerta)]">{t('perda')} {pctBp(x.perdaPct)} · {gramasTexto(x.perda)}</span>
+                    <span className="rounded-full bg-[var(--alerta)]/12 px-2 py-0.5 text-xs font-bold text-[var(--alerta)]">{t('Perda')} {pctBp(x.perdaPct)} · {gramasTexto(x.perda)}</span>
                   </div>
                   <p className="mt-2 flex flex-wrap items-center gap-1 text-xs text-[var(--suave)]">
                     {t('Entrou')}: {x.entradas.map((e) => <Codigo key={e.id} codigo={e.codigo} onClick={() => ir('lote', { id: e.id })} />)}
@@ -265,7 +265,7 @@ export function CaminhoDoCabelo({ de, atual, compacto, semCadeia, className }: {
                     <span className="min-w-0 flex-1 truncate">{l.nome}</span>
                     {l.etiquetaEm
                       ? <span className="text-xs font-semibold text-[var(--bom)]">✓ {t('impressa')} {dataBR(l.etiquetaEm)}{l.etiquetaPor ? ` · ${l.etiquetaPor}` : ''}</span>
-                      : l.saldo > 0 ? <span className="text-xs font-semibold text-[var(--alerta)]">🏷 {t('sem etiqueta')}</span> : <span className="text-xs text-[var(--suave)]">{t('sem saldo')}</span>}
+                      : l.saldo > 0 ? <span className="text-xs font-semibold text-[var(--alerta)]">🏷 {t('sem etiqueta')}</span> : <span className="text-xs text-[var(--suave)]">{t('Sem saldo')}</span>}
                   </li>
                 ))}
               </ul>
@@ -347,7 +347,7 @@ function ListaItens({ itens, apagado }: { itens: ItemEtapa[]; apagado?: boolean 
         <li key={x.id}>
           <button type="button" onClick={x.abrir} title={t('Abrir')} className={cx('num flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition hover:bg-[var(--marca-suave)]', x.desta && 'bg-[var(--marca-suave)]')}>
             <b className={cx('shrink-0 rounded-md px-1.5 py-0.5 font-mono text-xs', x.desta ? 'bg-[var(--marca)] text-white' : apagado ? 'bg-[var(--fundo)] text-[var(--suave)]' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>{x.codigo ?? '—'}</b>
-            <span className="min-w-0 flex-1 truncate text-[var(--suave)]">{x.desta && <b className="mr-1 text-[var(--marca)]">{t('este')} ·</b>}{x.info}</span>
+            <span className="min-w-0 flex-1 truncate text-[var(--suave)]">{x.desta && <b className="mr-1 text-[var(--marca)]">{t('Este')} ·</b>}{x.info}</span>
             {x.valor && <b className="shrink-0 whitespace-nowrap">{x.valor}</b>}
             <span aria-hidden className="shrink-0 text-[var(--suave)]">›</span>
           </button>
@@ -364,7 +364,7 @@ function Outros({ itens }: { itens: ItemEtapa[] }) {
   return (
     <div className="mt-1.5">
       <button type="button" aria-expanded={aberto} onClick={() => setAberto(!aberto)} className="-ml-2 inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-[var(--suave)] hover:bg-[var(--cartao)] hover:text-[var(--marca)]">
-        {t('outros do mesmo cabelo ({n})', { n: itens.length })}<span aria-hidden className={cx('transition-transform', aberto && 'rotate-180')}>▾</span>
+        {t('Outros do mesmo cabelo ({n})', { n: itens.length })}<span aria-hidden className={cx('transition-transform', aberto && 'rotate-180')}>▾</span>
       </button>
       {aberto && <ListaItens itens={itens} apagado />}
     </div>

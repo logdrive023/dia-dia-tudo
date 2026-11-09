@@ -151,11 +151,11 @@ export function AntesDepois({ antes, mudou, depois, negativo, rotulo }: { antes:
     <div>
       {rotulo && <p className="mb-1 text-xs text-[var(--suave)]">{rotulo}</p>}
       <div className="num grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1">
-        <span className={caixa}><span className={nome}>{t('antes')}</span>{antes}</span>
+        <span className={caixa}><span className={nome}>{t('Antes')}</span>{antes}</span>
         <span aria-hidden className="text-[var(--suave)]">→</span>
-        <span className={cx(caixa, 'font-bold', negativo ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}><span className={nome}>{t('mudou')}</span>{mudou}</span>
+        <span className={cx(caixa, 'font-bold', negativo ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}><span className={nome}>{t('Mudou')}</span>{mudou}</span>
         <span aria-hidden className="text-[var(--suave)]">→</span>
-        <span className={cx(caixa, 'font-black')}><span className={nome}>{t('depois')}</span>{depois}</span>
+        <span className={cx(caixa, 'font-black')}><span className={nome}>{t('Depois')}</span>{depois}</span>
       </div>
     </div>
   )

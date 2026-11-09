@@ -241,7 +241,7 @@ export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { tod
           </span>
           {faixa && (
             <span className="inline-flex items-center gap-1 text-sm">
-              {t('de')} <input aria-label={t('Medida de')} inputMode="numeric" className={caixa} value={f.faixaDe ?? ''} onChange={(e) => filtro.setFaixa(num(e.target.value), f.faixaAte)} placeholder="45" />
+              {t('De')} <input aria-label={t('Medida de')} inputMode="numeric" className={caixa} value={f.faixaDe ?? ''} onChange={(e) => filtro.setFaixa(num(e.target.value), f.faixaAte)} placeholder="45" />
               {t('a')} <input aria-label={t('Medida até')} inputMode="numeric" className={caixa} value={f.faixaAte ?? ''} onChange={(e) => filtro.setFaixa(f.faixaDe, num(e.target.value))} placeholder="60" /> cm
             </span>
           )}
@@ -254,7 +254,7 @@ export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { tod
             return <button key={a.id} type="button" aria-pressed={on} onClick={() => (on ? filtro.setPeso(undefined, undefined) : filtro.setPeso(a.de, a.ate))} className={chip(on)}>{a.nome}</button>
           })}
           <span className="inline-flex items-center gap-1 text-sm">
-            {t('de')} <CampoPeso rotulo={t('Peso de')} exemplo="100 g" valor={f.pesoDe} onChange={(g) => filtro.setPeso(g, f.pesoAte)} />
+            {t('De')} <CampoPeso rotulo={t('Peso de')} exemplo="100 g" valor={f.pesoDe} onChange={(g) => filtro.setPeso(g, f.pesoAte)} />
             {t('a')} <CampoPeso rotulo={t('Peso até')} exemplo="2 kg" valor={f.pesoAte} onChange={(g) => filtro.setPeso(f.pesoDe, g)} />
           </span>
           <Info texto="Ex.: só pacotes acima de 1 kg" />
@@ -272,7 +272,7 @@ export function FiltrosProntos<L extends LoteFiltravel>({ todos, filtro }: { tod
           {grupos.map((o) => <button key={o.id} type="button" aria-pressed={f.agrupar === o.id} onClick={() => filtro.setAgrupar(o.id)} className={chip(f.agrupar === o.id)}>{t(o.nome)}</button>)}
           {f.agrupar === 'faixa' && (
             <span className="inline-flex items-center gap-1 text-sm">
-              {t('de')} <input aria-label={t('Tamanho da faixa (cm)')} inputMode="numeric" className={caixa} value={f.passo} onChange={(e) => filtro.setPasso(Number(e.target.value))} /> {t('em')} {f.passo} cm
+              {t('De')} <input aria-label={t('Tamanho da faixa (cm)')} inputMode="numeric" className={caixa} value={f.passo} onChange={(e) => filtro.setPasso(Number(e.target.value))} /> {t('em')} {f.passo} cm
             </span>
           )}
         </div>

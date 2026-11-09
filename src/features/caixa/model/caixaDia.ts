@@ -10,11 +10,11 @@ export const NOME_STATUS: Record<string, string> = { aberto: 'Aberto', encerrado
 export type TipoLancar = 'dar' | 'entrada' | 'despesa' | 'retirada' | 'pagamento'
 
 export const BOTOES: { tipo: TipoLancar; icone: string; nome: string; dica: string }[] = [
-  { tipo: 'dar', icone: '🤝', nome: 'Dei dinheiro', dica: 'vale, ajuda, troco' },
-  { tipo: 'entrada', icone: '➕', nome: 'Entrada', dica: 'entrou sem venda' },
-  { tipo: 'despesa', icone: '🧾', nome: 'Despesa', dica: 'luz, aluguel, comida' },
-  { tipo: 'retirada', icone: '🏦', nome: 'Retirada', dica: 'tirei do caixa' },
-  { tipo: 'pagamento', icone: '💼', nome: 'Pagamento', dica: 'paguei a uma pessoa' },
+  { tipo: 'dar', icone: '🤝', nome: 'Dei dinheiro', dica: 'Vale, ajuda, troco' },
+  { tipo: 'entrada', icone: '➕', nome: 'Entrada', dica: 'Entrou sem venda' },
+  { tipo: 'despesa', icone: '🧾', nome: 'Despesa', dica: 'Luz, aluguel, comida' },
+  { tipo: 'retirada', icone: '🏦', nome: 'Retirada', dica: 'Tirei do caixa' },
+  { tipo: 'pagamento', icone: '💼', nome: 'Pagamento', dica: 'Paguei a uma pessoa' },
 ]
 
 export const CATEGORIAS_DESPESA = ['Aluguel', 'Luz e água', 'Comida', 'Transporte', 'Material', 'Outras despesas']

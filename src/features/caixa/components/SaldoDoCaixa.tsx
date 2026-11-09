@@ -134,7 +134,7 @@ export function SaldoDoCaixa({ contas, movimentos, data, cot, linha, onOntem }: 
         <div className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--fundo)] p-3">
           <div className="text-sm font-semibold">💵 {t('Na mão')}</div>
           <div className={cx('num whitespace-nowrap text-base font-black xs:text-lg', (mao ?? 0) < 0 && 'text-[var(--ruim)]')}>{mostrar(mao)}</div>
-          <div className="text-xs text-[var(--suave)]">{t('dinheiro vivo')}</div>
+          <div className="text-xs text-[var(--suave)]">{t('Dinheiro vivo')}</div>
         </div>
         <div className="min-w-0 rounded-2xl border border-[var(--borda)] bg-[var(--fundo)] p-3">
           <div className="text-sm font-semibold">🏦 {t('No banco')}</div>

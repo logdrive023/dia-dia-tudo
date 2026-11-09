@@ -10,7 +10,7 @@ import { variacaoPct } from '../model/calculos'
 export function seloVariacao(t: ReturnType<typeof useT>, atual: number, anterior?: number): Selo | undefined {
   if (anterior === undefined) return undefined
   const v = variacaoPct(atual, anterior)
-  if (v === undefined) return { texto: t('sem base anterior') }
+  if (v === undefined) return { texto: t('Sem base anterior') }
   const sobe = v >= 0
   return { texto: `${sobe ? '↑' : '↓'} ${Math.abs(v) > 500 ? t(sobe ? 'muito acima' : 'muito abaixo') : `${Math.abs(v)}%`}`, tom: sobe ? 'bom' : 'ruim' }
 }

@@ -261,7 +261,7 @@ export function SeletorServicos({ moeda, onAdd, rotulo = 'O que vai fazer?' }: {
                     {formatar(preco, m)}
                     {i.insumo?.valor ? ` · ${t('insumos')} ${formatar(i.insumo.valor, i.insumo.moeda)}` : ''}
                   </span>
-                  {!!i.campos.revisar && <span className="text-[10px] font-semibold text-[var(--alerta)]">{t('novo · revisar')}</span>}
+                  {!!i.campos.revisar && <span className="text-[10px] font-semibold text-[var(--alerta)]">{t('Novo · revisar')}</span>}
                 </button>
                 <button type="button" aria-label={t(fav.includes(i.id) ? 'Tirar dos favoritos' : 'Favoritar')} aria-pressed={fav.includes(i.id)} onClick={() => alternarFav(i.id)} className="absolute right-1 top-1 min-h-9 min-w-9 rounded-full text-lg">
                   {fav.includes(i.id) ? '★' : '☆'}

@@ -159,10 +159,10 @@ export function BuscaPacote<P extends PacoteBusca>({ pacotes, valor, onValor, on
                             <span className="min-w-0 truncate text-sm"><Marcado texto={p.nome} busca={valor} /></span>
                           </span>
                           <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--suave)]">
-                            {origem && <span className="min-w-0 truncate">{t('de')} {origem}</span>}
+                            {origem && <span className="min-w-0 truncate">{t('De')} {origem}</span>}
                             {ja && <span className="font-semibold text-[var(--marca)]">✓ {t('já na venda')}</span>}
-                            {esgotado && <span className="font-semibold text-[var(--ruim)]">{t('já saiu — toque para ver para onde foi')}</span>}
-                            {!esgotado && BRUTO.has(p.status) && <span className="font-semibold text-[var(--alerta)]">{t('bruto')}</span>}
+                            {esgotado && <span className="font-semibold text-[var(--ruim)]">{t('Já saiu — toque para ver para onde foi')}</span>}
+                            {!esgotado && BRUTO.has(p.status) && <span className="font-semibold text-[var(--alerta)]">{t('Bruto')}</span>}
                             {!esgotado && p.reserva && <span className="font-semibold text-[var(--alerta)]">🔒 {p.reserva.para}</span>}
                           </span>
                         </span>

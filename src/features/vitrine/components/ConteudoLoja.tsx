@@ -51,7 +51,7 @@ export function CartaoPacoteVitrine({ p, whatsapp, loja, modoPreco, mensagens, n
           {!contato && p.preco && porGrama ? (
             <>
               <p className="num text-lg font-black text-[var(--marca-texto)]">{dinheiro(porGrama, p.preco.moeda)}<span className="text-xs font-semibold text-[var(--suave)]"> /g</span></p>
-              <p className="num text-xs text-[var(--suave)]">{t('o pacote')}: {dinheiro(porGrama * p.gramas, p.preco.moeda)}</p>
+              <p className="num text-xs text-[var(--suave)]">{t('O pacote')}: {dinheiro(porGrama * p.gramas, p.preco.moeda)}</p>
             </>
           ) : modoPreco !== 'contato' && <p className="text-sm font-semibold text-[var(--suave)]">{t('Consultar preço')}</p>}
         </div>

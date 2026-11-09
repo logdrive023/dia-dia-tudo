@@ -145,7 +145,7 @@ function LinhaTriagem({ x, aberta, t, ir, onAlternar, onImprimir }: { x: Triagem
             <span aria-hidden className="text-lg text-[var(--suave)]">→</span>
             <span><span className="block text-[11px] uppercase tracking-wide text-[var(--suave)]">{t('Saiu')}</span><b className="text-lg text-[var(--bom)]">{gramasTexto(x.pesoSaida)}</b></span>
             <span className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: `color-mix(in srgb, ${corPerda ?? 'var(--bom)'} 14%, transparent)`, color: corPerda ?? 'var(--bom)' }}>
-              {t('perda')} {fmt(x.perdaPct, 'percentual')}{x.perda > 0 && <span className="font-medium opacity-80">· {gramasTexto(x.perda)}</span>}
+              {t('Perda')} {fmt(x.perdaPct, 'percentual')}{x.perda > 0 && <span className="font-medium opacity-80">· {gramasTexto(x.perda)}</span>}
             </span>
           </div>
           <div aria-hidden className="mt-2 flex h-2 w-full gap-px overflow-hidden rounded-full bg-[var(--cartao)]">

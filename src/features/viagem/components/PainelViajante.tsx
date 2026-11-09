@@ -124,7 +124,7 @@ export function CarteiraViagem({ carteira }: { carteira: SaldoCarteira[] }) {
           <div className="text-xs font-semibold text-[var(--suave)]">{t('Na mão')} · {c.moeda}</div>
           <div className={cx('num text-2xl font-bold', c.saldo < 0 && 'text-[var(--ruim)]')}>{formatar(c.saldo, c.moeda)}</div>
           <div className="num text-xs text-[var(--suave)]">
-            {t('levou')} {formatar(c.adiantado, c.moeda)} · {t('gastou')} {formatar(c.gasto, c.moeda)}
+            {t('Levou')} {formatar(c.adiantado, c.moeda)} · {t('gastou')} {formatar(c.gasto, c.moeda)}
             {c.devolvido ? ` · ${t('devolveu')} ${formatar(c.devolvido, c.moeda)}` : ''}
             {c.reembolsado ? ` · ${t('reembolso')} ${formatar(c.reembolsado, c.moeda)}` : ''}
           </div>
@@ -167,7 +167,7 @@ export function LinhaGasto({ g, onAnular }: { g: { id: Id; icone: string; nomeCa
         </span>
       </span>
       <span className={cx('num shrink-0 text-right font-bold', g.anulada && 'line-through opacity-60')}>{formatar(g.valor, g.moeda)}</span>
-      {onAnular && !g.anulada && <Botao variante="leve" className="shrink-0" onClick={onAnular}>{t('anular')}</Botao>}
+      {onAnular && !g.anulada && <Botao variante="leve" className="shrink-0" onClick={onAnular}>{t('Anular')}</Botao>}
     </li>
   )
 }

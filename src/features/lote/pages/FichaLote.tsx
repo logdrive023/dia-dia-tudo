@@ -105,7 +105,7 @@ export function FichaLote() {
             {finais.map((s) => (
               <li key={s.id}>
                 <button type="button" onClick={() => ir('lote', { id: s.id })} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl bg-[var(--cartao)] px-3 text-left shadow-sm hover:ring-2 hover:ring-[var(--marca)]">
-                  <span className="min-w-0"><b className="font-mono">📦 {s.codigo ?? '—'}</b>{s.via && <span className="block text-xs font-normal text-[var(--suave)]">{t('passou por {c}', { c: s.via })}</span>}</span>
+                  <span className="min-w-0"><b className="font-mono">📦 {s.codigo ?? '—'}</b>{s.via && <span className="block text-xs font-normal text-[var(--suave)]">{t('Passou por {c}', { c: s.via })}</span>}</span>
                   <span className="num shrink-0 font-semibold">{s.saldo > 0 ? q(s.saldo) : t('sem saldo')} ›</span>
                 </button>
               </li>
@@ -140,8 +140,8 @@ export function FichaLote() {
       <section aria-label={t('Números')} className="space-y-2">
         <TituloSecao>{t('Números')}</TituloSecao>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          <Cartao><div className="text-xs text-[var(--suave)]">{t('Agora')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{q(i.saldo)}</div>{f.inicial !== i.saldo && <div className="num text-xs text-[var(--suave)]">{t('entrou')} {q(f.inicial)}</div>}</Cartao>
-          <Cartao><div className="text-xs text-[var(--suave)]">{t('Custo do lote')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{formatar(i.custoPrincipal ?? 0, m)}</div>{soSeparado && <div className="text-xs text-[var(--suave)]">{t('dividido entre os pacotes')}</div>}</Cartao>
+          <Cartao><div className="text-xs text-[var(--suave)]">{t('Agora')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{q(i.saldo)}</div>{f.inicial !== i.saldo && <div className="num text-xs text-[var(--suave)]">{t('Entrou')} {q(f.inicial)}</div>}</Cartao>
+          <Cartao><div className="text-xs text-[var(--suave)]">{t('Custo do lote')}</div><div className="num whitespace-nowrap text-lg font-bold sm:text-xl">{formatar(i.custoPrincipal ?? 0, m)}</div>{soSeparado && <div className="text-xs text-[var(--suave)]">{t('Dividido entre os pacotes')}</div>}</Cartao>
           {!soSeparado && <BotaoNumero rotulo={t('Vendido')} onClick={verRastreio}>{formatar(dados.vendido, m)}</BotaoNumero>}
           {!soSeparado && <BotaoNumero rotulo={t('Lucro (vendido − custo)')} onClick={verRastreio} className={dados.lucro < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'}>{formatar(dados.lucro, m)}</BotaoNumero>}
         </div>

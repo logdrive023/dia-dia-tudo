@@ -90,7 +90,7 @@ export function ListaTabelas({ ajudaVersoes }: { ajudaVersoes: string }) {
                     <Pilula pequena tom={x.categoria ? 'marca' : 'neutro'}>{x.categoria ? t(x.categoria) : t('Normal (geral)')}</Pilula>
                   </span>
                   <span className="num col-span-2 col-start-1 row-start-2 flex flex-wrap items-baseline gap-x-1.5 rounded-xl bg-[var(--marca-suave)] px-3 py-2 sm:col-span-1 sm:col-start-2 sm:row-span-3 sm:row-start-1 sm:block sm:bg-transparent sm:p-0 sm:text-right">
-                    {x.faixa ? <><b className="whitespace-nowrap text-lg leading-tight sm:block sm:text-sm">{simbolo} {n(x.faixa[0])} – {n(x.faixa[1])}</b><span className="text-xs text-[var(--suave)] sm:block sm:text-[11px]">{t(x.fatorPor === 'grama' ? 'por grama' : 'por unidade')}</span></> : <span className="text-xs text-[var(--suave)]">{t('sem preços ainda')}</span>}
+                    {x.faixa ? <><b className="whitespace-nowrap text-lg leading-tight sm:block sm:text-sm">{simbolo} {n(x.faixa[0])} – {n(x.faixa[1])}</b><span className="text-xs text-[var(--suave)] sm:block sm:text-[11px]">{t(x.fatorPor === 'grama' ? 'por grama' : 'por unidade')}</span></> : <span className="text-xs text-[var(--suave)]">{t('Sem preços ainda')}</span>}
                   </span>
                   <span className="num col-span-2 col-start-1 row-start-3 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs sm:flex sm:flex-wrap text-[var(--suave)] sm:col-span-1 sm:row-start-2">
                     <span className="whitespace-nowrap"><b className="text-[var(--texto)]">{x.medidas}</b> {t('medidas')} ({x.medidaMin}–{x.medidaMax} {x.unidadeMedida})</span>

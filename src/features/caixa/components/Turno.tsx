@@ -211,7 +211,7 @@ export function TurnosFechados() {
                   <span className="num block text-xs text-[var(--suave)]">{dataHora(x.inicio)} – {hora(x.fim)} · {duracaoTexto(minutos)} · {t('{n} lançamento(s)', { n: x.lancamentos })}</span>
                 </span>
                 <span className="num text-right text-sm">
-                  <span className="block text-xs text-[var(--suave)]">{t('esperado')} {txt(x.esperado)} · {t('contou')} {txt(x.contado)}</span>
+                  <span className="block text-xs text-[var(--suave)]">{t('Esperado')} {txt(x.esperado)} · {t('contou')} {txt(x.contado)}</span>
                   <b className={cx('block', ok ? 'text-[var(--bom)]' : 'text-[var(--ruim)]')}>{ok ? t('confere') : `${t(x.situacao === 'sobra' ? 'sobrou' : 'diferença')} ${txt(x.diferenca)}`}</b>
                 </span>
               </div>

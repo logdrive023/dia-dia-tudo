@@ -110,7 +110,7 @@ export function Ferramentas({ g, inicial, onFechar, onAplicar }: { g: Rascunho; 
       <Escolha<Alvo['tipo']> rotulo="Onde" valor={alvo.tipo} onChange={(v) => setAlvo(v === 'tudo' ? { tipo: 'tudo' } : v === 'medidas' ? { tipo: 'medidas', de: g.linhas[0], ate: g.linhas[g.linhas.length - 1] } : { tipo: 'coluna', colunaId: g.colunas[0].id })} opcoes={[{ id: 'tudo', nome: 'Tudo' }, { id: 'medidas', nome: 'Medidas' }, { id: 'coluna', nome: 'Comprador' }]} />
       {alvo.tipo === 'medidas' && (
         <div className="flex items-center gap-2 text-sm">
-          <span>{t('de')}</span><Selecao className="w-auto" valor={String(alvo.de)} onChange={(v) => setAlvo({ ...alvo, de: Number(v) })} opcoes={medidas} />
+          <span>{t('De')}</span><Selecao className="w-auto" valor={String(alvo.de)} onChange={(v) => setAlvo({ ...alvo, de: Number(v) })} opcoes={medidas} />
           <span>{t('até')}</span><Selecao className="w-auto" valor={String(alvo.ate)} onChange={(v) => setAlvo({ ...alvo, ate: Number(v) })} opcoes={medidas} />
         </div>
       )}

@@ -137,7 +137,7 @@ export function ServicosInsumos({ de, ate }: { de: string; ate: string }) {
                 fatos: (l) => [`🧴 ${t('Insumos')} ${v(l.insumos)}`, `🤝 ${t('Comissão')} ${v(l.comissao)}`, ...(por === 'servico' && l.categoria ? [`🏷 ${t(l.categoria)}`] : [])],
               }}
             />
-            <p className="num mt-2 flex flex-wrap justify-between gap-2 rounded-xl bg-[var(--fundo)] px-3 py-2 text-sm font-bold"><span>{t('Total')} · {t('{n} feito(s)', { n: tot.n })}</span><span>{t('receita')} {v(tot.receita)} · {t('margem')} {contabil(tot.margem, m)} ({pctTexto(tot.margem, tot.receita)})</span></p>
+            <p className="num mt-2 flex flex-wrap justify-between gap-2 rounded-xl bg-[var(--fundo)] px-3 py-2 text-sm font-bold"><span>{t('Total')} · {t('{n} feito(s)', { n: tot.n })}</span><span>{t('Receita')} {v(tot.receita)} · {t('margem')} {contabil(tot.margem, m)} ({pctTexto(tot.margem, tot.receita)})</span></p>
           </div>
         )}
       </Secao>
