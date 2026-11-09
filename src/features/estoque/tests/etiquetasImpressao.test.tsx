@@ -75,6 +75,28 @@ describe('impressão de etiquetas', () => {
     expect(fichas.map((f) => !!f.item.etiquetaImpressaEm)).toEqual([true, false])
   }, 30000)
 
+  it('etiquetas por folha: no rolo, mais de 1 monta folha A4 com a data da impressão; 1 fica do tamanho da etiqueta', async () => {
+    const { b, sessao, ids } = await separados(3)
+    vi.spyOn(window, 'print').mockImplementation(() => undefined)
+    function H() {
+      const [nav, setNav] = useState<Navegacao>({ tela: 'etiquetas', params: {} })
+      return <Ctx.Provider value={ctxDe({ b, sessao }, nav, setNav)}><ImprimirEtiquetas ids={ids} onFechar={() => undefined} /></Ctx.Provider>
+    }
+    render(<H />)
+    const folha = await screen.findByRole('dialog', { name: 'Imprimir etiquetas' })
+    await within(folha).findByText('3 etiqueta(s)', {}, { timeout: 10000 })
+    fireEvent.click(within(folha).getByRole('radio', { name: 'Rolo 50 × 30' }))
+    expect(within(folha).queryByText(/Impresso em/)).toBeNull()
+    const grupo = () => within(within(folha).getByRole('radiogroup', { name: 'Etiquetas por folha' }))
+    fireEvent.click(grupo().getByRole('radio', { name: '2' }))
+    await waitFor(() => expect(within(folha).getAllByText(/Impresso em/)).toHaveLength(2))
+    within(folha).getByText('Página 2 de 2')
+    fireEvent.click(within(within(folha).getByRole('radiogroup', { name: 'Data e hora da impressão' })).getByRole('radio', { name: 'Não mostrar' }))
+    await waitFor(() => expect(within(folha).queryByText(/Impresso em/)).toBeNull())
+    fireEvent.click(within(folha).getByRole('button', { name: /Imprimir 3/ }))
+    await waitFor(() => expect(folha.dataset.pagina).toContain('A4'))
+  }, 30000)
+
   it('duas janelas de etiquetas abertas: só a que mandou imprimir vai para o papel (1 etiqueta ≠ 3 páginas)', async () => {
     const { b, sessao, ids } = await separados(1)
     vi.spyOn(window, 'print').mockImplementation(() => undefined)

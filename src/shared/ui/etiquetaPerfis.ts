@@ -55,3 +55,37 @@ export function registrarMudanca(hist: MudancaEtiqueta[], c: ConfigEtiqueta, em:
 export function configDe(m: MudancaEtiqueta): ConfigEtiqueta {
   return { papel: m.papel, w: m.w, h: m.h, modo: m.modo, escalaBarras: m.escalaBarras }
 }
+
+/** como as etiquetas ficam numa folha A4 */
+export interface GradeFolha {
+  colunas: number
+  linhas: number
+  w: number
+  h: number
+  /** margens em mm */
+  lado: number
+  topo: number
+}
+
+const FOLHA_L = 210
+const FOLHA_A = 297
+/** a margem mínima de lado e a de cima e de baixo (onde vai a data da impressão) */
+const MARGEM_LADO = 5
+const MARGEM_TOPO = 12
+
+/** folha A4 pré-cortada (tipo Pimaco 6180/A4256): 3 × 7 de 63,5 × 38,1 mm */
+export const GRADE_PIMACO: GradeFolha = { colunas: 3, linhas: 7, w: 63.5, h: 38.1, lado: 9.75, topo: 15.15 }
+
+/** quantas etiquetas deste tamanho cabem numa A4, centradas na largura */
+export function gradeNaFolha(w: number, h: number): GradeFolha {
+  const colunas = Math.max(1, Math.floor((FOLHA_L - 2 * MARGEM_LADO) / w))
+  const linhas = Math.max(1, Math.floor((FOLHA_A - 2 * MARGEM_TOPO) / h))
+  return { colunas, linhas, w, h, lado: Math.max(0, (FOLHA_L - colunas * w) / 2), topo: MARGEM_TOPO }
+}
+
+/** as quantidades para escolher: as comuns que cabem, mais o máximo da folha */
+export function opcoesPorFolha(maximo: number) {
+  return [...new Set([1, 2, 4, 6, 8, 12, 21].filter((n) => n <= maximo).concat(maximo))].sort((a, b) => a - b)
+}
+
+export type CarimboFolha = 'rodape' | 'topo' | 'nenhum'

@@ -9,9 +9,9 @@ import { createPortal } from 'react-dom'
 import type { Id } from '../../core/domain/tipos'
 import type { Etiqueta } from '../../core/services/fotos'
 import type { ModoEtiqueta } from '../../core/services/codigos'
-import { Botao, Campo, Carregando, Entrada, Escolha, Erro, Info, Janela, cx, dataBR, fmt, loc, BotaoExpandir } from './base'
+import { Botao, Campo, Carregando, Entrada, Escolha, Erro, Info, Janela, cx, dataBR, fmt, hora, loc, BotaoExpandir } from './base'
 import { caminhoCode128, code128Conferido, type ProblemaCode128 } from './code128'
-import { ESCALAS_BARRAS, PERFIS_ETIQUETA, configDe, perfilDe, registrarMudanca, type ConfigEtiqueta, type MudancaEtiqueta } from './etiquetaPerfis'
+import { ESCALAS_BARRAS, GRADE_PIMACO, PERFIS_ETIQUETA, configDe, gradeNaFolha, opcoesPorFolha, perfilDe, registrarMudanca, type CarimboFolha, type ConfigEtiqueta, type GradeFolha, type MudancaEtiqueta } from './etiquetaPerfis'
 
 /** por que o código não virou barras (aparece na etiqueta no lugar delas) */
 const MOTIVO_SEM_BARRAS: Record<ProblemaCode128, string> = {
@@ -176,6 +176,11 @@ interface PropsPrevia {
   modo: ModoEtiqueta
   copias: Record<Id, number>
   a4: boolean
+  grade: GradeFolha
+  medFolha: MedidasEtiqueta
+  /** "Impresso em 09/11/2026 14:13" no alto ou no rodapé de cada folha */
+  carimbo: CarimboFolha
+  impressoEm: string
   paginas: (Etiqueta | undefined)[][]
   escala: number
   escalaBarras: number
@@ -186,7 +191,7 @@ interface PropsPrevia {
 }
 
 /** A PRÉVIA do papel (memo: só redesenha quando a versão adiada muda — nunca dentro do toque) */
-const PreviaEtiquetas = memo(function PreviaEtiquetas({ erro, dados, total, modo, copias, a4, paginas, escala, escalaBarras, comBarras, comQr, fila, medRolo }: PropsPrevia) {
+const PreviaEtiquetas = memo(function PreviaEtiquetas({ erro, dados, total, modo, copias, a4, grade, medFolha, carimbo, impressoEm, paginas, escala, escalaBarras, comBarras, comQr, fila, medRolo }: PropsPrevia) {
   const t = useT()
   const copiasDe = (id: Id) => copias[id] ?? 1
   if (erro) return <Erro texto={erro} />
@@ -195,14 +200,20 @@ const PreviaEtiquetas = memo(function PreviaEtiquetas({ erro, dados, total, modo
   if (modo === 'nenhuma')
     return <div className="grid gap-3 sm:grid-cols-2">{dados.filter((e) => copiasDe(e.id) > 0).map((e) => <CodigoAMao key={e.id} e={e} />)}</div>
   if (a4) {
-    const s = comEscalaBarras(TAM.a4, escalaBarras)
+    const s = comEscalaBarras(medFolha, escalaBarras)
     return (
       <div className="space-y-3">
         {paginas.map((vagas, k) => (
           <div key={k} className="escala overflow-hidden" style={{ width: 210 * MM * escala, height: 297 * MM * escala }}>
             <div style={{ transform: `scale(${escala})`, transformOrigin: 'top left', width: '210mm' }}>
-              <div className="pagina-a4 bg-white shadow-md" style={{ width: '210mm', height: '297mm', padding: '15.15mm 9.75mm', boxSizing: 'border-box' }}>
-                <div className="grade grid" style={{ gridTemplateColumns: 'repeat(3,63.5mm)', gridAutoRows: '38.1mm' }}>
+              <div className="pagina-a4 relative bg-white shadow-md" style={{ width: '210mm', height: '297mm', padding: `${grade.topo}mm ${grade.lado}mm`, boxSizing: 'border-box' }}>
+                {carimbo !== 'nenhum' && (
+                  <p className="carimbo-folha absolute flex justify-between" style={{ left: '10mm', right: '10mm', [carimbo === 'topo' ? 'top' : 'bottom']: '5mm', fontSize: '8pt', color: '#555' }}>
+                    <span>{t('Impresso em {d}', { d: impressoEm })}</span>
+                    <span>{t('Página {a} de {b}', { a: k + 1, b: paginas.length })}</span>
+                  </p>
+                )}
+                <div className="grade grid" style={{ gridTemplateColumns: `repeat(${grade.colunas},${grade.w}mm)`, gridAutoRows: `${grade.h}mm` }}>
                   {vagas.map((e, j) => (e ? <UmaEtiqueta key={j} e={e} s={s} barras={comBarras} qr={comQr} /> : <div key={j} className="vaga" style={{ border: '0.2mm dashed #e5e5e5' }} />))}
                 </div>
               </div>
@@ -233,6 +244,7 @@ export const POR_FOLHA_A4 = 21
 /** Máximo por impressão (acima disso o navegador do celular trava ao montar a impressão): 10 folhas A4 ou 200 do rolo. */
 export const LIMITE_IMPRESSAO: Record<TamanhoEtiqueta, number> = { a4: POR_FOLHA_A4 * 10, pequena: 200, livre: 200 }
 const MAX_COPIAS = 50
+const AJUDA_POR_FOLHA = 'Quantas etiquetas saem em cada folha. 1 no rolo é para impressora de etiqueta; mais de 1 monta uma folha A4 para cortar. Ex.: 12 por folha, 25 etiquetas = 3 folhas.'
 const AJUDA_PAPEL = 'Rolo: 1 etiqueta de 50 × 30 mm por vez (impressora de etiqueta). Folha A4: 21 por folha (3 × 7, etiquetas de 63,5 × 38,1 mm). Ex.: 25 etiquetas = 2 folhas (21 + 4).'
 const AJUDA_INICIO = 'Para usar uma folha que já foi usada: toque na primeira etiqueta livre. Ex.: sobraram 10 → comece na 12.'
 const AJUDA_COPIAS = 'Quantas etiquetas de cada pacote. Ex.: 2× para uma no pacote e outra no saco.'
@@ -299,6 +311,10 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   const [impresso, setImpresso] = useState(false)
   const [copias, setCopias] = useState<Record<Id, number>>({})
   const [inicio, setInicio] = useState(1)
+  // ETIQUETAS POR FOLHA (0 = o normal do papel) e onde sai a data da impressão: lembrados neste aparelho
+  const [porFolhaEscolhido, setPorFolha] = useLembrado('etiquetas.porFolha', 0)
+  const [carimbo, setCarimbo] = useLembrado<CarimboFolha>('etiquetas.carimbo', 'rodape')
+  const [impressoEm, setImpressoEm] = useState(() => new Date().toISOString())
   const [verInicio, setVerInicio] = useState(false)
   const [verLista, setVerLista] = useState(ids.length <= 6)
   const [refPrevia, largura] = useLargura()
@@ -325,10 +341,17 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
     setModo(c.modo)
     setEscalaBarras(c.escalaBarras)
     setInicio(1)
+    setPorFolha(0)
   }
   const nomePapel = (c: ConfigEtiqueta) => (c.papel === 'livre' ? `${c.w} × ${c.h} mm` : t(c.papel === 'a4' ? 'Folha A4' : 'Rolo 50 × 30'))
   const nomeModo = (m: ModoEtiqueta) => t(TIPOS_ETIQUETA.find((x) => x.id === m)?.nome ?? m)
-  const a4 = modo !== 'nenhuma' && tamanho === 'a4'
+  const pimaco = tamanho === 'a4'
+  const grade = pimaco ? GRADE_PIMACO : gradeNaFolha(medRolo.w, medRolo.h)
+  const maxPorFolha = grade.colunas * grade.linhas
+  // 1 por página no rolo é a etiqueta do tamanho do papel; mais de 1 monta uma folha A4
+  const porFolha = Math.min(porFolhaEscolhido || (pimaco ? maxPorFolha : 1), maxPorFolha)
+  const medFolha = pimaco ? TAM.a4 : medRolo
+  const a4 = modo !== 'nenhuma' && (pimaco || porFolha > 1)
   const qrPequeno = comQr && tamanho === 'livre' && medRolo.qr < QR_MINIMO_MM
   const copiasDe = (id: Id) => copias[id] ?? 1
   const todasIguais = (dados ?? []).every((e) => copiasDe(e.id) === copiasDe(dados![0].id))
@@ -338,16 +361,16 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   const limite = LIMITE_IMPRESSAO[tamanho]
   const passou = modo !== 'nenhuma' && total > limite
   const comeco = a4 ? inicio - 1 : 0
-  const folhas = a4 ? Math.ceil((comeco + total) / POR_FOLHA_A4) : 0
-  const naUltima = a4 && total ? (comeco + total) % POR_FOLHA_A4 || POR_FOLHA_A4 : 0
-  const sobram = a4 && total ? POR_FOLHA_A4 - naUltima : 0
-  const paginas = a4 ? Array.from({ length: folhas }, (_, k) => Array.from({ length: POR_FOLHA_A4 }, (_, j) => fila[k * POR_FOLHA_A4 + j - comeco])) : []
+  const folhas = a4 ? Math.ceil((comeco + total) / porFolha) : 0
+  const naUltima = a4 && total ? (comeco + total) % porFolha || porFolha : 0
+  const sobram = a4 && total ? porFolha - naUltima : 0
+  const paginas = a4 ? Array.from({ length: folhas }, (_, k) => Array.from({ length: porFolha }, (_, j) => fila[k * porFolha + j - comeco])) : []
   const escala = largura ? Math.min(1, (largura - 2) / (210 * MM)) : 0.5
   const pacotes = (dados ?? []).filter((e) => copiasDe(e.id) > 0).length
   // a prévia recebe tudo num objeto só e ANDA UM PASSO ATRÁS (useDeferredValue): o toque no papel/tipo responde na
   // hora; as etiquetas se redesenham num trabalho que pode ser interrompido. Tocou Imprimir antes de ela alcançar: o
   // papel só abre quando a prévia está em dia (nunca imprime a versão velha, e o toque não se perde).
-  const propsPrevia: PropsPrevia = { erro, dados, total, modo, copias, a4, paginas, escala, escalaBarras, comBarras, comQr, fila, medRolo }
+  const propsPrevia: PropsPrevia = { erro, dados, total, modo, copias, a4, grade, medFolha, carimbo, impressoEm: `${dataBR(impressoEm)} ${hora(impressoEm)}`, paginas, escala, escalaBarras, comBarras, comQr, fila, medRolo }
   const previaAdiada = useDeferredValue(propsPrevia)
   const atualizandoPrevia = previaAdiada !== propsPrevia
 
@@ -366,7 +389,10 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
     window.print()
   }, [vez, atualizandoPrevia])
   useEffect(() => () => document.body.classList.remove('imprimindo-etiquetas'), [])
-  const imprimir = () => setVez((n) => n + 1)
+  const imprimir = () => {
+    setImpressoEm(new Date().toISOString()) // a hora que sai no papel é a do toque
+    setVez((n) => n + 1)
+  }
   const enviou = vez > 0
   const admin = sessao.perfil === 'admin'
   // viu no papel e saiu certa: agora sim o lote sai de Etiquetas › "Sem etiqueta" (fica "impressa em 03/11 por Paula")
@@ -399,7 +425,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
   }, [podeImprimir, vez])
   // "2 folhas A4 (21 + 4)": quantas etiquetas em cada folha
   const resumoFolhas = !a4 ? '' : folhas <= 1 ? t('1 folha A4') : t('{n} folhas A4 ({a})', { n: folhas, a: paginas.map((v) => v.filter(Boolean).length).join(' + ') })
-  const pagina = tamanho === 'a4' ? '@page{size:A4;margin:0}' : `@page{size:${medRolo.w}mm ${medRolo.h}mm;margin:0}`
+  const pagina = a4 ? '@page{size:A4;margin:0}' : `@page{size:${medRolo.w}mm ${medRolo.h}mm;margin:0}`
   // TAMANHO DO PAPEL (@page): muda com a escolha, e o site publicado proíbe <style> no meio da página (CSP style-src
   // 'self'). Folha de estilo criada por código passa pela regra; o resto da impressão está fixo no index.css.
   useLayoutEffect(() => {
@@ -452,7 +478,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
             {modo !== 'nenhuma' && (
               <section className={secao}>
                 <h3 className="mb-2 flex items-center text-sm font-bold">{t('Papel')}<Info texto={AJUDA_PAPEL} /></h3>
-                <Escolha rotulo="Papel" valor={tamanho} onChange={(v) => (setPapel(v as TamanhoEtiqueta), setInicio(1))} opcoes={[{ id: 'pequena', nome: 'Rolo 50 × 30' }, { id: 'a4', nome: 'Folha A4' }, { id: 'livre', nome: 'Outro tamanho' }]} />
+                <Escolha rotulo="Papel" valor={tamanho} onChange={(v) => (setPapel(v as TamanhoEtiqueta), setInicio(1), setPorFolha(0))} opcoes={[{ id: 'pequena', nome: 'Rolo 50 × 30' }, { id: 'a4', nome: 'Folha A4' }, { id: 'livre', nome: 'Outro tamanho' }]} />
                 {tamanho === 'livre' && (
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <label className="block text-sm font-semibold text-[var(--suave)]">{t('Largura (mm)')}
@@ -463,7 +489,17 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
                     </label>
                   </div>
                 )}
-                <p className="num mt-2 text-xs text-[var(--suave)]">{t(tamanho === 'a4' ? '21 por folha (3 × 7) · até {n} por vez' : '1 por etiqueta do rolo · até {n} por vez', { n: limite })}</p>
+                <div className="mt-2">
+                  <p className="mb-1 flex items-center text-sm font-semibold text-[var(--suave)]">{t('Etiquetas por folha')}<Info texto={AJUDA_POR_FOLHA} /></p>
+                  <Escolha rotulo="Etiquetas por folha" valor={String(porFolha)} onChange={(v) => (setPorFolha(Number(v)), setInicio(1))} opcoes={opcoesPorFolha(maxPorFolha).map((n) => ({ id: String(n), nome: String(n) }))} />
+                  <p className="num mt-1 text-xs text-[var(--suave)]">{t(a4 ? 'Folha A4 · cabem até {m} · até {n} por vez' : 'Uma por página, do tamanho da etiqueta · até {n} por vez', { m: maxPorFolha, n: limite })}</p>
+                </div>
+                {a4 && (
+                  <div className="mt-2">
+                    <p className="mb-1 text-sm font-semibold text-[var(--suave)]">{t('Data e hora da impressão')}</p>
+                    <Escolha<CarimboFolha> rotulo="Data e hora da impressão" valor={carimbo} onChange={setCarimbo} opcoes={[{ id: 'rodape', nome: 'Rodapé' }, { id: 'topo', nome: 'Topo' }, { id: 'nenhum', nome: 'Não mostrar' }]} />
+                  </div>
+                )}
                 {comBarras && (
                   <div className="mt-2">
                     <p className="mb-1 flex items-center text-sm font-semibold text-[var(--suave)]">{t('Altura das barras')}<Info texto={AJUDA_ESCALA_BARRAS} /></p>
@@ -475,7 +511,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
                     {qrPequeno ? `⚠️ ${t('QR com {n} mm: pequeno, a câmera pode não ler. Use etiqueta com pelo menos 18 mm de altura.', { n: medRolo.qr.toFixed(0) })}` : `✓ ${t('QR com {n} mm: a câmera lê.', { n: medRolo.qr.toFixed(0) })}`}
                   </p>
                 )}
-                {a4 && (
+                {a4 && pimaco && (
                   <div className="mt-2">
                     {/* fechado: "Começar na etiqueta 1 · Mudar"; aberto: a folha em miniatura (toque na primeira livre) */}
                     <p className="flex items-center text-sm font-semibold text-[var(--suave)]">
@@ -483,7 +519,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
                       <button type="button" aria-expanded={verInicio} onClick={() => setVerInicio(!verInicio)} className="ml-auto min-h-10 rounded-lg px-2 text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t(verInicio ? 'Fechar' : 'Mudar')}</button>
                     </p>
                     {verInicio && <div role="radiogroup" aria-label={t('Começar na etiqueta')} className="grid w-max grid-cols-3 gap-1 rounded-lg bg-[var(--fundo)] p-1">
-                      {Array.from({ length: POR_FOLHA_A4 }, (_, k) => (
+                      {Array.from({ length: porFolha }, (_, k) => (
                         <button key={k} type="button" role="radio" aria-checked={inicio === k + 1} aria-label={String(k + 1)} onClick={() => setInicio(k + 1)}
                           className={cx('num h-6 w-10 rounded text-[10px] font-semibold', k + 1 < inicio ? 'bg-transparent text-[var(--suave)] line-through' : k + 1 === inicio ? 'bg-[var(--marca)] text-white' : 'bg-[var(--cartao)] text-[var(--suave)]')}>{k + 1}</button>
                       ))}
@@ -546,7 +582,7 @@ export function ImprimirEtiquetas({ ids, onFechar, modo: modoInicial, onImpresso
             <p className="nao-imprimir mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--suave)]">
               {t('Como vai sair')}
               {/* o tamanho REAL de cada etiqueta (a prévia é reduzida para caber na tela) */}
-              {modo !== 'nenhuma' && <span className="num rounded-full bg-[var(--fundo)] px-2 py-0.5 text-xs font-semibold text-[var(--texto)]">{a4 ? `${TAM.a4.w} × ${TAM.a4.h} mm` : `${medRolo.w} × ${medRolo.h} mm`}</span>}
+              {modo !== 'nenhuma' && <span className="num rounded-full bg-[var(--fundo)] px-2 py-0.5 text-xs font-semibold text-[var(--texto)]">{`${medFolha.w} × ${medFolha.h} mm`}</span>}
               {atualizandoPrevia &&<span aria-hidden className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />}
             </p>
             {/* a PRÉVIA anda um passo atrás (useDeferredValue): o papel/tipo escolhido muda NA HORA e as etiquetas se

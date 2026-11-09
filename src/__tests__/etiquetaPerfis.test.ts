@@ -1,6 +1,6 @@
 // ETIQUETA: perfis prontos e histórico do tamanho (com "Usar de novo").
 import { describe, expect, it } from 'vitest'
-import { MAX_HISTORICO, PERFIS_ETIQUETA, configDe, mesmaEtiqueta, perfilDe, registrarMudanca, type ConfigEtiqueta } from '../shared/ui/etiquetaPerfis'
+import { MAX_HISTORICO, PERFIS_ETIQUETA, configDe, mesmaEtiqueta, perfilDe, registrarMudanca, type ConfigEtiqueta, gradeNaFolha, opcoesPorFolha } from '../shared/ui/etiquetaPerfis'
 
 const rolo: ConfigEtiqueta = { papel: 'pequena', w: 50, h: 30, modo: 'qrBarras', escalaBarras: 100 }
 
@@ -45,5 +45,20 @@ describe('histórico do tamanho', () => {
     for (let i = 0; i < MAX_HISTORICO + 5; i++) h = registrarMudanca(h, { ...rolo, papel: 'livre', w: 30 + i }, String(i))
     expect(h).toHaveLength(MAX_HISTORICO)
     expect(h[0].w).toBe(30 + MAX_HISTORICO + 4)
+  })
+})
+
+describe('etiquetas por folha', () => {
+  it('calcula quantas cabem numa A4, centradas', () => {
+    expect(gradeNaFolha(50, 30)).toMatchObject({ colunas: 4, linhas: 9, lado: 5 })
+    expect(gradeNaFolha(70, 40)).toMatchObject({ colunas: 2, linhas: 6, lado: 35 })
+  })
+  it('etiqueta maior que a folha ainda dá 1', () => {
+    expect(gradeNaFolha(200, 290)).toMatchObject({ colunas: 1, linhas: 1 })
+  })
+  it('as opções param no máximo e sempre incluem ele', () => {
+    expect(opcoesPorFolha(36)).toEqual([1, 2, 4, 6, 8, 12, 21, 36])
+    expect(opcoesPorFolha(21)).toEqual([1, 2, 4, 6, 8, 12, 21])
+    expect(opcoesPorFolha(3)).toEqual([1, 2, 3])
   })
 })

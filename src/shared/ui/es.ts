@@ -5308,4 +5308,15 @@ export const ES: Record<string, string> = {
   'Ver as regras': 'Ver las reglas',
   // paginação
   'Carregando os dados…': 'Cargando los datos…',
+  // etiquetas por folha
+  'Etiquetas por folha': 'Etiquetas por hoja',
+  'Folha A4 · cabem até {m} · até {n} por vez': 'Hoja A4 · caben hasta {m} · hasta {n} por vez',
+  'Uma por página, do tamanho da etiqueta · até {n} por vez': 'Una por página, del tamaño de la etiqueta · hasta {n} por vez',
+  'Data e hora da impressão': 'Fecha y hora de impresión',
+  'Rodapé': 'Pie de página',
+  'Topo': 'Arriba',
+  'Não mostrar': 'No mostrar',
+  'Impresso em {d}': 'Impreso el {d}',
+  'Página {a} de {b}': 'Página {a} de {b}',
+  'Quantas etiquetas saem em cada folha. 1 no rolo é para impressora de etiqueta; mais de 1 monta uma folha A4 para cortar. Ex.: 12 por folha, 25 etiquetas = 3 folhas.': 'Cuántas etiquetas salen en cada hoja. 1 en el rollo es para impresora de etiquetas; más de 1 arma una hoja A4 para cortar. Ej.: 12 por hoja, 25 etiquetas = 3 hojas.',
 }
