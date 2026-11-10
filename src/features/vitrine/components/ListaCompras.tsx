@@ -22,7 +22,9 @@ export function ListaCompras({ pacotes, loja, whatsapp, modoPreco, mensagens, ch
   useDicionario('es')
   const [aberta, setAberta] = useState(false)
   const texto = mensagemLista(idiomaDaMensagem(idioma, navigator.language), pacotes, loja, modoPreco, mensagens)
-  const link = `https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`
+  // api.whatsapp.com/send (não wa.me): o redirecionamento do wa.me estraga o emoji ("�") e junta as linhas no
+  // WhatsApp do computador — a lista chegava numa linha só, com o *negrito* grudado
+  const link = `https://api.whatsapp.com/send?phone=${whatsapp.replace(/\D/g, '')}&text=${encodeURIComponent(texto)}`
   const total = totalLista(pacotes, modoPreco)
   const quantos = pacotes.length === 1 ? t('1 pacote') : t('{n} pacotes', { n: pacotes.length })
   return (
