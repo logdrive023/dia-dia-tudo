@@ -7,6 +7,10 @@
 //
 // TROCAR DE PÁGINA: a tela sobe suave até o começo da lista e, no lugar dela, aparece "Carregando os dados…" por um
 // instante (AreaPaginada). Sem isso, quem está embaixo da lista toca e não vê nada mudar perto do dedo.
+//
+// NO COMPUTADOR A PAGINAÇÃO FICA SEMPRE NO PÉ DA TELA (identidade visual: a lista começa sempre no mesmo lugar e a
+// paginação está sempre embaixo). Lista curta: ela desce até o fim da tela; lista comprida: fica logo depois da
+// lista, como sempre. No celular ela segue a lista (a tela já é estreita e a barra de baixo é do menu).
 
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react'
 import { cx } from './base'
@@ -15,6 +19,50 @@ import { useT } from './i18n'
 
 /** os tamanhos de página do sistema inteiro (o seletor "N por página"); o padrão é 25 */
 export const TAMANHOS_PAGINA = [10, 25, 50, 100]
+
+/** a partir de que largura a paginação desce até o pé da tela (o computador; o tablet em pé e o celular não) */
+const PE_DA_TELA = '(min-width: 1024px)'
+
+/**
+ * Quanto a paginação precisa descer para a página terminar exatamente no pé da tela (0 = a página já passa da tela).
+ * Conta com o espaço que ela mesma já está ocupando (ponto fixo: medir de novo dá o mesmo número, sem pular).
+ */
+function useNoPeDaTela() {
+  const ref = useRef<HTMLElement>(null)
+  const [extra, setExtra] = useState(0)
+  const atual = useRef(0)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia || typeof ResizeObserver === 'undefined') return
+    const midia = window.matchMedia(PE_DA_TELA)
+    let quadro = 0
+    const medir = () => {
+      cancelAnimationFrame(quadro)
+      quadro = requestAnimationFrame(() => {
+        // só a ÚLTIMA paginação da página desce (duas descendo juntas ficariam brigando pelo mesmo espaço)
+        const todas = document.querySelectorAll('nav[data-paginacao]')
+        const ultima = todas[todas.length - 1] === ref.current
+        // (medido do alto da PÁGINA, não da parte à vista: rolar não muda a conta)
+        // o fim do CONTEÚDO da tela (o bloco da página dentro do <main>, mais o espaço de baixo do <main>) — não a altura
+        // do documento, que o layout já estica até a tela
+        const nav = ref.current
+        const main = nav?.closest('main')
+        let bloco: HTMLElement | null | undefined = nav
+        while (bloco && bloco.parentElement && bloco.parentElement !== main) bloco = bloco.parentElement
+        const fim = bloco && main ? bloco.getBoundingClientRect().bottom + window.scrollY + parseFloat(getComputedStyle(main).paddingBottom || '0') : Infinity
+        const sobra = midia.matches && ultima ? window.innerHeight - fim : -Infinity
+        const novo = Math.max(0, Math.round(atual.current + sobra))
+        if (Math.abs(novo - atual.current) > 1) { atual.current = novo; setExtra(novo) }
+      })
+    }
+    const obs = new ResizeObserver(medir)
+    obs.observe(document.body)
+    window.addEventListener('resize', medir)
+    midia.addEventListener?.('change', medir)
+    medir()
+    return () => { cancelAnimationFrame(quadro); obs.disconnect(); window.removeEventListener('resize', medir); midia.removeEventListener?.('change', medir) }
+  }, [])
+  return { ref, extra }
+}
 
 /** tempo do aviso: o bastante para ver que trocou, sem atrapalhar quem está passando páginas */
 const PAUSA_TROCA_MS = 450
@@ -114,12 +162,13 @@ function Seta({ direcao, forte, nome, ...p }: { direcao: 'anterior' | 'proxima';
 
 export function Paginacao({ pagina, paginas, de, ate, total, porPagina, irPara, mudarTamanho, unidade, carregando }: { pagina: number; paginas: number; de: number; ate: number; total: number; porPagina: number; irPara(n: number): void; mudarTamanho?(n: number): void; unidade: string; carregando?: boolean }) {
   const t = useT()
+  const pe = useNoPeDaTela()
   // SEMPRE aparece em toda listagem (mesmo com 1 registro: o lugar da paginação não muda); só some com a lista vazia
   if (total <= 0) return null
   return (
     // CELULAR: em cima ‹ Página [3] de 13 › com alvos grandes, a barrinha de onde está e, embaixo, o intervalo e o tamanho.
     // COMPUTADOR: o intervalo à esquerda, ‹ Anterior · Página [3] de 13 · Próxima › à direita e a barrinha embaixo.
-    <nav aria-label={t('Páginas')} className="mt-3 flex flex-col gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:grid sm:grid-cols-[1fr_auto] sm:items-center sm:gap-x-4 sm:px-4">
+    <nav ref={pe.ref} data-paginacao aria-label={t('Páginas')} style={pe.extra ? { marginTop: `calc(0.75rem + ${pe.extra}px)` } : undefined} className="mt-3 flex flex-col gap-2 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:grid sm:grid-cols-[1fr_auto] sm:items-center sm:gap-x-4 sm:px-4">
       <div className="flex items-center justify-between gap-2 sm:order-2 sm:justify-end sm:gap-3">
         <Seta direcao="anterior" nome={t('Anterior')} disabled={carregando || pagina <= 1} aria-label={t('Página anterior')} onClick={() => irPara(pagina - 1)} />
         {/* ir direto para uma página: a atual em destaque, escolher outra na lista */}

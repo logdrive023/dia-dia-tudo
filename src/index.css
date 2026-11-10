@@ -215,3 +215,26 @@ button, a, input, select, label, [role='button'] { touch-action: manipulation; }
   .alvo-amplo { position: relative; }
   .alvo-amplo::after { content: ''; position: absolute; inset: -12px -4px; }
 }
+
+/* ORGANOGRAMA (Equipe › Organograma, tablet/computador): a árvore desenhada de cima para baixo. Cada <li> tem um cartão
+   e, se tiver equipe, um <ul> com os filhos; as linhas saem dos pseudo-elementos — a vertical que desce do chefe, a
+   horizontal entre o 1º e o último filho (cantos arredondados) e a vertical que sobe até cada filho. */
+.organograma { --linha: color-mix(in srgb, var(--marca) 40%, var(--borda)); --vao: 1.75rem; }
+.organograma, .organograma ul { display: flex; justify-content: center; margin: 0; padding: 0; list-style: none; }
+.organograma ul { position: relative; padding-top: var(--vao); }
+.organograma li { position: relative; display: flex; flex-direction: column; align-items: center; padding: var(--vao) 0.6rem 0; list-style: none; }
+.organograma > li { padding-top: 0; }
+/* a linha que desce do chefe até a barra dos filhos */
+.organograma ul::before { content: ''; position: absolute; top: 0; left: 50%; height: var(--vao); border-left: 2px solid var(--linha); }
+/* a barra horizontal (metade de cada lado de cada filho) e a linha que sobe até ele */
+.organograma ul > li::before, .organograma ul > li::after { content: ''; position: absolute; top: 0; width: 50%; height: var(--vao); border-top: 2px solid var(--linha); }
+.organograma ul > li::before { right: 50%; }
+.organograma ul > li::after { left: 50%; border-left: 2px solid var(--linha); }
+/* filho único: só a linha reta */
+.organograma ul > li:only-child::before { display: none; }
+.organograma ul > li:only-child::after { border-top: none; }
+/* o 1º e o último filho: a barra termina com um canto arredondado */
+.organograma ul > li:first-child::before, .organograma ul > li:last-child::after { border: 0 none; }
+.organograma ul > li:last-child:not(:only-child)::before { border-right: 2px solid var(--linha); border-top-right-radius: 0.75rem; }
+.organograma ul > li:first-child:not(:only-child)::after { border-top-left-radius: 0.75rem; }
+.organograma-no { position: relative; z-index: 1; }

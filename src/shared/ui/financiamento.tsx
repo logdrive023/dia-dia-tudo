@@ -1,5 +1,6 @@
 // Peças dos ADIANTAMENTOS A PARCEIROS: situação colorida, barra "quanto já voltou" e o quadro da ficha da pessoa.
 
+import type { ReactNode } from 'react'
 import { formatar } from '../../core/domain/dinheiro'
 import type { Id } from '../../core/domain/tipos'
 import type { StatusFinanciamento } from '../../core/services/financiamentos'
@@ -15,19 +16,31 @@ export function StatusFinanciamentoPilula({ status }: { status: StatusFinanciame
   return <Pilula tom={TOM_FINANCIAMENTO[status]}>{t(NOME_STATUS[status])}</Pilula>
 }
 
+/**
+ * BARRA DE CONTA (padrão de adiantamento e empréstimo): quanto da dívida já voltou. A legenda diz a % e, se vier,
+ * o "de quanto" (ex.: "60% · Bs 3.000 de Bs 5.000"). Acima de 100% a barra fica cheia (quem decide a cor é a tela).
+ */
+export function BarraConta({ pct, cor, legenda, rotulo = 'Quanto já voltou', className }: { pct: number; cor: string; legenda?: ReactNode; rotulo?: string; className?: string }) {
+  const t = useT()
+  const largura = Math.min(100, Math.max(pct, pct > 0 ? 3 : 0))
+  return (
+    <div className={className}>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--marca-suave)]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(pct, 100)} aria-label={t(rotulo)}>
+        <div className="h-full rounded-full transition-[width]" style={{ width: `${largura}%`, background: cor }} />
+      </div>
+      {legenda !== undefined && <div className="num mt-1 text-xs text-[var(--suave)]">{legenda}</div>}
+    </div>
+  )
+}
+
+/** a cor da barra de um adiantamento pela situação */
+export const corFinanciamento = (status: StatusFinanciamento) => (status === 'aPagar' ? 'var(--alerta)' : status === 'quitado' ? 'var(--bom)' : status === 'encerrado' ? 'var(--suave)' : 'var(--marca)')
+
 /** Barra: quanto do adiantamento já voltou (cabelo + dinheiro + comissão). Passou de 100% = a loja deve a diferença. */
 export function BarraFinanciamento({ progressoBp, status, className }: { progressoBp: number; status: StatusFinanciamento; className?: string }) {
   const t = useT()
   const pct = Math.round(progressoBp / 100)
-  const cor = status === 'aPagar' ? 'var(--alerta)' : status === 'quitado' ? 'var(--bom)' : status === 'encerrado' ? 'var(--suave)' : 'var(--marca)'
-  return (
-    <div className={className}>
-      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--marca-suave)]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={t('Quanto já voltou')}>
-        <div className="h-full rounded-full transition-[width]" style={{ width: `${Math.max(pct, pct > 0 ? 3 : 0)}%`, background: cor }} />
-      </div>
-      <div className="mt-1 text-xs text-[var(--suave)]">{t('{p}% coberto', { p: pct })}</div>
-    </div>
-  )
+  return <BarraConta className={className} pct={pct} cor={corFinanciamento(status)} legenda={t('{p}% coberto', { p: pct })} />
 }
 
 /** Ficha da pessoa: adiantamentos dela (o que está na mão dela e o que já voltou em cabelo). */

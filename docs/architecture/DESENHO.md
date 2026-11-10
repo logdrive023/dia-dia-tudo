@@ -1,6 +1,6 @@
 # Ecossistema de gerenciamento: desenho antes do código
 
-**Atualizado:** 07/11/2026 · **Situação:** histórico (desenho inicial), exceto o §11 (peças padrão), que é vigente
+**Atualizado:** 10/11/2026 · **Situação:** histórico (desenho inicial), exceto o §11 (peças padrão), que é vigente
 
 > Entrega da etapa "antes de escrever código" do prompt: modelo de dados, contrato dos módulos, mapa de telas,
 > fluxo do assistente de venda e as dúvidas que precisam da sua resposta.
@@ -431,6 +431,7 @@ Uma listagem nova é CONFIGURAÇÃO, não uma tabela nova:
 - **O que é normal não aparece** na linha: nada de "✓ Completa" em toda compra nem "Sem etiqueta" em cabelo bruto (que ainda não tem etiqueta).
 - **Estados**: `carregando` (linhas piscando), `erro`, `vazio` (`Vazio` = ainda não há nada; `VazioFiltro` = o filtro não achou, com "Limpar filtros").
 - **Paginação**: `const pag = usePaginacao(listaFiltradaEOrdenada, { padrao: 20, reiniciar: JSON.stringify(filtros) })` → `linhas={pag.itens}` e `<Paginacao {...pag} unidade="venda(s)" />`. Página e tamanho (10/20/50/100) ficam no endereço; busca/filtros/ordem novos voltam para a página 1; página fora do fim cai na última. Lista de cartões própria (fila da Triagem, Etiquetas): `<Paginada itens=… unidade=…>{(pagina, inicio) => …}</Paginada>`.
+- **Paginação no pé da tela (computador, ≥ 1024 px)**: lista curta → a `Paginacao` desce sozinha até o fim da tela; lista comprida → fica logo depois da lista. A lista começa sempre no mesmo lugar e a paginação está sempre embaixo, em toda tela. Só a última paginação da página desce. No celular ela segue a lista.
 - **Fica no módulo**: a consulta, as regras, os filtros (`FiltroLista`) e o que cada coluna mostra. Os dados são locais (paginação na tela); com a API, a mesma `usePaginacao` passa `pagina/porPagina` para a consulta.
 - **Não são listagens de registros** (ficam como estão): tabelas de relatório, grade de preços, comparativos e tabelas de detalhe dentro de uma ficha.
 
@@ -479,3 +480,19 @@ Regra de operação que pode ser diferente de um negócio para outro vira config
 ### 11.8 Orientação curta da tela (`NotaTela` em `src/shared/ui/notaTela.tsx`)
 
 Como usar a lista ou o que aquele número quer dizer: sempre `NotaTela`, logo abaixo do bloco, com o texto curto e à vista. Explicação longa continua no `Info`; dica de um campo só continua no próprio campo.
+
+### 11.9 Conta: adiantamento e empréstimo (`src/features/financeiro/components/conta.tsx`)
+
+Tudo que é "alguém deve a alguém" segue o mesmo desenho (hoje: Adiantamentos e Empréstimos):
+
+```text
+LISTA  números (tocar filtra) → FiltroLista (abas só com o que tem algo) → CartaoConta por registro:
+       faixa da cor do lado · avatar e nome · o combinado · situação · O NÚMERO QUE IMPORTA · prazo/próxima · barra
+FICHA  CabecalhoFicha (quem · código · situação · detalhes) + AcoesConta (a principal à vista, o resto no ⋯)
+       ResumoConta (o número que importa + a frase + a barra BarraConta + as partes + os ajustes com Interruptor)
+       Abas: o assunto da ficha (Linha do tempo / Parcelas) · Comprovantes · Histórico
+```
+
+- O número que importa é um só e vem com a frase do que ele quer dizer ("Falta voltar em cabelo, dinheiro ou comissão").
+- As janelas das ações ficam em componentes próprios (`janelasAdiantamento.tsx`, `emprestimo.tsx`), cada uma com o seu estado.
+- A barra é a `BarraConta` (`src/shared/ui/financiamento.tsx`), a mesma na ficha da pessoa.

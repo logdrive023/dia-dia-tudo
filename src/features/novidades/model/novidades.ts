@@ -72,6 +72,15 @@ export const NOVIDADES: Novidade[] = [
       { area: 'Pessoas', tipo: 'melhoria', tela: 'pessoas', texto: {
         pt: 'Pessoas e contas: “Contas em aberto” e “Pessoas” separadas; as pessoas vêm por grupo (Clientes · Fornecedoras · Equipe · Contas e empréstimos), cada linha com o WhatsApp e quanto deve, se tiver conta aberta.',
         es: 'Personas y cuentas: “Cuentas pendientes” y “Personas” separadas; las personas vienen por grupo (Clientes · Proveedoras · Equipo · Cuentas y préstamos), cada línea con el WhatsApp y cuánto debe, si tiene cuenta abierta.' } },
+      { area: 'Equipe', tipo: 'melhoria', tela: 'equipe', texto: {
+        pt: 'Organograma desenhado de verdade: cada pessoa num cartão centrado (cargo, unidade, atendimentos, faturado), ligada ao chefe por linhas, e o selo “👥 N” de quantas respondem a ela.',
+        es: 'Organigrama dibujado de verdad: cada persona en una tarjeta centrada (cargo, sucursal, atenciones, facturado), unida al jefe por líneas, y el sello “👥 N” de cuántas le responden.' } },
+      { area: 'Pessoas', tipo: 'melhoria', tela: 'adiantamentos', texto: {
+        pt: 'Adiantamentos e Empréstimos no mesmo padrão: na lista, o que falta em destaque com a barra; na ficha, o número que importa com a frase do que ele quer dizer, a ação principal à vista (o resto no ⋯) e abas (Linha do tempo ou Parcelas · Comprovantes · Histórico).',
+        es: 'Anticipos y Préstamos con el mismo patrón: en la lista, lo que falta destacado con la barra; en la ficha, el número que importa con la frase de lo que quiere decir, la acción principal a la vista (el resto en ⋯) y pestañas (Línea de tiempo o Cuotas · Comprobantes · Historial).' } },
+      { area: 'Sistema', tipo: 'melhoria', texto: {
+        pt: 'No computador, a paginação fica sempre no pé da tela: com poucos registros ela desce até embaixo; com muitos, vem logo depois da lista.',
+        es: 'En la computadora, la paginación queda siempre al pie de la pantalla: con pocos registros baja hasta abajo; con muchos, viene justo después de la lista.' } },
       { area: 'Venda', tipo: 'correcao', tela: 'vendaRapida', texto: {
         pt: 'Modo caixa: abria com uma travada de ~0,2 s por causa do som do bipe; agora o bipe é leve e a tela abre sem travar.',
         es: 'Modo caja: abría con una trabada de ~0,2 s por el sonido del bip; ahora el bip es liviano y la pantalla abre sin trabarse.' } },

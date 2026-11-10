@@ -6,20 +6,18 @@ import { formasEmUso } from '../../../core/domain/formas'
 import { FiltroUnidade } from '../../../shared/ui/filtroUnidade'
 import { Unidades } from '../components/Unidades'
 import { Comissoes } from '../components/Comissoes'
+import { Organograma, acharNoOrganograma, contarOrganograma } from '../components/Organograma'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
-import { FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
+import { FiltroLista } from '../../../shared/ui/filtroPadrao'
 import { corDoNome, iniciais } from '../../../shared/ui/tabelaDados'
 import { FolhaItem } from '../../../shared/ui/folhaItem'
 import { formatar } from '../../../core/domain/dinheiro'
 import { novoId } from '../../../core/domain/ids'
 import type { Id, Pessoa } from '../../../core/domain/tipos'
-import type { NoOrganograma } from '../../../core/services/equipe'
-import { Abas, Botao, Campo, Carregando, Entrada, Janela, Pilula, Selecao, Titulo, ValorInput, Vazio, cx, dataBR, moedaPadrao } from '../../../shared/ui/base'
+import { Abas, Botao, Campo, Carregando, Entrada, Janela, Pilula, Selecao, Titulo, ValorInput, Vazio, dataBR, moedaPadrao } from '../../../shared/ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { useLembrado, usePeriodo } from '../../../shared/ui/filtros'
 import { useT } from '../../../shared/ui/i18n'
-import { useLargo } from '../../../shared/ui/calendario'
-import { NotaTela } from '../../../shared/ui/notaTela'
 
 const PERIODOS = { mes: 'por mês', semana: 'por semana', dia: 'por dia' } as const
 
@@ -38,7 +36,7 @@ export function Equipe() {
   // o período no padrão (📅 ▾); "Tudo" = desde sempre
   // o período é obrigatório aqui (comissão e margem são sempre de um intervalo): atalhos ou datas livres
   const mudarPeriodo = (de?: string, ate?: string) => de && ate && setPeriodo({ preset: 'livre', de, ate })
-  const tot = org ? contar(org.raizes) : undefined
+  const tot = org ? contarOrganograma(org.raizes) : undefined
   const m = moedaPadrao()
   const ativos = localId ? [{ k: 'local', rotulo: `🏢 ${nomeLocal.get(localId) ?? ''}` }] : []
   return (
@@ -56,7 +54,7 @@ export function Equipe() {
         onTirar={() => setLocalId('')}
         temAtivos={!!(localId || busca)}
         onLimpar={() => (setLocalId(''), setBusca(''))}
-        resultados={aba === 'organograma' && tot ? (busca.trim() ? achar(org!.raizes, busca).length : tot.pessoas) : undefined}
+        resultados={aba === 'organograma' && tot ? (busca.trim() ? acharNoOrganograma(org!.raizes, busca).length : tot.pessoas) : undefined}
         total={aba === 'organograma' ? tot?.pessoas : undefined}
         unidade="pessoa(s)"
       />
@@ -68,7 +66,7 @@ export function Equipe() {
               <NumeroGrande rotulo="Atendimentos" valor={tot!.atend} icone="✂️" sub={t('no período')} />
               <NumeroGrande rotulo="Faturado" valor={formatar(tot!.fat, m)} icone="💰" tom={tot!.fat ? 'bom' : undefined} sub={t('no período')} />
             </GrupoNumeros>
-            <OrganogramaVisual raizes={org.raizes} busca={busca} eu={sessao.pessoaId} nomeLocal={nomeLocal} onClick={setResumo} onLimpar={() => setBusca('')} />
+            <Organograma raizes={org.raizes} busca={busca} eu={sessao.pessoaId} nomeLocal={nomeLocal} onClick={setResumo} onLimpar={() => setBusca('')} />
           </>
         )
       ) : aba === 'comissoes' ? (
@@ -78,127 +76,6 @@ export function Equipe() {
       )}
       {resumo && <Resumo id={resumo} de={periodo.de} ate={periodo.ate} onFechar={() => setResumo(undefined)} onEditar={(p) => (setResumo(undefined), ir('novoFuncionario', { id: p.id }))} onComissoes={(id) => (setResumo(undefined), ajustarParams({ aba: 'comissoes', pessoaId: id }))} />}
     </div>
-  )
-}
-
-// ORGANOGRAMA — cada pessoa num cartão: avatar com a cor dela (iniciais), nome, cargo e unidade, e os números do período
-// (✂️ atendimentos · 💰 faturado · 👥 quantas respondem a ela). Computador: árvore com linhas; celular: níveis com a
-// linha colorida de quem responde a quem. Buscando: só os cartões que batem, numa lista (com "responde a").
-const contar = (ns: NoOrganograma[]): { pessoas: number; atend: number; fat: number } =>
-  ns.reduce((s, n) => { const f = contar(n.subordinados); return { pessoas: s.pessoas + 1 + f.pessoas, atend: s.atend + n.atendimentos + f.atend, fat: s.fat + n.faturamento + f.fat } }, { pessoas: 0, atend: 0, fat: 0 })
-const semAcento = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-/** quem bate com a busca (nome ou cargo), com o nome de quem é o chefe */
-function achar(ns: NoOrganograma[], busca: string, chefe?: string): { n: NoOrganograma; chefe?: string }[] {
-  const b = semAcento(busca.trim())
-  return ns.flatMap((n) => [
-    ...(semAcento(`${n.pessoa.nome} ${n.pessoa.cargo ?? ''}`).includes(b) ? [{ n, chefe }] : []),
-    ...achar(n.subordinados, busca, n.pessoa.nome),
-  ])
-}
-
-function OrganogramaVisual({ raizes, busca, eu, nomeLocal, onClick, onLimpar }: { raizes: NoOrganograma[]; busca: string; eu?: Id; nomeLocal: Map<Id, string>; onClick(id: Id): void; onLimpar(): void }) {
-  const t = useT()
-  const largo = useLargo()
-  const p = { eu, nomeLocal, onClick }
-  if (busca.trim()) {
-    const achados = achar(raizes, busca)
-    if (!achados.length) return <VazioFiltro texto="Ninguém com esse nome ou cargo." filtrando onLimpar={onLimpar} />
-    return (
-      <ul className="grid gap-2 sm:grid-cols-2">
-        {achados.map(({ n, chefe }) => <li key={n.pessoa.id}><CartaoPessoa n={n} {...p} chefe={chefe} /></li>)}
-      </ul>
-    )
-  }
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-[var(--borda)] bg-[var(--fundo)] p-3 sm:p-6 [scrollbar-width:thin]">
-      {largo ? (
-        <div className="flex min-w-max justify-center gap-8">
-          {raizes.map((n) => <NoArvore key={n.pessoa.id} n={n} {...p} />)}
-        </div>
-      ) : (
-        <ul className="space-y-2">{raizes.map((n) => <NoLista key={n.pessoa.id} n={n} {...p} />)}</ul>
-      )}
-      <NotaTela className="mt-3">{t('Toque numa pessoa para ver o resumo.')}</NotaTela>
-    </div>
-  )
-}
-
-type PropsNo = { n: NoOrganograma; eu?: Id; nomeLocal: Map<Id, string>; onClick(id: Id): void }
-
-function CartaoPessoa({ n, eu, nomeLocal, onClick, chefe, largura }: PropsNo & { chefe?: string; largura?: string }) {
-  const t = useT()
-  const m = moedaPadrao()
-  const cor = corDoNome(n.pessoa.nome)
-  const equipe = contar(n.subordinados).pessoas
-  const local = n.pessoa.localId ? nomeLocal.get(n.pessoa.localId) : undefined
-  const souEu = !!eu && n.pessoa.id === eu
-  return (
-    <button type="button" onClick={() => onClick(n.pessoa.id)}
-      className={cx('group relative flex w-full items-start gap-3 overflow-hidden rounded-2xl border bg-[var(--cartao)] p-3 pl-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md', souEu ? 'border-[var(--marca)]' : 'border-[var(--borda)] hover:border-[var(--marca)]', largura)}>
-      {/* a faixa da cor da pessoa (a mesma do avatar) */}
-      <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: cor }} />
-      <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold" style={{ background: `color-mix(in srgb, ${cor} 18%, transparent)`, color: cor, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${cor} 45%, transparent)` }}>{iniciais(n.pessoa.nome)}</span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5">
-          <b className="truncate">{n.pessoa.nome}</b>
-          {souEu && <span className="shrink-0 rounded-full bg-[var(--marca)] px-1.5 py-px text-[10px] font-bold text-white">{t('Você')}</span>}
-        </span>
-        <span className="block truncate text-xs text-[var(--suave)]">{[n.pessoa.cargo, local && `🏢 ${local}`].filter(Boolean).join(' · ') || '—'}</span>
-        {chefe && <span className="block truncate text-xs text-[var(--suave)]">↑ {t('responde a')} {chefe}</span>}
-        <span className="num mt-1.5 flex flex-wrap gap-1 text-[11px]">
-          <span className="whitespace-nowrap rounded-md bg-[var(--fundo)] px-1.5 py-0.5">✂️ <b>{n.atendimentos}</b> {t('atend.')}</span>
-          {n.faturamento > 0 && <span className="whitespace-nowrap rounded-md bg-[var(--bom)]/12 px-1.5 py-0.5 text-[var(--bom)]">💰 <b>{formatar(n.faturamento, m)}</b></span>}
-          {equipe > 0 && <span className="whitespace-nowrap rounded-md bg-[var(--fundo)] px-1.5 py-0.5">👥 <b>{equipe}</b></span>}
-        </span>
-      </span>
-      <span aria-hidden className="self-center text-lg text-[var(--suave)] transition group-hover:translate-x-0.5 group-hover:text-[var(--marca)]">›</span>
-    </button>
-  )
-}
-
-function NoArvore(p: PropsNo) {
-  const { n } = p
-  return (
-    <div className="flex flex-col items-center">
-      <CartaoPessoa {...p} largura="w-60" />
-      {n.subordinados.length > 0 && (
-        <>
-          <div className="h-6 w-px bg-[var(--suave)]/40" />
-          <div className="flex gap-4">
-            {n.subordinados.map((s, k) => (
-              // traço horizontal só entre o primeiro e o último filho (cantos limpos)
-              <div key={s.pessoa.id} className="relative flex flex-col items-center pt-6">
-                <span aria-hidden className={cx('absolute top-0 h-px bg-[var(--suave)]/40', n.subordinados.length === 1 ? 'hidden' : k === 0 ? 'left-1/2 right-[-0.5rem]' : k === n.subordinados.length - 1 ? 'left-[-0.5rem] right-1/2' : '-left-2 -right-2')} />
-                <span aria-hidden className="absolute left-1/2 top-0 h-6 w-px bg-[var(--suave)]/40" />
-                <NoArvore {...p} n={s} />
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-/** celular: a árvore em níveis — a linha à esquerda tem a cor de quem é o chefe, e cada cartão tem o seu "cotovelo" */
-function NoLista(p: PropsNo) {
-  const { n } = p
-  const cor = corDoNome(n.pessoa.nome)
-  const linha = `color-mix(in srgb, ${cor} 45%, transparent)`
-  return (
-    <li>
-      <CartaoPessoa {...p} />
-      {n.subordinados.length > 0 && (
-        <ul className="ml-4 mt-2 space-y-2 border-l-2 pl-3" style={{ borderColor: linha }}>
-          {n.subordinados.map((s) => (
-            <li key={s.pessoa.id} className="relative list-none">
-              <span aria-hidden className="absolute -left-3 top-7 h-0.5 w-3" style={{ background: linha }} />
-              <ul><NoLista {...p} n={s} /></ul>
-            </li>
-          ))}
-        </ul>
-      )}
-    </li>
   )
 }
 
