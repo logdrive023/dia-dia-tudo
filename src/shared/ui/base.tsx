@@ -712,10 +712,12 @@ export function GramasInput({ valor, onChange, placeholder }: { valor?: number; 
 // ---------- trava do fundo (janela aberta = a tela de trás não rola) ----------
 
 let travas = 0
-let antes: { html: string; body: string } | undefined
+let antes: { html: string; body: string; puxar: string } | undefined
 /**
  * Enquanto `ativo`, a página de trás não rola nem "puxa" junto (no celular, arrastar dentro da folha rolava a tela
  * de baixo). Conta as travas: janela dentro de janela só destrava quando a última fecha.
+ * O body usa `overflow: clip` (não `hidden`): `hidden` faz do body uma área que rola e o que é `sticky` (o menu lateral)
+ * deixa de grudar na tela — com a página rolada, o menu subia e sobrava um buraco embaixo.
  */
 export function useTravarFundo(ativo = true) {
   useEffect(() => {
@@ -723,13 +725,15 @@ export function useTravarFundo(ativo = true) {
     const html = document.documentElement
     const body = document.body
     if (travas++ === 0) {
-      antes = { html: html.style.overflow, body: body.style.overflow }
+      antes = { html: html.style.overflow, body: body.style.overflow, puxar: html.style.overscrollBehavior }
       html.style.overflow = 'hidden'
-      body.style.overflow = 'hidden'
+      html.style.overscrollBehavior = 'none'
+      body.style.overflow = typeof CSS !== 'undefined' && CSS.supports?.('overflow', 'clip') ? 'clip' : 'hidden'
     }
     return () => {
       if (--travas === 0 && antes) {
         html.style.overflow = antes.html
+        html.style.overscrollBehavior = antes.puxar
         body.style.overflow = antes.body
         antes = undefined
       }

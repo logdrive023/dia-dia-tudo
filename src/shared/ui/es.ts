@@ -5687,4 +5687,5 @@ export const ES: Record<string, string> = {
   'Quantidade na vitrine salva.': 'Cantidad en la vitrina guardada.',
   'A vitrine mostra o pacote inteiro.': 'La vitrina muestra el paquete entero.',
   'Quanto mostrar na vitrine: use gramas inteiras maiores que zero.': 'Cuánto mostrar en la vitrina: use gramos enteros mayores que cero.',
+  'Mostrar tudo': 'Mostrar todo',
 }

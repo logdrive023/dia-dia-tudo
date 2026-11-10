@@ -2,8 +2,8 @@
 //   o pacote (código · medida · cor) abre a ficha no ESTOQUE · Disponível (o saldo inteiro) · Na vitrine: QUANTO mostrar
 //   (ex.: o pacote tem 1 kg, mas só 500 g vão para a vitrine; vazio = tudo) · preço (se o modo pedir) · pôr/tirar.
 // Celular: cartão que abre no lugar, com os mesmos campos. A regra (o limite nunca passa do saldo) é do serviço.
-import type { ReactNode } from 'react'
-import { Botao, Campo, Entrada, gramasTexto } from '../../../shared/ui/base'
+import { type ReactNode, useState } from 'react'
+import { Botao, Campo, Entrada, cx, gramasTexto } from '../../../shared/ui/base'
 import { useApp } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { Chave } from '../../../shared/ui/interruptor'
@@ -28,22 +28,36 @@ export const kg = (g: number) => (g >= 1000 ? `${(g / 1000).toLocaleString(undef
 /** o limite que vale de verdade (um limite maior ou igual ao saldo = mostra tudo) */
 const limiteAtivo = (x: PacoteLista) => (x.limite && x.limite < (x.disponivel ?? x.gramas) ? x.limite : undefined)
 
-/** "500" em gramas; salva ao sair do campo. Vazio, zero ou ≥ saldo = tudo. */
+/**
+ * "Quanto mostrar": um campo só, com o "g" dentro. Vazio = "Tudo" (apagado); com limite, fica na cor da marca e ganha
+ * o "×" para voltar a mostrar tudo. Salva ao sair do campo (ou Enter). Vazio, zero ou ≥ saldo = tudo.
+ */
 function QuantoMostrar({ x, onLimite, travado, largo }: { x: PacoteLista; onLimite(g: number): void; travado?: boolean; largo?: boolean }) {
   const t = useT()
   const ativo = limiteAtivo(x)
   const total = x.disponivel ?? x.gramas
-  const salvar = (texto: string) => {
+  return <CampoQuanto key={ativo ?? 'tudo'} ativo={ativo} total={total} codigo={x.codigo} travado={travado} largo={largo} onLimite={onLimite} t={t} />
+}
+
+function CampoQuanto({ ativo, total, codigo, travado, largo, onLimite, t }: { ativo?: number; total: number; codigo?: string; travado?: boolean; largo?: boolean; onLimite(g: number): void; t: ReturnType<typeof useT> }) {
+  const [texto, setTexto] = useState(ativo ? String(ativo) : '')
+  const salvar = () => {
     const g = Math.round(Number(texto.replace(/\D/g, '')) || 0)
     const novo = g > 0 && g < total ? g : 0
+    if (!novo) setTexto('')
     if (novo !== (ativo ?? 0)) onLimite(novo)
   }
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <Entrada key={ativo ?? 'tudo'} inputMode="numeric" disabled={travado} aria-label={`${t('Quanto mostrar na vitrine')} ${x.codigo ?? ''}`}
-        placeholder={t('tudo')} defaultValue={ativo ?? ''} className={largo ? 'num w-32 text-right' : 'num w-20 text-right'}
-        onBlur={(e) => salvar(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
-      <span className="text-sm text-[var(--suave)]">g</span>
+    <span className={cx('relative inline-flex', largo ? 'w-40' : 'w-32')}>
+      {ativo && (
+        <button type="button" disabled={travado} onClick={() => onLimite(0)} aria-label={`${t('Mostrar tudo')} ${codigo ?? ''}`} title={t('Mostrar tudo')}
+          className="absolute left-1.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-base leading-none text-[var(--marca)] hover:bg-[var(--cartao)]">×</button>
+      )}
+      <Entrada inputMode="numeric" disabled={travado} aria-label={`${t('Quanto mostrar na vitrine')} ${codigo ?? ''}`}
+        placeholder={t('Tudo')} value={texto} onChange={(e) => setTexto(e.target.value.replace(/\D/g, ''))}
+        onBlur={salvar} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        className={cx('num w-full pr-8 text-right placeholder:text-[var(--suave)]', ativo ? 'border-[var(--marca)] bg-[var(--marca-suave)] pl-9 font-semibold text-[var(--marca)]' : 'pl-3')} />
+      {texto && <span aria-hidden className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[var(--suave)]">g</span>}
     </span>
   )
 }
