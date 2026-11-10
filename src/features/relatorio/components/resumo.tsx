@@ -48,11 +48,14 @@ export function EmResumo({ itens, tom, mais, rodape }: {
           <li key={k} className={cx('px-4 py-2.5', l.destaque && 'bg-[var(--fundo)]/60')}>
             <div className="flex items-center gap-3">
               <span aria-hidden className={cx('flex shrink-0 items-center justify-center rounded-full bg-[var(--fundo)]', l.destaque ? 'h-10 w-10 text-xl' : 'h-9 w-9 text-lg')}>{l.icone}</span>
-              <span className="min-w-0 flex-1">
-                <span className={cx('block leading-snug', l.destaque ? 'text-base font-bold sm:text-lg' : 'text-sm sm:text-base')}>{l.texto}</span>
-                {l.sub && <span className="num block text-xs text-[var(--suave)]">{l.sub}</span>}
+              {/* texto e valor na mesma linha; sem espaço (celular estreito), o valor desce para a linha de baixo — o texto nunca é espremido */}
+              <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
+                <span className="linha-texto">
+                  <span className={cx('block leading-snug', l.destaque ? 'text-base font-bold sm:text-lg' : 'text-sm sm:text-base')}>{l.texto}</span>
+                  {l.sub && <span className="num block text-xs text-[var(--suave)]">{l.sub}</span>}
+                </span>
+                {l.valor !== undefined && <span className={cx('num ml-auto shrink-0 whitespace-nowrap text-right font-black', l.destaque ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg')} style={{ color: l.tom ? COR[l.tom] : undefined }}>{l.valor}</span>}
               </span>
-              {l.valor !== undefined && <span className={cx('num shrink-0 whitespace-nowrap text-right font-black', l.destaque ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg')} style={{ color: l.tom ? COR[l.tom] : undefined }}>{l.valor}</span>}
             </div>
             {l.barras && l.barras.length > 0 && (
               <ul className="mt-2 space-y-1.5 pl-12">
