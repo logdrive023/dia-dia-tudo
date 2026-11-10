@@ -39,28 +39,57 @@ export interface Feita {
   telefone?: string
 }
 
-// ---------- bipe (WebAudio, sem arquivo) + vibração ----------
+// ---------- bipe (som gerado aqui, sem arquivo) + vibração ----------
 
-// DESEMPENHO NO TOQUE: criar o AudioContext liga o áudio do aparelho e TRAVA a tela (medido: 232 ms com CPU de celular,
-// dentro do toque que põe o pacote na venda). Por isso: (1) prepararBipe() cria o áudio quando a tela abre, num
-// momento ocioso; (2) bipe() vibra na hora e toca o som DEPOIS do próximo quadro — a lista atualiza primeiro.
-let audio: AudioContext | undefined
-const ClasseAudio = () => window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+// DESEMPENHO NO TOQUE: o bipe é um <audio> com um WAV curto montado na hora (≈ 1,5 KB). Antes era um AudioContext,
+// que liga o áudio do aparelho DE UMA VEZ na linha principal: travava a tela ~0,24 s (medido com CPU de celular), no
+// toque ou logo ao abrir o Modo caixa. O <audio> monta em ~4 ms e toca sem travar (o navegador decodifica fora da tela).
+// bipe() vibra na hora e toca DEPOIS do próximo quadro — a lista atualiza primeiro.
+type Som = { ok?: HTMLAudioElement; erro?: HTMLAudioElement }
+const sons: Som = {}
 
-/** cria o áudio fora do toque (ocioso); o navegador deixa "suspenso" até o 1º toque, e o bipe só retoma */
-export function prepararBipe() {
-  if (audio) return
-  const criar = () => {
-    try {
-      const C = ClasseAudio()
-      if (C && !audio) audio = new C()
-    } catch {
-      /* sem som: segue */
-    }
+/** WAV PCM 16 bits mono, 8 kHz: o bipe certo (agudo e curto) ou o de erro (grave, quadrado e mais longo) */
+function wavBipe(ok: boolean): Blob {
+  const taxa = 8000
+  const dur = ok ? 0.09 : 0.28
+  const freq = ok ? 1500 : 190
+  const volume = ok ? 0.12 : 0.08
+  const n = Math.round(taxa * dur)
+  const buf = new ArrayBuffer(44 + n * 2)
+  const v = new DataView(buf)
+  const texto = (o: number, s: string) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)))
+  texto(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); texto(8, 'WAVEfmt ')
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true)
+  v.setUint32(24, taxa, true); v.setUint32(28, taxa * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true)
+  texto(36, 'data'); v.setUint32(40, n * 2, true)
+  for (let i = 0; i < n; i++) {
+    const fase = (freq * i) / taxa
+    const onda = ok ? Math.sin(2 * Math.PI * fase) : fase % 1 < 0.5 ? 1 : -1
+    // some aos poucos (sem "clique" no fim)
+    v.setInt16(44 + i * 2, Math.round(onda * volume * 32767 * Math.pow(1 - i / n, 2)), true)
   }
-  const ocioso = (window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback
-  if (ocioso) ocioso(criar, { timeout: 3000 })
-  else setTimeout(criar, 600)
+  return new Blob([buf], { type: 'audio/wav' })
+}
+
+function som(ok: boolean): HTMLAudioElement | undefined {
+  const k = ok ? 'ok' : 'erro'
+  if (!sons[k]) {
+    if (typeof Audio === 'undefined' || typeof URL.createObjectURL !== 'function') return undefined
+    const a = new Audio(URL.createObjectURL(wavBipe(ok)))
+    a.preload = 'auto'
+    sons[k] = a
+  }
+  return sons[k]
+}
+
+/** deixa os dois sons prontos quando a tela abre (barato: ~4 ms, nada de ligar o áudio do aparelho) */
+export function prepararBipe() {
+  try {
+    som(true)
+    som(false)
+  } catch {
+    /* sem som: segue */
+  }
 }
 
 export function bipe(ok: boolean) {
@@ -76,21 +105,11 @@ export function bipe(ok: boolean) {
 
 function tocar(ok: boolean) {
   try {
-    const C = ClasseAudio()
-    if (C) {
-      audio ??= new C()
-      if (audio.state === 'suspended') void audio.resume()
-      const o = audio.createOscillator()
-      const g = audio.createGain()
-      const dur = ok ? 0.09 : 0.28
-      o.type = ok ? 'sine' : 'square'
-      o.frequency.value = ok ? 1500 : 190
-      g.gain.setValueAtTime(ok ? 0.12 : 0.08, audio.currentTime)
-      g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + dur)
-      o.connect(g).connect(audio.destination)
-      o.start()
-      o.stop(audio.currentTime + dur + 0.02)
-    }
+    const a = som(ok)
+    if (!a) return
+    // leitura seguida (pistola): recomeça o mesmo bipe em vez de esperar o anterior terminar
+    a.currentTime = 0
+    void a.play()?.catch(() => { /* navegador bloqueou o som (sem toque ainda): segue em silêncio */ })
   } catch {
     /* sem som: segue */
   }

@@ -29,6 +29,14 @@ describe('auditoria (só administrador)', () => {
     const d = await b.consulta('registroAuditoria', { id: vendas.linhas[0].id })
     expect(d.bruto.id).toBe(vendas.linhas[0].id)
     expect(d.registro.nomeAcao).toBeTruthy()
+    // o filtro "Quem" traz TODOS os usuários cadastrados (até quem não agiu no período), e "Quem agiu" conta só quem agiu
+    const cadastrados = await b.consulta('usuarios', {})
+    for (const u of cadastrados) expect(tudo.usuarios.some((x) => x.id === u.id)).toBe(true)
+    const umDia = await b.consulta('auditoria', { de: '2000-01-01', ate: '2000-01-01' })
+    expect(umDia.usuarios.filter((x) => x.perfil).length).toBe(cadastrados.length)
+    expect(umDia.usuarios.every((x) => x.n === 0)).toBe(true)
+    expect(umDia.agiram).toBe(0)
+    expect(tudo.agiram).toBe(tudo.usuarios.filter((x) => x.n > 0).length)
     // a funcionária não vê nada disso
     Object.assign(sessao, await b.entrar('sofia', SENHA_DEMO))
     await expect(b.consulta('auditoria', {})).rejects.toThrow(/permissão/)

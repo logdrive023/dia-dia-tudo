@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import { formasEmUso } from '../../../core/domain/formas'
-import { BotaoEscolha, FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
+import { FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
 import { Trilha } from '../../../shared/ui/trilha'
 import { corDoNome, iniciais } from '../../../shared/ui/tabelaDados'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
@@ -19,13 +19,17 @@ import { AdiantamentosDaPessoa } from '../../../shared/ui/financiamento'
 import { useT } from '../../../shared/ui/i18n'
 import { NOME_ETAPA } from '../../venda'
 import { Paginada } from '../../../shared/ui/paginacao'
+import { AvatarPessoa, CaixaLista, LinhaPessoa, NOME_PAPEL, SecaoGrupo } from '../components/ListaPessoas'
+import { GRUPOS, type GrupoPessoa, contarGrupos, estaNoGrupo, grupoPrincipal } from '../model/grupos'
 
-const PAPEIS: Papel[] = ['cliente', 'fornecedor', 'funcionario', 'profissional', 'devedor', 'credor', 'socio']
 const SITUACAO_EMPRESTIMO: Record<string, string> = { aberto: 'Em aberto', quitado: 'Quitado', cancelado: 'Cancelado' }
 
 /**
- * PESSOAS E CONTAS — os números (me devem · eu devo · pessoas) → as abas → o FILTRO PADRÃO (busca; nas contas, o lado
- * em abas com o número; em todas, o papel) → a lista: avatar, nome, papéis/último movimento e o valor em destaque.
+ * PESSOAS E CONTAS — os números (me devem · eu devo · pessoas) → duas abas que separam as ideias:
+ *   💰 Contas em aberto: só quem deve ou a quem devo (o lado em abas com o número)
+ *   👥 Pessoas: o cadastro SEPARADO POR GRUPO (Clientes · Fornecedoras · Equipe · Contas e empréstimos). Em "Todas",
+ *      uma seção por grupo com as primeiras pessoas e "Ver todas"; numa aba de grupo (ou buscando), a lista inteira.
+ * Cada linha é curta: avatar, nome, WhatsApp, papéis e, se tiver conta aberta, quanto deve (components/ListaPessoas).
  */
 export function Pessoas() {
   const t = useT()
@@ -33,7 +37,7 @@ export function Pessoas() {
   const admin = sessao.perfil === 'admin'
   const [aba, setAba] = useParamTela<'contas' | 'todas'>('aba', admin ? 'contas' : 'todas')
   const [busca, setBusca] = useParamTela('busca', '')
-  const [papel, setPapel] = useParamTela('papel', '')
+  const [grupo, setGrupo] = useParamTela<'' | GrupoPessoa>('grupo', '')
   const [lado, setLado] = useParamTela<'' | 'receber' | 'pagar'>('lado', '')
   const { dados: pessoas } = useConsulta('pessoas', {})
   const { dados: contas } = useConsulta('contas', { somenteAbertas: true }, admin)
@@ -42,12 +46,18 @@ export function Pessoas() {
   const b = busca.trim().toLowerCase()
   const daBusca = (nome: string, tel?: string) => !b || nome.toLowerCase().includes(b) || !!tel?.includes(b)
   const todas = (pessoas ?? []).filter((p) => admin || !p.localId || p.localId === sessao.localId)
-  const lista = todas.filter((p) => (!papel || p.papeis.includes(papel as Papel)) && daBusca(p.nome, p.telefone))
+  const buscadas = todas.filter((p) => daBusca(p.nome, p.telefone))
+  const lista = buscadas.filter((p) => !grupo || estaNoGrupo(p.papeis, grupo))
+  const nGrupo = contarGrupos(buscadas)
+  const saldo = new Map((contas?.lista ?? []).map((c) => [c.pessoaId, c.saldo]))
   const contasB = (contas?.lista ?? []).filter((c) => daBusca(c.nome))
   const doLado = contasB.filter((c) => !lado || (lado === 'receber' ? c.saldo > 0 : c.saldo < 0))
-  const papeisUsados = PAPEIS.filter((x) => todas.some((p) => p.papeis.includes(x)))
   const emContas = aba === 'contas' && admin
-  const limpar = () => (setBusca(''), setPapel(''), setLado(''))
+  const limpar = () => (setBusca(''), setGrupo(''), setLado(''))
+  const abrir = (id: string) => ir('pessoa', { id })
+  /** "Todas" sem busca: uma seção por grupo (cada pessoa no grupo principal dela) */
+  const emSecoes = !emContas && !grupo && !b
+  const POR_SECAO = 5
   return (
     <div>
       <Titulo acao={<Botao onClick={() => ir('novaPessoa')}>+ {t('Pessoa')}</Botao>} subtitulo={t('Clientes, fornecedoras e equipe — e quem deve a quem.')}>{t('Pessoas e contas')}</Titulo>
@@ -55,17 +65,17 @@ export function Pessoas() {
         <GrupoNumeros colunas={3} celular={3}>
           <NumeroGrande rotulo="Me devem" valor={formatar(contas?.aReceber ?? 0, m)} icone="⬇" tom="bom" carregando={!contas} ativo={emContas && lado === 'receber'} onClick={() => (setAba('contas'), setLado(lado === 'receber' ? '' : 'receber'))} ajuda="Soma do que as pessoas me devem. Toque para ver quem." />
           <NumeroGrande rotulo="Eu devo" valor={formatar(contas?.aPagar ?? 0, m)} icone="⬆" tom={contas?.aPagar ? 'ruim' : undefined} carregando={!contas} ativo={emContas && lado === 'pagar'} onClick={() => (setAba('contas'), setLado(lado === 'pagar' ? '' : 'pagar'))} ajuda="Soma do que eu devo às pessoas. Toque para ver a quem." />
-          <NumeroGrande rotulo="Pessoas" valor={todas.length} icone="👥" carregando={!pessoas} sub={`${todas.filter((p) => p.papeis.includes('cliente')).length} ${t('clientes')}`} onClick={() => setAba('todas')} />
+          <NumeroGrande rotulo="Pessoas" valor={todas.length} icone="👥" carregando={!pessoas} sub={`${todas.filter((p) => p.papeis.includes('cliente')).length} ${t('clientes')}`} ativo={!emContas} onClick={() => (setAba('todas'), setGrupo(''))} />
         </GrupoNumeros>
       )}
-      {admin && <Abas atual={aba} onChange={(v) => setAba(v as typeof aba)} abas={[{ id: 'contas', nome: 'Quem deve / a quem devo' }, { id: 'todas', nome: 'Todas as pessoas' }]} />}
+      {admin && <Abas atual={aba} onChange={(v) => setAba(v as typeof aba)} abas={[{ id: 'contas', nome: `💰 ${t('Contas em aberto')}` }, { id: 'todas', nome: `👥 ${t('Pessoas')}` }]} />}
       <FiltroLista
         className="mb-3 mt-3"
         busca={busca} onBusca={setBusca} placeholder="Buscar nome ou telefone"
-        situacao={emContas ? { valor: lado, onChange: (v) => setLado(v as typeof lado), opcoes: [{ id: '', nome: 'Todas', n: contasB.length }, { id: 'receber', nome: 'Me devem', n: contasB.filter((c) => c.saldo > 0).length }, { id: 'pagar', nome: 'Eu devo', n: contasB.filter((c) => c.saldo < 0).length, tom: 'alerta' }] } : undefined}
-        extra={!emContas ? <BotaoEscolha icone="🏷" rotulo="Papel" valor={papel} onChange={setPapel} opcoes={[{ id: '', nome: 'Todos os papéis' }, ...papeisUsados.map((x) => ({ id: x, nome: NOME_PAPEL[x].nome, icone: NOME_PAPEL[x].icone }))]} /> : undefined}
-        ativos={!emContas && papel ? [{ k: 'papel', rotulo: `${NOME_PAPEL[papel as Papel]?.icone ?? ''} ${t(NOME_PAPEL[papel as Papel]?.nome ?? papel)}` }] : []}
-        onTirar={() => setPapel('')} onLimpar={limpar} temAtivos={!!(busca || papel || lado)}
+        situacao={emContas
+          ? { valor: lado, onChange: (v) => setLado(v as typeof lado), opcoes: [{ id: '', nome: 'Todas', n: contasB.length }, { id: 'receber', nome: 'Me devem', n: contasB.filter((c) => c.saldo > 0).length }, { id: 'pagar', nome: 'Eu devo', n: contasB.filter((c) => c.saldo < 0).length, tom: 'alerta' }] }
+          : { valor: grupo, onChange: (v) => setGrupo(v as typeof grupo), opcoes: [{ id: '', nome: 'Todas', n: buscadas.length }, ...GRUPOS.filter((g) => nGrupo[g.id] > 0 || g.id === grupo).map((g) => ({ id: g.id, nome: `${g.icone} ${t(g.nome)}`, n: nGrupo[g.id] }))] }}
+        onLimpar={limpar} temAtivos={!!(busca || grupo || lado)}
         resultados={emContas ? (contas ? doLado.length : undefined) : pessoas ? lista.length : undefined}
         total={emContas ? contas?.lista.length : todas.length}
         unidade="pessoa(s)"
@@ -78,7 +88,7 @@ export function Pessoas() {
               const deve = c.saldo > 0
               return (
                 <li key={c.pessoaId}>
-                  <button type="button" onClick={() => ir('pessoa', { id: c.pessoaId })} className="relative flex w-full items-center gap-3 p-3 pl-4 text-left hover:bg-[var(--fundo)]">
+                  <button type="button" onClick={() => abrir(c.pessoaId)} className="relative flex min-h-14 w-full items-center gap-3 p-3 pl-4 text-left hover:bg-[var(--fundo)] active:bg-[var(--fundo)]">
                     <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ background: deve ? 'var(--bom)' : 'var(--ruim)' }} />
                     <AvatarPessoa nome={c.nome} />
                     <span className="min-w-0 flex-1"><b className="block truncate">{c.nome}</b><span className="num block text-xs text-[var(--suave)]">{t('Último movimento')} {dataBR(c.ultimo)}</span></span>
@@ -95,43 +105,31 @@ export function Pessoas() {
           )}</Paginada>
         )
       ) : !pessoas ? <Carregando /> : !lista.length ? (
-        busca || papel ? <VazioFiltro filtrando onLimpar={limpar} /> : (
+        busca || grupo ? <VazioFiltro filtrando onLimpar={limpar} /> : (
           <Vazio texto="Nenhuma pessoa cadastrada ainda."><Botao variante="secundario" onClick={() => ir('novaPessoa')}>+ {t('Pessoa')}</Botao></Vazio>
         )
+      ) : emSecoes ? (
+        <div className="space-y-5">
+          {GRUPOS.map((g) => {
+            const doGrupo = lista.filter((p) => grupoPrincipal(p.papeis) === g.id)
+            if (!doGrupo.length) return null
+            return (
+              <SecaoGrupo key={g.id} icone={g.icone} nome={g.nome} descricao={g.descricao} n={doGrupo.length} mostrando={POR_SECAO} onVerTodas={() => setGrupo(g.id)}
+                extra={g.id === 'equipe' && admin ? <button type="button" onClick={() => ir('equipe')} className="alvo-amplo shrink-0 text-xs font-semibold text-[var(--marca)] hover:underline">{t('Equipe e unidades')} ›</button> : undefined}>
+                {doGrupo.slice(0, POR_SECAO).map((p) => <LinhaPessoa key={p.id} p={p} saldo={saldo.get(p.id)} moeda={m} onAbrir={abrir} />)}
+              </SecaoGrupo>
+            )
+          })}
+        </div>
       ) : (
         <Paginada itens={lista} unidade="pessoa(s)" reiniciar={String(lista.length)}>{(pagina) => (
-          <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {pagina.map((p) => (
-            <li key={p.id}>
-              <button type="button" onClick={() => ir('pessoa', { id: p.id })} className="group flex w-full items-center gap-3 rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--marca)] hover:shadow-md">
-                <AvatarPessoa nome={p.nome} />
-                <span className="min-w-0 flex-1">
-                  <b className="block truncate">{p.nome}</b>
-                  {p.telefone && <span className="num block truncate text-xs text-[var(--suave)]">💬 {p.telefone}</span>}
-                  <span className="mt-1 flex flex-wrap gap-1">{p.papeis.map((x) => <Pilula key={x} pequena tom={x === 'cliente' ? 'marca' : 'neutro'}>{NOME_PAPEL[x]?.icone} {t(NOME_PAPEL[x]?.nome ?? x)}</Pilula>)}</span>
-                </span>
-                <span aria-hidden className="text-[var(--suave)] transition group-hover:translate-x-0.5">›</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+          <CaixaLista>{pagina.map((p) => <LinhaPessoa key={p.id} p={p} saldo={saldo.get(p.id)} moeda={m} onAbrir={abrir} />)}</CaixaLista>
         )}</Paginada>
       )}
     </div>
   )
 }
 
-function AvatarPessoa({ nome }: { nome: string }) {
-  const cor = corDoNome(nome)
-  return <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold" style={{ background: `color-mix(in srgb, ${cor} 18%, transparent)`, color: cor, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${cor} 45%, transparent)` }}>{iniciais(nome)}</span>
-}
-
-/** o nome do papel para gente (o id é técnico: "funcionario" → "Funcionária") */
-const NOME_PAPEL: Record<Papel, { nome: string; icone: string }> = {
-  cliente: { nome: 'Cliente', icone: '👤' }, fornecedor: { nome: 'Fornecedora', icone: '🛒' }, doadora: { nome: 'Doadora', icone: '🎁' },
-  profissional: { nome: 'Profissional', icone: '✂️' }, funcionario: { nome: 'Funcionária', icone: '🧑‍💼' }, devedor: { nome: 'Devedor', icone: '⬇' },
-  credor: { nome: 'Credor', icone: '⬆' }, socio: { nome: 'Sócia', icone: '🤝' },
-}
 const ICONE_EVENTO: Record<string, string> = { venda: '💰', compra: '🛒', emprestimo: '🤝' }
 
 /**

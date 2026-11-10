@@ -56,6 +56,31 @@ export const naLingua = (x: Texto2, idioma: 'pt' | 'es') => (idioma === 'es' ? x
 
 export const NOVIDADES: Novidade[] = [
   {
+    data: '2026-11-10',
+    titulo: { pt: 'Auditoria por dia, Pessoas separada por grupo e Modo caixa sem travar', es: 'Auditoría por día, Personas separada por grupo y Modo caja sin trabarse' },
+    resumo: {
+      pt: 'A auditoria mostra todos os usuários no filtro e separa as ações por dia; Pessoas e contas separa clientes, fornecedoras, equipe e contas; o Modo caixa abre sem a travada do bipe.',
+      es: 'La auditoría muestra todos los usuarios en el filtro y separa las acciones por día; Personas y cuentas separa clientes, proveedoras, equipo y cuentas; el Modo caja abre sin la trabada del bip.',
+    },
+    itens: [
+      { area: 'Acesso', tipo: 'correcao', tela: 'auditoria', texto: {
+        pt: 'Auditoria: o filtro “Quem” agora traz todos os usuários cadastrados (quem não agiu no período aparece com “nenhuma ação”), e “Quem agiu” diz de quantos usuários.',
+        es: 'Auditoría: el filtro “Quién” ahora trae todos los usuarios registrados (quien no actuó en el período aparece con “ninguna acción”), y “Quién actuó” dice de cuántos usuarios.' } },
+      { area: 'Acesso', tipo: 'melhoria', tela: 'auditoria', texto: {
+        pt: 'Auditoria separada por dia (“Hoje”, “Ontem”, “seg 08/11”, com o número de ações), linhas mais claras no celular e mais rápida: abre e rola sem travar, e a busca espera você parar de digitar.',
+        es: 'Auditoría separada por día (“Hoy”, “Ayer”, “lun 08/11”, con el número de acciones), líneas más claras en el celular y más rápida: abre y se desplaza sin trabarse, y la búsqueda espera que usted deje de escribir.' } },
+      { area: 'Pessoas', tipo: 'melhoria', tela: 'pessoas', texto: {
+        pt: 'Pessoas e contas: “Contas em aberto” e “Pessoas” separadas; as pessoas vêm por grupo (Clientes · Fornecedoras · Equipe · Contas e empréstimos), cada linha com o WhatsApp e quanto deve, se tiver conta aberta.',
+        es: 'Personas y cuentas: “Cuentas pendientes” y “Personas” separadas; las personas vienen por grupo (Clientes · Proveedoras · Equipo · Cuentas y préstamos), cada línea con el WhatsApp y cuánto debe, si tiene cuenta abierta.' } },
+      { area: 'Venda', tipo: 'correcao', tela: 'vendaRapida', texto: {
+        pt: 'Modo caixa: abria com uma travada de ~0,2 s por causa do som do bipe; agora o bipe é leve e a tela abre sem travar.',
+        es: 'Modo caja: abría con una trabada de ~0,2 s por el sonido del bip; ahora el bip es liviano y la pantalla abre sin trabarse.' } },
+      { area: 'Sistema', tipo: 'melhoria', texto: {
+        pt: 'No celular, as miniaturas “Tirar foto” e os botões “+ Código / + Medida” da vitrine também ficaram com 44 px para o dedo.',
+        es: 'En el celular, las miniaturas “Tomar foto” y los botones “+ Código / + Medida” de la vitrina también quedaron con 44 px para el dedo.' } },
+    ],
+  },
+  {
     data: '2026-11-09',
     titulo: { pt: 'Vitrine com lista de compras, etiquetas por folha e um sistema mais rápido', es: 'Vitrina con lista de compras, etiquetas por hoja y un sistema más rápido' },
     resumo: {

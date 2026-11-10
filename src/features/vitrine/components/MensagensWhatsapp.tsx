@@ -65,7 +65,7 @@ export function MensagensWhatsapp({ valor, onChange, loja, pacotes, modoPreco }:
         <div>
           <p className="mb-1 text-xs text-[var(--suave)]">{t('Inserir no texto')}</p>
           <div className="flex flex-wrap gap-2">
-            {variaveis.map((v) => <button key={v.id} type="button" onClick={() => inserir(v.id)} className="min-h-10 rounded-full bg-[var(--marca-suave)] px-3 text-sm font-semibold text-[var(--marca)]">+ {t(v.rotulo)}</button>)}
+            {variaveis.map((v) => <button key={v.id} type="button" onClick={() => inserir(v.id)} className="min-h-10 toque:min-h-11 rounded-full bg-[var(--marca-suave)] px-3 text-sm font-semibold text-[var(--marca)] transition duration-100 active:scale-[0.97] motion-reduce:transform-none">+ {t(v.rotulo)}</button>)}
           </div>
         </div>
         {qual !== 'loja' && (

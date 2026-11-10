@@ -467,7 +467,9 @@ async function dia() {
 }
 
 try {
-  const nav = await chromium.launch({ channel: 'msedge', headless: !VER, slowMo: VER ? 350 : 0 })
+  // Edge do Windows; se não abrir (ex.: logo depois de uma atualização), o Chrome — como no primeiro-acesso
+  const abrir = (channel) => chromium.launch({ channel, headless: !VER, slowMo: VER ? 350 : 0 })
+  const nav = await abrir('msedge').catch(() => abrir('chrome'))
   const ctx = await nav.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark', locale: 'pt-BR', serviceWorkers: 'block' })
   pg = await ctx.newPage()
   pg.on('pageerror', (e) => erros.push(`${pg.url().replace(B, '')} · ${String(e).slice(0, 240)}`))

@@ -70,7 +70,7 @@ export function useModoCaixa() {
   }, [])
   useEffect(() => {
     focar()
-    // o áudio do bipe nasce agora, ocioso — nunca dentro do toque que põe o pacote na venda (travava ~0,2 s)
+    // os sons do bipe ficam prontos agora (<audio> leve: não trava; ver caixa/components/pecas.tsx)
     prepararBipe()
   }, [focar])
 

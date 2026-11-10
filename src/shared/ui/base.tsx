@@ -113,7 +113,8 @@ export function Botao({
       {...p}
       disabled={disabled || carregando}
       aria-busy={carregando || undefined}
-      className={cx('transition active:scale-[0.98] disabled:active:scale-100 motion-reduce:active:scale-100 touch-manipulation rounded-xl font-semibold transition duration-100 enabled:active:scale-[0.97] disabled:opacity-50 motion-reduce:transform-none', carregando && 'cursor-wait', !/(^|s)min-w-/.test(className ?? '') && 'min-w-min', grande ? 'min-h-12 px-5 py-3 text-base' : 'min-h-10 toque:min-h-11 px-4 py-2 text-sm', estilos, className)}
+      // toque: encolhe um pouco na hora (só habilitado; quem pede menos movimento não vê) · min-w-min só se a tela não deu outro min-w
+      className={cx('touch-manipulation rounded-xl font-semibold transition duration-100 enabled:active:scale-[0.97] disabled:opacity-50 motion-reduce:transform-none', carregando && 'cursor-wait', !/(^|\s)min-w-/.test(className ?? '') && 'min-w-min', grande ? 'min-h-12 px-5 py-3 text-base' : 'min-h-10 toque:min-h-11 px-4 py-2 text-sm', estilos, className)}
     >
       {carregando ? (
         <span className="inline-flex items-center justify-center gap-2">

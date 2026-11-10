@@ -157,7 +157,7 @@ export function useUrlFoto(foto?: Pick<FotoResumo, 'id' | 'miniatura'>, cheia = 
   return cheia ? url ?? foto?.miniatura : foto?.miniatura ?? url
 }
 
-const TAMANHOS = { xs: 'h-8 w-8 text-[9px]', sm: 'h-10 w-10 text-[10px]', md: 'h-14 w-14 text-xs', ficha: 'h-16 w-16 text-sm', lg: 'h-24 w-24 text-sm' } as const
+const TAMANHOS = { xs: 'h-8 w-8 text-[9px]', sm: 'h-10 w-10 toque:h-11 toque:w-11 text-[10px]', md: 'h-14 w-14 text-xs', ficha: 'h-16 w-16 text-sm', lg: 'h-24 w-24 text-sm' } as const
 
 /** Texto do lugar da foto quando não tem: a medida ("60") ou as iniciais do nome. */
 export function marcadorLote(campos?: Record<string, unknown>, nome?: string) {
