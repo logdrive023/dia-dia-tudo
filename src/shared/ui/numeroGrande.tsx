@@ -44,7 +44,8 @@ export function NumeroGrande({ rotulo, valor, sub, selos, icone, cor, tom, ativo
       {!carregando && sub && <span className="num block truncate text-xs text-[var(--suave)]">{sub}</span>}
       {!carregando && selos && selos.length > 0 && (
         <span className="mt-1.5 flex flex-wrap gap-1">
-          {selos.map((s, k) => <Pilula key={k} pequena tom={s.tom ?? 'suave'}>{s.texto}</Pilula>)}
+          {/* selo grande demais quebra de linha (nunca corta o texto) */}
+          {selos.map((s, k) => <Pilula key={k} pequena tom={s.tom ?? 'suave'} className="whitespace-normal break-words">{s.texto}</Pilula>)}
         </span>
       )}
     </>

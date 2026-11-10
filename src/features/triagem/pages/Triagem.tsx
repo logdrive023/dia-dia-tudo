@@ -229,7 +229,10 @@ export function Triagem() {
   const juntado = (l: Lote) => l.unificado > 0 || l.compras.length > 1
   const seloJuntados = (ls: Lote[]): { texto: string; tom?: string }[] => {
     const j = ls.filter(juntado).length
-    return !ls.length ? [] : [{ texto: j ? `🔗 ${t('{j} juntado(s) · {s} sem juntar', { j, s: ls.length - j })}` : t('nenhum juntado'), ...(j ? { tom: 'marca' } : {}) }]
+    // dois selos curtos (um embaixo do outro no celular), nunca um selo comprido cortado
+    if (!ls.length) return []
+    if (!j) return [{ texto: t('nenhum juntado') }]
+    return [{ texto: `🔗 ${t('{n} juntado(s)', { n: j })}`, tom: 'marca' }, ...(ls.length - j ? [{ texto: t('{n} sem juntar', { n: ls.length - j }) }] : [])]
   }
   const gSeparar = separarTodos.reduce((s, l) => s + l.saldo, 0)
   const paradosN = separarTodos.filter((l) => l.atrasado).length

@@ -5673,4 +5673,6 @@ export const ES: Record<string, string> = {
   'O que há de novo': 'Qué hay de nuevo',
   '{n} mudança(s) nesta versão.': '{n} cambio(s) en esta versión.',
   'Melhorias e correções.': 'Mejoras y correcciones.',
+  '{n} juntado(s)': '{n} juntado(s)',
+  '{n} sem juntar': '{n} sin juntar',
 }
