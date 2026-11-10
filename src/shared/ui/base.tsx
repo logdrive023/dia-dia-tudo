@@ -539,12 +539,28 @@ export function Titulo({ children, acao, subtitulo, icone }: { children: ReactNo
   )
 }
 
-export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { id: string; nome: string; extra?: ReactNode; desativada?: boolean }[]; atual: string; onChange(id: string): void; variante?: 'pilula' | 'sublinhado' }) {
+/**
+ * Abas. `pergunta` (opcional, por aba): a pergunta que a aba responde, numa linha logo abaixo da barra (só a da aba
+ * aberta) — ex.: Relatórios › Imposto de Renda: "O ano fiscal: impostos estimados, o que já foi pago…".
+ */
+export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { id: string; nome: string; extra?: ReactNode; desativada?: boolean; pergunta?: string }[]; atual: string; onChange(id: string): void; variante?: 'pilula' | 'sublinhado' }) {
+  const t = useT()
+  const pergunta = abas.find((a) => a.id === atual)?.pergunta
+  if (pergunta) return (
+    <div className="mb-4">
+      <AbasBarra abas={abas} atual={atual} onChange={onChange} variante={variante} semMargem />
+      <p className="mt-2 border-l-2 border-[var(--marca)] pl-3 text-sm leading-snug text-[var(--suave)]">{t(pergunta)}</p>
+    </div>
+  )
+  return <AbasBarra abas={abas} atual={atual} onChange={onChange} variante={variante} />
+}
+
+function AbasBarra({ abas, atual, onChange, variante, semMargem }: { abas: { id: string; nome: string; extra?: ReactNode; desativada?: boolean }[]; atual: string; onChange(id: string): void; variante: 'pilula' | 'sublinhado'; semMargem?: boolean }) {
   const t = useT()
   if (variante === 'sublinhado') {
     // até 4 abas: dividem a largura (cabem em 360 px, sem barra de rolar); mais que isso: rolam, sem barra aparente
     return (
-      <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-[var(--borda)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div role="tablist" className={cx('flex gap-1 overflow-x-auto overflow-y-hidden border-b border-[var(--borda)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', !semMargem && 'mb-4')}>
         {abas.map((a) => (
           <button key={a.id} role="tab" aria-selected={a.id === atual} type="button" disabled={a.desativada} title={a.desativada ? t('Em breve') : undefined} onClick={() => onChange(a.id)} className={cx('-mb-px min-h-11 shrink-0 grow whitespace-nowrap border-b-2 px-3 text-center text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 sm:grow-0', a.id === atual ? 'border-[var(--marca)] text-[var(--marca)]' : 'border-transparent text-[var(--suave)] hover:text-[var(--texto)]')}>
             {t(a.nome)} {a.extra}
@@ -554,7 +570,7 @@ export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { i
     )
   }
   return (
-    <div role="tablist" className="sem-barra mb-4 flex gap-1 overflow-x-auto rounded-xl bg-[var(--marca-suave)] p-1">
+    <div role="tablist" className={cx('sem-barra flex gap-1 overflow-x-auto rounded-xl bg-[var(--marca-suave)] p-1', !semMargem && 'mb-4')}>
       {abas.map((a) => (
         <button
           key={a.id}

@@ -16,6 +16,7 @@ import { useT } from '../../../shared/ui/i18n'
 import { DocumentoIR } from './DocumentoIR'
 import { EscolhaCartoes } from '../../../shared/ui/escolhaCartoes'
 import { EmResumo } from './resumo'
+import { LegendaSelos } from '../../../shared/ui/legenda'
 
 type IR = NonNullable<ResultadoConsulta<'impostoRenda'>>
 type Obrig = IR['obrigacoes'][number]
@@ -204,9 +205,7 @@ function Visao({ d, v }: { d: IR; v(n: number): string }) {
         </GrupoNumeros>
       </section>
       {/* a legenda das origens: ninguém precisa adivinhar o que é estimado e o que é confirmado */}
-      <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--suave)]">
-        {Object.values(ORIGEM).map((o) => <span key={o.nome} title={t(o.dica)} className="inline-flex items-center gap-1.5"><Pilula pequena tom={o.tom === 'suave' ? 'suave' : o.tom}>{t(o.nome)}</Pilula>{t(o.dica)}</span>)}
-      </p>
+      <LegendaSelos itens={Object.entries(ORIGEM).map(([id, o]) => ({ id, nome: o.nome, tom: o.tom, dica: o.dica }))} />
       {/* o estado de resultados do exercício e os ajustes tributários */}
       <section className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
         <p className="border-b border-[var(--borda)] px-4 py-3 font-bold">{t('Do lucro contábil ao IUE')} <span className="text-xs font-normal text-[var(--suave)]">{t('Estado de resultados (padrão boliviano) + ajustes')}</span></p>

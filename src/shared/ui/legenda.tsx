@@ -2,7 +2,7 @@
 // Recebe GRUPOS ("Eventos", "Feriados"…) de itens; cada item é um chip com a MARCA (bolinha · quadradinho · apagada) e
 // o nome. A forma da marca é a mesma que aparece na tela (ex.: no calendário, evento = bolinha, feriado = quadradinho).
 // Cada grupo com o seu título e os chips ao lado; no celular o título fica em cima e os chips quebram de linha.
-import { cx } from './base'
+import { Pilula, type Tom, cx } from './base'
 import { useT } from './i18n'
 
 export type FormaMarca = 'bolinha' | 'quadrado' | 'apagada'
@@ -45,6 +45,53 @@ export function Legenda({ grupos, titulo = 'Legenda', className }: { grupos: Gru
           </ul>
         </div>
       ))}
+    </section>
+  )
+}
+
+// ---------- LEGENDA DE SELOS (o que quer dizer cada Pilula) ----------
+// Celular: uma linha com os selos + "O que quer dizer? ›" (abre no toque, a explicação de cada um embaixo).
+// Computador: a lista aberta, selo à esquerda (nunca cortado) e a explicação ao lado.
+
+export interface SeloLegenda {
+  id: string
+  nome: string
+  tom: Tom
+  /** o que o selo quer dizer (uma frase curta) */
+  dica: string
+}
+
+function ListaSelos({ itens }: { itens: SeloLegenda[] }) {
+  const t = useT()
+  return (
+    <ul className="grid grid-cols-[auto_1fr] items-start gap-x-3 gap-y-2 text-xs">
+      {itens.map((i) => (
+        <li key={i.id} className="contents">
+          <Pilula pequena tom={i.tom} className="w-fit shrink-0 whitespace-nowrap">{t(i.nome)}</Pilula>
+          <span className="min-w-0 pt-0.5 text-[var(--suave)]">{t(i.dica)}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+export function LegendaSelos({ itens, titulo = 'O que quer dizer cada selo', className }: { itens: SeloLegenda[]; titulo?: string; className?: string }) {
+  const t = useT()
+  return (
+    <section aria-label={t(titulo)} className={cx('rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] px-4 py-3', className)}>
+      <details className="group sm:hidden">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+          <span className="flex min-w-0 flex-1 flex-wrap gap-1">
+            {itens.map((i) => <Pilula key={i.id} pequena tom={i.tom} className="shrink-0 whitespace-nowrap">{t(i.nome)}</Pilula>)}
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-[var(--marca)]">{t('O que quer dizer?')} <span aria-hidden className="inline-block transition group-open:rotate-90">›</span></span>
+        </summary>
+        <div className="mt-3 border-t border-[var(--borda)] pt-3"><ListaSelos itens={itens} /></div>
+      </details>
+      <div className="hidden sm:block">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--suave)]">{t(titulo)}</p>
+        <ListaSelos itens={itens} />
+      </div>
     </section>
   )
 }

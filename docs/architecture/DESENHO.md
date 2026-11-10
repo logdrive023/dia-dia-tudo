@@ -471,6 +471,8 @@ Regra de operação que pode ser diferente de um negócio para outro vira config
 - Grade de cartões/opções: **`grid-cols-[repeat(auto-fit,minmax(min(8.5rem,100%),1fr))]`** — as colunas se acertam sozinhas pelo espaço, não pela largura da tela (funciona dentro de janela, painel lateral e tela cheia).
 - Botões de escolha lado a lado (`Escolha`, idioma, Sim/Não): `flex flex-wrap` + botão **`min-w-max flex-1`** (se não cabem, descem).
 - `Botao` já não fica mais estreito que a maior palavra (`min-w-min`); `Abas` sublinhadas viram faixa que rola; `NumeroGrande` tira o ícone abaixo de 360; `Titulo` tira o ícone e desce a letra abaixo de 360; `Cartao`, `Passo`, a página e o cabeçalho apertam o espaço interno abaixo de 360.
+- `Abas` com `pergunta` por aba: a pergunta que a aba responde aparece numa linha embaixo da barra (ex.: Relatórios). Tela com muita coisa no celular: sub-abas só no celular (`hidden sm:block` nas seções; as abas em `sm:hidden`) — ex.: Minha vitrine.
+- Legenda de selos (`LegendaSelos` em `src/shared/ui/legenda.tsx`): no celular, os selos numa linha e “O que quer dizer?” abre a explicação; no computador, a lista aberta. O selo nunca é cortado.
 - Detalhe que só ajuda com espaço ("passo 2 de 4", ícone decorativo, contagem): `hidden sm:inline` / `hidden xs:flex` — a informação principal nunca some.
 - **Proibido:** `[overflow-wrap:anywhere]` (deixa a caixa encolher até uma letra e parte as palavras); use `break-words` (só parte o que não cabe sozinho numa linha, ex.: um link enorme).
 - Lista que abre dentro de cartão (ex.: `CampoCidade`): abre **no lugar** (empurra o resto), não flutuando — senão o cartão corta.

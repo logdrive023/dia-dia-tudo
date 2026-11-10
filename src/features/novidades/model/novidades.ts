@@ -102,6 +102,12 @@ export const NOVIDADES: Novidade[] = [
       { area: 'Relatórios', tipo: 'melhoria', tela: 'relatorios', texto: {
         pt: 'Imposto de Renda: a situação do exercício virou um botão claro (“Situação · Em aberto · Mudar ›”) e a janela mostra cada situação com o que ela quer dizer.',
         es: 'Impuesto a la Renta: la situación de la gestión se volvió un botón claro (“Situación · Abierto · Cambiar ›”) y la ventana muestra cada situación con lo que quiere decir.' } },
+      { area: 'Estoque', tipo: 'melhoria', tela: 'vitrine', texto: {
+        pt: 'Minha vitrine no celular em sub-abas (Vitrine · Prontos · Loja), uma coisa por vez; os números levam à aba e “Copiar link” foi para o ⋯. No exemplo há pacotes na vitrine, prontos esperando e sem etiqueta.',
+        es: 'Mi vitrina en el celular en subpestañas (Vitrina · Listos · Tienda), una cosa por vez; los números llevan a la pestaña y “Copiar enlace” pasó al ⋯. En el ejemplo hay paquetes en la vitrina, listos esperando y sin etiqueta.' } },
+      { area: 'Relatórios', tipo: 'correcao', tela: 'relatorios', texto: {
+        pt: 'Imposto de Renda no celular: a legenda (Calculado, Estimado, Confirmado…) não corta mais — os selos numa linha e “O que quer dizer?” abre a explicação. A pergunta de cada aba dos Relatórios virou parte da peça das abas.',
+        es: 'Impuesto a la Renta en el celular: la leyenda (Calculado, Estimado, Confirmado…) ya no se corta — los sellos en una línea y “¿Qué quiere decir?” abre la explicación. La pregunta de cada pestaña de los Reportes pasó a ser parte de la pieza de pestañas.' } },
       { area: 'Sistema', tipo: 'melhoria', texto: {
         pt: 'No computador, a paginação fica sempre no pé da tela: com poucos registros ela desce até embaixo; com muitos, vem logo depois da lista.',
         es: 'En la computadora, la paginación queda siempre al pie de la pantalla: con pocos registros baja hasta abajo; con muchos, viene justo después de la lista.' } },

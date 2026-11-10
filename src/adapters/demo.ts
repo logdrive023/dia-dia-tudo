@@ -472,6 +472,8 @@ async function montar(b: BackendNoAparelho) {
     await c(8, 'marcarEtiquetasImpressas', { ids: ['vit-45-claro', 'vit-65-castanho', 'vit-70-loiro', 'vit-50-ruivo'] }, 15)
   }
   await c(27, 'marcarEtiquetasImpressas', { ids: [await loteDe(compraElena, 60), await loteDe(compraElena, 80)] }, 17)
+  // a vitrine com as 3 situações: vários pacotes NA vitrine · 4 PRONTOS fora (esperando você pôr) · os sem etiqueta (não podem entrar)
+  const prontosFora = new Set([l40, elena55, 'vit-70-loiro', 'vit-50-ruivo', await loteDe(compraElena, 60)])
   await c(1, 'salvarConfig', {
     vitrine: {
       ativa: true,
@@ -479,8 +481,8 @@ async function montar(b: BackendNoAparelho) {
       descricao: 'Cabelo natural boliviano, separado por medida e pesado na balança. Atacado e varejo.',
       whatsapp: '+591 70000000',
       ocultos: [],
-      // "Eu escolho": quase todos os prontos na vitrine; o L-40 e um da Elena ficam em "Prontos para a vitrine"
-      publicados: (await b.consulta('vitrine', {})).pacotes.map((x) => x.id).filter((id) => id !== l40 && id !== elena55),
+      // "Eu escolho": a maioria dos prontos na vitrine; 4 ficam em "Prontos para a vitrine" para mostrar o "pôr na vitrine"
+      publicados: (await b.consulta('vitrine', {})).pacotes.map((x) => x.id).filter((id) => !prontosFora.has(id)),
     },
   })
 

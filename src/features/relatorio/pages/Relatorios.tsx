@@ -45,9 +45,8 @@ export function Relatorios() {
     <div>
       <Titulo subtitulo={t('Estados financeiros no padrão boliviano (ou brasileiro), com cada centavo nos anexos.')}>{t('Relatórios')}</Titulo>
       <div className="nao-imprimir">
-        <Abas atual={rel} onChange={setRel} abas={RELATORIOS.map((r) => ({ id: r.id, nome: `${r.icone} ${t(r.nome)}` }))} />
-        <p className="mt-2 px-1 text-sm text-[var(--suave)]">{t(RELATORIOS.find((r) => r.id === rel)!.pergunta)}</p>
-        {rel !== 'ir' && rel !== 'viagens' && rel !== 'reposicao' && <div className="mb-3 mt-3 flex"><BotaoPeriodo obrigatorio de={periodo.de} ate={periodo.ate} presets={['mes', 'mesPassado', '30d', 'ano']} onChange={(de, ate) => de && ate && setPeriodo({ preset: 'livre', de, ate })} /></div>}
+        <Abas atual={rel} onChange={setRel} abas={RELATORIOS.map((r) => ({ id: r.id, nome: `${r.icone} ${t(r.nome)}`, pergunta: r.pergunta }))} />
+        {rel !== 'ir' && rel !== 'viagens' && rel !== 'reposicao' && <div className="mb-3 flex"><BotaoPeriodo obrigatorio de={periodo.de} ate={periodo.ate} presets={['mes', 'mesPassado', '30d', 'ano']} onChange={(de, ate) => de && ate && setPeriodo({ preset: 'livre', de, ate })} /></div>}
       </div>
       <p className="mb-2 hidden text-sm print:block">{t(RELATORIOS.find((r) => r.id === rel)!.nome)} · {dataBR(periodo.de)} – {dataBR(periodo.ate)}</p>
       <Suspense fallback={<Carregando />}>

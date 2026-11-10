@@ -5648,4 +5648,14 @@ export const ES: Record<string, string> = {
   'Declarado: os números ficam congelados.': 'Declarado: los números quedan congelados.',
   'Ver o que conferir': 'Ver qué revisar',
   'Ver cada imposto': 'Ver cada impuesto',
+  // 10/11/2026: vitrine em sub-abas e legenda de selos
+  'Loja': 'Tienda',
+  'O que o comprador vê agora.': 'Lo que el comprador ve ahora.',
+  'Com etiqueta, esperando você pôr na vitrine.': 'Con etiqueta, esperando que usted lo ponga en la vitrina.',
+  'Prontos que você tirou da vitrine.': 'Listos que usted sacó de la vitrina.',
+  'O que entra e como a loja aparece: textos, cores e preços.': 'Qué entra y cómo aparece la tienda: textos, colores y precios.',
+  'O que fazer com a loja?': '¿Qué hacer con la tienda?',
+  'Para mandar a loja no WhatsApp.': 'Para mandar la tienda por WhatsApp.',
+  'O que quer dizer cada selo': 'Qué quiere decir cada sello',
+  'O que quer dizer?': '¿Qué quiere decir?',
 }
