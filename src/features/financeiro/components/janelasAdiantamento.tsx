@@ -3,6 +3,8 @@
 //   JanelaDinheiro  receber em dinheiro (o parceiro devolve) ou pagar a diferença (a loja deve)
 //   JanelaComissao  a comissão que a loja deve à pessoa paga a dívida
 //   ConfirmarEncerrar com motivo; o que sobrar vira baixa
+//   JanelaAdiantarMais mais dinheiro no mesmo adiantamento (e, se quiser, uma nova data limite)
+//   JanelaPrazo     mudar (ou tirar) a data limite
 import { useState } from 'react'
 import { CATEGORIAS_CABELO } from '../../../core/areas/cabelo'
 import { formatar } from '../../../core/domain/dinheiro'
@@ -16,7 +18,7 @@ import { useComando } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 
 export type DadosAdiantamento = ResultadoConsulta<'financiamento'>
-export type AcaoAdiantamento = 'entrega' | 'receber' | 'comissao' | 'diferenca' | 'encerrar'
+export type AcaoAdiantamento = 'entrega' | 'receber' | 'comissao' | 'diferenca' | 'encerrar' | 'mais' | 'prazo'
 
 interface LinhaEntrega { id: Id; medida?: number; categoria: string; gramas?: number; valor?: number }
 const novaLinha = (): LinhaEntrega => ({ id: novoId(), categoria: 'Normal' })
@@ -153,5 +155,59 @@ export function ConfirmarEncerrar({ dados, onFechar }: { dados: DadosAdiantament
       onFechar={onFechar}
       onConfirmar={async (motivo) => { await executar('encerrarFinanciamento', { id: opId, financiamentoId: dados.financiamento.id, motivo }, t('Adiantamento encerrado.')) }}
     />
+  )
+}
+
+export function JanelaAdiantarMais({ dados, onFechar }: { dados: DadosAdiantamento; onFechar(): void }) {
+  const t = useT()
+  const { executar, ocupado } = useComando()
+  const { cfg } = useCotacoes()
+  const mp = dados.moedaPrincipal
+  const f = dados.financiamento
+  const [opId] = useState(() => novoId())
+  const [moeda, setMoeda] = useState(f.moeda)
+  const [valor, setValor] = useState<number>()
+  const [forma, setForma] = useState('dinheiro')
+  const [prazo, setPrazo] = useState(f.prazo ?? '')
+  const formas = formasEmUso(cfg?.formas, moeda)
+  const registrar = async () => (await executar('reforcarFinanciamento', { id: opId, financiamentoId: f.id, moeda, valor: valor!, forma, prazo }, t('Valor a mais registrado.'))) && onFechar()
+  return (
+    <Janela aberta titulo={`💸 ${t('Adiantar mais')}`} onFechar={() => sair(valor !== undefined, t, onFechar)}
+      rodape={<Botao grande className="w-full" disabled={ocupado || !valor} onClick={registrar}>{t('Registrar')}</Botao>}>
+      <div className="space-y-3">
+        <p className="text-sm">{t('Mais dinheiro para {n} comprar cabelo, no mesmo adiantamento. Sai do caixa e a dívida aumenta.', { n: dados.pessoa?.nome ?? '' })}</p>
+        <Campo rotulo="Valor a mais" comoDiv>
+          <div className="grid grid-cols-[7rem_1fr] gap-2">
+            <Selecao valor={moeda} onChange={(v) => (setMoeda(v), setForma(formasEmUso(cfg?.formas, v)[0]?.id ?? 'dinheiro'))} opcoes={(cfg?.moedasAtivas ?? [mp]).map((x) => ({ id: x, nome: x }))} />
+            <ValorInput moeda={moeda} valor={valor} onChange={setValor} />
+          </div>
+        </Campo>
+        <Campo rotulo="Forma"><Selecao valor={forma} onChange={setForma} opcoes={formas.map((x) => ({ id: x.id, nome: t(x.nome) }))} /></Campo>
+        <Campo rotulo="Data limite para entregar" ajuda="Opcional. Dá para mudar o prazo junto."><Entrada type="date" value={prazo} min={f.data} onChange={(x) => setPrazo(x.target.value)} /></Campo>
+        {valor !== undefined && moeda === mp && (
+          <div className="rounded-2xl bg-[var(--fundo)] p-3 text-sm">
+            <p className="flex justify-between gap-3"><span>{t('Falta hoje')}</span><b className="num">{formatar(dados.saldo, mp)}</b></p>
+            <p className="mt-1 flex justify-between gap-3 border-t border-[var(--borda)] pt-1 font-bold"><span>{t('Fica')}</span><span className="num">{formatar(dados.saldo + valor, mp)}</span></p>
+          </div>
+        )}
+      </div>
+    </Janela>
+  )
+}
+
+export function JanelaPrazo({ dados, onFechar }: { dados: DadosAdiantamento; onFechar(): void }) {
+  const t = useT()
+  const { executar, ocupado } = useComando()
+  const f = dados.financiamento
+  const [prazo, setPrazo] = useState(f.prazo ?? '')
+  const salvar = async (p: string) => (await executar('ajustarFinanciamento', { financiamentoId: f.id, prazo: p }, t('Salvo.'))) && onFechar()
+  return (
+    <Janela aberta titulo={`⏰ ${t('Data limite')}`} onFechar={onFechar}
+      rodape={<div className="flex gap-2">
+        {f.prazo && <Botao variante="secundario" disabled={ocupado} onClick={() => salvar('')}>{t('Sem data')}</Botao>}
+        <Botao grande className="flex-1" disabled={ocupado || !prazo || prazo === f.prazo} onClick={() => salvar(prazo)}>{t('Salvar')}</Botao>
+      </div>}>
+      <Campo rotulo="Até quando entregar o cabelo" ajuda="Passou a data e ainda deve: aparece como vencido na lista e no painel."><Entrada type="date" value={prazo} min={f.data} onChange={(x) => setPrazo(x.target.value)} /></Campo>
+    </Janela>
   )
 }

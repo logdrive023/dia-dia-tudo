@@ -35,7 +35,7 @@ export function CartaoAdiantamento({ f, moeda, hoje, onAbrir }: { f: LinhaLista;
     <CartaoConta
       cor={corFinanciamento(f.status)}
       nome={f.pessoa}
-      sub={`${f.codigo} · ${t('adiantei')} ${formatar(f.valor, f.moeda)} · ${dataBR(f.data)}`}
+      sub={`${f.codigo} · ${t('adiantei')} ${f.financiado !== f.inicial ? formatar(f.financiado, moeda) : formatar(f.valor, f.moeda)} · ${dataBR(f.data)}`}
       situacao={<StatusFinanciamentoPilula status={f.status} />}
       rotuloValor={s.rotulo}
       valor={f.saldo ? formatar(Math.abs(f.saldo), moeda) : '✓'}
@@ -52,7 +52,7 @@ export function CartaoAdiantamento({ f, moeda, hoje, onAbrir }: { f: LinhaLista;
   )
 }
 
-const ICONE_PASSO: Record<PassoFinanciamento['tipo'], string> = { emprestimo: '💸', entrega: '💇‍♀️', recebimento: '💵', comissao: '🧾', diferenca: '↩️', baixa: '✂️', quitacao: '✅', encerramento: '🔒' }
+const ICONE_PASSO: Record<PassoFinanciamento['tipo'], string> = { emprestimo: '💸', entrega: '💇‍♀️', recebimento: '💵', comissao: '🧾', diferenca: '↩️', baixa: '✂️', reforco: '💸', quitacao: '✅', encerramento: '🔒' }
 
 /** Linha do tempo do adiantamento: um passo por acontecimento, com o efeito na dívida e o saldo depois. */
 export function LinhaTempoAdiantamento({ passos, moeda, nomeForma }: { passos: PassoFinanciamento[]; moeda: string; nomeForma(id: string): string }) {

@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Botao, Carregando, Escolha, ErroTela, dataBR } from '../../../shared/ui/base'
 import { useApp, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
+import { NotaTela } from '../../../shared/ui/notaTela'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
 import { maioresSaidas, montarCascata } from '../model/cascata'
 import { ConteudoSecao, type IdSecao, SECOES, tituloSecao } from './conteudo'
@@ -40,10 +41,11 @@ export function EstadosFinanceiros({ de, ate }: { de: string; ate: string }) {
   const pesou = cascata ? maioresSaidas(cascata) : []
   const sobrou = n.resultado >= 0
 
-  // camada 1: a frase do período
-  const frase = !n.vendas && !n.receita
-    ? t('Nenhuma venda de {de} a {ate}.', { de: dataBR(rel.de), ate: dataBR(rel.ate) })
-    : <>{t('De {de} a {ate} você vendeu', { de: dataBR(rel.de), ate: dataBR(rel.ate) })} <b className="num">{v(n.receita)}</b> ({t('{n} venda(s)', { n: n.vendas })}). {t(sobrou ? 'Depois de custos, despesas e impostos, sobraram' : 'Depois de custos, despesas e impostos, faltaram')} <b className={sobrou ? 'num text-[var(--bom)]' : 'num text-[var(--ruim)]'}>{v(Math.abs(n.resultado))}</b>.{pesou.length > 0 && <> {t('O que mais pesou')}: {pesou.map((p, k) => <span key={p.id}>{k ? ' · ' : ''}<b>{t(p.rotulo)}</b> <span className="num">{v(-p.valor)}</span></span>)}.</>}</>
+  // camada 1: o período EM LISTA, para leigos — o que vendeu, o que saiu, o que sobrou e o que mais pesou
+  const saiu = n.receita - n.resultado
+  const semVenda = !n.vendas && !n.receita
+  const irPara = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const nAnexos = SECOES.filter((y) => y.anexo).length
 
   // camada 4: cada parte contábil já diz o principal no título
   const resumoDe: Partial<Record<IdSecao, string>> = {
@@ -75,10 +77,16 @@ export function EstadosFinanceiros({ de, ate }: { de: string; ate: string }) {
         {!rel.empresa.nit && <span className="nao-imprimir mt-0.5 block text-[var(--alerta)]">⚠ {t('Sem NIT no cabeçalho: ponha em Configurações › Fiscal e relatórios.')}</span>}
       </p>
 
-      <EmResumo frase={frase} tom={n.resultado < 0 ? 'ruim' : 'bom'} fatos={[
-        confere ? `✓ ${x.conferencia}` : `⚠ ${x.conferencia}`,
-        n.impostos ? `🧾 ${t(pais === 'BO' ? 'Impuestos' : 'Impostos')} ${v(n.impostos)}` : undefined,
-      ]} />
+      <EmResumo tom={n.resultado < 0 ? 'ruim' : 'bom'}
+        itens={[
+          { icone: '📅', texto: t('De {de} a {ate}', { de: dataBR(rel.de), ate: dataBR(rel.ate) }), sub: t('o período escolhido') },
+          { icone: '💰', texto: t('Você vendeu'), sub: semVenda ? t('nenhuma venda no período') : t('{n} venda(s)', { n: n.vendas }), valor: v(n.receita), tom: 'bom' },
+          !semVenda && { icone: '📉', texto: t('Custos, despesas e impostos'), sub: t('tudo o que saiu para chegar no resultado'), valor: v(-saiu), tom: 'ruim' },
+          !semVenda && { icone: '🏁', texto: t(sobrou ? 'Sobraram' : 'Faltaram'), sub: t(sobrou ? 'o lucro do período' : 'saiu mais do que entrou'), valor: v(Math.abs(n.resultado)), tom: sobrou ? 'bom' : 'ruim', destaque: true },
+          pesou.length > 0 && { icone: '⚖️', texto: t('O que mais pesou'), barras: pesou.map((p) => ({ rotulo: t(p.rotulo), valor: v(-p.valor), pct: n.receita > 0 ? Math.min(100, Math.round((-p.valor / Math.max(n.receita, saiu)) * 100)) : 0 })) },
+        ]}
+        rodape={[confere ? `✓ ${x.conferencia}` : `⚠ ${x.conferencia}`, n.impostos ? `🧾 ${t(pais === 'BO' ? 'Impuestos' : 'Impostos')} ${v(n.impostos)}` : '']}
+        mais={{ texto: t('Ver de onde veio cada centavo ({n} anexos)', { n: nAnexos }), onClick: () => irPara('cascata') }} />
 
       <GrupoNumeros colunas={4}>
         <NumeroGrande rotulo={pais === 'BO' ? 'Ventas' : 'Receita'} icone="💰" cor="var(--marca)" valor={v(n.receita)} selos={[{ texto: t('{n} venda(s)', { n: n.vendas }) }]} onClick={() => irAnexo('vendas')} />
@@ -87,11 +95,13 @@ export function EstadosFinanceiros({ de, ate }: { de: string; ate: string }) {
         <NumeroGrande rotulo={pais === 'BO' ? 'Utilidad neta' : 'Lucro líquido'} icone="🏁" cor={n.resultado < 0 ? 'var(--ruim)' : 'var(--bom)'} colorirValor valor={v(n.resultado)} selos={[{ texto: confere ? `✓ ${x.conferencia}` : `⚠ ${x.conferencia}`, tom: confere ? 'bom' : 'ruim' }]} />
       </GrupoNumeros>
 
-      {cascata && <CascataResultado cascata={cascata} v={v} onAnexo={irAnexo} />}
+      {cascata && <div id="cascata" className="scroll-mt-4"><CascataResultado cascata={cascata} v={v} onAnexo={irAnexo} /></div>}
 
       {/* o contábil: cada parte abre no lugar */}
       <section aria-label={t('Formato contábil')} className="space-y-2">
         <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--suave)]">📑 {t('Formato contábil')}</h2>
+        {pais === 'BO' && <NotaTela icone="🇧🇴">{t('Na ordem das normas bolivianas: o IVA sai das vendas (o preço já inclui IVA), o IT 3% é gasto e o IUE é 25% da utilidade. Para o SIN, o contador entrega por ano o Formulario 500 (IUE) e o 605 (estados financieros), até 120 dias depois do cierre — com o Balance, o Estado de Resultados e as notas.')}</NotaTela>}
+        <NotaTela icone="🧾">{t('Impostos oficiais: IVA e IT (e o IUE, anual). As taxas e os impostos que você cadastrar vêm de Configurações › Fiscal › Impostos — os cadastrados aparecem com o selo “📝 cadastro”.')} <button type="button" onClick={() => ir('configSecao', { id: 'fiscal' })} className="alvo-amplo font-semibold text-[var(--marca)] underline-offset-2 hover:underline">{t('Ver impostos')} ›</button></NotaTela>
         {(['resultado', 'balanco', 'impostos', 'conferencia'] as const).map((id) => blocoSecao(id))}
       </section>
 

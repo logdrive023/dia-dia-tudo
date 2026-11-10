@@ -54,8 +54,12 @@ export function ComparaViagens() {
       ]} />
 
       <EmResumo tom={resultado < 0 ? 'alerta' : 'bom'}
-        frase={!comKg.length ? t('{n} viagem(ns) na lista, nenhuma com compra ainda.', { n: lista.length }) : <>{t('{n} viagem(ns) trouxeram', { n: comKg.length })} <b className="num">{kg(gramas)}</b>, {t('a')} <b className="num">{v(Math.round((investido * 1000) / gramas))}</b> {t('por kg com os gastos da viagem')}. {t(resultado < 0 ? 'Ainda falta voltar' : 'Já voltou')} <b className={resultado < 0 ? 'num text-[var(--alerta)]' : 'num text-[var(--bom)]'}>{v(Math.abs(resultado))}</b>{resultado < 0 ? ` ${t('(o cabelo ainda em estoque conta quando for vendido)')}` : ''}.</>}
-        fatos={maisBarata ? [`🏷 ${t('Kg mais barato')}: ${maisBarata.codigo} ${v(maisBarata.custoKgReal ?? 0)}`] : undefined} />
+        itens={!comKg.length ? [{ icone: '✈️', texto: t('{n} viagem(ns) na lista, nenhuma com compra ainda.', { n: lista.length }) }] : [
+          { icone: '✈️', texto: t('{n} viagem(ns) trouxeram', { n: comKg.length }), valor: kg(gramas), tom: 'bom' },
+          { icone: '🏷', texto: t('Cada kg custou'), sub: t('com os gastos da viagem'), valor: v(Math.round((investido * 1000) / gramas)) },
+          { icone: '📈', texto: t(resultado < 0 ? 'Ainda falta voltar' : 'Já voltou'), sub: resultado < 0 ? t('(o cabelo ainda em estoque conta quando for vendido)') : undefined, valor: v(Math.abs(resultado)), tom: resultado < 0 ? 'alerta' : 'bom', destaque: true },
+          maisBarata && { icone: '🥇', texto: t('Kg mais barato'), sub: maisBarata.codigo, valor: v(maisBarata.custoKgReal ?? 0) },
+        ]} />
 
       <GrupoNumeros colunas={4}>
         <NumeroGrande rotulo="Viagens" icone="✈️" valor={String(lista.length)} selos={[{ texto: t('{n} com compra', { n: comKg.length }) }]} />

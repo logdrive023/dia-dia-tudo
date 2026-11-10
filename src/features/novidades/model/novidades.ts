@@ -84,6 +84,24 @@ export const NOVIDADES: Novidade[] = [
       { area: 'Pessoas', tipo: 'novo', tela: 'emprestimos', texto: {
         pt: 'Cobrar no WhatsApp (adiantamento e empréstimo): a mensagem vem pronta em espanhol ou português com os dados da conta (quanto falta, as parcelas…), dá para mudar antes de enviar, com prévia, e “Usar sempre este texto” guarda o seu jeito.',
         es: 'Cobrar por WhatsApp (anticipo y préstamo): el mensaje viene listo en español o portugués con los datos de la cuenta (cuánto falta, las cuotas…), se puede cambiar antes de enviar, con vista previa, y “Usar siempre este texto” guarda su forma.' } },
+      { area: 'Pessoas', tipo: 'novo', tela: 'emprestimos', texto: {
+        pt: 'Empréstimos: “✏️ Mudar” em cada parcela em aberto muda o dia ou o valor — a diferença vai para as próximas parcelas (ou, se você marcar, muda o total da dívida), com o “Como fica” antes de salvar. Muda em todo lugar: próxima parcela, atrasos, painel, agenda e cobrança.',
+        es: 'Préstamos: “✏️ Cambiar” en cada cuota pendiente cambia el día o el monto — la diferencia va a las próximas cuotas (o, si usted marca, cambia el total de la deuda), con el “Cómo queda” antes de guardar. Cambia en todas partes: próxima cuota, atrasos, panel, agenda y cobro.' } },
+      { area: 'Pessoas', tipo: 'novo', tela: 'emprestimos', texto: {
+        pt: 'Emprestar mais no mesmo empréstimo (ex.: 1.000 e depois mais 1.000): parcelas novas no fim ou juntar com o que falta num parcelamento só. Sai do caixa, segue os juros do empréstimo e reabre um empréstimo quitado.',
+        es: 'Prestar más en el mismo préstamo (ej.: 1.000 y después 1.000 más): cuotas nuevas al final o juntar con lo que falta en un solo plan. Sale de la caja, sigue los intereses del préstamo y reabre un préstamo pagado.' } },
+      { area: 'Pessoas', tipo: 'novo', tela: 'adiantamentos', texto: {
+        pt: 'Adiantamentos: “Adiantar mais” põe mais dinheiro no mesmo adiantamento (sai do caixa, aparece na linha do tempo e no “Adiantado”), e a data limite agora muda pelo ⋯.',
+        es: 'Anticipos: “Adelantar más” pone más dinero en el mismo anticipo (sale de la caja, aparece en la línea de tiempo y en “Adelantado”), y la fecha límite ahora se cambia por el ⋯.' } },
+      { area: 'Relatórios', tipo: 'melhoria', tela: 'relatorios', texto: {
+        pt: 'Estados financeiros e Imposto de Renda com o “Em resumo” em lista: do dia X a Y, quanto vendeu, quanto saiu, quanto sobrou ou faltou e o que mais pesou — e o IUE estimado mostra a conta (lucro × %) e até quando entregar o Formulario 500 e 605.',
+        es: 'Estados financieros e Impuesto a la Renta con el “En resumen” en lista: del día X al Y, cuánto vendió, cuánto salió, cuánto quedó o faltó y lo que más pesó — y el IUE estimado muestra la cuenta (utilidad × %) y hasta cuándo presentar el Formulario 500 y 605.' } },
+      { area: 'Relatórios', tipo: 'correcao', tela: 'relatorios', texto: {
+        pt: 'Os relatórios usam os impostos de Configurações › Fiscal: a taxa do IVA, do IT e do IUE, o liga/desliga e os impostos que você cadastrar. Os oficiais têm o selo 🏛; os cadastrados aparecem com “📝 cadastro”.',
+        es: 'Los reportes usan los impuestos de Configuración › Fiscal: la tasa del IVA, del IT y del IUE, el encendido/apagado y los impuestos que usted registre. Los oficiales tienen el sello 🏛; los registrados aparecen con “📝 registro”.' } },
+      { area: 'Relatórios', tipo: 'melhoria', tela: 'relatorios', texto: {
+        pt: 'Imposto de Renda: a situação do exercício virou um botão claro (“Situação · Em aberto · Mudar ›”) e a janela mostra cada situação com o que ela quer dizer.',
+        es: 'Impuesto a la Renta: la situación de la gestión se volvió un botón claro (“Situación · Abierto · Cambiar ›”) y la ventana muestra cada situación con lo que quiere decir.' } },
       { area: 'Sistema', tipo: 'melhoria', texto: {
         pt: 'No computador, a paginação fica sempre no pé da tela: com poucos registros ela desce até embaixo; com muitos, vem logo depois da lista.',
         es: 'En la computadora, la paginación queda siempre al pie de la pantalla: con pocos registros baja hasta abajo; con muchos, viene justo después de la lista.' } },

@@ -118,6 +118,8 @@ export const comandos = {
   // empréstimos
   criarEmprestimo: emprestimos.criarEmprestimo,
   pagarEmprestimo: emprestimos.pagarEmprestimo,
+  ajustarParcela: emprestimos.ajustarParcela,
+  aumentarEmprestimo: emprestimos.aumentarEmprestimo,
   // cadastros
   salvarPessoa: cadastros.salvarPessoa,
   salvarLocal: cadastros.salvarLocal,
@@ -154,6 +156,7 @@ export const comandos = {
   abaterComissaoFinanciamento: financiamentos.abaterComissaoFinanciamento,
   encerrarFinanciamento: financiamentos.encerrarFinanciamento,
   ajustarFinanciamento: financiamentos.ajustarFinanciamento,
+  reforcarFinanciamento: financiamentos.reforcarFinanciamento,
 }
 
 export const consultas = {

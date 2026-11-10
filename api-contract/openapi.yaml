@@ -185,6 +185,8 @@ components:
         - trocarMinhaSenha
         - criarEmprestimo
         - pagarEmprestimo
+        - ajustarParcela
+        - aumentarEmprestimo
         - salvarPessoa
         - salvarLocal
         - salvarCotacao
@@ -217,6 +219,7 @@ components:
         - abaterComissaoFinanciamento
         - encerrarFinanciamento
         - ajustarFinanciamento
+        - reforcarFinanciamento
     NomeConsulta:
       description: 'Consultas (só leitura). Fonte da verdade: src/core/services/index.ts'
       type: string

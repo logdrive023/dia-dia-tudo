@@ -39,6 +39,7 @@ const NOME_EVENTO: Record<EventoFinanciamento['tipo'], string> = {
   comissao: 'Abatido da comissão',
   diferenca: 'Paguei a diferença',
   baixa: 'Baixa ao encerrar',
+  reforco: 'Adiantei mais dinheiro',
 }
 
 /** "Adiantamento AD-0001 · Parceiro X" (vai na observação da compra e na origem do lote) */
@@ -79,7 +80,9 @@ export function situacaoFinanciamento(f: Financiamento, movsPessoa: MovConta[], 
     const t = compras.get(e.compraId!)
     return s + (t && t.etapa !== ETAPA_CANCELADO ? t.linhas.reduce((x, l) => x + l.quantidade, 0) : 0)
   }, 0)
-  const financiado = porOrigem.get(f.id) ?? 0
+  // o adiantado = a entrega inicial + cada "adiantei mais"
+  const inicial = porOrigem.get(f.id) ?? 0
+  const financiado = inicial + soma('reforco')
   const entregue = -soma('entrega')
   const recebido = -soma('recebimento')
   const comissao = -soma('comissao')
@@ -91,6 +94,7 @@ export function situacaoFinanciamento(f: Financiamento, movsPessoa: MovConta[], 
   const coberto = entregue + recebido + comissao
   return {
     financiado,
+    inicial,
     entregue,
     gramas,
     recebido,
@@ -329,6 +333,30 @@ export async function reterComissaoFinanciamentos(ctx: Ctx, d: { pessoaId: Id; v
   return retido
 }
 
+/**
+ * ADIANTEI MAIS: mais dinheiro no mesmo adiantamento (ex.: 5.000 e depois mais 2.000 → a pessoa deve 7.000).
+ * Sai do caixa (empréstimo operacional, fora do DRE), entra na conta da pessoa e aparece na linha do tempo.
+ * Reabre um adiantamento quitado; encerrado não (crie outro).
+ */
+export async function reforcarFinanciamento(ctx: Ctx, d: { id: Id; financiamentoId: Id; moeda: CodigoMoeda; valor: number; forma: string; obs?: string; prazo?: string }) {
+  exigirAdmin(ctx)
+  const f = await obter(ctx, d.financiamentoId)
+  if (f.eventos.some((e) => e.id === d.id)) return { id: d.id }
+  exigir(!f.encerramento, 'Esse adiantamento foi encerrado: crie um novo.')
+  exigirInteiroPositivo(d.valor, 'Valor')
+  await exigirMoedaAtiva(ctx, d.moeda)
+  exigir(!d.prazo || (/^\d{4}-\d{2}-\d{2}$/.test(d.prazo) && d.prazo >= f.data), 'A data limite não pode ser antes da data do adiantamento.', 'prazo')
+  const { valorPrincipal } = await paraPrincipal(ctx, d.valor, d.moeda, 'compra')
+  exigir(valorPrincipal > 0, 'Valor pequeno demais para registrar.')
+  const pessoa = await ctx.repos.pessoas.obter(f.pessoaId)
+  await moverCaixa(ctx, { data: ctx.relogio.hoje(), moeda: d.moeda, forma: d.forma, delta: -d.valor, tipo: 'emprestimo', origemId: d.id, descricao: `Saída por empréstimo operacional · ${f.codigo} (mais) · ${pessoa?.nome ?? ''}` })
+  await moverConta(ctx, { pessoaId: f.pessoaId, delta: valorPrincipal, tipo: 'adiantamento', origemId: d.id, forma: d.forma, descricao: `${textoOrigem(f.codigo)} · mais dinheiro para comprar cabelo` })
+  const atual = await guardarEvento(ctx, f, evento(ctx, { id: d.id, tipo: 'reforco', moeda: d.moeda, valor: d.valor, forma: d.forma, obs: d.obs?.trim() || undefined }))
+  if (d.prazo !== undefined && (d.prazo || undefined) !== atual.prazo) await ctx.repos.financiamentos.salvar(tocar(ctx, { ...atual, prazo: d.prazo || undefined }))
+  await auditar(ctx, 'reforcarFinanciamento', f.id, `${f.codigo} · ${pessoa?.nome}: mais ${formatar(d.valor, d.moeda)} (${d.forma})`, [f.pessoaId])
+  return { id: d.id }
+}
+
 /** Encerra à mão com motivo. Se ainda havia saldo, ele vira baixa (ajuste) na conta corrente: a conta fica zerada. */
 export async function encerrarFinanciamento(ctx: Ctx, d: { id: Id; financiamentoId: Id; motivo: string }) {
   exigirAdmin(ctx)
@@ -347,7 +375,9 @@ export async function encerrarFinanciamento(ctx: Ctx, d: { id: Id; financiamento
 }
 
 /** Liga (ou desliga) o abatimento automático nas próximas comissões e a viagem do adiantamento. */
-export async function ajustarFinanciamento(ctx: Ctx, d: { financiamentoId: Id; abaterComissoes?: boolean; viagemId?: Id | null; obs?: string }) {
+export async function ajustarFinanciamento(ctx: Ctx, d: { financiamentoId: Id; abaterComissoes?: boolean; viagemId?: Id | null; obs?: string
+  /** a data limite para entregar ('' tira a data) */
+  prazo?: string }) {
   exigirAdmin(ctx)
   const f = await obter(ctx, d.financiamentoId)
   const mudou: string[] = []
@@ -360,6 +390,11 @@ export async function ajustarFinanciamento(ctx: Ctx, d: { financiamentoId: Id; a
     if (d.viagemId) exigir(await ctx.repos.viagens.obter(d.viagemId), 'Viagem não encontrada.')
     prox.viagemId = d.viagemId || undefined
     mudou.push(d.viagemId ? 'viagem ligada' : 'viagem desligada')
+  }
+  if (d.prazo !== undefined && (d.prazo || undefined) !== f.prazo) {
+    exigir(!d.prazo || (/^\d{4}-\d{2}-\d{2}$/.test(d.prazo) && d.prazo >= f.data), 'A data limite não pode ser antes da data do adiantamento.', 'prazo')
+    prox.prazo = d.prazo || undefined
+    mudou.push(d.prazo ? `data limite ${f.prazo ?? '—'} → ${d.prazo}` : 'sem data limite')
   }
   if (d.obs !== undefined && (d.obs.trim() || undefined) !== f.obs) {
     prox.obs = d.obs.trim() || undefined
@@ -482,9 +517,9 @@ export async function financiamento(ctx: Ctx, p: { id: Id }) {
   const itens: Item[] = compras.size ? await ctx.repos.itens.listar() : []
   const usuarios = new Map((await ctx.repos.usuarios.listar()).map((u) => [u.id, u.nome]))
   const nomeEtapa = (t: Transacao) => ctx.modulos.obter(t.moduloId).compra?.etapas.find((e) => e.id === t.etapa)?.nome ?? (t.etapa === ETAPA_CANCELADO ? 'Cancelada' : t.etapa === 'recusado' ? 'Recusada' : t.etapa)
-  let saldo = s.financiado
+  let saldo = s.inicial
   const passos: PassoFinanciamento[] = [
-    { id: f.id, tipo: 'emprestimo', titulo: 'Dinheiro entregue para comprar cabelo', data: f.data, em: f.criadoEm, porNome: usuarios.get(f.criadoPor), efeito: s.financiado, saldoDepois: saldo, dinheiro: { valor: f.valor, moeda: f.moeda, forma: f.forma }, obs: f.obs },
+    { id: f.id, tipo: 'emprestimo', titulo: 'Dinheiro entregue para comprar cabelo', data: f.data, em: f.criadoEm, porNome: usuarios.get(f.criadoPor), efeito: s.inicial, saldoDepois: saldo, dinheiro: { valor: f.valor, moeda: f.moeda, forma: f.forma }, obs: f.obs },
   ]
   for (const e of f.eventos) {
     const efeito = s.efeito(e)

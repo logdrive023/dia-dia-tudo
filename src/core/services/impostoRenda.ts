@@ -8,7 +8,7 @@ import { formatar } from '../domain/dinheiro'
 import { empresaFormatada } from '../domain/textoFormatado'
 import { exigir } from '../domain/erros'
 import type { Id } from '../domain/tipos'
-import { aplicar } from '../dados/impostos'
+import { aplicar, taxaDaLista } from '../dados/impostos'
 import { feriadosEntre } from '../dados/feriados'
 import { type IdObrigacao, type TipoAtividade, CIERRE, exercicio, regrasEm, ultimoDia, vencimentoMensal } from '../dados/tributosBO'
 import { auditar, type Ctx, lerConfig, novo, tocar } from './contexto'
@@ -105,8 +105,9 @@ export async function impostoRenda(ctx: Ctx, p: { ano: number }) {
     const semFactura = comprasMes.filter((t) => docCompra(t) !== 'factura')
     const despMes = despesas.filter((x) => x.data.slice(0, 7) === mes)
     const despFactura = despMes.filter((x) => x.docFiscal?.documento === 'factura')
-    const ivaBp = v.obrigacoes.find((o) => o.id === 'iva')!.aliquotaBp!
-    const itBp = v.obrigacoes.find((o) => o.id === 'it')!.aliquotaBp!
+    // a taxa é a da configuração (a mesma dos Estados financeiros); sem o imposto na lista, a da lei do mês
+    const ivaBp = taxaDaLista(fis, 'iva', v.obrigacoes.find((o) => o.id === 'iva')!.aliquotaBp!)
+    const itBp = taxaDaLista(fis, 'it', v.obrigacoes.find((o) => o.id === 'it')!.aliquotaBp!)
     const debito = general && fis.vendasComFatura ? aplicar(r.receita, ivaBp) : 0
     const credito = general ? aplicar(comFactura.reduce((s, t) => s + t.totalPrincipal, 0) + despFactura.reduce((s, x) => s + valorDespesa(x), 0), ivaBp) : 0
     const ivaLiq = debito - credito - saldoIva
@@ -138,7 +139,8 @@ export async function impostoRenda(ctx: Ctx, p: { ano: number }) {
   const naoDedutiveis = despesas.filter((x) => !dedutivel(x))
   const ajusteNaoDedutivel = naoDedutiveis.reduce((s, x) => s + valorDespesa(x), 0)
   const lucroTributavel = lucroContabil + ajusteNaoDedutivel
-  const iueApurado = general ? aplicar(Math.max(0, lucroTributavel), regras.obrigacoes.find((o) => o.id === 'iue')!.aliquotaBp!) : 0
+  // o IUE pela taxa da configuração (a mesma dos Estados financeiros)
+  const iueApurado = general ? aplicar(Math.max(0, lucroTributavel), fis.iueBp ?? regras.obrigacoes.find((o) => o.id === 'iue')!.aliquotaBp!) : 0
 
   // ---------- cada obrigação: apurado (estimado) × declarado/pago (confirmado) ----------
   const reg = (id: IdObrigacao, periodo: string) => registros.filter((r) => r.obrigacao === id && r.periodo === periodo)
@@ -213,7 +215,9 @@ export async function impostoRenda(ctx: Ctx, p: { ano: number }) {
   }
 
   const kpi = (valor: number, origem: Origem) => ({ valor, origem })
-  const impostosApurados = obrigacoes.reduce((s, o) => s + o.apurado, 0)
+  // os impostos CADASTRADOS em Configurações (não são os oficiais): entram no apurado e aparecem à parte, com o selo
+  const cadastrados = rel.resumoImpostos.itens.filter((i) => i.cadastrado).map((i) => ({ sigla: i.sigla, rotulo: i.rotulo, valor: i.valor }))
+  const impostosApurados = obrigacoes.reduce((s, o) => s + o.apurado, 0) + cadastrados.reduce((s, i) => s + i.valor, 0)
   const pagos = obrigacoes.reduce((s, o) => s + o.pago, 0)
   return {
     exercicio: { ...ex, cierreNome: CIERRE[tipo].nome, tipoConfirmado: !!fis.tipoAtividade },
@@ -236,8 +240,10 @@ export async function impostoRenda(ctx: Ctx, p: { ano: number }) {
       estoqueInicial: kpi(estoqueInicial, 'calculado'),
       estoqueFinal: kpi(estoqueFinal, 'calculado'),
     },
-    resultado: { linhas: rel.resultados, ajustes: [{ id: 'naoDedutiveis', rotulo: '(+) Gastos sem documento ou não dedutíveis', valor: ajusteNaoDedutivel }], lucroContabil, lucroTributavel, iue: iueApurado, perdasAnteriores: 'a informar pelo contador' },
+    resultado: { iueBp: fis.iueBp ?? regras.obrigacoes.find((o) => o.id === 'iue')!.aliquotaBp!, linhas: rel.resultados, ajustes: [{ id: 'naoDedutiveis', rotulo: '(+) Gastos sem documento ou não dedutíveis', valor: ajusteNaoDedutivel }], lucroContabil, lucroTributavel, iue: iueApurado, perdasAnteriores: 'a informar pelo contador' },
     obrigacoes,
+    /** impostos cadastrados pela pessoa (fora dos oficiais): o valor estimado do exercício */
+    cadastrados,
     meses,
     alertas: alertas.sort((a, b) => ({ critico: 0, atencao: 1, info: 2 })[a.nivel] - ({ critico: 0, atencao: 1, info: 2 })[b.nivel]),
     situacao: estado?.situacao ?? (hoje <= ex.ate ? 'aberto' : 'preparacao'),

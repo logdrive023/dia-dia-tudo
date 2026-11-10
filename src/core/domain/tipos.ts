@@ -501,7 +501,8 @@ export interface Viagem extends Base {
 export interface EventoFinanciamento {
   /** entrega: o id é o da compra criada; os outros: o id da operação (origem na conta corrente) */
   id: Id
-  tipo: 'entrega' | 'recebimento' | 'comissao' | 'diferenca' | 'baixa'
+  /** reforco: mais dinheiro adiantado no mesmo adiantamento (sai do caixa, a pessoa deve mais) */
+  tipo: 'entrega' | 'recebimento' | 'comissao' | 'diferenca' | 'baixa' | 'reforco'
   data: string
   em: string
   porNome: string

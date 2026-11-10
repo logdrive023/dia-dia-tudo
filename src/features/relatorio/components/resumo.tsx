@@ -1,5 +1,6 @@
 // RELATÓRIOS › O PADRÃO "RESUMO → DETALHE" (como o Painel): bater o olho e entender; querendo, abrir mais e mais.
-//   EmResumo         a frase do que aconteceu no período + os fatos que mais pesaram (camada 1)
+//   EmResumo         o que aconteceu, EM LISTA ("para leigos"): uma linha por fato — 📅 o período · 💰 vendeu · 📉 saiu ·
+//                    🏁 sobrou/faltou · ⚖️ o que mais pesou (com barrinhas) — e, no pé, o ICEBERG: "tem mais embaixo ↓"
 //   CascataResultado "para onde foi o dinheiro": das vendas ao que sobrou, uma barra por etapa; cada grupo de saídas
 //                    abre no toque com as contas, e "ver ›" leva ao anexo com cada centavo (camadas 3 e 4)
 //   BlocoRelatorio   uma parte do relatório que abre no lugar, com o RESUMO no próprio título (ex.: "Activo 418.540 ·
@@ -9,16 +10,69 @@ import { type ReactNode, useState } from 'react'
 import { cx } from '../../../shared/ui/base'
 import { useT } from '../../../shared/ui/i18n'
 import { type Anexo, type Cascata, type ContaCascata, larguraBarra } from '../model/cascata'
+import { SeloCadastro } from './pecas'
 
-export function EmResumo({ frase, fatos, tom }: { frase: ReactNode; fatos?: ReactNode[]; tom?: 'bom' | 'ruim' | 'alerta' }) {
+type Tom = 'bom' | 'ruim' | 'alerta' | 'marca'
+const COR: Record<Tom, string> = { bom: 'var(--bom)', ruim: 'var(--ruim)', alerta: 'var(--alerta)', marca: 'var(--marca)' }
+
+/** uma linha do resumo: ícone · o que é (em palavras simples) · o valor (colorido) · um detalhe curto embaixo */
+export interface LinhaResumo {
+  icone: string
+  texto: ReactNode
+  valor?: ReactNode
+  /** o detalhe embaixo do texto ("4 vendas", "de 01/01 a 31/12") */
+  sub?: ReactNode
+  tom?: Tom
+  /** a linha principal (o "sobrou/faltou"): maior e com fundo */
+  destaque?: boolean
+  /** barrinhas embaixo (o que mais pesou): cada uma com o nome, o valor e o tamanho (0–100) */
+  barras?: { rotulo: ReactNode; valor: ReactNode; pct: number }[]
+}
+
+export function EmResumo({ itens, tom, mais, rodape }: {
+  itens: (LinhaResumo | false | undefined)[]
+  tom?: Tom
+  /** o "iceberg": o que tem embaixo e o toque que leva até lá */
+  mais?: { texto: ReactNode; onClick(): void }
+  /** selos no pé (conferência, origem…) */
+  rodape?: ReactNode[]
+}) {
   const t = useT()
-  const cor = tom === 'ruim' ? 'var(--ruim)' : tom === 'alerta' ? 'var(--alerta)' : tom === 'bom' ? 'var(--bom)' : 'var(--marca)'
+  const linhas = itens.filter((x): x is LinhaResumo => !!x)
   return (
-    <section aria-label={t('Em resumo')} className="relative overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 pl-5 shadow-sm">
-      <span aria-hidden className="absolute inset-y-0 left-0 w-1.5" style={{ background: cor }} />
-      <p className="text-xs font-bold uppercase tracking-wider text-[var(--suave)]">💡 {t('Em resumo')}</p>
-      <p className="mt-1 text-base leading-relaxed sm:text-lg">{frase}</p>
-      {!!fatos?.filter(Boolean).length && <div className="mt-2 flex flex-wrap gap-1.5">{fatos.filter(Boolean).map((f, k) => <span key={k} className="num rounded-full bg-[var(--fundo)] px-2.5 py-1 text-xs font-semibold">{f}</span>)}</div>}
+    <section aria-label={t('Em resumo')} className="relative overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+      <span aria-hidden className="absolute inset-y-0 left-0 w-1.5" style={{ background: COR[tom ?? 'marca'] }} />
+      <p className="px-4 pb-1 pl-5 pt-3 text-xs font-bold uppercase tracking-wider text-[var(--suave)]">💡 {t('Em resumo')}</p>
+      <ul className="divide-y divide-[var(--borda)] pl-1.5">
+        {linhas.map((l, k) => (
+          <li key={k} className={cx('px-4 py-2.5', l.destaque && 'bg-[var(--fundo)]/60')}>
+            <div className="flex items-center gap-3">
+              <span aria-hidden className={cx('flex shrink-0 items-center justify-center rounded-full bg-[var(--fundo)]', l.destaque ? 'h-10 w-10 text-xl' : 'h-9 w-9 text-lg')}>{l.icone}</span>
+              <span className="min-w-0 flex-1">
+                <span className={cx('block leading-snug', l.destaque ? 'text-base font-bold sm:text-lg' : 'text-sm sm:text-base')}>{l.texto}</span>
+                {l.sub && <span className="num block text-xs text-[var(--suave)]">{l.sub}</span>}
+              </span>
+              {l.valor !== undefined && <span className={cx('num shrink-0 whitespace-nowrap text-right font-black', l.destaque ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg')} style={{ color: l.tom ? COR[l.tom] : undefined }}>{l.valor}</span>}
+            </div>
+            {l.barras && l.barras.length > 0 && (
+              <ul className="mt-2 space-y-1.5 pl-12">
+                {l.barras.map((b, j) => (
+                  <li key={j} className="text-xs">
+                    <span className="flex items-baseline justify-between gap-2"><span className="min-w-0 truncate">{b.rotulo}</span><span className="num shrink-0 font-semibold">{b.valor}</span></span>
+                    <span aria-hidden className="mt-0.5 block h-1.5 overflow-hidden rounded-full bg-[var(--fundo)]"><span className="block h-full rounded-full" style={{ width: `${Math.max(b.pct, b.pct ? 3 : 0)}%`, background: 'color-mix(in srgb, var(--ruim) 60%, transparent)' }} /></span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+      {(mais || rodape?.length) && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--borda)] px-4 py-2.5 pl-5">
+          {rodape?.filter(Boolean).map((r, k) => <span key={k} className="num rounded-full bg-[var(--fundo)] px-2.5 py-1 text-xs font-semibold">{r}</span>)}
+          {mais && <button type="button" onClick={mais.onClick} className="ml-auto min-h-10 toque:min-h-11 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] transition hover:bg-[var(--marca-suave)] active:scale-[0.98]">{mais.texto} ↓</button>}
+        </div>
+      )}
     </section>
   )
 }
@@ -40,6 +94,7 @@ function LinhaConta({ c, base, v, onAnexo }: { c: ContaCascata; base: number; v(
         <span className="min-w-0">
           {t(c.rotulo)}
           {c.conta && <span className="ml-1.5 text-[11px] text-[var(--suave)]">{c.conta}</span>}
+          {c.id.startsWith('criado') && <SeloCadastro />}
           {onAnexo && c.anexo && <button type="button" onClick={() => onAnexo(c.anexo!)} className="alvo-amplo nao-imprimir ml-2 rounded px-1 text-[11px] font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">{t('ver')} ›</button>}
         </span>
         <span className={cx('num shrink-0 whitespace-nowrap font-semibold', c.valor < 0 && 'text-[var(--ruim)]')}>{v(c.valor)}</span>

@@ -14,6 +14,8 @@ import { useApp, useComando, useConsulta, useParamTela } from '../../../shared/u
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
 import { useT } from '../../../shared/ui/i18n'
 import { DocumentoIR } from './DocumentoIR'
+import { EscolhaCartoes } from '../../../shared/ui/escolhaCartoes'
+import { EmResumo } from './resumo'
 
 type IR = NonNullable<ResultadoConsulta<'impostoRenda'>>
 type Obrig = IR['obrigacoes'][number]
@@ -32,8 +34,12 @@ const SIT: Record<string, { nome: string; tom: 'bom' | 'marca' | 'alerta' | 'rui
   semMovimento: { nome: 'Sem movimento', tom: 'suave' }, emDia: { nome: 'Em dia', tom: 'bom' }, exercicioAberto: { nome: 'Depois do cierre', tom: 'suave' },
 }
 const SITUACOES = [
-  { id: 'aberto', nome: 'Em aberto' }, { id: 'preparacao', nome: 'Em preparação' }, { id: 'pendencias', nome: 'Com pendências' },
-  { id: 'validacao', nome: 'Aguardando validação' }, { id: 'revisado', nome: 'Revisado' }, { id: 'fechado', nome: 'Fechado' },
+  { id: 'aberto', icone: '🟡', nome: 'Em aberto', descricao: 'O ano ainda está correndo.' },
+  { id: 'preparacao', icone: '📂', nome: 'Em preparação', descricao: 'O ano fechou: juntando os documentos.' },
+  { id: 'pendencias', icone: '⚠️', nome: 'Com pendências', descricao: 'Falta algo para o contador.' },
+  { id: 'validacao', icone: '📨', nome: 'Aguardando validação', descricao: 'Enviado ao contador, esperando a conferência.' },
+  { id: 'revisado', icone: '✅', nome: 'Revisado', descricao: 'O contador conferiu.' },
+  { id: 'fechado', icone: '🔒', nome: 'Fechado', descricao: 'Declarado: os números ficam congelados.' },
 ]
 const NOME_MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 const rotMes = (m: string) => `${NOME_MES[Number(m.slice(5)) - 1]}/${m.slice(2, 4)}`
@@ -74,6 +80,20 @@ export function ImpostoRenda() {
         <p className="border-t border-[var(--borda)] bg-[var(--fundo)] px-4 py-2 text-xs text-[var(--suave)]">⚠️ {t('Demonstrativo interno de apoio tributário: não é declaração ao SIN nem substitui o contador. Impostos são ESTIMADOS com as regras do exercício.')}</p>
       </section>
 
+      <EmResumo tom={criticos ? 'ruim' : d.visao.impostosPendentes.valor ? 'alerta' : 'bom'}
+        itens={[
+          { icone: '📅', texto: t('Exercício {a}', { a: d.exercicio.ano }), sub: `${dataBR(d.exercicio.de)} – ${dataBR(d.exercicio.ate)} · ${t(d.exercicio.cierreNome)}` },
+          { icone: '💰', texto: t('Você vendeu'), sub: t('{n} venda(s)', { n: d.visao.nVendas.valor }), valor: v(d.visao.receitaBruta.valor), tom: 'bom' },
+          { icone: '🏁', texto: t('Lucro tributável (estimado)'), sub: t('lucro contábil + gastos que não abatem'), valor: v(d.resultado.lucroTributavel), tom: d.resultado.lucroTributavel < 0 ? 'ruim' : undefined },
+          { icone: '🧾', texto: t('IUE estimado'), sub: `${v(Math.max(0, d.resultado.lucroTributavel))} × ${(d.resultado.iueBp / 100).toLocaleString()}%`, valor: v(d.resultado.iue), tom: 'alerta', destaque: true },
+          { icone: '📊', texto: t('Impostos do ano'), sub: `${t('apurado')} ${v(d.visao.impostosApurados.valor)} · ${t('pago')} ${v(d.visao.impostosPagos.valor)}`, valor: d.visao.impostosPendentes.valor ? `${t('falta')} ${v(d.visao.impostosPendentes.valor)}` : `✓ ${t('em dia')}`, tom: d.visao.impostosPendentes.valor ? 'ruim' : 'bom' },
+          { icone: '📆', texto: t('Entregar até {d}', { d: dataBR(d.exercicio.vencimentoAnual) }), sub: t('Formulario 500 (IUE) e 605 (estados financieros) — 120 dias depois do cierre') },
+          d.cadastrados.length > 0 && { icone: '📝', texto: t('Impostos cadastrados (não oficiais)'), sub: d.cadastrados.map((c) => c.sigla).join(' · '), valor: v(d.cadastrados.reduce((s2, c) => s2 + c.valor, 0)) },
+          d.alertas.length > 0 && { icone: criticos ? '⛔' : '⚠️', texto: t('{n} ponto(s) para conferir', { n: d.alertas.length }), sub: t('{n} crítico(s)', { n: criticos }), tom: criticos ? 'ruim' : 'alerta' },
+        ]}
+        rodape={[`🏛 ${t('Oficiais: IVA, IT e IUE')}`, d.cadastrados.length ? `📝 ${t('{n} cadastrado(s)', { n: d.cadastrados.length })}` : '']}
+        mais={{ texto: t(d.alertas.length ? 'Ver o que conferir' : 'Ver cada imposto'), onClick: () => setAba(d.alertas.length ? 'validacoes' : 'impostos') }} />
+
       {d.alertas.some((a) => a.id === 'enquadramento') && <Enquadramento d={d} />}
 
       <Abas variante="sublinhado" atual={aba} onChange={(a) => setAba(a as typeof aba)} abas={[
@@ -103,15 +123,18 @@ function SituacaoExercicio({ d }: { d: IR }) {
   const tom = d.situacao === 'fechado' ? 'bom' : d.situacao === 'pendencias' ? 'ruim' : d.situacao === 'revisado' ? 'marca' : 'alerta'
   return (
     <>
-      <button type="button" onClick={() => setPara(d.situacao)} className="min-h-10 rounded-xl px-1 text-left" title={t('Mudar a situação do exercício')}>
-        <Pilula tom={tom}>{t(SITUACOES.find((s) => s.id === d.situacao)?.nome ?? d.situacao)} ▾</Pilula>
+      <button type="button" onClick={() => setPara(d.situacao)} title={t('Mudar a situação do exercício')}
+        className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 text-left transition hover:border-[var(--marca)] active:scale-[0.98]">
+        <span className="text-xs font-semibold text-[var(--suave)]">{t('Situação')}</span>
+        <Pilula tom={tom}>{SITUACOES.find((s) => s.id === d.situacao)?.icone} {t(SITUACOES.find((s) => s.id === d.situacao)?.nome ?? d.situacao)}</Pilula>
+        <span className="text-sm font-semibold text-[var(--marca)]">{t('Mudar')} ›</span>
       </button>
       {para !== undefined && (
         <Janela aberta titulo={t('Situação do exercício {a}', { a: d.exercicio.ano })} onFechar={() => setPara(undefined)} rodape={
           <Botao grande className="w-full" disabled={ocupado || para === d.situacao || (d.situacao === 'fechado' && !motivo.trim())} onClick={async () => { if (await executar('mudarSituacaoExercicio', { ano: d.exercicio.ano, para: para as never, motivo: motivo || undefined }, t('Situação mudada.'))) setPara(undefined) }}>{t('Salvar')}</Botao>
         }>
           <div className="space-y-3">
-            <Selecao valor={para} onChange={setPara} opcoes={SITUACOES} />
+            <EscolhaCartoes rotulo="Situação do exercício" valor={para} onChange={setPara} opcoes={SITUACOES} />
             <p className="text-xs text-[var(--suave)]">{t('Fechar congela os números e a versão das regras usadas (o documento do fechamento não muda depois). Correções continuam possíveis e ficam no histórico.')}</p>
             {d.situacao === 'fechado' && <Campo rotulo="Motivo da reabertura (obrigatório)"><Entrada value={motivo} onChange={(e) => setMotivo(e.target.value)} /></Campo>}
             {d.historico.length > 0 && (
@@ -191,7 +214,8 @@ function Visao({ d, v }: { d: IR; v(n: number): string }) {
           {d.resultado.linhas.filter((l) => l.id !== 'iue' && l.id !== 'neta').map((l) => <li key={l.id} className={cx('flex justify-between gap-3 px-4 py-1.5', l.tipo !== 'conta' && 'font-bold')}><span>{l.rotulo}</span><span className="whitespace-nowrap">{v(l.valor)}</span></li>)}
           {d.resultado.ajustes.map((a) => <li key={a.id} className="flex justify-between gap-3 px-4 py-1.5 text-[var(--alerta)]"><span>{t(a.rotulo)}</span><span className="whitespace-nowrap">{v(a.valor)}</span></li>)}
           <li className="flex justify-between gap-3 px-4 py-2 font-bold"><span>{t('Lucro tributável (estimado)')}</span><span>{v(d.resultado.lucroTributavel)}</span></li>
-          <li className="flex justify-between gap-3 bg-[var(--fundo)] px-4 py-2 font-black"><span>{t('IUE 25% (estimado)')}</span><span>{v(d.resultado.iue)}</span></li>
+          <li className="flex justify-between gap-3 bg-[var(--fundo)] px-4 py-2 font-black"><span>{t('IUE estimado')} <span className="text-xs font-semibold text-[var(--suave)]">= {v(Math.max(0, d.resultado.lucroTributavel))} × {(d.resultado.iueBp / 100).toLocaleString()}%</span></span><span>{v(d.resultado.iue)}</span></li>
+          {d.cadastrados.map((c) => <li key={c.sigla} className="flex justify-between gap-3 px-4 py-1.5"><span>{c.rotulo} <span className="ml-1 rounded-full bg-[var(--alerta)]/15 px-1.5 text-[10px] font-bold text-[var(--alerta)]">📝 {t('cadastro')}</span></span><span className="whitespace-nowrap">{v(c.valor)}</span></li>)}
         </ul>
       </section>
     </div>

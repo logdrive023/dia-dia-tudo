@@ -8,11 +8,12 @@
 //              gastos por categoría — cada centavo
 // Os números base vêm dos relatórios que já existem (dre, balanco, livroCaixa…): o motor só organiza e calcula impostos.
 
-import { NOMES_REGIME, aplicar, impostosDaOperacao, impostosDoRegime } from '../dados/impostos'
+import { NOMES_REGIME, aplicar, impostosCriados, impostosDaOperacao, impostosDoRegime, taxaDaLista, valorImpostoCriado } from '../dados/impostos'
 import { empresaFormatada } from '../domain/textoFormatado'
 import type { Ctx } from './contexto'
 import { lerConfig } from './contexto'
 import { balanco, comprasDetalhadas, dre, inventario, livroCaixa, vendasDetalhadas } from './relatorios'
+import { servicosReceitaInsumos } from './servicosSalao'
 
 export type TipoLinha = 'conta' | 'subtotal' | 'total'
 export interface LinhaRelatorio {
@@ -42,13 +43,14 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
   const m = cfg.moedaPrincipal
   const fmtPct = (bp: number) => `${(bp / 100).toLocaleString('es-BO')}%`
 
-  const [r, bal, diario, inv, vendas, compras] = await Promise.all([
+  const [r, bal, diario, inv, vendas, compras, serv] = await Promise.all([
     dre(ctx, { de: p.de, ate: p.ate }),
     balanco(ctx),
     livroCaixa(ctx, { de: p.de, ate: p.ate }),
     inventario(ctx),
     vendasDetalhadas(ctx, { de: p.de, ate: p.ate }),
     comprasDetalhadas(ctx, { de: p.de, ate: p.ate }),
+    servicosReceitaInsumos(ctx, { de: p.de, ate: p.ate }),
   ])
   const gastos = r.linhas.filter((l) => l.nivel === 1 && !['(−) Descontos', '(−) Custo do que foi vendido', '(−) Insumos dos serviços', '(−) Comissões'].includes(l.conta)).map((l) => ({ categoria: l.conta.replace(/^\([−+]\) /, ''), valor: -l.valor }))
   const totalGastos = gastos.reduce((s, g) => s + g.valor, 0)
@@ -63,9 +65,16 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
   let itPagar = 0
   let impostoLucro = 0
   // IVA e IT: a taxa vem da LISTA de impostos vigentes (Configurações › Fiscal); desligado na lista = não entra
-  const daLista = (id: string, padrao: number) => { const i = fis.impostos?.find((x) => x.id === id); return i ? (i.ligado ? i.taxaBp : 0) : padrao }
-  const ivaBp = daLista('iva', fis.ivaBp)
-  const itBp = daLista('it', fis.itBp)
+  const ivaBp = taxaDaLista(fis, 'iva', fis.ivaBp)
+  const itBp = taxaDaLista(fis, 'it', fis.itBp)
+  // os impostos CRIADOS na configuração: gasto sobre a venda de produto e/ou de serviço (a mesma lista da compra e venda)
+  const vendaServico = Math.min(r.receita, serv.total.receita)
+  const vendaProduto = r.receita - vendaServico
+  const criados = impostosCriados({ ...fis, pais }).map((i) => ({ i, valor: valorImpostoCriado(i, vendaProduto, vendaServico) })).filter((x) => x.valor > 0)
+  const totalCriados = criados.reduce((s2, x) => s2 + x.valor, 0)
+  const baseCriado = (i: (typeof criados)[number]['i']) => [i.vendaProduto && `${fmtPct(i.taxaBp)} × ${pais === 'BO' ? 'ventas de productos' : 'vendas de produtos'}`, i.vendaServico && `${fmtPct(i.taxaServicoBp ?? i.taxaBp)} × ${pais === 'BO' ? 'servicios' : 'serviços'}`].filter(Boolean).join(' + ')
+  const linhasCriados = criados.map(({ i, valor }) => ({ id: `criado:${i.sigla}`, rotulo: `(−) ${i.sigla} — ${i.nome}`, valor: -valor, tipo: 'conta' as const, anexo: 'impostos' as const, conta: baseCriado(i) }))
+  const quadroCriados = criados.map(({ i, valor }) => ({ id: `criadoP:${i.sigla}`, rotulo: `${i.sigla} (${baseCriado(i)})`, valor, tipo: 'subtotal' as const }))
   if (BO) {
     const general = regime === 'general'
     const ivaDebito = general && fis.vendasComFatura ? aplicar(r.receita, ivaBp) : 0
@@ -76,10 +85,10 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
     const rts = !general ? Math.round((fis.rtsCuotaBimestral * meses(p.de, p.ate)) / 2) : 0
     const ventasNetas = r.receita - ivaDebito
     const utilidadBruta = ventasNetas - cmv - custoServicos
-    const antesIue = utilidadBruta - totalGastos - it - rts
+    const antesIue = utilidadBruta - totalGastos - it - rts - (general ? totalCriados : 0)
     const iue = general && antesIue > 0 ? aplicar(antesIue, fis.iueBp) : 0
     ivaPagar = Math.max(0, ivaDebito - ivaCredito)
-    itPagar = it
+    itPagar = it + (general ? totalCriados : 0)
     impostoLucro = iue
     resultados = [
       { id: 'ventas', rotulo: general && fis.vendasComFatura ? 'Ventas brutas (facturado)' : 'Ventas', valor: r.receita, tipo: 'conta', anexo: 'vendas' },
@@ -90,6 +99,7 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
       { id: 'bruta', rotulo: 'Utilidad bruta', valor: utilidadBruta, tipo: 'subtotal' },
       ...gastos.map((g, k) => ({ id: `gasto${k}`, rotulo: `${g.valor < 0 ? '(+)' : '(−)'} ${g.categoria}`, valor: -g.valor, tipo: 'conta' as const, anexo: 'gastos' as const })),
       ...(it ? [{ id: 'it', rotulo: `(−) Impuesto a las Transacciones (IT ${fmtPct(itBp)})`, valor: -it, tipo: 'conta' as const, anexo: 'impostos' as const, conta: `${fmtPct(itBp)} × ingresos brutos` }] : []),
+      ...(general ? linhasCriados : []),
       ...(!general ? [{ id: 'rts', rotulo: '(−) Cuota RTS', valor: -rts, tipo: 'conta' as const, anexo: 'impostos' as const }] : []),
       { id: 'antes', rotulo: general ? 'Utilidad antes del IUE' : 'Utilidad del período', valor: antesIue, tipo: general ? 'subtotal' : 'total' },
       ...(general ? [{ id: 'iue', rotulo: `(−) IUE estimado (${fmtPct(fis.iueBp)})`, valor: -iue, tipo: 'conta' as const, anexo: 'impostos' as const, conta: `${fmtPct(fis.iueBp)} × utilidad` }] : []),
@@ -101,8 +111,9 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
         { id: 'ivaC', rotulo: '(−) IVA crédito fiscal (compras con factura)', valor: -ivaCredito, tipo: 'conta', conta: fis.comprasComFatura ? `${fmtPct(ivaBp)} × ${comprasPeriodo / 100}` : 'compras sin factura' },
         { id: 'ivaP', rotulo: ivaDebito >= ivaCredito ? 'IVA a pagar (estimado)' : 'Saldo a favor (crédito fiscal)', valor: ivaDebito - ivaCredito, tipo: 'subtotal' },
         { id: 'itP', rotulo: `IT a pagar estimado (${fmtPct(itBp)} × ingresos brutos)`, valor: it, tipo: 'subtotal' },
+        ...quadroCriados,
         { id: 'iueP', rotulo: `IUE estimado (${fmtPct(fis.iueBp)} × utilidad)`, valor: iue, tipo: 'subtotal' },
-        { id: 'totalImp', rotulo: 'Total estimado de impuestos del período', valor: ivaPagar + it + iue, tipo: 'total' },
+        { id: 'totalImp', rotulo: 'Total estimado de impuestos del período', valor: ivaPagar + it + totalCriados + iue, tipo: 'total' },
       )
       notas.push('El IUE es anual: aquí se muestra la provisión del período. El IUE pagado se compensa con el IT de los períodos siguientes.')
       if (!fis.comprasComFatura) notas.push('Compras sin factura: no generan crédito fiscal (lo normal al comprar cabello a personas).')
@@ -118,11 +129,11 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
     const pis = !simples ? aplicar(r.receitaBruta, fis.pisBp) : 0
     const cofins = !simples ? aplicar(r.receitaBruta, fis.cofinsBp) : 0
     const icms = !simples ? aplicar(r.receitaBruta, fis.icmsIssBp) : 0
-    const liquida = r.receitaBruta - r.descontos - das - pis - cofins - icms
+    const liquida = r.receitaBruta - r.descontos - das - pis - cofins - icms - totalCriados
     const lucroBruto = liquida - r.cmv - custoServicos
     const lair = lucroBruto - totalGastos
     const irpj = !simples ? aplicar(r.receitaBruta, fis.irpjCsllBp) : 0
-    ivaPagar = das + pis + cofins + icms
+    ivaPagar = das + pis + cofins + icms + totalCriados
     impostoLucro = irpj
     resultados = [
       { id: 'bruta', rotulo: 'Receita bruta', valor: r.receitaBruta, tipo: 'conta', anexo: 'vendas' },
@@ -131,6 +142,7 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
       ...(pis ? [{ id: 'pis', rotulo: `(−) PIS (${fmtPct(fis.pisBp)})`, valor: -pis, tipo: 'conta' as const, anexo: 'impostos' as const }] : []),
       ...(cofins ? [{ id: 'cofins', rotulo: `(−) COFINS (${fmtPct(fis.cofinsBp)})`, valor: -cofins, tipo: 'conta' as const, anexo: 'impostos' as const }] : []),
       ...(icms ? [{ id: 'icms', rotulo: `(−) ICMS / ISS (${fmtPct(fis.icmsIssBp)})`, valor: -icms, tipo: 'conta' as const, anexo: 'impostos' as const }] : []),
+      ...linhasCriados,
       { id: 'liquida', rotulo: 'Receita líquida', valor: liquida, tipo: 'subtotal' },
       { id: 'cmv', rotulo: '(−) Custo das mercadorias vendidas (CMV)', valor: -r.cmv, tipo: 'conta', anexo: 'vendas' },
       ...(custoServicos ? [{ id: 'csp', rotulo: '(−) Custo dos serviços (insumos e comissões)', valor: -custoServicos, tipo: 'conta' as const, anexo: 'vendas' as const }] : []),
@@ -149,7 +161,8 @@ export async function relatorioContabil(ctx: Ctx, p: { de: string; ate: string; 
           ...(icms ? [{ id: 'icmsP', rotulo: `ICMS / ISS (${fmtPct(fis.icmsIssBp)})`, valor: icms, tipo: 'conta' as const }] : []),
           { id: 'irP', rotulo: `IRPJ + CSLL (${fmtPct(fis.irpjCsllBp)} da receita)`, valor: irpj, tipo: 'conta' as const },
         ]),
-      { id: 'totalImp', rotulo: 'Total estimado de impostos do período', valor: das + pis + cofins + icms + irpj, tipo: 'total' },
+      ...quadroCriados,
+      { id: 'totalImp', rotulo: 'Total estimado de impostos do período', valor: das + pis + cofins + icms + totalCriados + irpj, tipo: 'total' },
     )
     notas.push(simples ? 'Simples Nacional: o DAS já inclui IRPJ, CSLL, PIS, COFINS e ICMS/ISS (alíquota efetiva configurada).' : 'Lucro Presumido: IRPJ e CSLL calculados sobre a receita presumida (comércio), conforme as taxas configuradas.')
   }
@@ -226,7 +239,9 @@ function rotuloBalanco(conta: string, BO: boolean) {
 function resumoDosImpostos(linhas: LinhaRelatorio[], receita: number) {
   const PAGAR: Record<string, string> = { ivaP: 'IVA', itP: 'IT', iueP: 'IUE', rtsP: 'RTS', dasP: 'DAS', pisP: 'PIS', cofP: 'COFINS', icmsP: 'ICMS/ISS', irP: 'IRPJ + CSLL' }
   const pct = (v: number) => (receita > 0 ? Math.round((v * 10000) / receita) : 0)
-  const itens = linhas.filter((l) => PAGAR[l.id]).map((l) => ({ sigla: PAGAR[l.id], rotulo: l.rotulo, valor: Math.max(0, l.valor), pctBp: pct(Math.max(0, l.valor)) }))
+  // os impostos criados na configuração ("criadoP:SIGLA") entram no quadro com a sigla deles
+  const sigla = (id: string) => PAGAR[id] ?? (id.startsWith('criadoP:') ? id.slice(8) : undefined)
+  const itens = linhas.filter((l) => sigla(l.id)).map((l) => ({ sigla: sigla(l.id)!, rotulo: l.rotulo, valor: Math.max(0, l.valor), pctBp: pct(Math.max(0, l.valor)), cadastrado: l.id.startsWith('criadoP:') }))
   const total = itens.reduce((x, i) => x + i.valor, 0)
   return { itens, total, pctBp: pct(total), receita }
 }

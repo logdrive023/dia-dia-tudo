@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import type { LinhaRelatorio } from '../../../core/services/contabilidade'
 import type { useConsulta } from '../../../shared/ui/contexto'
 import { cx } from '../../../shared/ui/base'
+import { useT } from '../../../shared/ui/i18n'
 
 export type Relatorio = NonNullable<ReturnType<typeof useConsulta<'relatorioContabil'>>['dados']>
 
@@ -44,6 +45,7 @@ export function TabelaResultado({ linhas, pais, onAnexo, impressao }: { linhas: 
             <td className={cx('py-1.5 pr-3', l.tipo === 'conta' && 'pl-5')}>
               {l.rotulo}
               {l.conta && <span className="ml-2 text-[11px] font-normal text-[var(--suave)]">{l.conta}</span>}
+              {l.id.startsWith('criado') && <SeloCadastro />}
               {!impressao && onAnexo && l.anexo && <button type="button" onClick={() => onAnexo(l.anexo!)} className="alvo-amplo nao-imprimir ml-2 rounded px-1 text-[11px] font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">ver ›</button>}
             </td>
             <td className={cx('num whitespace-nowrap py-1.5 text-right tabular-nums', l.valor < 0 && 'text-[var(--ruim)] print:text-black')}>{valorContabil(l.valor, pais)}</td>
@@ -52,6 +54,12 @@ export function TabelaResultado({ linhas, pais, onAnexo, impressao }: { linhas: 
       </tbody>
     </table>
   )
+}
+
+/** o imposto CADASTRADO pela pessoa (não é um dos oficiais): sempre com este selo, na tela e no papel */
+export function SeloCadastro() {
+  const t = useT()
+  return <span title={t('Imposto cadastrado em Configurações › Fiscal (não é um dos oficiais)')} className="ml-2 inline-block rounded-full bg-[var(--alerta)]/15 px-1.5 text-[10px] font-bold text-[var(--alerta)] print:border print:border-black print:bg-transparent print:text-black">📝 {t('cadastro')}</span>
 }
 
 export interface ColunaAnexo<T> { titulo: string; celula(l: T): ReactNode; direita?: boolean; total?: number }

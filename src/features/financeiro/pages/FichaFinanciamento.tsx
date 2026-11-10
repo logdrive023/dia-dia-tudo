@@ -18,7 +18,7 @@ import { Trilha } from '../../../shared/ui/trilha'
 import { LinhaTempoAdiantamento, saldoAdiantamento } from '../components/adiantamento'
 import { AcoesConta, AvatarConta, ResumoConta } from '../components/conta'
 import { JanelaCobranca } from '../components/JanelaCobranca'
-import { type AcaoAdiantamento, ConfirmarEncerrar, JanelaComissao, JanelaDinheiro, JanelaEntrega } from '../components/janelasAdiantamento'
+import { type AcaoAdiantamento, ConfirmarEncerrar, JanelaAdiantarMais, JanelaComissao, JanelaDinheiro, JanelaEntrega, JanelaPrazo } from '../components/janelasAdiantamento'
 
 export function FichaFinanciamento() {
   const t = useT()
@@ -49,6 +49,8 @@ export function FichaFinanciamento() {
   const outras = !ativo ? [] : [
     ...(aberto ? [{ rotulo: 'Receber em dinheiro', icone: '💵', descricao: t('O parceiro devolveu o que não virou cabelo.'), onClick: () => setAcao('receber') }] : []),
     ...(aberto && dados.comissaoAPagar ? [{ rotulo: 'Abater da comissão', icone: '🧾', descricao: t('A comissão a pagar a {n} paga a dívida.', { n: nome }), onClick: () => setAcao('comissao') }] : []),
+    { rotulo: 'Adiantar mais', icone: '💸', descricao: t('Mais dinheiro no mesmo adiantamento.'), onClick: () => setAcao('mais') },
+    { rotulo: f.prazo ? 'Mudar a data limite' : 'Pôr data limite', icone: '⏰', descricao: f.prazo ? t('Hoje: até {d}.', { d: dataBR(f.prazo) }) : t('Até quando entregar o cabelo.'), onClick: () => setAcao('prazo') },
     ...(aberto && dados.saldo > 0 ? [{ rotulo: 'Cobrar no WhatsApp', icone: '💬', descricao: t('A mensagem pronta, com o que falta; dá para mudar antes de enviar.'), onClick: () => setAcao('cobrar') }] : []),
     ...(dados.pessoa ? [{ rotulo: 'Abrir ficha da pessoa', icone: '👤', onClick: () => ir('pessoa', { id: dados.pessoa!.id }) }] : []),
     { rotulo: 'Encerrar', icone: '🔒', descricao: t('Fecha o adiantamento; o que sobrar vira baixa.'), perigo: true, separar: true, onClick: () => setAcao('encerrar') },
@@ -62,7 +64,7 @@ export function FichaFinanciamento() {
         titulo={dados.pessoa ? <button type="button" className="text-left underline-offset-4 hover:underline" onClick={() => ir('pessoa', { id: dados.pessoa!.id })}>{nome}</button> : nome}
         codigo={f.codigo}
         selos={<StatusFinanciamentoPilula status={dados.status} />}
-        detalhes={[`💸 ${t('Adiantado')} ${formatar(f.valor, f.moeda)}`, `📅 ${dataBR(f.data)}`, f.prazo ? `⏰ ${t('até')} ${dataBR(f.prazo)}` : undefined, dados.viagem ? `✈ ${dados.viagem.codigo}` : undefined]}
+        detalhes={[`💸 ${t('Adiantado')} ${dados.financiado !== dados.inicial ? formatar(dados.financiado, mp) : formatar(f.valor, f.moeda)}`, `📅 ${dataBR(f.data)}`, f.prazo ? `⏰ ${t('até')} ${dataBR(f.prazo)}` : undefined, dados.viagem ? `✈ ${dados.viagem.codigo}` : undefined]}
         acoes={<AcoesConta principal={principal} outras={outras} />}
       />
 
@@ -73,7 +75,9 @@ export function FichaFinanciamento() {
         frase={t(dados.saldo > 0 ? 'Falta voltar em cabelo, dinheiro ou comissão.' : dados.saldo < 0 ? 'O cabelo entregue passou do adiantado: a loja deve a diferença.' : 'Tudo o que foi adiantado já voltou.')}
         barra={<BarraConta pct={pct} cor={corFinanciamento(dados.status)} legenda={`${t('{p}% coberto', { p: pct })} · ${formatar(dados.entregue + dados.recebido + dados.comissao, mp)} ${t('de')} ${formatar(dados.financiado, mp)}`} />}
         partes={[
-          { rotulo: 'Adiantado', valor: formatar(f.valor, f.moeda), sub: f.moeda !== mp ? formatar(dados.financiado, mp) : undefined },
+          dados.financiado !== dados.inicial
+            ? { rotulo: 'Adiantado', valor: formatar(dados.financiado, mp), sub: `${formatar(dados.inicial, mp)} + ${formatar(dados.financiado - dados.inicial, mp)} ${t('a mais')}` }
+            : { rotulo: 'Adiantado', valor: formatar(f.valor, f.moeda), sub: f.moeda !== mp ? formatar(dados.financiado, mp) : undefined },
           { rotulo: 'Cabelo entregue', valor: formatar(dados.entregue, mp), sub: gramasTexto(dados.gramas), cor: dados.entregue ? 'var(--bom)' : undefined, onClick: () => setAba('tempo') },
           { rotulo: 'Dinheiro e comissão', valor: formatar(dados.recebido + dados.comissao, mp), sub: dados.comissao ? `${t('comissão')} ${formatar(dados.comissao, mp)}` : undefined },
         ]}
@@ -104,12 +108,14 @@ export function FichaFinanciamento() {
       {(acao === 'receber' || acao === 'diferenca') && <JanelaDinheiro tipo={acao} dados={dados} onFechar={fechar} />}
       {acao === 'comissao' && <JanelaComissao dados={dados} onFechar={fechar} />}
       {acao === 'encerrar' && <ConfirmarEncerrar dados={dados} onFechar={fechar} />}
+      {acao === 'mais' && <JanelaAdiantarMais dados={dados} onFechar={fechar} />}
+      {acao === 'prazo' && <JanelaPrazo dados={dados} onFechar={fechar} />}
       {acao === 'cobrar' && (
         <JanelaCobranca tipo="adiantamento" telefone={dados.pessoa?.telefone} onFechar={fechar} valores={{
           nome: nome,
           codigo: f.codigo,
           falta: formatar(dados.saldo, mp),
-          adiantado: formatar(f.valor, f.moeda),
+          adiantado: dados.financiado !== dados.inicial ? formatar(dados.financiado, mp) : formatar(f.valor, f.moeda),
           entregue: `${formatar(dados.entregue, mp)} · ${gramasTexto(dados.gramas)}`,
           prazo: f.prazo ? dataBR(f.prazo) : '',
         }} />

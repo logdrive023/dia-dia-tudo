@@ -44,10 +44,11 @@ export function Reposicao() {
   return (
     <div className="space-y-4">
       <EmResumo tom={dados.totais.acabando ? 'alerta' : 'bom'}
-        frase={dados.totais.acabando
-          ? <>{t('{n} medida(s) estão acabando.', { n: dados.totais.acabando })} {t('No ritmo de venda dos últimos {n} dias, comprar', { n: c.janelaDias })} <b className="num">{kg(dados.totais.sugestaoG)}</b> {t('cobre os próximos {n} dias.', { n: c.cobrirDias })}</>
-          : <>{t('Nenhuma medida acabando: o estoque cobre o ritmo de venda dos últimos {n} dias.', { n: c.janelaDias })}</>}
-        fatos={urgentes.map((l) => `${SITUACAO[l.situacao].icone} ${nome(l)} · ${quando(l)}`)} />
+        itens={dados.totais.acabando ? [
+          { icone: '⚠️', texto: t('{n} medida(s) estão acabando.', { n: dados.totais.acabando }), tom: 'alerta' },
+          { icone: '🧳', texto: t('Comprar para cobrir {n} dias', { n: c.cobrirDias }), sub: t('no ritmo de venda dos últimos {n} dias', { n: c.janelaDias }), valor: kg(dados.totais.sugestaoG), tom: 'marca', destaque: true },
+          ...urgentes.map((l) => ({ icone: SITUACAO[l.situacao].icone, texto: nome(l), sub: quando(l), valor: l.sugestaoG ? kg(l.sugestaoG) : undefined })),
+        ] : [{ icone: '✓', texto: t('Nenhuma medida acabando: o estoque cobre o ritmo de venda dos últimos {n} dias.', { n: c.janelaDias }), tom: 'bom' }]} />
       <GrupoNumeros colunas={4}>
         <NumeroGrande rotulo="Medidas acabando" icone="⚠️" valor={String(dados.totais.acabando)} tom={dados.totais.acabando ? 'ruim' : 'bom'} ajuda={t('Medidas que já acabaram ou acabam em até {n} dias no ritmo de venda atual.', { n: c.alertaDias })} />
         <NumeroGrande rotulo="Em estoque (separado)" icone="📦" valor={kg(dados.totais.estoqueG)} selos={dados.bruto.gramas ? [{ texto: `+ ${kg(dados.bruto.gramas)} ${t('bruto')}` }] : undefined} ajuda="Cabelo já separado por medida. O bruto (ainda sem medida) vira medida na triagem." />

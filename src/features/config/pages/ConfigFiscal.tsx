@@ -13,6 +13,7 @@ import { EscolhaCartoes } from '../../../shared/ui/escolhaCartoes'
 import { useT } from '../../../shared/ui/i18n'
 import { Interruptor } from '../../../shared/ui/interruptor'
 import { limparEspacos, nomeProprio, soNumeros } from '../../../core/domain/textoFormatado'
+import { ehImpostoOficial } from '../../../core/dados/impostos'
 import { NotaTela } from '../../../shared/ui/notaTela'
 
 const pct = (bp: number) => String(bp / 100).replace('.', ',')
@@ -173,6 +174,7 @@ function ImpostosOperacoes({ v, mudar }: { v: ConfigFiscal; mudar(p: Partial<Con
 
           <section aria-label={t('Impostos vigentes')}>
             <h2 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-[var(--suave)]">{t('Impostos vigentes')} <span className="num rounded-full bg-[var(--fundo)] px-2 text-xs">{lista.length}</span></h2>
+            <NotaTela icone="🧾" className="mb-3">{t('Os oficiais (🏛) são os da lei: na Bolívia, IVA 13% e IT 3% — e o IUE 25% sobre a utilidade, anual, no Imposto de Renda. Você pode cadastrar outros (📝): eles também entram nos Relatórios (Estados financeiros e Imposto de Renda), sempre com o selo de cadastro.')}</NotaTela>
             <ul className="space-y-3">
               {lista.map((i, k) => {
                 const cor = CORES[k % CORES.length]
@@ -183,7 +185,9 @@ function ImpostosOperacoes({ v, mudar }: { v: ConfigFiscal; mudar(p: Partial<Con
                     <div className="flex flex-wrap items-center gap-3 p-3" style={{ background: `color-mix(in srgb, ${cor} 10%, transparent)` }}>
                       <span className="flex h-12 min-w-12 shrink-0 items-center justify-center rounded-xl px-2 text-sm font-black text-white" style={{ background: cor }}>{i.sigla || '?'}</span>
                       <span className="linha-texto">
-                        <b className="block leading-tight">{i.nome || t('Sem nome')}</b>
+                        <b className="block leading-tight">{i.nome || t('Sem nome')} {ehImpostoOficial(i.id)
+                          ? <span className="ml-1 inline-block rounded-full bg-[var(--bom)]/15 px-1.5 align-middle text-[10px] font-bold text-[var(--bom)]">🏛 {t('Oficial')}</span>
+                          : <span className="ml-1 inline-block rounded-full bg-[var(--alerta)]/15 px-1.5 align-middle text-[10px] font-bold text-[var(--alerta)]">📝 {t('Cadastrado por você')}</span>}</b>
                         <span className="text-xs text-[var(--suave)]">{ondeVale(i) || t('não vale em nada')}{i.vigenteDesde ? ` · ${t('desde')} ${dataBR(i.vigenteDesde)}` : ''}</span>
                       </span>
                       <b className="num shrink-0 text-2xl">{pct(i.taxaBp)}%</b>

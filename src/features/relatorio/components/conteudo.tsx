@@ -1,6 +1,6 @@
 // O CONTEÚDO DE CADA PARTE do relatório contábil — escrito uma vez, usado na tela (cartões) e na impressão (folhas A4).
 import { dataBR, gramasTexto } from '../../../shared/ui/base'
-import { type Relatorio, TEXTO, TabelaAnexo, TabelaResultado, valorContabil } from './pecas'
+import { type Relatorio, SeloCadastro, TEXTO, TabelaAnexo, TabelaResultado, valorContabil } from './pecas'
 
 export type IdSecao = 'resultado' | 'impostos' | 'balanco' | 'conferencia' | 'diario' | 'vendas' | 'compras' | 'inventario' | 'gastos' | 'cuentas'
 
@@ -40,7 +40,7 @@ export function ConteudoSecao({ id, rel, impressao, onAnexo }: { id: IdSecao; re
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 print:grid-cols-4">
               {rel.resumoImpostos.itens.map((i) => (
                 <div key={i.sigla} className="rounded-xl border border-[var(--borda)] bg-[var(--cartao)] p-2.5 print:border-black/40">
-                  <b className="block text-xs">{i.sigla}</b>
+                  <b className="block text-xs">{i.sigla}{i.cadastrado && <SeloCadastro />}</b>
                   <span className="num block text-base font-bold">{v(i.valor)}</span>
                   <span className="num block text-[11px] text-[var(--suave)]">{(i.pctBp / 100).toLocaleString(p === 'BO' ? 'es-BO' : 'pt-BR')}% {x.sobreVentas}</span>
                 </div>

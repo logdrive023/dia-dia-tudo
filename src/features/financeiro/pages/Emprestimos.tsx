@@ -20,7 +20,7 @@ import { Paginada } from '../../../shared/ui/paginacao'
 import { Trilha } from '../../../shared/ui/trilha'
 import { JanelaCobranca } from '../components/JanelaCobranca'
 import { AcoesConta, AvatarConta, ResumoConta } from '../components/conta'
-import { COR_LADO, CartaoEmprestimo, JanelaPagamento, ListaParcelas, TOM_EMPRESTIMO, pctPago } from '../components/emprestimo'
+import { COR_LADO, CartaoEmprestimo, JanelaEmprestarMais, JanelaPagamento, JanelaParcela, ListaParcelas, TOM_EMPRESTIMO, pctPago } from '../components/emprestimo'
 
 const SITUACOES = [{ id: '', nome: 'Todas' }, { id: 'atrasada', nome: 'Atrasada', icone: '🔴' }, { id: 'vencendo', nome: 'Vencendo', icone: '🟡' }, { id: 'em dia', nome: 'Em dia', icone: '🟢' }, { id: 'quitado', nome: 'Quitado', icone: '✓' }]
 const semAcento = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -84,6 +84,8 @@ export function FichaEmprestimo() {
   const { dados, erro } = useConsulta('emprestimo', { id })
   const [pagar, setPagar] = useState(false)
   const [cobrar, setCobrar] = useState(false)
+  const [mais, setMais] = useState(false)
+  const [mudar, setMudar] = useState<string>()
   const [aba, setAba] = useParamTela<'parcelas' | 'comprovantes' | 'historico'>('aba', 'parcelas')
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
@@ -97,7 +99,10 @@ export function FichaEmprestimo() {
     : t('sem juros')
   const pagas = dados.parcelas.filter((p) => !p.falta).length
   const pct = pctPago(dados.recebido, dados.saldo)
+  const parcelaMudar = dados.parcelas.find((p) => p.id === mudar)
   const outras = [
+    ...(dados.proxima ? [{ rotulo: 'Mudar uma parcela', icone: '✏️', descricao: t('O dia ou o valor; as outras se ajustam.'), onClick: () => (setAba('parcelas'), setMudar(dados.proxima!.id)) }] : []),
+    { rotulo: dado ? 'Emprestar mais' : 'Pegar mais emprestado', icone: '💸', descricao: t('Mais dinheiro no mesmo empréstimo.'), onClick: () => setMais(true) },
     ...(dado && dados.saldo > 0 ? [{ rotulo: 'Cobrar no WhatsApp', icone: '💬', descricao: t('A mensagem já vai com as parcelas em aberto.'), onClick: () => setCobrar(true) }] : []),
     ...(pessoa ? [{ rotulo: 'Abrir ficha da pessoa', icone: '👤', onClick: () => ir('pessoa', { id: pessoa.id }) }] : []),
   ]
@@ -139,9 +144,11 @@ export function FichaEmprestimo() {
       <div>
         {aba === 'comprovantes' ? <Anexos donoId={e.id} categorias={['comprovante', 'outro']} />
           : aba === 'historico' ? <LinhaDoTempo id={e.id} />
-            : <ListaParcelas dados={dados} />}
+            : <ListaParcelas dados={dados} onMudar={dados.saldo > 0 ? (p) => setMudar(p.id) : undefined} />}
       </div>
       {pagar && <JanelaPagamento dados={dados} onFechar={() => setPagar(false)} />}
+      {parcelaMudar && <JanelaParcela key={parcelaMudar.id} dados={dados} parcela={parcelaMudar} onFechar={() => setMudar(undefined)} />}
+      {mais && <JanelaEmprestarMais dados={dados} onFechar={() => setMais(false)} />}
       {cobrar && (
         <JanelaCobranca tipo="emprestimo" telefone={pessoa?.telefone} onFechar={() => setCobrar(false)} valores={{
           nome,

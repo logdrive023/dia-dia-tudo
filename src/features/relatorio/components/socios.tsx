@@ -43,8 +43,11 @@ export function DivisaoSocias({ de, ate }: { de: string; ate: string }) {
   return (
     <div className="space-y-4">
       <EmResumo tom={d.resultado < 0 ? 'ruim' : 'bom'}
-        frase={<>{t(d.resultado < 0 ? 'O período fechou no negativo:' : 'O resultado do período foi')} <b className="num">{contabil(d.resultado, m)}</b>.{d.socios.length > 0 && <> {d.socios.map((x, k) => <span key={x.id}>{k ? ' · ' : ''}<b>{x.nome}</b> {x.falta < 0 ? t('retirou a mais') : t('tem a receber')} <span className="num">{formatar(Math.abs(x.falta), m)}</span></span>)}.</>}</>}
-        fatos={pesou.map((x) => `${t('Pesou')}: ${t(x.rotulo)} ${formatar(-x.valor, m)}`)} />
+        itens={[
+          { icone: '🏁', texto: t(d.resultado < 0 ? 'O período fechou no negativo' : 'O resultado do período'), sub: t('{n} venda(s)', { n: d.vendas }), valor: contabil(d.resultado, m), tom: d.resultado < 0 ? 'ruim' : 'bom', destaque: true },
+          ...d.socios.map((x) => ({ icone: '👤', texto: <><b>{x.nome}</b> {t(x.falta < 0 ? 'retirou a mais' : 'tem a receber')}</>, sub: `${t('parte')} ${(x.parteBp / 100).toLocaleString()}% · ${t('já retirou')} ${formatar(x.retirou, m)}`, valor: formatar(Math.abs(x.falta), m), tom: (x.falta < 0 ? 'ruim' : 'bom') as 'ruim' | 'bom' })),
+          pesou.length > 0 && { icone: '⚖️', texto: t('O que mais pesou'), barras: pesou.map((x) => ({ rotulo: t(x.rotulo), valor: formatar(-x.valor, m), pct: d.receita > 0 ? Math.min(100, Math.round((-x.valor / d.receita) * 100)) : 0 })) },
+        ]} />
       <GrupoNumeros colunas={3}>
         <NumeroGrande rotulo="Resultado do período" icone="📈" valor={contabil(d.resultado, m)} tom={d.resultado < 0 ? 'ruim' : 'bom'} selos={[{ texto: t('{n} venda(s)', { n: d.vendas }) }, { texto: `${t('margem')} ${(d.margem / 100).toLocaleString()}%` }]} ajuda="O mesmo resultado dos Estados financeiros: lucro bruto − gastos do período." />
         <NumeroGrande rotulo="Já retirado pelas sócias" icone="👛" valor={formatar(retirado, m)} ajuda="Retiradas registradas no caixa (tipo retirada de sócia) no período." />
@@ -104,8 +107,13 @@ export function ServicosInsumos({ de, ate }: { de: string; ate: string }) {
   return (
     <div className="space-y-4">
       <EmResumo tom={tot.margem < 0 ? 'ruim' : 'bom'}
-        frase={!tot.n ? t('Nenhum serviço feito no período.') : <>{t('Os serviços renderam')} <b className="num">{v(tot.receita)}</b> ({t('{n} feito(s)', { n: tot.n })}). {t('Insumos levaram {a} e comissões {b}; ficou para o salão', { a: pctTexto(tot.insumos, tot.receita), b: pctTexto(tot.comissao, tot.receita) })} <b className={cx('num', tot.margem < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>{contabil(tot.margem, m)}</b> ({pctTexto(tot.margem, tot.receita)}).</>}
-        fatos={melhor && tot.n ? [`🏆 ${t('Mais rendeu')}: ${t(melhor.nome)} ${contabil(melhor.margem, m)}`] : undefined} />
+        itens={!tot.n ? [{ icone: '✂️', texto: t('Nenhum serviço feito no período.') }] : [
+          { icone: '✂️', texto: t('Os serviços renderam'), sub: t('{n} feito(s)', { n: tot.n }), valor: v(tot.receita), tom: 'bom' },
+          { icone: '🧴', texto: t('Insumos'), sub: pctTexto(tot.insumos, tot.receita), valor: contabil(-tot.insumos, m), tom: 'ruim' },
+          { icone: '🤝', texto: t('Comissões'), sub: pctTexto(tot.comissao, tot.receita), valor: contabil(-tot.comissao, m), tom: 'ruim' },
+          { icone: '🏠', texto: t('Ficou para o salão'), sub: pctTexto(tot.margem, tot.receita), valor: contabil(tot.margem, m), tom: tot.margem < 0 ? 'ruim' : 'bom', destaque: true },
+          melhor && { icone: '🏆', texto: t('Mais rendeu'), sub: t(melhor.nome), valor: contabil(melhor.margem, m) },
+        ]} />
       <GrupoNumeros colunas={4}>
         <NumeroGrande rotulo="Receita dos serviços" icone="✂️" valor={v(tot.receita)} selos={[{ texto: t('{n} feito(s)', { n: tot.n }) }]} />
         <NumeroGrande rotulo="Insumos" icone="🧴" valor={contabil(-tot.insumos, m)} ajuda="Tinta, água oxigenada e o que o serviço gasta: custo do salão, sai ANTES da comissão." selos={[{ texto: pctTexto(tot.insumos, tot.receita) }]} />

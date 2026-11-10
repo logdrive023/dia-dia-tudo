@@ -143,6 +143,119 @@ export async function pagarEmprestimo(ctx: Ctx, d: { id: Id; emprestimoId: Id; v
   return { id: d.id }
 }
 
+// ---------- mudar o combinado ----------
+// Tudo (status, atraso, próxima, painel, agenda, cobrança) sai das parcelas + movimentos da dívida: mudou aqui, muda em
+// todo lugar. Regra que nunca quebra: soma das parcelas = saldo + o que já foi pago (conferida no diagnóstico do painel).
+
+type ParcelaPaga = Parcela & { pago: number }
+const DATA = /^\d{4}-\d{2}-\d{2}$/
+
+/** põe em ordem de vencimento e numera de novo (1ª, 2ª…) */
+function renumerar(ps: Parcela[]): Parcela[] {
+  return [...ps].sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.numero - b.numero).map((p, k) => ({ id: p.id, numero: k + 1, vencimento: p.vencimento, valor: p.valor }))
+}
+
+/**
+ * Muda o dia e/ou o valor de UMA parcela. O total combinado fica igual: se a parcela diminui, a diferença é dividida
+ * nas próximas em aberto (sem próximas, vira uma parcela nova um mês depois da última); se aumenta, sai das últimas.
+ * `mudaTotal`: só esta parcela muda e a dívida acompanha (ex.: juros de atraso ou desconto combinados).
+ * Ex.: 4 × 300, a 2ª passa para 100 → 1ª 300 · 2ª 100 · 3ª 400 · 4ª 400.
+ */
+export function replanejarParcela(parcelas: ParcelaPaga[], parcelaId: Id, novo: { vencimento?: string; valor?: number }, mudaTotal = false) {
+  const p = parcelas.find((x) => x.id === parcelaId)
+  exigir(p, 'Parcela não encontrada.')
+  const vencimento = novo.vencimento ?? p.vencimento
+  exigir(DATA.test(vencimento), 'Data inválida.', 'vencimento')
+  const valor = novo.valor ?? p.valor
+  exigirInteiroPositivo(valor, 'Valor da parcela', mudaTotal)
+  exigir(valor >= p.pago, `Dessa parcela já foi pago ${p.pago}: o valor não pode ser menor.`, 'valor')
+  const lista: ParcelaPaga[] = parcelas.map((x) => (x.id === p.id ? { ...x, vencimento, valor } : { ...x }))
+  const diferenca = valor - p.valor
+  if (!mudaTotal && diferenca) {
+    const seguintes = lista.filter((x) => x.numero > p.numero && x.valor > x.pago).sort((a, b) => a.numero - b.numero)
+    if (diferenca < 0) {
+      if (seguintes.length) dividirEmPartes(-diferenca, seguintes.length).forEach((v, k) => (seguintes[k].valor += v))
+      else {
+        const ultima = [...lista].sort((a, b) => b.vencimento.localeCompare(a.vencimento))[0]
+        lista.push({ id: novoId(), numero: lista.length + 1, vencimento: somarMeses(ultima.vencimento, 1), valor: -diferenca, pago: 0 })
+      }
+    } else {
+      let tirar = diferenca
+      for (const x of [...seguintes].reverse()) {
+        const parte = Math.min(tirar, x.valor - x.pago)
+        x.valor -= parte
+        tirar -= parte
+        if (!tirar) break
+      }
+      exigir(tirar === 0, 'O aumento passa do que falta nas próximas parcelas. Para a dívida crescer junto, marque "Muda o total da dívida".', 'valor')
+    }
+  }
+  return { parcelas: renumerar(lista.filter((x) => x.valor > 0 || x.pago > 0)), diferenca }
+}
+
+export async function ajustarParcela(ctx: Ctx, d: { emprestimoId: Id; parcelaId: Id; vencimento?: string; valor?: number; mudaTotal?: boolean; motivo?: string }) {
+  const e = await ctx.repos.emprestimos.obter(d.emprestimoId)
+  exigir(e, 'Empréstimo não encontrado.')
+  exigir(e.situacao === 'aberto', 'Esse empréstimo já foi encerrado.')
+  const s = await situacaoDe(ctx, e)
+  const antes = s.parcelas.find((p) => p.id === d.parcelaId)
+  exigir(antes, 'Parcela não encontrada.')
+  const r = replanejarParcela(s.parcelas, d.parcelaId, d, !!d.mudaTotal)
+  const mudou = [
+    d.vencimento && d.vencimento !== antes.vencimento && `dia ${antes.vencimento} → ${d.vencimento}`,
+    r.diferenca && `valor ${antes.valor} → ${antes.valor + r.diferenca}${d.mudaTotal ? ' (a dívida acompanha)' : ' (a diferença nas outras parcelas)'}`,
+  ].filter(Boolean)
+  if (!mudou.length) return { id: e.id }
+  const motivo = d.motivo?.trim()
+  if (d.mudaTotal && r.diferenca) await moverDivida(ctx, e, { delta: r.diferenca, tipo: 'ajuste', parcelaId: antes.id, descricao: `Parcela ${antes.numero}: ${r.diferenca > 0 ? 'aumentou' : 'diminuiu'}${motivo ? ` · ${motivo}` : ''}` })
+  const saldo = s.saldo + (d.mudaTotal ? r.diferenca : 0)
+  await ctx.repos.emprestimos.salvar(tocar(ctx, { ...e, parcelas: r.parcelas, situacao: saldo === 0 ? 'quitado' : 'aberto' }))
+  await auditar(ctx, 'ajustarParcela', e.id, `Parcela ${antes.numero}: ${mudou.join('; ')}${motivo ? ` · ${motivo}` : ''}`, [e.pessoaId])
+  return { id: e.id }
+}
+
+/**
+ * EMPRESTAR MAIS no mesmo empréstimo (ex.: emprestei 1.000 e depois mais 1.000). Duas formas:
+ *   'novas'  o que já estava combinado continua igual; o valor novo vira parcelas novas no fim
+ *   'juntar' o que falta + o valor novo viram um parcelamento só, refeito a partir do 1º vencimento
+ * Os juros do valor novo seguem os do empréstimo (ou os informados). Reabre um empréstimo quitado.
+ */
+export async function aumentarEmprestimo(
+  ctx: Ctx,
+  d: { id: Id; emprestimoId: Id; valor: number; forma: string; modo: 'novas' | 'juntar'; parcelas: number; primeiroVencimento: string; juros?: JurosEntrada },
+) {
+  const e = await ctx.repos.emprestimos.obter(d.emprestimoId)
+  exigir(e, 'Empréstimo não encontrado.')
+  const movs = await ctx.repos.movDivida.listar({ emprestimoId: e.id })
+  if (movs.some((m) => m.id === d.id)) return { id: d.id }
+  exigir(DATA.test(d.primeiroVencimento), 'Data do 1º vencimento inválida.', 'primeiroVencimento')
+  const juros = d.juros ?? (e.juros.tipo === 'fixo' ? { tipo: 'nenhum' as const } : e.juros)
+  const calc = calcularParcelas(d.valor, juros, d.parcelas, d.primeiroVencimento)
+  const s = await situacaoDe(ctx, e)
+  let parcelas: Parcela[]
+  if (d.modo === 'juntar') {
+    // as já pagas (ou pagas em parte) ficam com o que foi pago; o resto + o novo viram as parcelas novas
+    const fechadas = s.parcelas.filter((p) => p.pago > 0).map((p) => ({ ...p, valor: p.pago }))
+    const valores = dividirEmPartes(s.saldo + calc.total, d.parcelas)
+    parcelas = renumerar([...fechadas, ...valores.map((valor, k) => ({ id: novoId(), numero: 0, vencimento: somarMeses(d.primeiroVencimento, k), valor }))])
+  } else parcelas = renumerar([...e.parcelas, ...calc.parcelas])
+  const pessoa = await ctx.repos.pessoas.obter(e.pessoaId)
+  await moverDivida(ctx, e, { id: d.id, delta: d.valor, tipo: 'principal', descricao: 'Emprestei mais' })
+  if (calc.juros) await moverDivida(ctx, e, { delta: calc.juros, tipo: 'juros', descricao: 'Juros do valor a mais' })
+  await ctx.repos.emprestimos.salvar(tocar(ctx, { ...e, principal: e.principal + d.valor, parcelas, situacao: 'aberto' }))
+  await moverCaixa(ctx, {
+    data: ctx.relogio.hoje(),
+    moeda: e.moeda,
+    forma: d.forma,
+    delta: e.direcao === 'dado' ? -d.valor : d.valor,
+    tipo: 'emprestimo',
+    origemId: e.id,
+    descricao: e.direcao === 'dado' ? `Emprestei mais para ${pessoa?.nome}` : `Peguei mais emprestado de ${pessoa?.nome}`,
+  })
+  await auditar(ctx, 'aumentarEmprestimo', e.id, `+${d.valor} · ${d.modo === 'juntar' ? 'juntou com o que faltava' : 'parcelas novas'} · ${d.parcelas}×`, [e.pessoaId])
+  return { id: d.id }
+}
+
 // ---------- consultas ----------
 
 export type StatusParcela = 'paga' | 'atrasada' | 'vencendo' | 'em dia'

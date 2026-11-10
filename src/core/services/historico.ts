@@ -49,7 +49,7 @@ export interface EventoTempo {
 
 const ACOES_CORRECAO = new Set([
   'corrigirVenda', 'conferirPesoCompra', 'estornarLancamento', 'ajustarEstoque', 'ajustarConta', 'trocarCodigoCompra', 'trocarCodigoLote',
-  'anularDespesaViagem', 'ajustarFinanciamento', 'removerAnexo', 'cancelarCompra', 'cancelarVenda', 'precoAlterado', 'insumoAjustado', 'cotacaoManual',
+  'anularDespesaViagem', 'ajustarFinanciamento', 'ajustarParcela', 'removerAnexo', 'cancelarCompra', 'cancelarVenda', 'precoAlterado', 'insumoAjustado', 'cotacaoManual',
 ])
 
 const NOMES_MOTIVO_ESTOQUE: Record<string, string> = {
@@ -143,6 +143,8 @@ const NOMES_ACAO: Record<string, string> = {
   ajustarConta: 'Ajuste de conta',
   criarEmprestimo: 'Empréstimo criado',
   pagarEmprestimo: 'Pagamento de empréstimo',
+  ajustarParcela: 'Parcela alterada',
+  aumentarEmprestimo: 'Emprestou mais',
   salvarPessoa: 'Cadastro de pessoa',
   salvarTabelaPreco: 'Tabela de preço salva',
   tabelaPrecoAnterior: 'Versão anterior da tabela',
@@ -173,6 +175,7 @@ const NOMES_ACAO: Record<string, string> = {
   abaterComissaoFinanciamento: 'Adiantamento: abatido da comissão',
   encerrarFinanciamento: 'Adiantamento encerrado',
   ajustarFinanciamento: 'Adiantamento alterado',
+  reforcarFinanciamento: 'Adiantou mais',
 }
 
 export function nomeAcao(a: string) {

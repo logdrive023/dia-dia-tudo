@@ -1,6 +1,6 @@
 # Fiscal — contabilidade, impostos e Imposto de Renda
 
-**Atualizado:** 07/11/2026 · **Situação:** vigente
+**Atualizado:** 10/11/2026 · **Situação:** vigente
 
 Junta o antigo `CONTABILIDADE.md` (a base dos relatórios contábeis) e o antigo `IMPOSTO-RENDA.md` (diagnóstico do
 módulo **Relatórios › Imposto de Renda**). Pesquisa de 11/2026; alíquotas conferidas em 04/11/2026.
@@ -133,6 +133,13 @@ Receita bruta
    compras línea por línea, inventario valorizado, cuentas por cobrar / por pagar, gastos por categoría.
 5. **Impressão:** prévia em A4, cabeçalho com razão social, NIT e período, páginas numeradas e as firmas (Contador ·
    Representante legal).
+
+**Uma fonte só para as taxas:** os relatórios (Estados financeiros e Imposto de Renda) usam a lista de
+Configurações › Fiscal › Impostos (`taxaDaLista`, `impostosCriados` em `core/dados/impostos.ts`): a taxa do IVA, do
+IT e do IUE, o liga/desliga e os impostos **cadastrados** pela pessoa. Os oficiais (🏛 IVA, IT e IUE na Bolívia; DAS no
+Brasil) vêm com o sistema; os cadastrados (📝) entram como gasto sobre a venda de produto e/ou serviço, no quadro de
+impostos e no Imposto de Renda, **sempre com o selo de cadastro**. A lei do exercício (`regrasEm`) fica só para
+prazos e formulários.
 
 **Premissas que o sistema ainda não registra por venda** (ficam na configuração e aparecem na nota): se as vendas saem
 com fatura e se as compras vêm com fatura (o cabelo comprado de pessoa física normalmente vem **sem** fatura → sem

@@ -140,6 +140,29 @@ export function impostosDoRegime(f: Pick<ConfigFiscal, 'pais' | 'regimeBO' | 're
 /** valor × taxa (pontos-base), arredondado ao centavo */
 export const aplicar = (valor: number, bp: number) => Math.round((valor * bp) / 10000)
 
+// ---------- A FONTE ÚNICA DOS RELATÓRIOS: Configurações › Fiscal › Impostos ----------
+// O que está na lista de impostos é o que os relatórios usam (Estados financeiros E Imposto de Renda): a taxa do IVA e do
+// IT, o liga/desliga, e os impostos que a pessoa CRIOU (entram como gasto, sobre a venda de produto e/ou de serviço).
+// Sem o imposto na lista, vale a taxa padrão (a da lei, ou o campo antigo da configuração).
+
+/** a taxa de um imposto da lista (desligado = 0); fora da lista, o padrão */
+export function taxaDaLista(f: Pick<ConfigFiscal, 'impostos'>, id: string, padrao: number) {
+  const i = f.impostos?.find((x) => x.id === id)
+  return i ? (i.ligado ? i.taxaBp : 0) : padrao
+}
+
+const DO_SISTEMA = new Set(['iva', 'it', 'das'])
+/** os OFICIAIS (da lei, que vêm com o sistema): 🇧🇴 IVA e IT · 🇧🇷 DAS. O resto foi cadastrado pela pessoa. */
+export const ehImpostoOficial = (id: string) => DO_SISTEMA.has(id)
+/** os impostos CRIADOS pela pessoa que valem no regime, estão ligados e incidem sobre a venda */
+export function impostosCriados(f: Pick<ConfigFiscal, 'pais' | 'regimeBO' | 'regimeBR' | 'vendasComFatura' | 'comprasComFatura' | 'impostos'>) {
+  return impostosDoRegime(f).lista.filter((i) => !DO_SISTEMA.has(i.id) && i.ligado && (i.vendaProduto || i.vendaServico) && i.taxaBp >= 0)
+}
+
+/** quanto um imposto criado dá no período: taxa × venda de produto e/ou taxa (de serviço) × venda de serviço */
+export const valorImpostoCriado = (i: ImpostoOperacao, produto: number, servico: number) =>
+  (i.vendaProduto ? aplicar(Math.max(0, produto), i.taxaBp) : 0) + (i.vendaServico ? aplicar(Math.max(0, servico), i.taxaServicoBp ?? i.taxaBp) : 0)
+
 // ---------- IMPOSTOS NAS OPERAÇÕES (compra e venda): a lista vigente, toda configurável ----------
 // Cada imposto diz onde se aplica: venda de produto (cabelo, mercadoria), venda de serviço (salão) e compra
 // (na compra o normal é ser CRÉDITO fiscal, que abate o imposto da venda). O sistema só INFORMA quanto iria para o
