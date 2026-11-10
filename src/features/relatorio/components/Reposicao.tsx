@@ -11,6 +11,7 @@ import { useApp, useComando, useConsulta } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
 import { TabelaDados } from '../../../shared/ui/tabelaDados'
+import { EmResumo } from './resumo'
 import { NotaTela } from '../../../shared/ui/notaTela'
 
 type R = ResultadoConsulta<'reposicao'>
@@ -39,8 +40,14 @@ export function Reposicao() {
   const nome = (l: L) => `${l.medida} cm${l.categoria !== 'Normal' ? ` · ${t(l.categoria)}` : ''}`
   const quando = (l: L) => (l.situacao === 'acabou' ? t('já acabou') : l.acabaEmDias === undefined ? t('sem venda em {n} dias', { n: c.janelaDias }) : t('acaba em ~{n} dias', { n: l.acabaEmDias }))
   const ultimo = (l: L) => (l.ultimo?.custoKg ? `${formatar(l.ultimo.custoKg, moeda)}/kg${l.ultimo.viagem ? ` · ${l.ultimo.viagem.codigo ?? ''} ${l.ultimo.viagem.nome}` : l.ultimo.compra?.codigo ? ` · ${l.ultimo.compra.codigo}` : ''} (${dataBR(l.ultimo.data.slice(0, 10))})` : '—')
+  const urgentes = dados.linhas.filter((l) => l.situacao === 'acabou' || l.situacao === 'acabando').slice(0, 3)
   return (
     <div className="space-y-4">
+      <EmResumo tom={dados.totais.acabando ? 'alerta' : 'bom'}
+        frase={dados.totais.acabando
+          ? <>{t('{n} medida(s) estão acabando.', { n: dados.totais.acabando })} {t('No ritmo de venda dos últimos {n} dias, comprar', { n: c.janelaDias })} <b className="num">{kg(dados.totais.sugestaoG)}</b> {t('cobre os próximos {n} dias.', { n: c.cobrirDias })}</>
+          : <>{t('Nenhuma medida acabando: o estoque cobre o ritmo de venda dos últimos {n} dias.', { n: c.janelaDias })}</>}
+        fatos={urgentes.map((l) => `${SITUACAO[l.situacao].icone} ${nome(l)} · ${quando(l)}`)} />
       <GrupoNumeros colunas={4}>
         <NumeroGrande rotulo="Medidas acabando" icone="⚠️" valor={String(dados.totais.acabando)} tom={dados.totais.acabando ? 'ruim' : 'bom'} ajuda={t('Medidas que já acabaram ou acabam em até {n} dias no ritmo de venda atual.', { n: c.alertaDias })} />
         <NumeroGrande rotulo="Em estoque (separado)" icone="📦" valor={kg(dados.totais.estoqueG)} selos={dados.bruto.gramas ? [{ texto: `+ ${kg(dados.bruto.gramas)} ${t('bruto')}` }] : undefined} ajuda="Cabelo já separado por medida. O bruto (ainda sem medida) vira medida na triagem." />

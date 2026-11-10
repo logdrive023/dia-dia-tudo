@@ -166,6 +166,8 @@ export interface Configuracoes {
   metas?: import('./metas').ConfigMetas
   /** MINHA VITRINE: os pacotes prontos como o comprador vê (ver services/vitrine.ts) */
   vitrine?: import('./vitrine').ConfigVitrine
+  /** COBRANÇA NO WHATSAPP (adiantamento e empréstimo): o texto reescrito pelo dono (ver services/cobranca.ts) */
+  cobrancas?: import('./cobranca').MensagensCobranca
   /** as seções de Configurações que a funcionária vê (além de tema, idioma e a própria senha) */
   funcionariaConfig: string[]
   /** RELATÓRIOS CONTÁBEIS: país do padrão (Bolívia é o motor), regime, NIT, faturas e taxas — docs/business/FISCAL.md */

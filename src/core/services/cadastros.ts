@@ -14,6 +14,7 @@ import type { Anexo, CategoriaAnexo, CotacaoRegistro, Id, Local, Papel, Pessoa }
 import { auditar, type Configuracoes, type Ctx, cotacoesAtuais, exigirVersao, lerConfig, MSG_ALTERADO_POR_OUTRA, novo, tocar, versaoDoFormulario } from './contexto'
 import { situacaoDe } from './emprestimos'
 import { type ModuloConfig, moduloDeConfig } from '../modulosConfig'
+import { validarCobrancas } from './cobranca'
 import { type AtributosConfig, type CampoDef, ETAPA_FINAL, type FluxoCompraConfig } from '../modulos'
 
 export async function salvarPessoa(
@@ -294,6 +295,8 @@ export async function salvarConfig(
   // feriados: país conhecido (ou nenhum) e região daquele país (ou nenhuma)
   exigir(!valor.feriadosPais || valor.feriadosPais in PAISES_FERIADO, 'País dos feriados inválido.')
   exigir(!valor.feriadosRegiao || (!!valor.feriadosPais && PAISES_FERIADO[valor.feriadosPais].regioes.some((r) => r.id === valor.feriadosRegiao)), 'Essa região não é do país escolhido.')
+  // a cobrança no WhatsApp: só textos conhecidos, até 600 letras (vazio volta ao texto pronto)
+  if ('cobrancas' in d) valor.cobrancas = validarCobrancas(d.cobrancas)
   if (d.fiscal) {
     valor.fiscal = { ...atual.fiscal, ...d.fiscal }
     const f = valor.fiscal

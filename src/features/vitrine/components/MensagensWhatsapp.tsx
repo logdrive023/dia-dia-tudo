@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import type { MensagensVitrine, ModoPrecoVitrine, PacoteVitrine, TipoMensagemVitrine } from '../../../core/services/vitrine'
 import { Botao, Campo, Cartao, Escolha } from '../../../shared/ui/base'
 import { type Idioma, useDicionario, useT } from '../../../shared/ui/i18n'
+import { PreviaWhatsapp } from '../../../shared/ui/previaWhatsapp'
 import { kg } from '../model/formato'
 import { VARIAVEIS_MENSAGEM, mensagemLista, mensagemLoja, mensagemPacote, textoPronto, variaveisDesconhecidas } from '../model/mensagem'
 
@@ -15,11 +16,6 @@ const EXEMPLOS: PacoteVitrine[] = [
   { id: 'exemplo-3', codigo: 'L-0003', medida: 40, categoria: 'Normal', cor: 'Loiro', gramas: 250 },
 ]
 type Qual = 'pacote' | 'lista' | 'loja'
-
-/** como o WhatsApp mostra: *assim* fica em negrito */
-function ComNegrito({ texto }: { texto: string }) {
-  return <>{texto.split(/(\*[^*\n]+\*)/g).map((x, k) => (/^\*[^*\n]+\*$/.test(x) ? <b key={k}>{x.slice(1, -1)}</b> : x))}</>
-}
 
 export function MensagensWhatsapp({ valor, onChange, loja, pacotes, modoPreco }: {
   valor?: MensagensVitrine
@@ -74,12 +70,7 @@ export function MensagensWhatsapp({ valor, onChange, loja, pacotes, modoPreco }:
           </Campo>
         )}
         {estranhas.length > 0 && <p role="alert" className="text-xs font-semibold text-[var(--alerta)]">{t('O comprador vai ver isto escrito assim: {v}. Use os botões acima.', { v: estranhas.map((x) => `{${x}}`).join(', ') })}</p>}
-        <div>
-          <p className="mb-1 text-xs font-bold uppercase tracking-wider text-[var(--suave)]">{t('Prévia no WhatsApp')}</p>
-          <div className="rounded-xl bg-[#e5ddd5] p-3">
-            <p data-testid="previa-whatsapp" className="ml-auto w-fit max-w-[90%] whitespace-pre-wrap break-words rounded-lg bg-[#dcf8c6] px-3 py-2 text-sm text-[#111111]"><ComNegrito texto={previa} /></p>
-          </div>
-        </div>
+        <PreviaWhatsapp texto={previa} />
         {personalizado && <Botao variante="leve" className="w-full" onClick={restaurar}>↺ {t('Voltar ao texto pronto')}</Botao>}
       </div>
     </Cartao>

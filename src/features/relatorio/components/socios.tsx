@@ -11,6 +11,8 @@ import { useConsulta } from '../../../shared/ui/contexto'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
 import { TabelaDados } from '../../../shared/ui/tabelaDados'
 import { useT } from '../../../shared/ui/i18n'
+import { maioresSaidas, montarCascata } from '../model/cascata'
+import { CascataResultado, EmResumo } from './resumo'
 
 const contabil = (n: number, m: string) => (n < 0 ? `(${formatar(-n, m)})` : formatar(n, m))
 const pctTexto = (v: number, base: number) => (base ? `${(Math.round((v * 1000) / base) / 10).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : '—')
@@ -36,8 +38,13 @@ export function DivisaoSocias({ de, ate }: { de: string; ate: string }) {
   const m = d.moeda
   const retirado = d.socios.reduce((s, x) => s + x.retirou, 0)
   const falta = d.socios.reduce((s, x) => s + x.falta, 0)
+  const cascata = montarCascata(d.linhas.map((l, k) => ({ id: `l${k}`, rotulo: l.conta, valor: l.valor, tipo: k > 0 && l.nivel === 0 ? (k === d.linhas.length - 1 ? 'total' : 'subtotal') : 'conta', ajuda: l.ajuda })))
+  const pesou = cascata ? maioresSaidas(cascata, 2) : []
   return (
     <div className="space-y-4">
+      <EmResumo tom={d.resultado < 0 ? 'ruim' : 'bom'}
+        frase={<>{t(d.resultado < 0 ? 'O período fechou no negativo:' : 'O resultado do período foi')} <b className="num">{contabil(d.resultado, m)}</b>.{d.socios.length > 0 && <> {d.socios.map((x, k) => <span key={x.id}>{k ? ' · ' : ''}<b>{x.nome}</b> {x.falta < 0 ? t('retirou a mais') : t('tem a receber')} <span className="num">{formatar(Math.abs(x.falta), m)}</span></span>)}.</>}</>}
+        fatos={pesou.map((x) => `${t('Pesou')}: ${t(x.rotulo)} ${formatar(-x.valor, m)}`)} />
       <GrupoNumeros colunas={3}>
         <NumeroGrande rotulo="Resultado do período" icone="📈" valor={contabil(d.resultado, m)} tom={d.resultado < 0 ? 'ruim' : 'bom'} selos={[{ texto: t('{n} venda(s)', { n: d.vendas }) }, { texto: `${t('margem')} ${(d.margem / 100).toLocaleString()}%` }]} ajuda="O mesmo resultado dos Estados financeiros: lucro bruto − gastos do período." />
         <NumeroGrande rotulo="Já retirado pelas sócias" icone="👛" valor={formatar(retirado, m)} ajuda="Retiradas registradas no caixa (tipo retirada de sócia) no período." />
@@ -45,20 +52,11 @@ export function DivisaoSocias({ de, ate }: { de: string; ate: string }) {
       </GrupoNumeros>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        {/* O RESULTADO, no jeito de demonstrativo */}
-        <Secao titulo="Resultado do período" sub="do faturado ao resultado" ajuda="Receita − descontos − custo do que foi vendido − insumos dos serviços − comissões = lucro bruto; − gastos = resultado."
-          acao={<Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('resultado', d.linhas.map((l) => ({ conta: l.conta, valor: l.valor / 100 })))}>📥 {t('Baixar planilha')}</Botao>}>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_3.5rem] gap-x-3 bg-[var(--fundo)] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--suave)]"><span>{t('Conceito')}</span><span className="text-right">{m}</span><span className="text-right">%</span></div>
-          <ol className="py-1">
-            {d.linhas.map((l, i) => (
-              <li key={i} className={cx('num grid grid-cols-[minmax(0,1fr)_auto_3.5rem] items-baseline gap-x-3 px-4 py-1.5', l.nivel === 0 && i > 0 && 'mt-1 border-t border-[var(--borda)] pt-2')}>
-                <span className={cx('min-w-0 text-sm', l.nivel === 0 ? 'font-bold' : 'text-[var(--suave)]')}>{t(l.conta.replace(/^= /, ''))}{l.ajuda && <Info texto={l.ajuda} />}</span>
-                <span className={cx('whitespace-nowrap text-right', l.nivel === 0 ? 'font-bold' : 'text-sm', i === d.linhas.length - 1 && 'border-b-[3px] border-double border-[var(--texto)] pb-0.5 font-black', i === d.linhas.length - 1 && (l.valor < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]'))}>{contabil(l.valor, m)}</span>
-                <span className="whitespace-nowrap text-right text-xs text-[var(--suave)]">{pctTexto(l.valor, d.receitaBruta || d.receita)}</span>
-              </li>
-            ))}
-          </ol>
-        </Secao>
+        {/* O RESULTADO em cascata: do faturado ao resultado (o demonstrativo, conta por conta, abre em cada grupo) */}
+        <div className="space-y-2">
+          {cascata && <CascataResultado cascata={cascata} v={(n) => contabil(n, m)} titulo="Do faturado ao resultado" />}
+          <Botao variante="leve" className="nao-imprimir" onClick={() => baixarCSV('resultado', d.linhas.map((l) => ({ conta: l.conta, valor: l.valor / 100 })))}>📥 {t('Baixar planilha')}</Botao>
+        </div>
 
         {/* CADA SÓCIA: a parte, o que retirou (barra) e o que falta acertar */}
         <Secao titulo="Divisão entre sócias" sub="parte × retirado" ajuda="Resultado × parte de cada uma − o que já retirou = quanto falta acertar (o “÷ 2” do caderno). As partes vêm de Configurações › Sócias.">
@@ -102,8 +100,12 @@ export function ServicosInsumos({ de, ate }: { de: string; ate: string }) {
   const tot = dados.total
   const linhas = por === 'tipo' ? dados.porCategoria : dados.porServico
   const v = (n: number) => formatar(n, m)
+  const melhor = [...dados.porCategoria].sort((a, b) => b.margem - a.margem)[0]
   return (
     <div className="space-y-4">
+      <EmResumo tom={tot.margem < 0 ? 'ruim' : 'bom'}
+        frase={!tot.n ? t('Nenhum serviço feito no período.') : <>{t('Os serviços renderam')} <b className="num">{v(tot.receita)}</b> ({t('{n} feito(s)', { n: tot.n })}). {t('Insumos levaram {a} e comissões {b}; ficou para o salão', { a: pctTexto(tot.insumos, tot.receita), b: pctTexto(tot.comissao, tot.receita) })} <b className={cx('num', tot.margem < 0 ? 'text-[var(--ruim)]' : 'text-[var(--bom)]')}>{contabil(tot.margem, m)}</b> ({pctTexto(tot.margem, tot.receita)}).</>}
+        fatos={melhor && tot.n ? [`🏆 ${t('Mais rendeu')}: ${t(melhor.nome)} ${contabil(melhor.margem, m)}`] : undefined} />
       <GrupoNumeros colunas={4}>
         <NumeroGrande rotulo="Receita dos serviços" icone="✂️" valor={v(tot.receita)} selos={[{ texto: t('{n} feito(s)', { n: tot.n }) }]} />
         <NumeroGrande rotulo="Insumos" icone="🧴" valor={contabil(-tot.insumos, m)} ajuda="Tinta, água oxigenada e o que o serviço gasta: custo do salão, sai ANTES da comissão." selos={[{ texto: pctTexto(tot.insumos, tot.receita) }]} />

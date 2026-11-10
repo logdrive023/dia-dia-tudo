@@ -78,6 +78,12 @@ export const NOVIDADES: Novidade[] = [
       { area: 'Pessoas', tipo: 'melhoria', tela: 'adiantamentos', texto: {
         pt: 'Adiantamentos e Empréstimos no mesmo padrão: na lista, o que falta em destaque com a barra; na ficha, o número que importa com a frase do que ele quer dizer, a ação principal à vista (o resto no ⋯) e abas (Linha do tempo ou Parcelas · Comprovantes · Histórico).',
         es: 'Anticipos y Préstamos con el mismo patrón: en la lista, lo que falta destacado con la barra; en la ficha, el número que importa con la frase de lo que quiere decir, la acción principal a la vista (el resto en ⋯) y pestañas (Línea de tiempo o Cuotas · Comprobantes · Historial).' } },
+      { area: 'Relatórios', tipo: 'melhoria', tela: 'relatorios', texto: {
+        pt: 'Relatórios em camadas, como o Painel: cada aba diz a pergunta que responde, abre com um “Em resumo” (o que aconteceu e o que mais pesou), os números e a cascata “Para onde foi o dinheiro” (das vendas ao que sobrou; cada grupo abre com as contas e o “ver ›” leva a cada centavo). O formato do contador e os anexos abrem no lugar, já com o principal no título.',
+        es: 'Informes en capas, como el Panel: cada pestaña dice la pregunta que responde, abre con un “En resumen” (lo que pasó y lo que más pesó), los números y la cascada “A dónde fue el dinero” (de las ventas a lo que quedó; cada grupo abre con las cuentas y el “ver ›” lleva a cada centavo). El formato del contador y los anexos abren en el lugar, ya con lo principal en el título.' } },
+      { area: 'Pessoas', tipo: 'novo', tela: 'emprestimos', texto: {
+        pt: 'Cobrar no WhatsApp (adiantamento e empréstimo): a mensagem vem pronta em espanhol ou português com os dados da conta (quanto falta, as parcelas…), dá para mudar antes de enviar, com prévia, e “Usar sempre este texto” guarda o seu jeito.',
+        es: 'Cobrar por WhatsApp (anticipo y préstamo): el mensaje viene listo en español o portugués con los datos de la cuenta (cuánto falta, las cuotas…), se puede cambiar antes de enviar, con vista previa, y “Usar siempre este texto” guarda su forma.' } },
       { area: 'Sistema', tipo: 'melhoria', texto: {
         pt: 'No computador, a paginação fica sempre no pé da tela: com poucos registros ela desce até embaixo; com muitos, vem logo depois da lista.',
         es: 'En la computadora, la paginación queda siempre al pie de la pantalla: con pocos registros baja hasta abajo; con muchos, viene justo después de la lista.' } },

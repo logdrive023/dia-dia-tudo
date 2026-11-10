@@ -8,7 +8,7 @@ import { formatar } from '../../../core/domain/dinheiro'
 import type { Id } from '../../../core/domain/tipos'
 import { Abas, Carregando, ErroTela, Pilula, dataBR, gramasTexto } from '../../../shared/ui/base'
 import { CabecalhoFicha } from '../../../shared/ui/cabecalhoFicha'
-import { Anexos, linkWhatsApp, useCotacoes } from '../../../shared/ui/compartilhados'
+import { Anexos, useCotacoes } from '../../../shared/ui/compartilhados'
 import { useApp, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { BarraConta, StatusFinanciamentoPilula, corFinanciamento } from '../../../shared/ui/financiamento'
 import { useT } from '../../../shared/ui/i18n'
@@ -17,6 +17,7 @@ import { LinhaDoTempo } from '../../../shared/ui/linhaTempo'
 import { Trilha } from '../../../shared/ui/trilha'
 import { LinhaTempoAdiantamento, saldoAdiantamento } from '../components/adiantamento'
 import { AcoesConta, AvatarConta, ResumoConta } from '../components/conta'
+import { JanelaCobranca } from '../components/JanelaCobranca'
 import { type AcaoAdiantamento, ConfirmarEncerrar, JanelaComissao, JanelaDinheiro, JanelaEntrega } from '../components/janelasAdiantamento'
 
 export function FichaFinanciamento() {
@@ -27,7 +28,7 @@ export function FichaFinanciamento() {
   const { dados, erro } = useConsulta('financiamento', { id })
   const { executar, ocupado } = useComando()
   const { cfg } = useCotacoes()
-  const [acao, setAcao] = useState<AcaoAdiantamento>()
+  const [acao, setAcao] = useState<AcaoAdiantamento | 'cobrar'>()
   const [aba, setAba] = useParamTela<'tempo' | 'comprovantes' | 'historico'>('aba', 'tempo')
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
@@ -37,7 +38,6 @@ export function FichaFinanciamento() {
   const aberto = dados.status === 'aberto'
   const s = saldoAdiantamento(dados.saldo)
   const pct = Math.round(dados.progressoBp / 100)
-  const cobranca = `${t('Olá')} ${dados.pessoa?.nome ?? ''}! ${t('Adiantamento')} ${f.codigo}: ${t('falta entregar')} ${formatar(dados.saldo, mp)}.`
   const fechar = () => setAcao(undefined)
 
   // a ação principal: entregar cabelo (aberto) ou pagar a diferença (a loja deve); o resto no ⋯
@@ -49,7 +49,7 @@ export function FichaFinanciamento() {
   const outras = !ativo ? [] : [
     ...(aberto ? [{ rotulo: 'Receber em dinheiro', icone: '💵', descricao: t('O parceiro devolveu o que não virou cabelo.'), onClick: () => setAcao('receber') }] : []),
     ...(aberto && dados.comissaoAPagar ? [{ rotulo: 'Abater da comissão', icone: '🧾', descricao: t('A comissão a pagar a {n} paga a dívida.', { n: nome }), onClick: () => setAcao('comissao') }] : []),
-    ...(aberto && dados.pessoa?.telefone ? [{ rotulo: 'Cobrar no WhatsApp', icone: '💬', onClick: () => window.open(linkWhatsApp(cobranca, dados.pessoa?.telefone), '_blank', 'noopener') }] : []),
+    ...(aberto && dados.saldo > 0 ? [{ rotulo: 'Cobrar no WhatsApp', icone: '💬', descricao: t('A mensagem pronta, com o que falta; dá para mudar antes de enviar.'), onClick: () => setAcao('cobrar') }] : []),
     ...(dados.pessoa ? [{ rotulo: 'Abrir ficha da pessoa', icone: '👤', onClick: () => ir('pessoa', { id: dados.pessoa!.id }) }] : []),
     { rotulo: 'Encerrar', icone: '🔒', descricao: t('Fecha o adiantamento; o que sobrar vira baixa.'), perigo: true, separar: true, onClick: () => setAcao('encerrar') },
   ]
@@ -104,6 +104,16 @@ export function FichaFinanciamento() {
       {(acao === 'receber' || acao === 'diferenca') && <JanelaDinheiro tipo={acao} dados={dados} onFechar={fechar} />}
       {acao === 'comissao' && <JanelaComissao dados={dados} onFechar={fechar} />}
       {acao === 'encerrar' && <ConfirmarEncerrar dados={dados} onFechar={fechar} />}
+      {acao === 'cobrar' && (
+        <JanelaCobranca tipo="adiantamento" telefone={dados.pessoa?.telefone} onFechar={fechar} valores={{
+          nome: nome,
+          codigo: f.codigo,
+          falta: formatar(dados.saldo, mp),
+          adiantado: formatar(f.valor, f.moeda),
+          entregue: `${formatar(dados.entregue, mp)} · ${gramasTexto(dados.gramas)}`,
+          prazo: f.prazo ? dataBR(f.prazo) : '',
+        }} />
+      )}
     </div>
   )
 }

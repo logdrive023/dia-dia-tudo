@@ -9,7 +9,7 @@ import { formatar } from '../../../core/domain/dinheiro'
 import type { Id } from '../../../core/domain/tipos'
 import { Abas, Botao, Carregando, ErroTela, Pilula, Titulo, Vazio, dataBR, moedaPadrao } from '../../../shared/ui/base'
 import { CabecalhoFicha } from '../../../shared/ui/cabecalhoFicha'
-import { Anexos, linkWhatsApp } from '../../../shared/ui/compartilhados'
+import { Anexos } from '../../../shared/ui/compartilhados'
 import { useApp, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { BotaoEscolha, FiltroLista, VazioFiltro } from '../../../shared/ui/filtroPadrao'
 import { BarraConta } from '../../../shared/ui/financiamento'
@@ -18,6 +18,7 @@ import { LinhaDoTempo } from '../../../shared/ui/linhaTempo'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
 import { Paginada } from '../../../shared/ui/paginacao'
 import { Trilha } from '../../../shared/ui/trilha'
+import { JanelaCobranca } from '../components/JanelaCobranca'
 import { AcoesConta, AvatarConta, ResumoConta } from '../components/conta'
 import { COR_LADO, CartaoEmprestimo, JanelaPagamento, ListaParcelas, TOM_EMPRESTIMO, pctPago } from '../components/emprestimo'
 
@@ -82,6 +83,7 @@ export function FichaEmprestimo() {
   const id = nav.params.id as Id
   const { dados, erro } = useConsulta('emprestimo', { id })
   const [pagar, setPagar] = useState(false)
+  const [cobrar, setCobrar] = useState(false)
   const [aba, setAba] = useParamTela<'parcelas' | 'comprovantes' | 'historico'>('aba', 'parcelas')
   if (erro) return <ErroTela texto={erro} onVoltar={voltar} />
   if (!dados) return <Carregando />
@@ -90,14 +92,13 @@ export function FichaEmprestimo() {
   const nome = pessoa?.nome ?? '—'
   const cor = COR_LADO[e.direcao]
   const dado = e.direcao === 'dado'
-  const cobranca = `${t('Olá')} ${pessoa?.nome ?? ''}! ${t('Parcelas em aberto')}: ${dados.parcelas.filter((p) => p.falta).map((p) => `${p.numero}ª ${dataBR(p.vencimento)} ${formatar(p.falta, e.moeda)}`).join(' · ')}. ${t('Total que falta')}: ${formatar(dados.saldo, e.moeda)}.`
   const juros = e.juros?.tipo && e.juros.tipo !== 'nenhum'
     ? `${t(NOME_JUROS[e.juros.tipo])}${e.juros.taxaMensalBp ? ` ${e.juros.taxaMensalBp / 100}% ${t('ao mês')}` : ''}${e.juros.valorFixo ? ` ${formatar(e.juros.valorFixo, e.moeda)}` : ''}`
     : t('sem juros')
   const pagas = dados.parcelas.filter((p) => !p.falta).length
   const pct = pctPago(dados.recebido, dados.saldo)
   const outras = [
-    ...(dado && dados.saldo > 0 ? [{ rotulo: 'Cobrar no WhatsApp', icone: '💬', descricao: t('A mensagem já vai com as parcelas em aberto.'), onClick: () => window.open(linkWhatsApp(cobranca, pessoa?.telefone), '_blank', 'noopener') }] : []),
+    ...(dado && dados.saldo > 0 ? [{ rotulo: 'Cobrar no WhatsApp', icone: '💬', descricao: t('A mensagem já vai com as parcelas em aberto.'), onClick: () => setCobrar(true) }] : []),
     ...(pessoa ? [{ rotulo: 'Abrir ficha da pessoa', icone: '👤', onClick: () => ir('pessoa', { id: pessoa.id }) }] : []),
   ]
   return (
@@ -141,6 +142,15 @@ export function FichaEmprestimo() {
             : <ListaParcelas dados={dados} />}
       </div>
       {pagar && <JanelaPagamento dados={dados} onFechar={() => setPagar(false)} />}
+      {cobrar && (
+        <JanelaCobranca tipo="emprestimo" telefone={pessoa?.telefone} onFechar={() => setCobrar(false)} valores={{
+          nome,
+          falta: formatar(dados.saldo, e.moeda),
+          parcelas: dados.parcelas.filter((p) => p.falta).map((p) => `${p.numero}ª · ${dataBR(p.vencimento)} · ${formatar(p.falta, e.moeda)}${p.status === 'atrasada' ? ' ⚠️' : ''}`).join('\n'),
+          proxima: dados.proxima ? `${dataBR(dados.proxima.vencimento)} · ${formatar(dados.proxima.falta, e.moeda)}` : '',
+          atrasado: formatar(dados.atrasado, e.moeda),
+        }} />
+      )}
     </div>
   )
 }

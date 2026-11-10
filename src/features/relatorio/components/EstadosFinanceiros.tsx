@@ -1,15 +1,20 @@
-// ESTADOS FINANCIEROS (tela) — "simples por fora, completo por dentro":
-//   cabeçalho (empresa · NIT · regime · período · moeda) · os 4 números · o Estado de Resultados e o Balance lado a
-//   lado · impostos e conferência · os ANEXOS (cada centavo), cada um abre no lugar. "ver ›" numa linha leva ao anexo.
-//   🖨 Vista previa → a impressão em A4 (Impressao.tsx). Padrão 🇧🇴 (motor) ou 🇧🇷, escolhido aqui ou nas Configurações.
+// ESTADOS FINANCIEROS (tela) — "simples por fora, completo por dentro", em camadas (o padrão de components/resumo):
+//   1 EM RESUMO     a frase do período: quanto vendeu, quanto sobrou (ou faltou) e o que mais pesou
+//   2 OS NÚMEROS    ventas · utilidad bruta · impuestos · utilidad neta (com a conferência)
+//   3 A CASCATA     "para onde foi o dinheiro": das vendas ao resultado; cada grupo abre com as contas e "ver ›"
+//   4 O CONTÁBIL    Estado de Resultados (formato contábil), Balance, Impuestos e Conferencia — cada um abre no lugar
+//                   e já diz o principal no título; depois os ANEXOS (cada centavo)
+//   🖨 Vista previa → a impressão em A4 (Impressao.tsx), com tudo aberto. Padrão 🇧🇴 (motor) ou 🇧🇷.
 import { useState } from 'react'
-import { Botao, Carregando, Cartao, Escolha, ErroTela, cx, dataBR } from '../../../shared/ui/base'
+import { Botao, Carregando, Escolha, ErroTela, dataBR } from '../../../shared/ui/base'
 import { useApp, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
+import { maioresSaidas, montarCascata } from '../model/cascata'
 import { ConteudoSecao, type IdSecao, SECOES, tituloSecao } from './conteudo'
 import { Impressao } from './Impressao'
 import { TEXTO, valorContabil } from './pecas'
+import { BlocoRelatorio, CascataResultado, EmResumo } from './resumo'
 
 export function EstadosFinanceiros({ de, ate }: { de: string; ate: string }) {
   const t = useT()
@@ -24,63 +29,76 @@ export function EstadosFinanceiros({ de, ate }: { de: string; ate: string }) {
   if (!rel) return <Carregando />
   const x = TEXTO[pais]
   const v = (n: number) => `${rel.moeda === 'BOB' ? 'Bs' : rel.moeda} ${valorContabil(n, pais)}`
+  const alternar = (id: IdSecao) => setAbertos((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const irAnexo = (id: string) => {
     setAbertos((s) => new Set([...s, id as IdSecao]))
     setTimeout(() => document.getElementById(`anexo-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
   }
   const confere = rel.conferencia.every((c) => c.ok)
+  const n = rel.numeros
+  const cascata = montarCascata(rel.resultados)
+  const pesou = cascata ? maioresSaidas(cascata) : []
+  const sobrou = n.resultado >= 0
+
+  // camada 1: a frase do período
+  const frase = !n.vendas && !n.receita
+    ? t('Nenhuma venda de {de} a {ate}.', { de: dataBR(rel.de), ate: dataBR(rel.ate) })
+    : <>{t('De {de} a {ate} você vendeu', { de: dataBR(rel.de), ate: dataBR(rel.ate) })} <b className="num">{v(n.receita)}</b> ({t('{n} venda(s)', { n: n.vendas })}). {t(sobrou ? 'Depois de custos, despesas e impostos, sobraram' : 'Depois de custos, despesas e impostos, faltaram')} <b className={sobrou ? 'num text-[var(--bom)]' : 'num text-[var(--ruim)]'}>{v(Math.abs(n.resultado))}</b>.{pesou.length > 0 && <> {t('O que mais pesou')}: {pesou.map((p, k) => <span key={p.id}>{k ? ' · ' : ''}<b>{t(p.rotulo)}</b> <span className="num">{v(-p.valor)}</span></span>)}.</>}</>
+
+  // camada 4: cada parte contábil já diz o principal no título
+  const resumoDe: Partial<Record<IdSecao, string>> = {
+    resultado: `${x.periodo.replace('{de}', dataBR(rel.de)).replace('{ate}', dataBR(rel.ate))} · ${v(n.resultado)}`,
+    balanco: `${x.totalActivo} ${v(rel.balanco.totalAtivo)} · ${x.totalPasivo} ${v(rel.balanco.totalPassivo)}`,
+    impostos: `${x.carga} ${v(rel.resumoImpostos.total)}`,
+    conferencia: confere ? `✓ ${x.ok}` : `⚠ ${rel.conferencia.filter((c) => !c.ok).length} ${x.dif}`,
+  }
+  const blocoSecao = (id: IdSecao, prefixo = '') => {
+    const s = SECOES.find((y) => y.id === id)!
+    return (
+      <BlocoRelatorio key={id} id={`${prefixo}${id}`} icone={s.icone} titulo={tituloSecao(id, rel)} resumo={resumoDe[id]} aberto={abertos.has(id)} onAlternar={() => alternar(id)}>
+        <ConteudoSecao id={id} rel={rel} onAnexo={irAnexo} />
+      </BlocoRelatorio>
+    )
+  }
   return (
     <div className="space-y-4">
       {/* o padrão e a impressão */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-max"><Escolha<'BO' | 'BR'> rotulo="Padrão" valor={pais} onChange={setPadrao} opcoes={[{ id: 'BO', nome: 'Bolivia' }, { id: 'BR', nome: 'Brasil' }]} /></div>
-        <button type="button" onClick={() => ir('configSecao', { id: 'fiscal' })} className="min-h-10 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙️ {t('Fiscal e relatórios')}</button>
+        <button type="button" onClick={() => ir('configSecao', { id: 'fiscal' })} className="min-h-10 toque:min-h-11 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">⚙️ {t('Fiscal e relatórios')}</button>
         <Botao className="ml-auto" onClick={() => setImprimir(true)}>🖨 {t('Vista previa e imprimir')}</Botao>
       </div>
 
-      {/* o cabeçalho de estado financeiro */}
-      <header className="rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-4 text-center shadow-sm">
-        <p className="text-lg font-black uppercase tracking-wide">{rel.empresa.nome}</p>
-        <p className="text-xs text-[var(--suave)]">{[rel.empresa.nit && `${x.nit} ${rel.empresa.nit}`, rel.empresa.atividade, rel.empresa.endereco].filter(Boolean).join(' · ')}</p>
-        <p className="mt-2 text-base font-bold">{rel.titulo}</p>
-        <p className="text-sm">{x.periodo.replace('{de}', dataBR(rel.de)).replace('{ate}', dataBR(rel.ate))} · {x.expresado(rel.moeda)}</p>
-        <p className="mt-1 text-xs text-[var(--suave)]">{x.regime}: {rel.regimeNome}</p>
-        {!rel.empresa.nit && <p className="nao-imprimir mt-2 text-xs text-[var(--alerta)]">⚠ {t('Sem NIT no cabeçalho: ponha em Configurações › Fiscal e relatórios.')}</p>}
-      </header>
+      {/* a identidade do documento, numa linha (completa na impressão) */}
+      <p className="text-center text-xs text-[var(--suave)]">
+        <b className="text-[var(--texto)]">{rel.empresa.nome}</b>{rel.empresa.nit ? ` · ${x.nit} ${rel.empresa.nit}` : ''} · {rel.titulo} · {x.expresado(rel.moeda)} · {x.regime}: {rel.regimeNome}
+        {!rel.empresa.nit && <span className="nao-imprimir mt-0.5 block text-[var(--alerta)]">⚠ {t('Sem NIT no cabeçalho: ponha em Configurações › Fiscal e relatórios.')}</span>}
+      </p>
+
+      <EmResumo frase={frase} tom={n.resultado < 0 ? 'ruim' : 'bom'} fatos={[
+        confere ? `✓ ${x.conferencia}` : `⚠ ${x.conferencia}`,
+        n.impostos ? `🧾 ${t(pais === 'BO' ? 'Impuestos' : 'Impostos')} ${v(n.impostos)}` : undefined,
+      ]} />
 
       <GrupoNumeros colunas={4}>
-        <NumeroGrande rotulo={pais === 'BO' ? 'Ventas' : 'Receita'} icone="💰" cor="var(--marca)" valor={v(rel.numeros.receita)} selos={[{ texto: t('{n} venda(s)', { n: rel.numeros.vendas }) }]} />
-        <NumeroGrande rotulo={pais === 'BO' ? 'Utilidad bruta' : 'Lucro bruto'} icone="📈" cor="var(--bom)" valor={v(rel.numeros.lucroBruto)} />
-        <NumeroGrande rotulo={pais === 'BO' ? 'Impuestos' : 'Impostos'} icone="🧾" cor="var(--alerta)" valor={v(rel.numeros.impostos)} />
-        <NumeroGrande rotulo={pais === 'BO' ? 'Utilidad neta' : 'Lucro líquido'} icone="🏁" cor={rel.numeros.resultado < 0 ? 'var(--ruim)' : 'var(--bom)'} colorirValor valor={v(rel.numeros.resultado)} selos={[{ texto: confere ? `✓ ${x.conferencia}` : `⚠ ${x.conferencia}`, tom: confere ? 'bom' : 'ruim' }]} />
+        <NumeroGrande rotulo={pais === 'BO' ? 'Ventas' : 'Receita'} icone="💰" cor="var(--marca)" valor={v(n.receita)} selos={[{ texto: t('{n} venda(s)', { n: n.vendas }) }]} onClick={() => irAnexo('vendas')} />
+        <NumeroGrande rotulo={pais === 'BO' ? 'Utilidad bruta' : 'Lucro bruto'} icone="📈" cor="var(--bom)" valor={v(n.lucroBruto)} ajuda="Vendas menos impostos sobre vendas, custo do que foi vendido, insumos e comissões." />
+        <NumeroGrande rotulo={pais === 'BO' ? 'Impuestos' : 'Impostos'} icone="🧾" cor="var(--alerta)" valor={v(n.impostos)} onClick={() => alternar('impostos')} ativo={abertos.has('impostos')} />
+        <NumeroGrande rotulo={pais === 'BO' ? 'Utilidad neta' : 'Lucro líquido'} icone="🏁" cor={n.resultado < 0 ? 'var(--ruim)' : 'var(--bom)'} colorirValor valor={v(n.resultado)} selos={[{ texto: confere ? `✓ ${x.conferencia}` : `⚠ ${x.conferencia}`, tom: confere ? 'bom' : 'ruim' }]} />
       </GrupoNumeros>
 
-      {/* o resumo: resultado e balanço lado a lado; impostos e conferência embaixo */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {(['resultado', 'balanco', 'impostos', 'conferencia'] as const).map((id) => (
-          <Cartao key={id} titulo={`${SECOES.find((s) => s.id === id)!.icone} ${tituloSecao(id, rel)}`}>
-            <ConteudoSecao id={id} rel={rel} onAnexo={irAnexo} />
-          </Cartao>
-        ))}
-      </div>
+      {cascata && <CascataResultado cascata={cascata} v={v} onAnexo={irAnexo} />}
+
+      {/* o contábil: cada parte abre no lugar */}
+      <section aria-label={t('Formato contábil')} className="space-y-2">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--suave)]">📑 {t('Formato contábil')}</h2>
+        {(['resultado', 'balanco', 'impostos', 'conferencia'] as const).map((id) => blocoSecao(id))}
+      </section>
 
       {/* os anexos: cada centavo */}
-      <section aria-label={x.anexos}>
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-[var(--suave)]">{x.anexos}</h2>
-        <div className="space-y-2">
-          {SECOES.filter((s) => s.anexo).map((s) => {
-            const aberto = abertos.has(s.id)
-            return (
-              <div key={s.id} id={`anexo-${s.id}`} className="scroll-mt-4 overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
-                <button type="button" aria-expanded={aberto} onClick={() => setAbertos((a) => { const n = new Set(a); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); return n })} className="flex min-h-12 w-full items-center gap-2 px-4 text-left font-semibold hover:bg-[var(--fundo)]">
-                  <span aria-hidden>{s.icone}</span><span className="flex-1">{tituloSecao(s.id, rel)}</span>
-                  <span aria-hidden className={cx('text-[var(--suave)] transition-transform', aberto && 'rotate-90')}>›</span>
-                </button>
-                {aberto && <div className="border-t border-[var(--borda)] p-3"><ConteudoSecao id={s.id} rel={rel} /></div>}
-              </div>
-            )
-          })}
-        </div>
+      <section aria-label={x.anexos} className="space-y-2">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--suave)]">📎 {x.anexos}</h2>
+        {SECOES.filter((s) => s.anexo).map((s) => blocoSecao(s.id, 'anexo-'))}
       </section>
 
       {imprimir && <Impressao rel={rel} onFechar={() => setImprimir(false)} />}
