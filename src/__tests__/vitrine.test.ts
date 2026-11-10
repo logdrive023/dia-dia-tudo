@@ -87,3 +87,30 @@ describe('minha vitrine', () => {
     expect(((await b.consulta('vitrine', { publico: true })) as any).pacotes).toEqual([])
   })
 })
+
+describe('quanto mostrar na vitrine', () => {
+  it('o pacote tem 1 kg, mas só 500 g vão para a vitrine; nunca mostra mais do que existe', async () => {
+    const { b, sessao } = await novoBackend('2026-11-05')
+    await b.comando('salvarPessoa', { id: 'f', nome: 'Fornecedora', papeis: ['fornecedor'] } as any)
+    await b.comando('criarCompra', { id: 'c', moduloId: 'cabelo', pessoaId: 'f', linhas: [{ id: 'cl', quantidade: 2000, moeda: 'BOB', total: bs(20000), campos: { estado: 'Bruto' } }], pagarNoAto: [{ id: 'pc', forma: 'qr', moeda: 'BOB', valor: bs(20000) }] } as any)
+    const bruto = (await (b as any).repos.transacoes.obter('c')).linhas[0].itemId
+    await b.comando('separarLote', { id: 's', loteId: bruto, quantidadeUsada: 2000, saidas: [
+      { id: 'A', quantidade: 1000, campos: { estado: 'Separado', comprimento: 60, categoria: 'Normal' } },
+      { id: 'B', quantidade: 1000, campos: { estado: 'Separado', comprimento: 50, categoria: 'Normal' } },
+    ] } as any)
+    await b.comando('marcarEtiquetasImpressas', { ids: ['A', 'B'] } as any)
+    // A: só 500 g na vitrine · B: limite maior que o saldo (vale o saldo) · zero = sem limite
+    await b.comando('salvarConfig', { vitrine: { ativa: true, ocultos: [], publicados: ['A', 'B'], limites: { A: 500, B: 5000, X: 0 } } } as never)
+    const adm = (await b.consulta('vitrine', {})) as any
+    expect(adm.pacotes.map((x: any) => [x.id, x.gramas, x.disponivel, x.limite])).toEqual([['A', 500, 1000, 500], ['B', 1000, 1000, 5000]])
+    expect(adm.gramas).toBe(1500)
+    expect((await b.consulta('configuracoes', {}) as any).config.vitrine.limites).toEqual({ A: 500, B: 5000 })
+    await expect(b.comando('salvarConfig', { vitrine: { ativa: true, ocultos: [], limites: { A: -5 } } } as never)).rejects.toThrow(/Quanto mostrar/)
+    await expect(b.comando('salvarConfig', { vitrine: { ativa: true, ocultos: [], limites: { A: 2.5 } } } as never)).rejects.toThrow(/Quanto mostrar/)
+    // o comprador vê só os 500 g (sem o saldo inteiro nem o limite)
+    Object.assign(sessao, { usuarioId: '', perfil: undefined, nome: '' })
+    const pub = (await b.consulta('vitrine', { publico: true })) as any
+    expect(pub.pacotes.map((x: any) => [x.id, x.gramas])).toEqual([['A', 500], ['B', 1000]])
+    expect(JSON.stringify(pub)).not.toMatch(/disponivel|limite/)
+  })
+})

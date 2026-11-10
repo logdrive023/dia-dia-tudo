@@ -5675,4 +5675,16 @@ export const ES: Record<string, string> = {
   'Melhorias e correções.': 'Mejoras y correcciones.',
   '{n} juntado(s)': '{n} juntado(s)',
   '{n} sem juntar': '{n} sin juntar',
+  // 10/11/2026: vitrine — quanto mostrar de cada pacote
+  'Quanto mostrar na vitrine': 'Cuánto mostrar en la vitrina',
+  '{v} de {t}': '{v} de {t}',
+  'tudo ({v})': 'todo ({v})',
+  'Abrir no estoque': 'Abrir en el inventario',
+  'Mostrar': 'Mostrar',
+  'Mostra': 'Muestra',
+  'Ex.: o pacote tem 1 kg e você quer mostrar só 500 g. Vazio = tudo.': 'Ej.: el paquete tiene 1 kg y usted quiere mostrar solo 500 g. Vacío = todo.',
+  'de {t} disponíveis': 'de {t} disponibles',
+  'Quantidade na vitrine salva.': 'Cantidad en la vitrina guardada.',
+  'A vitrine mostra o pacote inteiro.': 'La vitrina muestra el paquete entero.',
+  'Quanto mostrar na vitrine: use gramas inteiras maiores que zero.': 'Cuánto mostrar en la vitrina: use gramos enteros mayores que cero.',
 }

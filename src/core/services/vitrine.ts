@@ -64,6 +64,11 @@ export interface ConfigVitrine {
   colunaId?: string
   /** modo 'individual': o preço por grama de cada pacote, como na tabela (ex.: "17,5") */
   precos?: Record<Id, string>
+  /**
+   * QUANTO MOSTRAR de cada pacote (gramas). Ex.: o pacote tem 1 kg, mas só 500 g vão para a vitrine. Sem limite: tudo.
+   * Se o saldo cair abaixo do limite (vendeu no caixa), a vitrine mostra o saldo — nunca mais do que existe.
+   */
+  limites?: Record<Id, number>
   /** o texto do WhatsApp reescrito pelo dono */
   mensagens?: MensagensVitrine
   /** modo 'automatico': pacotes que o administrador escondeu da vitrine */
@@ -101,7 +106,10 @@ export function validarVitrine(v: ConfigVitrine): ConfigVitrine {
   const publicados = [...new Set((v.publicados ?? []).filter((id) => typeof id === 'string' && id))]
   const precos = Object.fromEntries(Object.entries(v.precos ?? {}).map(([id, f]): [Id, string] => [id, String(f).trim()]).filter(([, f]) => f))
   exigir(Object.values(precos).every((f) => fatorValido(f)), 'Preço inválido: use só números. Ex.: 17,5.')
-  return { ...VITRINE_PADRAO, ...v, publicados, precos, mensagens: validarMensagens(v.mensagens), aparencia: a, whatsapp: w || undefined, nome: v.nome?.trim() || undefined, descricao: v.descricao?.trim() || undefined, ocultos: [...new Set(v.ocultos ?? [])] }
+  // limite vazio/zero = sem limite (mostra tudo); o resto, gramas inteiras
+  const limites = Object.fromEntries(Object.entries(v.limites ?? {}).filter(([id, g]) => id && g !== undefined && g !== null && Number(g) !== 0)) as Record<Id, number>
+  exigir(Object.values(limites).every((g) => Number.isSafeInteger(g) && g > 0), 'Quanto mostrar na vitrine: use gramas inteiras maiores que zero.')
+  return { ...VITRINE_PADRAO, ...v, publicados, precos, limites, mensagens: validarMensagens(v.mensagens), aparencia: a, whatsapp: w || undefined, nome: v.nome?.trim() || undefined, descricao: v.descricao?.trim() || undefined, ocultos: [...new Set(v.ocultos ?? [])] }
 }
 
 export interface PacoteVitrine {
@@ -112,7 +120,11 @@ export interface PacoteVitrine {
   cor?: string
   textura?: string
   origem?: string
+  /** o que a vitrine mostra: o saldo, ou o limite escolhido pelo administrador (o menor dos dois) */
   gramas: number
+  /** só para o administrador: o saldo inteiro do pacote e o limite (se tiver) */
+  disponivel?: number
+  limite?: number
   /** só a imagem (de qual compra veio a foto não sai na vitrine) */
   foto?: Pick<FotoResumo, 'id' | 'miniatura'>
   /** preço por grama (texto como na tabela, ex.: "17,5"); sem ele, o comprador chama no WhatsApp */
@@ -172,10 +184,10 @@ export async function vitrine(ctx: Ctx, p: { publico?: boolean } = {}) {
       cor: i.campos.cor ? String(i.campos.cor) : undefined,
       textura: i.campos.textura ? String(i.campos.textura) : undefined,
       origem: i.campos.origem ? String(i.campos.origem) : undefined,
-      gramas: i.saldo,
+      gramas: conf.limites?.[i.id] ? Math.min(conf.limites[i.id], i.saldo) : i.saldo,
       foto: fotoDe(F.principal(i.id)),
       preco,
-      ...(publico ? {} : { oculto: fora(i.id) }),
+      ...(publico ? {} : { oculto: fora(i.id), disponivel: i.saldo, limite: conf.limites?.[i.id] }),
     })
   }
   const vistos = (k: 'cor' | 'categoria') => [...new Set(pacotes.map((x) => x[k]).filter(Boolean))].sort() as string[]

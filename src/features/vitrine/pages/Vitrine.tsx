@@ -6,15 +6,14 @@
 // tudo aparece um embaixo do outro (as abas somem).
 // A regra (o que entra e o que o comprador vê) é do serviço: src/core/services/vitrine.ts. A página do comprador: Loja.tsx.
 import type { ConfigVitrine, EntradaVitrine } from '../../../core/services/vitrine'
-import { Abas, Botao, Campo, Carregando, Entrada, Escolha, Pilula, Titulo, Vazio, cx, gramasTexto } from '../../../shared/ui/base'
+import { Abas, Botao, Carregando, Entrada, Escolha, Pilula, Titulo, Vazio, cx } from '../../../shared/ui/base'
 import { useApp, useComando, useConsulta, useParamTela } from '../../../shared/ui/contexto'
 import { MenuAcoes } from '../../../shared/ui/menuAcoes'
 import { useT } from '../../../shared/ui/i18n'
-import { Chave } from '../../../shared/ui/interruptor'
 import { NotaTela } from '../../../shared/ui/notaTela'
 import { GrupoNumeros, NumeroGrande } from '../../../shared/ui/numeroGrande'
-import { TabelaDados } from '../../../shared/ui/tabelaDados'
 import { GeradorVitrine } from '../components/GeradorVitrine'
+import { ListaPacotesVitrine, kg } from '../components/ListaPacotesVitrine'
 import { linkDaLoja } from './Loja'
 
 export function MinhaVitrine() {
@@ -65,32 +64,12 @@ export function MinhaVitrine() {
     return <Entrada key={salvo} aria-label={`${t('Preço por grama')} ${x.codigo ?? ''}`} inputMode="decimal" placeholder="0,00" className="num w-24 text-right" defaultValue={salvo} onBlur={(e) => { if (e.target.value.trim() !== salvo) void salvarPreco(x.id, e.target.value) }} />
   }
   const precoTexto = (x: P) => (x.preco ? `${x.preco.moeda === 'BOB' ? 'Bs' : x.preco.moeda} ${x.preco.fator}/g` : t(modo === 'contato' ? 'Entrar em contato' : modo === 'individual' ? 'sem preço digitado' : 'sem preço na tabela'))
-  const kg = (g: number) => (g >= 1000 ? `${(g / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : gramasTexto(g))
-  const rotuloPor = t(escolher ? 'Pôr na vitrine' : 'Mostrar na vitrine')
-  const rotuloTirar = t(escolher ? 'Tirar da vitrine' : 'Esconder da vitrine')
-  /** uma lista de pacotes (a mesma peça nas duas: fila de prontos e o que está na vitrine) */
+  const salvarLimite = (id: string, g: number) => salvar({ limites: { ...atual.limites, [id]: g } }, t(g ? 'Quantidade na vitrine salva.' : 'A vitrine mostra o pacote inteiro.'))
+  /** a lista de pacotes (a mesma peça nas duas: fila de prontos e o que está na vitrine) */
   const lista = (linhas: P[]) => (
-    <TabelaDados<P>
-      linhas={linhas}
-      chave={(x) => x.id}
-      colunas={[
-        { id: 'pacote', titulo: 'Pacote', classe: 'w-full min-w-[12rem]', celula: (x) => <span><b className="font-mono text-[var(--marca)]">{x.codigo}</b> <span className="font-semibold">{x.medida} cm{x.categoria && x.categoria !== 'Normal' ? ` · ${t(x.categoria)}` : ''}</span>{x.cor && <span className="text-[var(--suave)]"> · {t(x.cor)}</span>}</span> },
-        { id: 'gramas', titulo: 'Disponível', direita: true, classe: 'whitespace-nowrap', celula: (x) => kg(x.gramas) },
-        ...(modo === 'contato' ? [] : [{ id: 'preco', titulo: 'Preço/g', direita: true, classe: 'whitespace-nowrap', celula: (x: P) => (modo === 'individual' ? campoPreco(x) : precoTexto(x)) }]),
-        { id: 'na', titulo: 'Na vitrine', classe: 'whitespace-nowrap', celula: (x) => <Chave ligado={!x.oculto} rotulo={`${t('Na vitrine')} ${x.codigo ?? ''}`} travado={ocupado} onChange={(v) => void naVitrine([x.id], v)} /> },
-      ]}
-      celular={{
-        titulo: (x) => `${x.medida} cm${x.cor ? ` · ${t(x.cor)}` : ''}`,
-        valor: (x) => kg(x.gramas),
-        codigo: (x) => x.codigo ?? '',
-        situacao: (x) => ({ texto: t(x.oculto ? (escolher ? 'Fora da vitrine' : 'Escondido') : 'Na vitrine'), tom: x.oculto ? 'suave' : 'bom' }),
-        resumo: precoTexto,
-        aberto: (x) => <div className="space-y-2">
-          {modo === 'individual' && <Campo rotulo="Preço por grama">{campoPreco(x)}</Campo>}
-          <Botao variante={x.oculto ? 'primario' : 'secundario'} disabled={ocupado} onClick={() => void naVitrine([x.id], !!x.oculto)}>{x.oculto ? `🛍️ ${rotuloPor}` : rotuloTirar}</Botao>
-        </div>,
-      }}
-    />
+    <ListaPacotesVitrine linhas={linhas} escolher={escolher} ocupado={ocupado} precoTexto={precoTexto}
+      preco={modo === 'contato' ? undefined : (x) => (modo === 'individual' ? campoPreco(x as P) : precoTexto(x as P))}
+      onNaVitrine={(ids, entrar) => void naVitrine(ids, entrar)} onLimite={(id, g) => void salvarLimite(id, g)} />
   )
   return (
     <div>

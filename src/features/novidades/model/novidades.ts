@@ -105,6 +105,9 @@ export const NOVIDADES: Novidade[] = [
       { area: 'Sistema', tipo: 'melhoria', texto: {
         pt: 'Atualização como app de celular: quando sai versão nova, aparece só um selo discreto embaixo. No toque, a janela mostra quando saiu e o resumo do que mudou; “Atualizar agora” mostra o carregando e abre a versão nova (ou “Ver novidades” já abre nesta tela).',
         es: 'Actualización como app de celular: cuando sale una versión nueva, aparece solo un sello discreto abajo. Al tocar, la ventana muestra cuándo salió y el resumen de lo que cambió; “Actualizar ahora” muestra la carga y abre la versión nueva (o “Ver novedades” ya abre en esta pantalla).' } },
+      { area: 'Estoque', tipo: 'novo', tela: 'vitrine', texto: {
+        pt: 'Minha vitrine: escolha quanto mostrar de cada pacote (ex.: o pacote tem 1 kg, mas só 500 g vão para a vitrine; vazio = tudo) e toque no pacote para abrir a ficha dele no estoque.',
+        es: 'Mi vitrina: elija cuánto mostrar de cada paquete (ej.: el paquete tiene 1 kg, pero solo 500 g van a la vitrina; vacío = todo) y toque el paquete para abrir su ficha en el inventario.' } },
       { area: 'Estoque', tipo: 'melhoria', tela: 'vitrine', texto: {
         pt: 'Minha vitrine no celular em sub-abas (Vitrine · Prontos · Loja), uma coisa por vez; os números levam à aba e “Copiar link” foi para o ⋯. No exemplo há pacotes na vitrine, prontos esperando e sem etiqueta.',
         es: 'Mi vitrina en el celular en subpestañas (Vitrina · Listos · Tienda), una cosa por vez; los números llevan a la pestaña y “Copiar enlace” pasó al ⋯. En el ejemplo hay paquetes en la vitrina, listos esperando y sin etiqueta.' } },
