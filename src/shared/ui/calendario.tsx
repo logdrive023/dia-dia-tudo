@@ -94,23 +94,34 @@ export function LinhaItem({ i, onAbrir, mostrarDia }: { i: ItemCalendario; onAbr
   )
 }
 
-/** Chip de uma linha (grade do mês e "dia todo" da semana). */
-function Chip({ i, onAbrir }: { i: ItemCalendario; onAbrir(i: ItemCalendario): void }) {
+/**
+ * Chip de uma linha (grade do mês e "dia todo" da semana): a bolinha na cor do tipo (a mesma da legenda), a hora e o título.
+ * `trecho`: evento de vários dias vira uma BARRA contínua — o nome aparece uma vez e a cor atravessa as células da semana.
+ */
+function Chip({ i, onAbrir, trecho }: { i: ItemCalendario; onAbrir(i: ItemCalendario): void; trecho?: { comeco: boolean; fim: boolean; titulo: boolean } }) {
   const tp = tipoCal(i.tipo)
+  const { comeco, fim, titulo } = trecho ?? { comeco: true, fim: true, titulo: true }
   return (
     <button
       type="button"
       onClick={(e) => (e.stopPropagation(), onAbrir(i))}
       title={`${i.hora ?? ''} ${i.titulo}`.trim()}
-      className={cx('block w-full truncate rounded-md px-1 text-left text-[11px] leading-5', i.status === 'feito' && 'opacity-60')}
-      style={{ background: `${tp.cor}22`, borderLeft: `3px solid ${tp.cor}` }}
+      className={cx('relative flex h-6 min-w-0 items-center gap-1.5 px-1.5 text-left text-xs font-medium transition hover:brightness-125', comeco ? 'rounded-l-md' : '-ml-[5px]', fim ? 'rounded-r-md' : '-mr-[5px]', comeco && fim ? 'w-full' : comeco || fim ? 'w-[calc(100%+5px)]' : 'w-[calc(100%+10px)]', i.status === 'feito' && 'opacity-50')}
+      style={{ background: `${tp.cor}2e` }}
     >
-      <span aria-hidden>{tp.icone}</span> {i.hora && <b className="num">{i.hora}</b>} {i.titulo}
+      {titulo ? (
+        <>
+          <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: tp.cor }} />
+          <span className="min-w-0 truncate">{i.hora && <b className="num mr-1 font-semibold">{i.hora}</b>}{i.titulo}</span>
+        </>
+      ) : <span className="sr-only">{i.titulo}</span>}
     </button>
   )
 }
 
 // ---------- mês ----------
+
+const variosDias = (i: ItemCalendario) => i.data !== i.ateData
 
 export function VistaMes({ data, itens, largo, onDia, onAbrir, feriados = [] }: { data: string; itens: ItemCalendario[]; largo: boolean; onDia(d: string): void; onAbrir(i: ItemCalendario): void; feriados?: FeriadoNoDia[] }) {
   const t = useT()
@@ -118,15 +129,16 @@ export function VistaMes({ data, itens, largo, onDia, onAbrir, feriados = [] }: 
   const dias = gradeMes(data)
   const mes = data.slice(0, 7)
   return (
-    <div className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
-      <div className="grid grid-cols-7 border-b border-[var(--borda)] text-center text-xs font-semibold uppercase text-[var(--suave)]">
-        {SEMANA.map((s) => <div key={s} className="py-2">{t(s)}</div>)}
+    <div className="overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] shadow-sm">
+      <div className="grid grid-cols-7 border-b border-[var(--borda)] bg-[var(--fundo)]/50 text-center text-[11px] font-semibold uppercase tracking-wider text-[var(--suave)]">
+        {SEMANA.map((s) => <div key={s} className="py-2.5">{t(s)}</div>)}
       </div>
       <div className="grid grid-cols-7">
-        {dias.map((d) => {
+        {dias.map((d, k) => {
           const doDia = itens.filter((i) => noDia(i, d))
           const fer = feriados.filter((x) => x.data === d)
           const fora = d.slice(0, 7) !== mes
+          const vistos = [...doDia].sort((a, b) => Number(variosDias(b)) - Number(variosDias(a)) || (variosDias(a) ? a.data.localeCompare(b.data) || a.id.localeCompare(b.id) : 0)).slice(0, 3)
           const ehHoje = d === hoje
           // a dica do dia (tooltip): os feriados e o que está marcado, por tipo — ninguém precisa decorar as cores
           const porTipo = TIPOS_CAL.map((x) => [x, doDia.filter((i) => i.tipo === x.id).length] as const).filter(([, n]) => n)
@@ -140,19 +152,21 @@ export function VistaMes({ data, itens, largo, onDia, onAbrir, feriados = [] }: 
               title={dica || undefined}
               onClick={() => onDia(d)}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onDia(d))}
-              className={cx('min-w-0 cursor-pointer border-b border-r border-[var(--borda)] p-1 text-left align-top outline-none transition-colors hover:bg-[var(--marca-suave)]/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--marca)]', largo ? 'min-h-28' : 'min-h-16', fora && 'bg-[var(--fundo)]/50 text-[var(--suave)]', ehHoje && 'bg-[var(--marca-suave)]')}
+              className={cx('min-w-0 cursor-pointer border-b border-r border-[var(--borda)] p-1 text-left align-top outline-none transition-colors hover:bg-[var(--marca-suave)]/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--marca)]', largo ? 'min-h-24' : 'min-h-14', k % 7 === 6 && 'border-r-0', k >= dias.length - 7 && 'border-b-0', k % 7 >= 5 && !ehHoje && 'bg-[var(--fundo)]/40', fora && 'bg-[var(--fundo)]/60 text-[var(--suave)]', ehHoje && 'bg-[var(--marca-suave)]/60 shadow-[inset_0_2px_0_var(--marca)]')}
             >
-              <span className="flex items-center justify-between gap-1">
-                <span className={cx('num inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-bold', ehHoje && 'bg-[var(--marca)] text-white', fora && 'font-medium opacity-60')} style={!ehHoje && fer[0] ? { color: CAT_FERIADO[fer[0].categoria].cor } : undefined}>{Number(d.slice(8))}</span>
+              <span className={cx('flex items-center gap-1', !largo && 'justify-center')}>
+                <span className={cx('num inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-semibold', ehHoje && 'bg-[var(--marca)] font-bold text-white', fora && 'font-normal opacity-40')} style={!ehHoje && fer[0] ? { color: CAT_FERIADO[fer[0].categoria].cor } : undefined}>{Number(d.slice(8))}</span>
               </span>
               {largo ? (
                 <span className="mt-1 block space-y-0.5">
+                  {/* vários dias primeiro: a barra fica na mesma altura de uma célula para a outra */}
+                  {vistos.filter(variosDias).map((i) => <Chip key={i.id} i={i} onAbrir={onAbrir} trecho={{ comeco: i.data === d, fim: i.ateData === d, titulo: i.data === d || k % 7 === 0 }} />)}
                   {fer.map((x) => <FaixaFeriado key={x.id} f={x} />)}
-                  {doDia.slice(0, 3).map((i) => <Chip key={i.id} i={i} onAbrir={onAbrir} />)}
-                  {doDia.length > 3 && <span className="block px-1 text-[11px] font-semibold text-[var(--marca)]">+{doDia.length - 3} {t('mais')}</span>}
+                  {vistos.filter((i) => !variosDias(i)).map((i) => <Chip key={i.id} i={i} onAbrir={onAbrir} />)}
+                  {doDia.length > 3 && <span className="block px-1.5 text-[11px] font-semibold text-[var(--suave)]">+{doDia.length - 3} {t('mais')}</span>}
                 </span>
               ) : (
-                <span className="mt-1 flex flex-wrap items-center gap-1">
+                <span className="mt-1 flex flex-wrap items-center justify-center gap-1">
                   {fer.map((x) => <MarcaFeriado key={x.id} f={x} />)}
                   {doDia.slice(0, 3).map((i) => <span key={i.id} aria-hidden className="h-2 w-2 rounded-full" style={{ background: tipoCal(i.tipo).cor, opacity: i.status === 'feito' ? 0.45 : 1 }} />)}
                   {doDia.length > 3 && <span className="num text-[10px] font-bold leading-none text-[var(--suave)]">+{doDia.length - 3}</span>}

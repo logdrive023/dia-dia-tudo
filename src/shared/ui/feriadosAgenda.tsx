@@ -42,7 +42,7 @@ export function FaixaFeriado({ f }: { f: FeriadoNoDia }) {
   const t = useT()
   const c = CAT_FERIADO[f.categoria]
   return (
-    <span title={dicaFeriado(f, t)} className="flex min-w-0 items-center gap-1 rounded-md px-1 text-[11px] font-semibold leading-5" style={{ color: c.cor, background: `${c.cor}14` }}>
+    <span title={dicaFeriado(f, t)} className="flex h-6 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-xs font-medium" style={{ color: c.cor, background: `${c.cor}1f` }}>
       <span aria-hidden className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: c.cor }} />
       <span className="truncate">{f.pt}</span>
     </span>
@@ -76,8 +76,8 @@ export function AvisoFeriado({ f, compacto }: { f: FeriadoNoDia; compacto?: bool
 export function LegendaCalendario({ tipos, categorias }: { tipos: { id: string; nome: string; cor: string }[]; categorias: CategoriaFeriado[] }) {
   return (
     <Legenda className="mt-3" grupos={[
-      { titulo: 'Eventos', dica: '● Bolinha', itens: [...tipos.map((x) => ({ id: x.id, nome: x.nome, cor: x.cor })), { id: 'feito', nome: 'Já feito', cor: 'var(--suave)', forma: 'apagada' as const, dica: 'A bolinha fica mais clara quando o atendimento ou a parcela já foi feito.' }] },
-      { titulo: 'Feriados', dica: '■ Quadradinho', itens: categorias.map((c) => ({ id: c, nome: CAT_FERIADO[c].nome, cor: CAT_FERIADO[c].cor, forma: 'quadrado' as const, dica: 'Só informativo: não bloqueia nada. Liga e desliga em ⚙ Filtros.' })) },
+      { titulo: 'Eventos', itens: [...tipos.map((x) => ({ id: x.id, nome: x.nome, cor: x.cor })), { id: 'feito', nome: 'Já feito', cor: 'var(--suave)', forma: 'apagada' as const, dica: 'A bolinha fica mais clara quando o atendimento ou a parcela já foi feito.' }] },
+      { titulo: 'Feriados', itens: categorias.map((c) => ({ id: c, nome: CAT_FERIADO[c].nome, cor: CAT_FERIADO[c].cor, forma: 'quadrado' as const, dica: 'Só informativo: não bloqueia nada. Liga e desliga em ⚙ Filtros.' })) },
     ]} />
   )
 }

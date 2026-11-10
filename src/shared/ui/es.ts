@@ -5403,8 +5403,6 @@ export const ES: Record<string, string> = {
   'Sex': 'Vie',
   'Sáb': 'Sáb',
   'Dom': 'Dom',
-  '● Bolinha': '● Bolita',
-  '■ Quadradinho': '■ Cuadradito',
   // painel simplificado
   'Como está o negócio e o que precisa de você.': 'Cómo va el negocio y qué necesita de usted.',
   'Como está indo': 'Cómo va',
