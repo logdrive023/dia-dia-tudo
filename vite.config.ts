@@ -2,6 +2,7 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { NOVIDADES } from './src/features/novidades/model/novidades'
 
 // Hosts externos que o app chama (src/app/cambio.ts). Mudou a fonte do câmbio? Atualize aqui.
 const HOSTS_CAMBIO = ['https://open.er-api.com']
@@ -47,6 +48,22 @@ function cspNoBuild(apiUrl?: string): Plugin {
   }
 }
 
+/**
+ * versao.json (fora do cache offline): QUANDO esta versão foi publicada e o RESUMO da novidade mais nova. O app que
+ * ainda está na versão antiga lê este arquivo para mostrar "o que vem aí" antes de atualizar (src/app/Moldura.tsx).
+ */
+function versaoPublicada(): Plugin {
+  return {
+    name: 'tudo-versao',
+    apply: 'build',
+    generateBundle() {
+      const n = NOVIDADES[0]
+      const novidade = n && { data: n.data, titulo: n.titulo, resumo: n.resumo, itens: n.itens.slice(0, 3).map((i) => i.texto), total: n.itens.length }
+      this.emitFile({ type: 'asset', fileName: 'versao.json', source: JSON.stringify({ publicadoEm: new Date().toISOString(), novidade }) })
+    },
+  }
+}
+
 // Publicado em https://logdrive023.github.io/dia-dia-tudo/
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
@@ -56,6 +73,7 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       react(),
       cspNoBuild(env.VITE_API_URL),
+      versaoPublicada(),
       VitePWA({
         registerType: 'prompt',
         includeAssets: ['icon.svg'],

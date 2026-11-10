@@ -57,10 +57,10 @@ export const naLingua = (x: Texto2, idioma: 'pt' | 'es') => (idioma === 'es' ? x
 export const NOVIDADES: Novidade[] = [
   {
     data: '2026-11-10',
-    titulo: { pt: 'Auditoria por dia, Pessoas separada por grupo e Modo caixa sem travar', es: 'Auditoría por día, Personas separada por grupo y Modo caja sin trabarse' },
+    titulo: { pt: 'Mudar parcela e emprestar mais, relatórios em lista e vitrine no celular', es: 'Cambiar cuota y prestar más, reportes en lista y vitrina en el celular' },
     resumo: {
-      pt: 'A auditoria mostra todos os usuários no filtro e separa as ações por dia; Pessoas e contas separa clientes, fornecedoras, equipe e contas; o Modo caixa abre sem a travada do bipe.',
-      es: 'La auditoría muestra todos los usuarios en el filtro y separa las acciones por día; Personas y cuentas separa clientes, proveedoras, equipo y cuentas; el Modo caja abre sin la trabada del bip.',
+      pt: 'Empréstimos e adiantamentos: mudar o dia ou o valor da parcela, emprestar e adiantar mais. Relatórios com o resumo em lista e os impostos da configuração. Vitrine em sub-abas no celular, auditoria por dia e Pessoas por grupo.',
+      es: 'Préstamos y anticipos: cambiar el día o el monto de la cuota, prestar y adelantar más. Reportes con el resumen en lista y los impuestos de la configuración. Vitrina en subpestañas en el celular, auditoría por día y Personas por grupo.',
     },
     itens: [
       { area: 'Acesso', tipo: 'correcao', tela: 'auditoria', texto: {
@@ -102,6 +102,9 @@ export const NOVIDADES: Novidade[] = [
       { area: 'Relatórios', tipo: 'melhoria', tela: 'relatorios', texto: {
         pt: 'Imposto de Renda: a situação do exercício virou um botão claro (“Situação · Em aberto · Mudar ›”) e a janela mostra cada situação com o que ela quer dizer.',
         es: 'Impuesto a la Renta: la situación de la gestión se volvió un botón claro (“Situación · Abierto · Cambiar ›”) y la ventana muestra cada situación con lo que quiere decir.' } },
+      { area: 'Sistema', tipo: 'melhoria', texto: {
+        pt: 'Atualização como app de celular: quando sai versão nova, aparece só um selo discreto embaixo. No toque, a janela mostra quando saiu e o resumo do que mudou; “Atualizar agora” mostra o carregando e abre a versão nova (ou “Ver novidades” já abre nesta tela).',
+        es: 'Actualización como app de celular: cuando sale una versión nueva, aparece solo un sello discreto abajo. Al tocar, la ventana muestra cuándo salió y el resumen de lo que cambió; “Actualizar ahora” muestra la carga y abre la versión nueva (o “Ver novedades” ya abre en esta pantalla).' } },
       { area: 'Estoque', tipo: 'melhoria', tela: 'vitrine', texto: {
         pt: 'Minha vitrine no celular em sub-abas (Vitrine · Prontos · Loja), uma coisa por vez; os números levam à aba e “Copiar link” foi para o ⋯. No exemplo há pacotes na vitrine, prontos esperando e sem etiqueta.',
         es: 'Mi vitrina en el celular en subpestañas (Vitrina · Listos · Tienda), una cosa por vez; los números llevan a la pestaña y “Copiar enlace” pasó al ⋯. En el ejemplo hay paquetes en la vitrina, listos esperando y sin etiqueta.' } },
