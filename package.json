@@ -21,6 +21,7 @@
     "responsivo": "node scripts/responsivo.mjs",
     "diagnostico": "node scripts/diagnostico.mjs",
     "primeiro-acesso": "node scripts/primeiro-acesso.mjs",
+    "dia-de-trabalho": "node scripts/dia-de-trabalho.mjs",
     "responsivo:fotos": "node scripts/responsivo.mjs --fotos"
   },
   "dependencies": {
