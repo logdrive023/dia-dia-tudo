@@ -1,6 +1,6 @@
 // MINHA VITRINE › A LISTA DE PACOTES (a mesma peça na fila "Prontos" e no "Na vitrine"):
-//   o pacote (código · medida · cor) abre a ficha no ESTOQUE · Disponível (o saldo inteiro) · Na vitrine: QUANTO mostrar
-//   (ex.: o pacote tem 1 kg, mas só 500 g vão para a vitrine; vazio = tudo) · preço (se o modo pedir) · pôr/tirar.
+//   Pacote (código · medida · cor — abre a ficha no ESTOQUE) · Quantidade (o que vai para a vitrine: "1,3 kg" ou
+//   "500 g de 1,3 kg"; tocar muda ali mesmo) · preço (se o modo pedir) · Na vitrine (pôr/tirar).
 // Celular: cartão que abre no lugar, com os mesmos campos. A regra (o limite nunca passa do saldo) é do serviço.
 import { type ReactNode, useState } from 'react'
 import { Botao, Campo, Entrada, cx, gramasTexto } from '../../../shared/ui/base'
@@ -28,37 +28,45 @@ export const kg = (g: number) => (g >= 1000 ? `${(g / 1000).toLocaleString(undef
 /** o limite que vale de verdade (um limite maior ou igual ao saldo = mostra tudo) */
 const limiteAtivo = (x: PacoteLista) => (x.limite && x.limite < (x.disponivel ?? x.gramas) ? x.limite : undefined)
 
-/**
- * "Quanto mostrar": um campo só, com o "g" dentro. Vazio = "Tudo" (apagado); com limite, fica na cor da marca e ganha
- * o "×" para voltar a mostrar tudo. Salva ao sair do campo (ou Enter). Vazio, zero ou ≥ saldo = tudo.
- */
-function QuantoMostrar({ x, onLimite, travado, largo }: { x: PacoteLista; onLimite(g: number): void; travado?: boolean; largo?: boolean }) {
+/** o campo em gramas: vazio = tudo. Salva ao sair (ou Enter); Esc desiste. */
+function CampoGramas({ x, onLimite, onFim, travado, largo }: { x: PacoteLista; onLimite(g: number): void; onFim?(): void; travado?: boolean; largo?: boolean }) {
   const t = useT()
   const ativo = limiteAtivo(x)
   const total = x.disponivel ?? x.gramas
-  return <CampoQuanto key={ativo ?? 'tudo'} ativo={ativo} total={total} codigo={x.codigo} travado={travado} largo={largo} onLimite={onLimite} t={t} />
-}
-
-function CampoQuanto({ ativo, total, codigo, travado, largo, onLimite, t }: { ativo?: number; total: number; codigo?: string; travado?: boolean; largo?: boolean; onLimite(g: number): void; t: ReturnType<typeof useT> }) {
   const [texto, setTexto] = useState(ativo ? String(ativo) : '')
   const salvar = () => {
-    const g = Math.round(Number(texto.replace(/\D/g, '')) || 0)
+    const g = Math.round(Number(texto) || 0)
     const novo = g > 0 && g < total ? g : 0
-    if (!novo) setTexto('')
     if (novo !== (ativo ?? 0)) onLimite(novo)
+    onFim?.()
   }
   return (
-    <span className={cx('relative inline-flex', largo ? 'w-40' : 'w-32')}>
-      {ativo && (
-        <button type="button" disabled={travado} onClick={() => onLimite(0)} aria-label={`${t('Mostrar tudo')} ${codigo ?? ''}`} title={t('Mostrar tudo')}
-          className="absolute left-1.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-base leading-none text-[var(--marca)] hover:bg-[var(--cartao)]">×</button>
-      )}
-      <Entrada inputMode="numeric" disabled={travado} aria-label={`${t('Quanto mostrar na vitrine')} ${codigo ?? ''}`}
-        placeholder={t('Tudo')} value={texto} onChange={(e) => setTexto(e.target.value.replace(/\D/g, ''))}
-        onBlur={salvar} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-        className={cx('num w-full pr-8 text-right placeholder:text-[var(--suave)]', ativo ? 'border-[var(--marca)] bg-[var(--marca-suave)] pl-9 font-semibold text-[var(--marca)]' : 'pl-3')} />
-      {texto && <span aria-hidden className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[var(--suave)]">g</span>}
+    <span className={cx('relative inline-flex', largo ? 'w-40' : 'w-28')}>
+      <Entrada inputMode="numeric" autoFocus={!largo} focoSempre disabled={travado} aria-label={`${t('Quanto mostrar na vitrine')} ${x.codigo ?? ''}`}
+        placeholder={t('Tudo')} value={texto} onChange={(e) => setTexto(e.target.value.replace(/\D/g, ''))} onBlur={salvar}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') onFim?.() }}
+        className="num w-full pl-3 pr-7 text-right placeholder:text-[var(--suave)]" />
+      <span aria-hidden className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--suave)]">g</span>
     </span>
+  )
+}
+
+/** a quantidade como TEXTO (igual às outras colunas); tocar vira o campo, ali mesmo */
+function Quantidade({ x, onLimite, travado }: { x: PacoteLista; onLimite(g: number): void; travado?: boolean }) {
+  const t = useT()
+  const [editando, setEditando] = useState(false)
+  const ativo = limiteAtivo(x)
+  if (editando) return <CampoGramas x={x} travado={travado} onLimite={onLimite} onFim={() => setEditando(false)} />
+  return (
+    <button type="button" disabled={travado} onClick={() => setEditando(true)} title={t('Quanto mostrar na vitrine')}
+      aria-label={`${t('Quanto mostrar na vitrine')} ${x.codigo ?? ''}: ${kg(x.gramas)}`}
+      className="alvo-amplo group inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-right hover:bg-[var(--fundo)]">
+      <span className="num">
+        <b className={cx(!!ativo && 'text-[var(--marca)]')}>{kg(x.gramas)}</b>
+        {ativo && <span className="text-xs text-[var(--suave)]"> {t('de {t}', { t: kg(x.disponivel ?? x.gramas) })}</span>}
+      </span>
+      <span aria-hidden className="text-xs text-[var(--suave)] transition group-hover:text-[var(--marca)]">✎</span>
+    </button>
   )
 }
 
@@ -77,7 +85,6 @@ export function ListaPacotesVitrine({ linhas, escolher, ocupado, onNaVitrine, on
   const { ir } = useApp()
   const abrir = (x: PacoteLista) => ir('lote', { id: x.id })
   const nome = (x: PacoteLista) => <>{x.medida} cm{x.categoria && x.categoria !== 'Normal' ? ` · ${t(x.categoria)}` : ''}</>
-  const naVitrineTexto = (x: PacoteLista) => (limiteAtivo(x) ? t('{v} de {t}', { v: kg(x.gramas), t: kg(x.disponivel ?? x.gramas) }) : t('tudo ({v})', { v: kg(x.gramas) }))
   return (
     <TabelaDados<PacoteLista>
       linhas={linhas}
@@ -91,8 +98,7 @@ export function ListaPacotesVitrine({ linhas, escolher, ocupado, onNaVitrine, on
             <span aria-hidden className="text-[var(--marca)] opacity-0 transition group-hover:opacity-100">›</span>
           </button>
         ) },
-        { id: 'disponivel', titulo: 'Disponível', direita: true, classe: 'whitespace-nowrap', celula: (x) => kg(x.disponivel ?? x.gramas) },
-        { id: 'mostrar', titulo: 'Mostrar', direita: true, classe: 'whitespace-nowrap', celula: (x) => <QuantoMostrar x={x} travado={ocupado} onLimite={(g) => onLimite(x.id, g)} /> },
+        { id: 'quantidade', titulo: 'Quantidade', direita: true, classe: 'whitespace-nowrap', celula: (x) => <Quantidade key={limiteAtivo(x) ?? 'tudo'} x={x} travado={ocupado} onLimite={(g) => onLimite(x.id, g)} /> },
         ...(preco ? [{ id: 'preco', titulo: 'Preço/g', direita: true, classe: 'whitespace-nowrap', celula: (x: PacoteLista) => preco(x) }] : []),
         { id: 'na', titulo: 'Na vitrine', classe: 'whitespace-nowrap', celula: (x) => <Chave ligado={!x.oculto} rotulo={`${t('Na vitrine')} ${x.codigo ?? ''}`} travado={ocupado} onChange={(v) => onNaVitrine([x.id], v)} /> },
       ]}
@@ -101,12 +107,12 @@ export function ListaPacotesVitrine({ linhas, escolher, ocupado, onNaVitrine, on
         valor: (x) => kg(x.gramas),
         codigo: (x) => x.codigo ?? '',
         situacao: (x) => ({ texto: t(x.oculto ? (escolher ? 'Fora da vitrine' : 'Escondido') : 'Na vitrine'), tom: x.oculto ? 'suave' : 'bom' }),
-        resumo: (x) => (limiteAtivo(x) ? `${t('Mostra')} ${naVitrineTexto(x)}` : precoTexto(x)),
+        resumo: (x) => (limiteAtivo(x) ? t('{v} de {t}', { v: kg(x.gramas), t: kg(x.disponivel ?? x.gramas) }) : precoTexto(x)),
         aberto: (x) => (
           <div className="space-y-3">
             <Campo rotulo="Quanto mostrar na vitrine" ajuda="Ex.: o pacote tem 1 kg e você quer mostrar só 500 g. Vazio = tudo." comoDiv>
               <div className="flex flex-wrap items-center gap-2">
-                <QuantoMostrar x={x} largo travado={ocupado} onLimite={(g) => onLimite(x.id, g)} />
+                <CampoGramas key={limiteAtivo(x) ?? 'tudo'} x={x} largo travado={ocupado} onLimite={(g) => onLimite(x.id, g)} />
                 <span className="text-xs text-[var(--suave)]">{t('de {t} disponíveis', { t: kg(x.disponivel ?? x.gramas) })}</span>
               </div>
             </Campo>
