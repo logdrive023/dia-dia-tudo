@@ -113,7 +113,7 @@ export function Botao({
       {...p}
       disabled={disabled || carregando}
       aria-busy={carregando || undefined}
-      className={cx('transition active:scale-[0.98] disabled:active:scale-100 motion-reduce:active:scale-100 touch-manipulation rounded-xl font-semibold transition duration-100 enabled:active:scale-[0.97] disabled:opacity-50 motion-reduce:transform-none', carregando && 'cursor-wait', !/(^|s)min-w-/.test(className ?? '') && 'min-w-min', grande ? 'min-h-12 px-5 py-3 text-base' : 'min-h-10 px-4 py-2 text-sm', estilos, className)}
+      className={cx('transition active:scale-[0.98] disabled:active:scale-100 motion-reduce:active:scale-100 touch-manipulation rounded-xl font-semibold transition duration-100 enabled:active:scale-[0.97] disabled:opacity-50 motion-reduce:transform-none', carregando && 'cursor-wait', !/(^|s)min-w-/.test(className ?? '') && 'min-w-min', grande ? 'min-h-12 px-5 py-3 text-base' : 'min-h-10 toque:min-h-11 px-4 py-2 text-sm', estilos, className)}
     >
       {carregando ? (
         <span className="inline-flex items-center justify-center gap-2">
@@ -218,7 +218,7 @@ export function Info({ texto = '', exemplo, conteudo }: { texto?: string; exempl
       <span ref={botao} role="button" tabIndex={0} aria-label={t('Explicação')} aria-expanded={aberto}
         onClick={(e) => (e.preventDefault(), e.stopPropagation(), setAberto(!aberto))}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), e.stopPropagation(), setAberto(!aberto))}
-        className={cx('relative ml-1 inline-flex cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-[var(--marca)] h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold leading-none transition after:absolute after:-inset-2 after:content-[\'\']', aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
+        className={cx('relative ml-1 inline-flex cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-[var(--marca)] h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold leading-none transition after:absolute after:-inset-2 toque:after:-inset-3 after:content-[\'\']', aberto ? 'bg-[var(--marca)] text-white' : 'bg-[var(--marca-suave)] text-[var(--marca)]')}>
         i
       </span>
       {aberto &&
@@ -372,7 +372,7 @@ export function Pilula({ children, tom = 'neutro', pequena, title, className }: 
  */
 export function BotaoExpandir({ aberto, onClick, children, rotuloAberto, className }: { aberto: boolean; onClick(): void; children: ReactNode; rotuloAberto?: ReactNode; className?: string }) {
   return (
-    <button type="button" aria-expanded={aberto} onClick={onClick} className={cx('inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]', className)}>
+    <button type="button" aria-expanded={aberto} onClick={onClick} className={cx('inline-flex min-h-10 toque:min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]', className)}>
       <span aria-hidden className={cx('inline-block text-xs transition-transform', aberto && 'rotate-90')}>▸</span>
       <span>{aberto && rotuloAberto !== undefined ? rotuloAberto : children}</span>
     </button>
@@ -563,7 +563,7 @@ export function Abas({ abas, atual, onChange, variante = 'pilula' }: { abas: { i
           disabled={a.desativada}
           title={a.desativada ? t('Em breve') : undefined}
           onClick={() => onChange(a.id)}
-          className={cx('min-h-10 shrink-0 rounded-lg px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40', a.id === atual ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}
+          className={cx('min-h-10 toque:min-h-11 shrink-0 rounded-lg px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40', a.id === atual ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}
         >
           {t(a.nome)} {a.extra}{a.desativada && <span className="ml-1 text-[10px] uppercase">{t('em breve')}</span>}
         </button>
@@ -578,7 +578,7 @@ export function Escolha<T extends string>({ opcoes, valor, onChange, rotulo }: {
   return (
     <div role="radiogroup" aria-label={rotulo ? t(rotulo) : undefined} className="flex flex-wrap gap-1 rounded-xl bg-[var(--marca-suave)] p-1">
       {opcoes.map((o) => (
-        <button key={o.id} type="button" role="radio" aria-checked={o.id === valor} onClick={() => onChange(o.id)} className={cx('min-h-10 min-w-max flex-1 rounded-lg px-3 text-sm font-semibold', o.id === valor ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
+        <button key={o.id} type="button" role="radio" aria-checked={o.id === valor} onClick={() => onChange(o.id)} className={cx('min-h-10 toque:min-h-11 min-w-max flex-1 rounded-lg px-3 text-sm font-semibold', o.id === valor ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
           {t(o.nome)}
         </button>
       ))}

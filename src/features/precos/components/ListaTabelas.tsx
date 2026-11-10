@@ -111,7 +111,7 @@ export function ListaTabelas({ ajudaVersoes }: { ajudaVersoes: string }) {
       )}
       </AreaPaginada>
       {lista.length > 0 && <div className="mt-3"><Paginacao {...pag} unidade="tabela(s)" /></div>}
-      <NotaTela className="mt-2">{t('Toque numa tabela para ver a grade, onde foi usada, o histórico e como os valores funcionam.')}</NotaTela>
+      {dados && <NotaTela className="mt-2">{t('Toque numa tabela para ver a grade, onde foi usada, o histórico e como os valores funcionam.')}</NotaTela>}
     </div>
   )
 }

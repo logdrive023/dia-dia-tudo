@@ -1,11 +1,12 @@
-// MINHA VITRINE: só o que está pronto (separado, com etiqueta, com saldo, sem reserva); o comprador (sem login) vê só
-// dados públicos — nada de custo, fornecedor ou compra; escondidos e vitrine desligada respeitados.
+// MINHA VITRINE: só o que está pronto (disponível: separado, com saldo, sem reserva — e com etiqueta); no padrão "Eu
+// escolho" o pronto só entra quando o administrador põe; no automático entra sozinho e respeita os escondidos. O
+// comprador (sem login) vê só dados públicos — nada de custo, fornecedor ou compra; vitrine desligada respeitada.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it } from 'vitest'
 import { bs, novoBackend } from './ajuda'
 
 describe('minha vitrine', () => {
-  it('lista só o que está pronto e mostra ao comprador só o público', async () => {
+  it('automático: lista só o que está pronto e mostra ao comprador só o público', async () => {
     const { b, sessao } = await novoBackend('2026-11-05')
     await b.comando('salvarPessoa', { id: 'f', nome: 'Fornecedora Secreta', papeis: ['fornecedor'] } as any)
     await b.comando('criarCompra', { id: 'c', moduloId: 'cabelo', pessoaId: 'f', linhas: [{ id: 'cl', quantidade: 3000, moeda: 'BOB', total: bs(30000), campos: { estado: 'Bruto' } }], pagarNoAto: [{ id: 'pc', forma: 'qr', moeda: 'BOB', valor: bs(30000) }] } as any)
@@ -17,7 +18,7 @@ describe('minha vitrine', () => {
     ] } as any)
     await b.comando('marcarEtiquetasImpressas', { ids: ['A', 'B'] } as any) // C sem etiqueta: não está pronto
     await b.comando('salvarTabelaPreco', { id: 'tg', moduloId: 'cabelo', nome: 'Geral', moeda: 'BOB', unidadeMedida: 'cm', fatorPor: 'grama', linhas: [50, 60], colunas: [{ id: 'venda', nome: 'Venda' }], valores: { '60|venda': '17,5', '50|venda': '8' } } as any)
-    await b.comando('salvarConfig', { vitrine: { ativa: true, nome: 'Cabelos da Família', whatsapp: '+591 7000-0000', modoPreco: 'tabela', ocultos: ['B'] } } as never)
+    await b.comando('salvarConfig', { vitrine: { ativa: true, entrada: 'automatico', nome: 'Cabelos da Família', whatsapp: '+591 7000-0000', modoPreco: 'tabela', ocultos: ['B'] } } as never)
     // admin: vê os prontos, com o escondido marcado
     const adm = (await b.consulta('vitrine', {})) as any
     expect(adm.pacotes.map((x: any) => x.id).sort()).toEqual(['A', 'B'])
@@ -32,6 +33,36 @@ describe('minha vitrine', () => {
     const texto = JSON.stringify(pub)
     for (const proibido of ['Fornecedora', 'custo', 'compra', '"c"']) expect(texto).not.toContain(proibido)
     expect(pub.loja.nome).toBe('Cabelos da Família')
+  })
+
+  it('"Eu escolho" (padrão): o pronto espera na fila até o administrador pôr; sem etiqueta não pode entrar', async () => {
+    const { b, sessao } = await novoBackend('2026-11-05')
+    await b.comando('salvarPessoa', { id: 'f', nome: 'Fornecedora', papeis: ['fornecedor'] } as any)
+    await b.comando('criarCompra', { id: 'c', moduloId: 'cabelo', pessoaId: 'f', linhas: [{ id: 'cl', quantidade: 3000, moeda: 'BOB', total: bs(30000), campos: { estado: 'Bruto' } }], pagarNoAto: [{ id: 'pc', forma: 'qr', moeda: 'BOB', valor: bs(30000) }] } as any)
+    const bruto = (await (b as any).repos.transacoes.obter('c')).linhas[0].itemId
+    await b.comando('separarLote', { id: 's', loteId: bruto, quantidadeUsada: 3000, saidas: [
+      { id: 'A', quantidade: 1000, campos: { estado: 'Separado', comprimento: 60, categoria: 'Normal' } },
+      { id: 'B', quantidade: 1000, campos: { estado: 'Separado', comprimento: 50, categoria: 'Normal' } },
+      { id: 'C', quantidade: 1000, campos: { estado: 'Separado', comprimento: 40, categoria: 'Normal' } },
+    ] } as any)
+    await b.comando('marcarEtiquetasImpressas', { ids: ['A', 'B'] } as any)
+    const adm = async () => (await b.consulta('vitrine', {})) as any
+    // nada publicado ainda: A e B prontos, os dois fora; C disponível mas sem etiqueta
+    let a = await adm()
+    expect(a.entrada).toBe('escolher')
+    expect(a.pacotes.map((x: any) => [x.id, x.oculto])).toEqual([['A', true], ['B', true]])
+    expect(a.semEtiqueta).toEqual({ pacotes: 1, gramas: 1000 })
+    // põe só o A (C também na lista: sem etiqueta não aparece mesmo assim)
+    await b.comando('salvarConfig', { vitrine: { ativa: true, ocultos: [], publicados: ['A', 'C', 'A'] } } as never)
+    a = await adm()
+    expect(a.pacotes.find((x: any) => x.id === 'A').oculto).toBe(false)
+    expect(a.pacotes.find((x: any) => x.id === 'B').oculto).toBe(true)
+    await expect(b.comando('salvarConfig', { vitrine: { ativa: true, ocultos: [], entrada: 'tudo' } } as never)).rejects.toThrow(/O que entra na vitrine/)
+    Object.assign(sessao, { usuarioId: '', perfil: undefined, nome: '' })
+    const pub = (await b.consulta('vitrine', { publico: true })) as any
+    expect(pub.pacotes.map((x: any) => x.id)).toEqual(['A'])
+    expect(pub.semEtiqueta).toBeUndefined()
+    expect(pub.entrada).toBeUndefined()
   })
 
   it('preço: o padrão é entrar em contato; dá para usar a tabela ou digitar por pacote', async () => {

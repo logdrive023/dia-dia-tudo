@@ -45,7 +45,7 @@ describe('dados de exemplo: todos os cenários da demonstração', () => {
 })
 
 describe('dados de exemplo: a vitrine', () => {
-  it('tem pacotes prontos de várias medidas, um escondido, e a loja configurada', async () => {
+  it('tem pacotes prontos de várias medidas, alguns ainda fora (Eu escolho), e a loja configurada', async () => {
     const { b, sessao } = await novoBackend()
     await carregarDemo(b)
     const adm = (await b.consulta('vitrine', {})) as any
@@ -55,7 +55,8 @@ describe('dados de exemplo: a vitrine', () => {
     expect(((await b.consulta('diagnostico', {})) as any).problemas).toEqual([])
     Object.assign(sessao, { usuarioId: '', perfil: undefined, nome: '' })
     const pub = (await b.consulta('vitrine', { publico: true })) as any
-    expect(pub.pacotes.length).toBe(adm.pacotes.length - 1)
+    expect(pub.pacotes.length).toBe(adm.pacotes.filter((x: any) => !x.oculto).length)
+    expect(pub.pacotes.length).toBeGreaterThanOrEqual(6)
     expect(new Set(pub.pacotes.map((x: any) => x.medida)).size).toBeGreaterThanOrEqual(6)
     expect(pub.pacotes.some((x: any) => x.categoria === 'Tinte')).toBe(true)
     // o padrão da loja é "entrar em contato": sem valor na vitrine pública

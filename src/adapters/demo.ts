@@ -478,7 +478,9 @@ async function montar(b: BackendNoAparelho) {
       nome: 'Cabelos da Família · Santa Cruz',
       descricao: 'Cabelo natural boliviano, separado por medida e pesado na balança. Atacado e varejo.',
       whatsapp: '+591 70000000',
-      ocultos: [l40],
+      ocultos: [],
+      // "Eu escolho": quase todos os prontos na vitrine; o L-40 e um da Elena ficam em "Prontos para a vitrine"
+      publicados: (await b.consulta('vitrine', {})).pacotes.map((x) => x.id).filter((id) => id !== l40 && id !== elena55),
     },
   })
 

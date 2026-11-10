@@ -142,7 +142,7 @@ export function Paginacao({ pagina, paginas, de, ate, total, porPagina, irPara, 
         <span aria-live="polite" className="whitespace-nowrap"><b className="font-semibold text-[var(--texto)]">{de}–{ate}</b> {t('de {n}', { n: total })} <span className="hidden sm:inline">{t(unidade)}</span></span>
         {mudarTamanho && (
           <label className="flex items-center gap-1.5 whitespace-nowrap">
-            <select aria-label={t('Por página')} value={porPagina} disabled={carregando} onChange={(e) => mudarTamanho(Number(e.target.value))} className="h-10 rounded-lg border border-[var(--borda)] bg-[var(--cartao)] px-1.5 text-[var(--texto)]">
+            <select aria-label={t('Por página')} value={porPagina} disabled={carregando} onChange={(e) => mudarTamanho(Number(e.target.value))} className="h-10 toque:h-11 rounded-lg border border-[var(--borda)] bg-[var(--cartao)] px-1.5 text-[var(--texto)]">
               {TAMANHOS_PAGINA.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
             <span>{t('por página')}</span>

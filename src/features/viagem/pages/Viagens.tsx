@@ -88,15 +88,20 @@ function ViagensAdmin() {
     [t('Orçamento')]: v.orcamento ? v.orcamento / 100 : '', [t('Gastos')]: v.gasto / 100, [t('Comprou (g)')]: v.gramas, [t('Compras')]: v.compras,
     [t('Custo/kg real')]: v.custoKgReal !== undefined ? v.custoKgReal / 100 : '', [t('Resultado')]: v.prospeccao ? '' : v.resultado / 100,
   })))
+  const cabecalho = (
+    <Titulo
+      subtitulo={<>{t('Gastos, compras e resultado de cada viagem de compra.')}{/* teclado só no computador */}<span className="ml-2 hidden items-center text-xs md:inline-flex">⌨ {t('Atalhos')}<Info texto="/ busca · Alt+N nova viagem · Alt+G lança um gasto na viagem aberta." /></span></>}
+      acao={<div className="flex items-center gap-2">
+        <Botao onClick={nova}>+ {t('Nova viagem')}</Botao>
+        <MenuAcoes acoes={[{ icone: '📥', rotulo: 'Baixar planilha', descricao: t('As {n} viagens da lista (com os filtros): gastos, kg, custo/kg real e resultado.', { n: dados?.linhas.length ?? 0 }), onClick: planilha }]} />
+      </div>}
+    >{t('Viagens de compra')}</Titulo>
+  )
+  // as viagens abertas e os números chegam juntos: antes disso, só o cabeçalho (nada empurra a tela depois)
+  if (!painel || !semStatus) return <div>{cabecalho}<Carregando /></div>
   return (
     <div>
-      <Titulo
-        subtitulo={<>{t('Gastos, compras e resultado de cada viagem de compra.')}{/* teclado só no computador */}<span className="ml-2 hidden items-center text-xs md:inline-flex">⌨ {t('Atalhos')}<Info texto="/ busca · Alt+N nova viagem · Alt+G lança um gasto na viagem aberta." /></span></>}
-        acao={<div className="flex items-center gap-2">
-          <Botao onClick={nova}>+ {t('Nova viagem')}</Botao>
-          <MenuAcoes acoes={[{ icone: '📥', rotulo: 'Baixar planilha', descricao: t('As {n} viagens da lista (com os filtros): gastos, kg, custo/kg real e resultado.', { n: dados?.linhas.length ?? 0 }), onClick: planilha }]} />
-        </div>}
-      >{t('Viagens de compra')}</Titulo>
+      {cabecalho}
       {/* no Painel do viajante o cartão "Em viagem" seria repetido: some */}
       {abertas.length > 0 && aba !== 'viajante' && (
         <ul className="mb-4 grid gap-2 md:grid-cols-2">

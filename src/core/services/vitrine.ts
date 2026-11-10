@@ -1,6 +1,8 @@
 // MINHA VITRINE: os pacotes PRONTOS PARA VENDER, como um comprador de fora veria (link #/loja).
-// Pronto = cabelo já separado na triagem (tem medida), com ETIQUETA impressa, com saldo e sem reserva.
-// O administrador escolhe (Minha vitrine): ligar/desligar, nome e texto da loja, WhatsApp, como aparece o preço (entrar
+// Pronto = cabelo DISPONÍVEL no estoque (separado na triagem: tem medida; com saldo e sem reserva) e com ETIQUETA.
+// O QUE ENTRA: no padrão ('escolher') o pronto NÃO entra sozinho — fica em "Prontos para a vitrine" e o administrador põe
+// (um a um ou todos); em 'automatico' todo pronto entra e ele esconde o que não quiser. Fora da vitrine continua à
+// venda no caixa normalmente. O administrador escolhe também (Minha vitrine): ligar/desligar, nome e texto da loja, WhatsApp, como aparece o preço (entrar
 // em contato = padrão · preço da tabela · preço por pacote) e esconder pacotes. O comprador vê: código, medida, categoria,
 // cor, gramas, foto e o preço (se escolhido) — NUNCA custo, fornecedor, compra ou viagem. O botão abre o WhatsApp.
 // Hoje o link abre neste aparelho (os dados estão nele); com a API, o mesmo link vira público.
@@ -42,8 +44,16 @@ export const MENSAGEM_VITRINE_MAX = 500
 /** só o que o dono reescreveu; o que não vier usa o texto pronto */
 export type MensagensVitrine = Partial<Record<'pt' | 'es', Partial<Record<TipoMensagemVitrine, string>>>>
 
+/** o que entra na vitrine: só os pacotes prontos que o administrador escolheu (padrão) ou todo pacote pronto */
+export type EntradaVitrine = 'escolher' | 'automatico'
+export const ENTRADAS_VITRINE: EntradaVitrine[] = ['escolher', 'automatico']
+
 export interface ConfigVitrine {
   ativa: boolean
+  /** sem escolha: 'escolher' (o pronto espera o administrador pôr na vitrine) */
+  entrada?: EntradaVitrine
+  /** modo 'escolher': os pacotes que o administrador pôs na vitrine */
+  publicados?: Id[]
   nome?: string
   descricao?: string
   /** WhatsApp para o "Quero este" (com código do país). Ex.: +591 70000000 */
@@ -56,12 +66,12 @@ export interface ConfigVitrine {
   precos?: Record<Id, string>
   /** o texto do WhatsApp reescrito pelo dono */
   mensagens?: MensagensVitrine
-  /** pacotes que o administrador escondeu da vitrine */
+  /** modo 'automatico': pacotes que o administrador escondeu da vitrine */
   ocultos: Id[]
   /** o visual da loja (o que não vier usa APARENCIA_PADRAO) */
   aparencia?: AparenciaVitrine
 }
-export const VITRINE_PADRAO: ConfigVitrine = { ativa: true, modoPreco: 'contato', ocultos: [] }
+export const VITRINE_PADRAO: ConfigVitrine = { ativa: true, entrada: 'escolher', modoPreco: 'contato', ocultos: [], publicados: [] }
 
 function validarMensagens(m?: MensagensVitrine): MensagensVitrine | undefined {
   const r: MensagensVitrine = {}
@@ -87,9 +97,11 @@ export function validarVitrine(v: ConfigVitrine): ConfigVitrine {
     exigir(!a.banner || bannerValido(a.banner), 'Banner inválido: envie uma imagem JPG, PNG ou WebP de até 500 KB.')
   }
   exigir(MODOS_PRECO_VITRINE.includes(v.modoPreco ?? 'contato'), 'Modo de preço da vitrine inválido.')
+  exigir(ENTRADAS_VITRINE.includes(v.entrada ?? 'escolher'), 'O que entra na vitrine: escolha "Eu escolho" ou "Tudo que estiver pronto".')
+  const publicados = [...new Set((v.publicados ?? []).filter((id) => typeof id === 'string' && id))]
   const precos = Object.fromEntries(Object.entries(v.precos ?? {}).map(([id, f]): [Id, string] => [id, String(f).trim()]).filter(([, f]) => f))
   exigir(Object.values(precos).every((f) => fatorValido(f)), 'Preço inválido: use só números. Ex.: 17,5.')
-  return { ...VITRINE_PADRAO, ...v, precos, mensagens: validarMensagens(v.mensagens), aparencia: a, whatsapp: w || undefined, nome: v.nome?.trim() || undefined, descricao: v.descricao?.trim() || undefined, ocultos: [...new Set(v.ocultos ?? [])] }
+  return { ...VITRINE_PADRAO, ...v, publicados, precos, mensagens: validarMensagens(v.mensagens), aparencia: a, whatsapp: w || undefined, nome: v.nome?.trim() || undefined, descricao: v.descricao?.trim() || undefined, ocultos: [...new Set(v.ocultos ?? [])] }
 }
 
 export interface PacoteVitrine {
@@ -105,23 +117,33 @@ export interface PacoteVitrine {
   foto?: Pick<FotoResumo, 'id' | 'miniatura'>
   /** preço por grama (texto como na tabela, ex.: "17,5"); sem ele, o comprador chama no WhatsApp */
   preco?: { fator: string; moeda: string }
-  /** só para o administrador: escondido da vitrine */
+  /** só para o administrador: pronto, mas fora da vitrine (não escolhido ou escondido) */
   oculto?: boolean
 }
 
 const fotoDe = (f?: FotoResumo) => (f ? { id: f.id, miniatura: f.miniatura } : undefined)
 
-const pronto = (i: Item) =>
-  !i.apagadoEm && i.moduloId === 'cabelo' && i.controlaEstoque && i.unidade === 'grama' && i.saldo > 0 && !!Number(i.campos?.comprimento) && !!i.etiquetaImpressaEm && !i.reserva
+/** disponível no estoque: cabelo por grama, separado na triagem (tem medida), com saldo e sem reserva */
+const disponivel = (i: Item) =>
+  !i.apagadoEm && i.moduloId === 'cabelo' && i.controlaEstoque && i.unidade === 'grama' && i.saldo > 0 && !!Number(i.campos?.comprimento) && !i.reserva
+/** pronto para a vitrine: disponível E com etiqueta (o peso da vitrine é o do pacote na prateleira) */
+const pronto = (i: Item) => disponivel(i) && !!i.etiquetaImpressaEm
 
 /** publico: o que o comprador vê (sem os escondidos; vazio se a vitrine está desligada). Admin sem `publico`: tudo, com o "escondido". */
 export async function vitrine(ctx: Ctx, p: { publico?: boolean } = {}) {
   const cfg = await lerConfig(ctx)
   const conf: ConfigVitrine = { ...VITRINE_PADRAO, ...(cfg.vitrine ?? {}) }
   const publico = p.publico || ctx.sessao.perfil !== 'admin'
+  const entrada = conf.entrada ?? 'escolher'
+  // fora da vitrine: no 'escolher', o que o administrador não pôs; no 'automatico', o que ele escondeu
   const ocultos = new Set(conf.ocultos)
+  const publicados = new Set(conf.publicados ?? [])
+  const fora = (id: Id) => (entrada === 'escolher' ? !publicados.has(id) : ocultos.has(id))
   const modoPreco = conf.modoPreco ?? 'contato'
-  const itens = (await ctx.repos.itens.listar()).filter(pronto).filter((i) => !publico || !ocultos.has(i.id))
+  const todos = await ctx.repos.itens.listar()
+  const itens = todos.filter(pronto).filter((i) => !publico || !fora(i.id))
+  // só o administrador: disponíveis que ainda não podem ir para a vitrine porque falta a etiqueta
+  const semEtiqueta = publico ? [] : todos.filter((i) => disponivel(i) && !i.etiquetaImpressaEm)
   const F = await leitorFotos(ctx, { porId: new Map(itens.map((i) => [i.id, i])) })
   const tabelas = new Map<string, Awaited<ReturnType<typeof tabelaVigente>>>()
   const tabelaDe = async (cat: string) => {
@@ -153,7 +175,7 @@ export async function vitrine(ctx: Ctx, p: { publico?: boolean } = {}) {
       gramas: i.saldo,
       foto: fotoDe(F.principal(i.id)),
       preco,
-      ...(publico ? {} : { oculto: ocultos.has(i.id) }),
+      ...(publico ? {} : { oculto: fora(i.id) }),
     })
   }
   const vistos = (k: 'cor' | 'categoria') => [...new Set(pacotes.map((x) => x[k]).filter(Boolean))].sort() as string[]
@@ -171,5 +193,7 @@ export async function vitrine(ctx: Ctx, p: { publico?: boolean } = {}) {
     pacotes: publico && !conf.ativa ? [] : pacotes,
     filtros: { medidas: [...new Set(pacotes.map((x) => x.medida))].sort((a, b) => a - b), cores: vistos('cor'), categorias: vistos('categoria') },
     gramas: pacotes.reduce((s, x) => s + x.gramas, 0),
+    // só o administrador: como entra e o que falta etiquetar para poder entrar
+    ...(publico ? {} : { entrada, semEtiqueta: { pacotes: semEtiqueta.length, gramas: semEtiqueta.reduce((s, i) => s + i.saldo, 0) } }),
   }
 }

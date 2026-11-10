@@ -25,7 +25,7 @@ export function MetasDoMes({ className, resumida }: { className?: string; resumi
     <section aria-label={t('Metas do mês')} className={cx('rounded-2xl border border-[var(--borda)] bg-[var(--cartao)] p-3 shadow-sm sm:p-4', className)}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-bold">🎯 {t('Metas do mês')}</h2>
-        <span className="text-xs text-[var(--suave)]">{t('Faltam {n} dia(s)', { n: dados.diasRestantes })}{sessao.perfil === 'admin' && <> · <button type="button" className="font-semibold text-[var(--marca)]" onClick={() => ir('configSecao', { id: 'metas' })}>{t('Ajustar')}</button></>}</span>
+        <span className="text-xs text-[var(--suave)]">{t('Faltam {n} dia(s)', { n: dados.diasRestantes })}{sessao.perfil === 'admin' && <> · <button type="button" className="alvo-amplo font-semibold text-[var(--marca)]" onClick={() => ir('configSecao', { id: 'metas' })}>{t('Ajustar')}</button></>}</span>
       </div>
       <ul className={cx('grid gap-3', !resumida && 'md:grid-cols-2')}>
         {(resumida && !todas ? dados.metas.slice(0, 1) : dados.metas).map((m) => {

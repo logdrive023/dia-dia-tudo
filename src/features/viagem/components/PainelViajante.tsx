@@ -106,7 +106,7 @@ export function FolhaDespesa({ aberta, onFechar, viagemId, categorias, moedas, m
           {!comNota && <Botao variante="leve" onClick={() => setComNota(true)}>+ {t('Nota')}</Botao>}
           {outroDia === undefined && <Botao variante="leve" onClick={() => setOutroDia(dataLocal())}>{t('Foi em outro dia?')}</Botao>}
         </div>
-        {comNota && <Campo rotulo="Nota"><Entrada autoFocus value={nota} onChange={(e) => setNota(e.target.value)} placeholder={t('Ex.: posto na saída de Oruro')} /></Campo>}
+        {comNota && <Campo rotulo="Nota"><Entrada autoFocus focoSempre value={nota} onChange={(e) => setNota(e.target.value)} placeholder={t('Ex.: posto na saída de Oruro')} /></Campo>}
         {outroDia !== undefined && <Campo rotulo="Dia do gasto"><Entrada type="date" value={outroDia} onChange={(e) => setOutroDia(e.target.value)} /></Campo>}
       </div>
     </Janela>

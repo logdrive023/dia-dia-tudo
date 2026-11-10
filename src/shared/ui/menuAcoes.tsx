@@ -106,7 +106,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
         aria-expanded={aberto || folha}
         className={principal
           ? 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--marca)] px-4 text-sm font-semibold text-white shadow-sm hover:brightness-110'
-          : cx('inline-flex h-10 min-w-10 items-center justify-center gap-1 rounded-xl text-lg font-black leading-none hover:bg-[var(--marca-suave)] hover:text-[var(--marca)]', comRotulo ? 'border border-[var(--borda)] px-3 text-[var(--marca)]' : 'text-[var(--suave)]', aberto && 'bg-[var(--marca-suave)] text-[var(--marca)]')}
+          : cx('inline-flex h-10 min-w-10 toque:h-11 toque:min-w-11 items-center justify-center gap-1 rounded-xl text-lg font-black leading-none hover:bg-[var(--marca-suave)] hover:text-[var(--marca)]', comRotulo ? 'border border-[var(--borda)] px-3 text-[var(--marca)]' : 'text-[var(--suave)]', aberto && 'bg-[var(--marca-suave)] text-[var(--marca)]')}
       >
         {principal ? <>{t(principal)} <span aria-hidden className={cx('text-xs transition-transform', aberto && 'rotate-180')}>▾</span></> : <>{comRotulo && <span className="hidden text-sm font-semibold sm:inline">{t('Mais')}</span>}⋯</>}
       </button>
@@ -136,7 +136,7 @@ export function MenuAcoes({ acoes, rotulo = 'Mais ações', className, comRotulo
                     <div className="mb-1 ml-5 border-l-2 border-[var(--borda)] pl-2">
                       {a.filhos.map((f, m) => (
                         <button key={m} type="button" role="menuitem" onClick={() => (fechar(false), f.onClick())}
-                          className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-sm outline-none hover:bg-[var(--marca-suave)] focus-visible:bg-[var(--marca-suave)]">
+                          className="flex min-h-10 toque:min-h-11 w-full items-center gap-2 rounded-lg px-2 text-left text-sm outline-none hover:bg-[var(--marca-suave)] focus-visible:bg-[var(--marca-suave)]">
                           <span className="min-w-0 flex-1 truncate">{f.rotulo}</span>{f.descricao && <span className="shrink-0 truncate text-xs text-[var(--suave)]">{f.descricao}</span>}
                         </button>
                       ))}

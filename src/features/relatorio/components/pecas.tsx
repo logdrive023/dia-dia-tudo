@@ -44,7 +44,7 @@ export function TabelaResultado({ linhas, pais, onAnexo, impressao }: { linhas: 
             <td className={cx('py-1.5 pr-3', l.tipo === 'conta' && 'pl-5')}>
               {l.rotulo}
               {l.conta && <span className="ml-2 text-[11px] font-normal text-[var(--suave)]">{l.conta}</span>}
-              {!impressao && onAnexo && l.anexo && <button type="button" onClick={() => onAnexo(l.anexo!)} className="nao-imprimir ml-2 rounded px-1 text-[11px] font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">ver ›</button>}
+              {!impressao && onAnexo && l.anexo && <button type="button" onClick={() => onAnexo(l.anexo!)} className="alvo-amplo nao-imprimir ml-2 rounded px-1 text-[11px] font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">ver ›</button>}
             </td>
             <td className={cx('num whitespace-nowrap py-1.5 text-right tabular-nums', l.valor < 0 && 'text-[var(--ruim)] print:text-black')}>{valorContabil(l.valor, pais)}</td>
           </tr>

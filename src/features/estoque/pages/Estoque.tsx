@@ -17,6 +17,7 @@ import { LeitorCodigo, STATUS_LOTE, useTelaLarga } from '../../../shared/ui/esto
 import { usePistola } from '../../../shared/ui/leitorPistola'
 import { useLembrado } from '../../../shared/ui/filtros'
 import { CadeiaChips } from '../../../shared/ui/rastreioTotal'
+import { NotaTela } from '../../../shared/ui/notaTela'
 import { NumeroGrande, GrupoNumeros } from '../../../shared/ui/numeroGrande'
 import { acoesLote } from '../../../shared/ui/menuAcoes'
 import { CodigoSelo, TrocarCodigo } from '../../../shared/ui/codigos'
@@ -271,6 +272,8 @@ export function Estoque() {
     )
   }
 
+  // sem a configuração ainda não se sabe se há abas (Cabelo/Produtos): desenhar antes fazia a tela pular
+  if (!cfg) return <div><Titulo subtitulo={t('Cada número é a soma dos movimentos: nada some, tudo tem histórico.')}>{t('Estoque')}</Titulo><Carregando /></div>
   return (
     <div>
       <Titulo subtitulo={t('Cada número é a soma dos movimentos: nada some, tudo tem histórico.')}>{t('Estoque')}</Titulo>
@@ -279,11 +282,19 @@ export function Estoque() {
       {/* NÚMEROS GRANDES (fileira padrão): tocar filtra a lista pela situação; o filtro ligado fica destacado */}
       <GrupoNumeros colunas={admin ? 5 : 4}>
         <NumeroGrande rotulo="Em estoque" icone="📦" cor="var(--marca)" valor={fq(somar(comSaldo))} selos={[{ texto: t('{n} lote(s)', { n: comSaldo.length }), tom: 'marca' }]} ativo={!status} onClick={() => setP('status', '')} carregando={!dados} />
-        <NumeroGrande rotulo="Disponível" icone="✅" cor="var(--bom)" colorirValor valor={fq(somar(disponiveis))} selos={[{ texto: t('{n} lote(s)', { n: disponiveis.length }) }, { texto: t('Pronto para vender'), tom: 'bom' }]} ativo={status === 'separado'} onClick={() => setP('status', status === 'separado' ? '' : 'separado')} carregando={!dados} />
+        <NumeroGrande rotulo="Disponível" icone="✅" cor="var(--bom)" colorirValor valor={fq(somar(disponiveis))} selos={[{ texto: t('{n} lote(s)', { n: disponiveis.length }) }, { texto: t('Pronto para vender'), tom: 'bom' }]} ajuda="Já separado na triagem e com saldo: vende no caixa. Para ir à vitrine também precisa de etiqueta, e você escolhe em Minha vitrine." ativo={status === 'separado'} onClick={() => setP('status', status === 'separado' ? '' : 'separado')} carregando={!dados} />
         <NumeroGrande rotulo="Para separar" icone="⏳" cor="var(--alerta)" colorirValor={brutos.length > 0} valor={fq(somar(brutos))} selos={[{ texto: t('{n} lote(s)', { n: brutos.length }) }, ...(brutos.length ? [{ texto: t('Bruto'), tom: 'alerta' as const }] : [])]} ativo={status === 'bruto'} onClick={() => setP('status', status === 'bruto' ? '' : 'bruto')} carregando={!dados} />
         <NumeroGrande rotulo="Esgotados" icone="⭕" cor="var(--suave)" valor={String(base.length - comSaldo.length)} selos={[{ texto: t('Sem saldo') }]} ativo={status === 'esgotado'} onClick={() => setP('status', status === 'esgotado' ? '' : 'esgotado')} carregando={!dados} />
         {admin && <NumeroGrande rotulo="Valor em estoque" icone="💵" cor="#0ea5e9" valor={formatar(comSaldo.reduce((s, i) => s + (custoAgora(i) ?? 0), 0), moedaPadrao())} selos={[{ texto: t('A custo'), tom: 'marca' }, { texto: t('O que ainda tem') }]} carregando={!dados} />}
       </GrupoNumeros>
+
+      {/* o caminho até a vitrine (só o administrador mexe nela) */}
+      {admin && modulo === 'cabelo' && (
+        <NotaTela icone="🛍️" className="mb-3">
+          {t('Disponível com etiqueta pode ir para a vitrine: você escolhe quais em Minha vitrine.')}{' '}
+          <button type="button" onClick={() => ir('vitrine')} className="alvo-amplo font-semibold text-[var(--marca)] underline-offset-2 hover:underline">{t('Minha vitrine')} ›</button>
+        </NotaTela>
+      )}
 
       {/* FILTRO PADRÃO: busca (aceita a pistola) + 📷 + ⚙ Filtros → painel em grupos (situação · medidas · o cabelo ·
           de onde veio) → "N de M lote(s)" + chips ✕; Colunas, Ver como e CSV ficam à direita do resultado */}

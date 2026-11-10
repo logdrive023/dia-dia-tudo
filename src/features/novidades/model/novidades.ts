@@ -64,6 +64,9 @@ export const NOVIDADES: Novidade[] = [
     },
     itens: [
       { area: 'Estoque', tipo: 'novo', tela: 'vitrine', texto: {
+        pt: 'Você escolhe o que vai para a vitrine: o pacote disponível e com etiqueta espera em “Prontos para a vitrine” até você pôr (um a um ou “Pôr todos”). Quem quiser o jeito antigo escolhe “Tudo que estiver pronto”. A vitrine e o Estoque explicam o que pode entrar e quantos faltam etiquetar.',
+        es: 'Usted elige lo que va a la vitrina: el paquete disponible y con etiqueta espera en “Listos para la vitrina” hasta que usted lo ponga (uno a uno o “Poner todos”). Quien quiera la forma anterior elige “Todo lo que esté listo”. La vitrina y el Inventario explican lo que puede entrar y cuántos faltan etiquetar.' } },
+      { area: 'Estoque', tipo: 'novo', tela: 'vitrine', texto: {
         pt: 'Vitrine: o comprador marca vários pacotes e manda uma lista só pelo WhatsApp (“Hola, ¿tienen disponible…? 1, 2, 3”), além do pedido de um pacote.',
         es: 'Vitrina: el comprador marca varios paquetes y manda una sola lista por WhatsApp (“Hola, ¿tienen disponible…? 1, 2, 3”), además del pedido de un paquete.' } },
       { area: 'Estoque', tipo: 'novo', tela: 'vitrine', texto: {
@@ -88,6 +91,9 @@ export const NOVIDADES: Novidade[] = [
         pt: 'Mais rápido no celular: cada tela carrega só quando abre, o espanhol vem à parte e as listas grandes desenham só o que está perto da tela.',
         es: 'Más rápido en el celular: cada pantalla carga solo cuando se abre, el español viene aparte y las listas grandes dibujan solo lo que está cerca de la pantalla.' } },
       { area: 'Sistema', tipo: 'melhoria', texto: {
+        pt: 'No celular: botões, abas e escolhas com 44 px para o dedo, o ⓘ e os links pequenos com área de toque maior, e telas que não pulam enquanto carregam (Estoque, Viagens, Preços, Modo caixa, Agenda).',
+        es: 'En el celular: botones, pestañas y opciones con 44 px para el dedo, el ⓘ y los enlaces pequeños con área de toque más grande, y pantallas que no saltan mientras cargan (Inventario, Viajes, Precios, Modo caja, Agenda).' } },
+      { area: 'Sistema', tipo: 'melhoria', texto: {
         pt: 'Paginação nova: ao trocar de página a tela sobe de leve e mostra que está carregando.',
         es: 'Paginación nueva: al cambiar de página la pantalla sube suave y muestra que está cargando.' } },
       { area: 'Venda', tipo: 'melhoria', texto: {
@@ -102,6 +108,49 @@ export const NOVIDADES: Novidade[] = [
       { area: 'Sistema', tipo: 'correcao', texto: {
         pt: 'Dicas (ⓘ) do topo não ficam mais cortadas, e frases começam com letra maiúscula em português e espanhol.',
         es: 'Las ayudas (ⓘ) de arriba ya no quedan cortadas, y las frases empiezan con mayúscula en portugués y español.' } },
+    ],
+  },
+  {
+    data: '2026-11-08',
+    titulo: { pt: 'Turno, triagem, preços e viagens mais fáceis; feriados na agenda', es: 'Turno, revisión, precios y viajes más fáciles; feriados en la agenda' },
+    resumo: {
+      pt: 'De 6 a 8/11: abrir e fechar o turno, vendas guardadas para retomar, juntar pacotes, de qual compra veio cada grama, preços com rascunho, a vitrine com cores e prévia, feriados na agenda e cenários prontos para testar.',
+      es: 'Del 6 al 8/11: abrir y cerrar el turno, ventas guardadas para retomar, juntar paquetes, de qué compra vino cada gramo, precios con borrador, la vitrina con colores y vista previa, feriados en la agenda y escenarios listos para probar.',
+    },
+    itens: [
+      { area: 'Venda', tipo: 'novo', tela: 'vender', texto: {
+        pt: 'Abrir meu turno com o troco inicial (a hora fica registrada) antes de fechar com a conferência cega.',
+        es: 'Abrir mi turno con el cambio inicial (la hora queda registrada) antes de cerrar con el arqueo ciego.' } },
+      { area: 'Venda', tipo: 'novo', tela: 'vendaRapida', texto: {
+        pt: 'Modo caixa: a venda começada e deixada de lado fica guardada (até 3) com o botão “Retomar”; nada se perde ao sair da tela.',
+        es: 'Modo caja: la venta empezada y dejada a un lado queda guardada (hasta 3) con el botón “Retomar”; nada se pierde al salir de la pantalla.' } },
+      { area: 'Triagem', tipo: 'novo', tela: 'triagem', texto: {
+        pt: 'Juntar pacotes brutos numa janela só (“Juntar em 1 pacote de 4,5 kg”), que já mostra o próximo passo: separar. Misturas são avisadas antes de juntar.',
+        es: 'Juntar paquetes brutos en una sola ventana (“Juntar en 1 paquete de 4,5 kg”), que ya muestra el siguiente paso: separar. Las mezclas se avisan antes de juntar.' } },
+      { area: 'Triagem', tipo: 'melhoria', tela: 'triagem', texto: {
+        pt: 'O próximo pacote a separar com os critérios à vista (mais tempo parado, mais pesado, mais leve, chegou por último) e as dicas ⓘ desenhadas, com exemplo.',
+        es: 'El siguiente paquete a separar con los criterios a la vista (más tiempo parado, más pesado, más liviano, llegó último) y las ayudas ⓘ dibujadas, con ejemplo.' } },
+      { area: 'Livro do cabelo', tipo: 'novo', texto: {
+        pt: 'De qual compra veio cada grama de um pacote ou de uma venda, mesmo depois de juntar e separar de novo.',
+        es: 'De qué compra vino cada gramo de un paquete o de una venta, incluso después de juntar y separar de nuevo.' } },
+      { area: 'Venda', tipo: 'melhoria', tela: 'precos', texto: {
+        pt: 'Preços: as mudanças ficam num rascunho (“● 3 mudanças · Desfazer · Publicar”) até você publicar, e o ⓘ “Como calcula o preço” mostra a conta desenhada: gramas × fator = valor.',
+        es: 'Precios: los cambios quedan en un borrador (“● 3 cambios · Deshacer · Publicar”) hasta que usted publique, y el ⓘ “Cómo calcula el precio” muestra la cuenta dibujada: gramos × factor = valor.' } },
+      { area: 'Estoque', tipo: 'novo', tela: 'vitrine', texto: {
+        pt: 'Vitrine com a sua cara: cores, banner, fundo e frase do topo, com a prévia ao vivo ao lado (no celular: Ajustar | Prévia). Nada muda até “Salvar e publicar”.',
+        es: 'Vitrina con su estilo: colores, banner, fondo y frase de arriba, con la vista previa en vivo al lado (en el celular: Ajustar | Vista previa). Nada cambia hasta “Guardar y publicar”.' } },
+      { area: 'Viagens', tipo: 'melhoria', tela: 'viagens', texto: {
+        pt: 'Primeira viagem com o caminho em 4 passos e exemplo; o “⛽ Gasto” fica direto na linha da viagem aberta, sem abrir a ficha.',
+        es: 'Primer viaje con el camino en 4 pasos y ejemplo; el “⛽ Gasto” queda directo en la línea del viaje abierto, sin abrir la ficha.' } },
+      { area: 'Agenda', tipo: 'novo', tela: 'agenda', texto: {
+        pt: 'Feriados da Bolívia (nacionais e dos 9 departamentos) e do Brasil na agenda, só para informar: não bloqueiam nada.',
+        es: 'Feriados de Bolivia (nacionales y de los 9 departamentos) y de Brasil en la agenda, solo para informar: no bloquean nada.' } },
+      { area: 'Sistema', tipo: 'novo', tela: 'config', params: { aba: 'teste' }, texto: {
+        pt: 'Configurações › Modo teste: cenários prontos (Loja cheia, Começar do zero…) e “Zerar tudo”, com cópia de segurança antes. Só neste aparelho.',
+        es: 'Configuración › Modo prueba: escenarios listos (Tienda llena, Empezar de cero…) y “Borrar todo”, con copia de seguridad antes. Solo en este dispositivo.' } },
+      { area: 'Viagens', tipo: 'melhoria', tela: 'viagens', texto: {
+        pt: 'Viagens no computador com atalhos de teclado: “/” busca e “Alt+N” cria uma viagem nova.',
+        es: 'Viajes en la computadora con atajos de teclado: “/” busca y “Alt+N” crea un viaje nuevo.' } },
     ],
   },
   {

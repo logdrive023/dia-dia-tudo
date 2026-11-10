@@ -39,6 +39,8 @@ export function NumeroGrande({ rotulo, valor, sub, selos, icone, cor, tom, ativo
       {carregando
         ? <span aria-label={t('Carregando…')} className="mt-2 block h-7 w-24 animate-pulse rounded-lg bg-[var(--fundo)]" />
         : <span className="num mt-1.5 block truncate text-xl font-bold sm:text-2xl" style={pintar ? { color: c } : undefined}>{valor}</span>}
+      {/* carregando: a linha dos selos/sub já ocupa o lugar (sem salto quando os números chegam) */}
+      {carregando && (sub || selos?.length) ? <span aria-hidden className="mt-1.5 block h-5 w-20 animate-pulse rounded-full bg-[var(--fundo)]" /> : null}
       {!carregando && sub && <span className="num block truncate text-xs text-[var(--suave)]">{sub}</span>}
       {!carregando && selos && selos.length > 0 && (
         <span className="mt-1.5 flex flex-wrap gap-1">

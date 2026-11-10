@@ -15,7 +15,7 @@ import { EscolhaPreco } from '../components/EscolhaPreco'
 import { ImpostosDaOperacao, QuadroImpostosOperacao } from '../../../shared/ui/impostosOperacao'
 import { Trilha } from '../../../shared/ui/trilha'
 import { formatar, moeda as moedaDe } from '../../../core/domain/dinheiro'
-import { Botao, Confirmar, Info, cx, gramasTexto, Titulo, Vazio } from '../../../shared/ui/base'
+import { Botao, Carregando, Confirmar, Info, cx, gramasTexto, Titulo, Vazio } from '../../../shared/ui/base'
 import { BuscaPacote } from '../components/BuscaPacote'
 import { useApp, useConsulta } from '../../../shared/ui/contexto'
 import { linkWhatsApp } from '../../../shared/ui/compartilhados'
@@ -88,6 +88,8 @@ function ModoCaixa() {
     ? <button type="button" onClick={() => executarCfg('salvarConfig', { avisarVendaBruto: false }, t('Pronto: não aviso mais. Dá para ligar de novo em Configurações › Geral.'))} className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-[var(--marca)] underline-offset-2 hover:underline">{t('Não avisar mais')}</button>
     : undefined
 
+  // as vendas em aberto aparecem em cima do campo: espera saber se há alguma (é do aparelho, chega rápido)
+  if (!abertas) return <Carregando />
   return (
     <div ref={raiz} className="mx-auto max-w-7xl">
       <Trilha atual={t('Modo caixa')} onVoltar={() => ir('vender')} rotuloVoltar="Vender" />

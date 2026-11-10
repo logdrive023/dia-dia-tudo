@@ -209,3 +209,9 @@ body.imprimindo-relatorio { overflow: hidden; }
 
 /* toque sem a espera do "toque duplo" do navegador */
 button, a, input, select, label, [role='button'] { touch-action: manipulation; }
+
+/* ALVO AMPLO: link ou botão pequeno no meio do texto ganha uma área invisível de toque (44 px de altura) no dedo */
+@media (pointer: coarse) {
+  .alvo-amplo { position: relative; }
+  .alvo-amplo::after { content: ''; position: absolute; inset: -12px -4px; }
+}

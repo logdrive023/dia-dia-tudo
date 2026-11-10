@@ -43,7 +43,7 @@ export function EscolhaVista({ vista, onChange }: { vista: Vista; onChange(v: Vi
     <div role="radiogroup" aria-label={t('Ver como')} className="inline-flex shrink-0 rounded-xl bg-[var(--marca-suave)] p-1">
       {([['lista', '☰', 'Lista'], ['cartoes', '▦', 'Cartões']] as const).map(([id, ic, nome]) => (
         <button key={id} type="button" role="radio" aria-checked={vista === id} aria-label={t(nome)} onClick={() => onChange(id)} title={t(nome)}
-          className={cx('inline-flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg px-2.5 text-sm font-semibold', vista === id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
+          className={cx('inline-flex min-h-9 min-w-9 toque:min-h-11 toque:min-w-11 items-center justify-center gap-1 rounded-lg px-2.5 text-sm font-semibold', vista === id ? 'bg-[var(--cartao)] text-[var(--marca)] shadow' : 'text-[var(--suave)]')}>
           <span aria-hidden>{ic}</span><span className="hidden sm:inline">{t(nome)}</span>
         </button>
       ))}
@@ -73,11 +73,11 @@ export function ChipsFiltros({ itens, onTirar, onLimpar }: { itens: FiltroAtivo[
     <div className="flex flex-wrap items-center gap-1.5 text-sm">
       {itens.map((a) => (
         <button key={a.k} type="button" onClick={() => onTirar(a.k)} aria-label={`${t('Tirar filtro')} ${a.rotulo}`}
-          className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border border-[var(--marca)] bg-[var(--marca-suave)] pl-3 pr-2 font-semibold text-[var(--marca)] hover:brightness-95">
+          className="inline-flex min-h-9 toque:min-h-11 max-w-full items-center gap-1.5 rounded-full border border-[var(--marca)] bg-[var(--marca-suave)] pl-3 pr-2 font-semibold text-[var(--marca)] hover:brightness-95">
           <span className="truncate">{a.rotulo}</span><span aria-hidden className="text-xs">✕</span>
         </button>
       ))}
-      <button type="button" onClick={onLimpar} className="min-h-9 rounded-lg px-2 font-semibold text-[var(--suave)] hover:text-[var(--marca)]">{t('Limpar filtros')}</button>
+      <button type="button" onClick={onLimpar} className="min-h-9 toque:min-h-11 rounded-lg px-2 font-semibold text-[var(--suave)] hover:text-[var(--marca)]">{t('Limpar filtros')}</button>
     </div>
   )
 }
@@ -134,7 +134,7 @@ export function AbasSituacao({ opcoes, valor, onChange, rotulo = 'Situação' }:
         const on = o.id === valor
         return (
           <button key={o.id || 'padrao'} type="button" role="tab" aria-selected={on} onClick={() => onChange(o.id)}
-            className={cx('inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-semibold transition', on ? 'bg-[var(--cartao)] text-[var(--texto)] shadow-[0_1px_3px_rgba(16,24,40,.12)]' : 'text-[var(--suave)] hover:text-[var(--texto)]')}>
+            className={cx('inline-flex min-h-10 toque:min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-semibold transition', on ? 'bg-[var(--cartao)] text-[var(--texto)] shadow-[0_1px_3px_rgba(16,24,40,.12)]' : 'text-[var(--suave)] hover:text-[var(--texto)]')}>
             {t(o.nome)}{' '}
             {o.n !== undefined && (
               <span className={cx('num inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold',
@@ -350,7 +350,7 @@ export function BotaoExportar({ onExportar, quantos, unidade, rotulo = 'Baixar p
   }
   return (
     <button type="button" disabled={!quantos} onClick={baixar} title={t('Baixar uma planilha com as {n} {u} desta lista (como está filtrada)', { n: quantos, u: t(unidade) })}
-      className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 text-sm font-semibold text-[var(--marca)] shadow-sm hover:border-[var(--marca)] hover:bg-[var(--marca-suave)] disabled:opacity-40">
+      className="inline-flex min-h-10 toque:min-h-11 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[var(--borda)] bg-[var(--cartao)] px-3 text-sm font-semibold text-[var(--marca)] shadow-sm hover:border-[var(--marca)] hover:bg-[var(--marca-suave)] disabled:opacity-40">
       <span aria-hidden>📥</span>{t(rotulo)}
     </button>
   )

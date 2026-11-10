@@ -239,7 +239,7 @@ async function dia() {
   })
 
   let v0 = ''
-  await passo(9.5, 'Vitrine antes da etiqueta; depois imprimir e confirmar as etiquetas', async () => {
+  await passo(9.5, 'Vitrine antes da etiqueta; imprimir e confirmar as etiquetas; escolher o que vai para a vitrine', async () => {
     await ir('vitrine'); await esperar(900); v0 = await texto()
     await ir('etiquetas'); await esperar(900)
     await clicar(pg.getByText(/Selecionar todos os filtrados/).first())
@@ -254,10 +254,14 @@ async function dia() {
     await esperar(1000)
     await pg.getByRole('button', { name: /Concluir/ }).click({ timeout: 2500 }).catch(() => {})
     await ir('vitrine'); await esperar(900)
+    h.fila = await texto()
+    await clicar(pg.getByRole('button', { name: /Pôr todos \(2\)/ }))
+    await aviso(/2 pacote\(s\) na vitrine/).catch(() => '')
+    await esperar(600)
   }, async () => {
     const tx = await texto()
     detalhe('   [vitrine sem etiqueta] ' + v0.slice(0, 300))
-    return [chec('Sem etiqueta a vitrine explica por que está vazia', /etiqueta/i.test(v0), v0.match(/Na vitrine \d+[^.]{0,120}/)?.[0], true), chec('Depois da etiqueta: 2 na vitrine', /Na vitrine 2/.test(tx), tx.match(/Na vitrine \d+/)?.[0])]
+    return [chec('Sem etiqueta a vitrine explica por que está vazia', /etiqueta/i.test(v0), v0.match(/Na vitrine \d+[^.]{0,120}/)?.[0], true), chec('Com etiqueta, não entra sozinho: 2 em Prontos para a vitrine', /Prontos para a vitrine \(2\)/i.test(h.fila)), chec('Depois de Pôr todos: 2 na vitrine', /Na vitrine 2/.test(tx), tx.match(/Na vitrine \d+/)?.[0])]
   })
 
   let t10 = '', loja = ''

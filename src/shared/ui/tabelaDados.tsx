@@ -158,9 +158,11 @@ export function TabelaDados<T>({ linhas, chave, colunas, onAbrir, rotuloAbrir = 
   const marcada = (l: T) => realce?.(l) === 'marcada' || (!!selecao && selecao.marcados.has(chave(l)))
   const todos = !!selecao && linhas.length > 0 && linhas.every((l) => selecao.marcados.has(chave(l)))
   const caixa = (l: T) => selecao && (
+    <label className="-m-3 inline-flex cursor-pointer p-3" onClick={(e) => e.stopPropagation()}>
     <input type="checkbox" className="h-5 w-5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40" aria-label={selecao.rotulo(chave(l))} checked={selecao.marcados.has(chave(l))}
       disabled={!!selecao.desabilitado?.(chave(l))} title={selecao.desabilitado?.(chave(l))}
       onChange={() => selecao.onAlternar(chave(l))} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} />
+    </label>
   )
 
   // ---------- celular (linha curta que abre no lugar) e CARTÕES no computador: o mesmo conteúdo, outra disposição ----------
