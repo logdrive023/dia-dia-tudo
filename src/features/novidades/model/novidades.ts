@@ -56,6 +56,55 @@ export const naLingua = (x: Texto2, idioma: 'pt' | 'es') => (idioma === 'es' ? x
 
 export const NOVIDADES: Novidade[] = [
   {
+    data: '2026-11-09',
+    titulo: { pt: 'Vitrine com lista de compras, etiquetas por folha e um sistema mais rápido', es: 'Vitrina con lista de compras, etiquetas por hoja y un sistema más rápido' },
+    resumo: {
+      pt: 'O comprador monta uma lista na vitrine e manda pelo WhatsApp em espanhol; as etiquetas saem várias por folha; Painel, Caixa e Agenda ficaram mais simples; e as telas abrem mais rápido no celular.',
+      es: 'El comprador arma una lista en la vitrina y la manda por WhatsApp en español; las etiquetas salen varias por hoja; Panel, Caja y Agenda quedaron más simples; y las pantallas abren más rápido en el celular.',
+    },
+    itens: [
+      { area: 'Estoque', tipo: 'novo', tela: 'vitrine', texto: {
+        pt: 'Vitrine: o comprador marca vários pacotes e manda uma lista só pelo WhatsApp (“Hola, ¿tienen disponible…? 1, 2, 3”), além do pedido de um pacote.',
+        es: 'Vitrina: el comprador marca varios paquetes y manda una sola lista por WhatsApp (“Hola, ¿tienen disponible…? 1, 2, 3”), además del pedido de un paquete.' } },
+      { area: 'Estoque', tipo: 'novo', tela: 'vitrine', texto: {
+        pt: 'Mensagens do WhatsApp da vitrine em espanhol (ou português), já prontas e totalmente editáveis, com a prévia de como chegam. Preço na vitrine: entrar em contato, preço da tabela ou preço por pacote.',
+        es: 'Mensajes de WhatsApp de la vitrina en español (o portugués), ya listos y totalmente editables, con la vista previa de cómo llegan. Precio en la vitrina: contactar, precio de la tabla o precio por paquete.' } },
+      { area: 'Etiquetas', tipo: 'novo', tela: 'etiquetas', texto: {
+        pt: 'Etiquetas por folha (você escolhe quantas) e a data e hora da impressão no topo, no rodapé ou escondida. Imprimir só imprime; quem confirma que saiu certa é o administrador. Botões “Imprimir só as sem etiqueta” e “Imprimir todas”.',
+        es: 'Etiquetas por hoja (usted elige cuántas) y la fecha y hora de impresión arriba, abajo u oculta. Imprimir solo imprime; quien confirma que salió bien es el administrador. Botones “Imprimir solo las sin etiqueta” e “Imprimir todas”.' } },
+      { area: 'Venda', tipo: 'melhoria', tela: 'vender', texto: {
+        pt: 'Vendas em aberto mostram há quanto tempo estão paradas; vender um pacote que está em outra venda aberta avisa e deixa vender só uma parte.',
+        es: 'Las ventas pendientes muestran hace cuánto están paradas; vender un paquete que está en otra venta pendiente avisa y deja vender solo una parte.' } },
+      { area: 'Venda', tipo: 'melhoria', texto: {
+        pt: 'Divisão interna da venda redesenhada, com atalho direto para onde se define a comissão.',
+        es: 'División interna de la venta rediseñada, con acceso directo a donde se define la comisión.' } },
+      { area: 'Relatórios', tipo: 'melhoria', tela: 'painel', texto: {
+        pt: 'Painel e Caixa redesenhados: menos coisa na tela, o que precisa de você primeiro e o resto em “Ver mais detalhes”.',
+        es: 'Panel y Caja rediseñados: menos cosas en pantalla, lo que necesita de usted primero y el resto en “Ver más detalles”.' } },
+      { area: 'Agenda', tipo: 'melhoria', tela: 'agenda', texto: {
+        pt: 'Calendário e legenda mais limpos: viagem de vários dias vira uma barra contínua com o nome uma vez só.',
+        es: 'Calendario y leyenda más limpios: un viaje de varios días se vuelve una barra continua con el nombre una sola vez.' } },
+      { area: 'Sistema', tipo: 'melhoria', texto: {
+        pt: 'Mais rápido no celular: cada tela carrega só quando abre, o espanhol vem à parte e as listas grandes desenham só o que está perto da tela.',
+        es: 'Más rápido en el celular: cada pantalla carga solo cuando se abre, el español viene aparte y las listas grandes dibujan solo lo que está cerca de la pantalla.' } },
+      { area: 'Sistema', tipo: 'melhoria', texto: {
+        pt: 'Paginação nova: ao trocar de página a tela sobe de leve e mostra que está carregando.',
+        es: 'Paginación nueva: al cambiar de página la pantalla sube suave y muestra que está cargando.' } },
+      { area: 'Venda', tipo: 'melhoria', texto: {
+        pt: 'Conversor de moedas novo: toque na moeda e digite (o cursor já vem no campo); vazio, mostra quanto vale 1; com valor, quanto dá recebendo e pagando. Embaixo, o câmbio do dia (“1 US$ = Bs 11,90”) com Dinâmico ou Fixo.',
+        es: 'Convertidor de monedas nuevo: toque la moneda y escriba (el cursor ya viene en el campo); vacío, muestra cuánto vale 1; con valor, cuánto da recibiendo y pagando. Abajo, el tipo de cambio del día (“1 US$ = Bs 11,90”) con Dinámico o Fijo.' } },
+      { area: 'Venda', tipo: 'correcao', tela: 'config', params: { aba: 'moedas' }, texto: {
+        pt: 'Nos dados de exemplo, o real agora vem com câmbio Dinâmico, igual ao dólar; Fixo continua sendo uma escolha em Configurações › Moedas e câmbio.',
+        es: 'En los datos de ejemplo, el real ahora viene con tipo de cambio Dinámico, igual que el dólar; Fijo sigue siendo una opción en Configuración › Monedas y tipo de cambio.' } },
+      { area: 'Estoque', tipo: 'correcao', texto: {
+        pt: 'Ler código: a câmera não trava mais nem abre o teclado sozinha, e zoom e flash mostram “ajustando” enquanto respondem.',
+        es: 'Leer código: la cámara ya no se traba ni abre el teclado sola, y el zoom y el flash muestran “ajustando” mientras responden.' } },
+      { area: 'Sistema', tipo: 'correcao', texto: {
+        pt: 'Dicas (ⓘ) do topo não ficam mais cortadas, e frases começam com letra maiúscula em português e espanhol.',
+        es: 'Las ayudas (ⓘ) de arriba ya no quedan cortadas, y las frases empiezan con mayúscula en portugués y español.' } },
+    ],
+  },
+  {
     data: '2026-11-05',
     titulo: { pt: 'Minha vitrine: a loja do cabelo para os compradores', es: 'Mi vitrina: la tienda de cabello para los compradores' },
     resumo: {

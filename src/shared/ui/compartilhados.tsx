@@ -1,13 +1,14 @@
 // Peças com regra de tela usadas por várias telas: escolher pessoa (com cadastro rápido), pagamentos em várias
 // moedas, fotos/comprovantes, conversor de moedas e recibo no WhatsApp.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formasEmUso } from '../../core/domain/formas'
 import { CampoTelefone } from './campoTelefone'
 import { MOEDAS, type Cotacao, converter, formatar, moeda as moedaDe, type TabelaCotacoes, valorDeUm } from '../../core/domain/dinheiro'
 import { novoId } from '../../core/domain/ids'
+import { dataLocal, diasEntre } from '../../core/domain/datas'
 import type { CategoriaAnexo, Id, Papel } from '../../core/domain/tipos'
-import { Botao, Campo, Entrada, Janela, Pilula, Selecao, ValorInput, cx, moedaPadrao } from './base'
+import { Botao, Campo, Carregando, Entrada, Janela, Pilula, Selecao, ValorInput, cx, moedaPadrao } from './base'
 import { useApp, useComando, useConsulta } from './contexto'
 import { useT } from './i18n'
 import { VisorFotos, useEnviarFotos } from './fotos'
@@ -229,49 +230,137 @@ export function abrirConversor() {
   window.dispatchEvent(new Event('tudo:conversor'))
 }
 
+const diaMes = (d: string) => d.split('-').reverse().slice(0, 2).join('/')
+
+/**
+ * CONVERSOR DE MOEDAS (celular primeiro), em 3 partes:
+ *  1 a moeda (toque) e o valor, com o cursor já no campo;
+ *  2 o resultado em cada outra moeda — vazio, mostra quanto vale 1; tocar numa moeda converte a partir dela. Com valor,
+ *    cada linha diz também quanto dá recebendo (câmbio de venda) e pagando (câmbio de compra), quando forem diferentes;
+ *  3 o câmbio em uso: "1 US$ = Bs 11,97" com Dinâmico/Fixo de cada moeda e a data uma vez só (alerta se velha);
+ *    o administrador tem o atalho "Ajustar câmbio" (Configurações › Moedas e câmbio).
+ * Moeda fraca (ex.: guarani) aparece ao contrário: "Bs 1 = ₲ 163".
+ */
 export function Conversor() {
   const t = useT()
+  const { sessao, ir } = useApp()
   const [aberto, setAberto] = useState(false)
+  const [moeda, setMoeda] = useState<string>()
+  const [valor, setValor] = useState<number>()
+  const campo = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const f = () => setAberto(true)
+    const f = () => (setValor(undefined), setAberto(true))
     window.addEventListener('tudo:conversor', f)
     return () => window.removeEventListener('tudo:conversor', f)
   }, [])
-  const [moeda, setMoeda] = useState(moedaPadrao)
-  const [valor, setValor] = useState<number>()
-  const { dados } = useConsulta('configuracoes', {})
+  const { dados } = useConsulta('configuracoes', {}, aberto)
+  const principal = dados?.config.moedaPrincipal ?? moedaPadrao()
+  const ativas = MOEDAS.filter((m) => dados?.config.moedasAtivas.includes(m.codigo))
+  const de = moeda && ativas.some((m) => m.codigo === moeda) ? moeda : principal
+  // o cursor já no valor: abrir o conversor é para digitar
+  useEffect(() => {
+    if (aberto && dados) campo.current?.querySelector('input')?.focus()
+  }, [aberto, dados, de])
+  const cot = (dados?.cotacoes ?? {}) as TabelaCotacoes
+  const base = valor ?? 10 ** moedaDe(de).casas
+  const em = (tab: object | undefined, para: string) => conv(base, de, para, (tab ?? {}) as TabelaCotacoes)
+  const trocar = (para: string, convertido?: number) => {
+    setMoeda(para)
+    setValor(valor === undefined ? undefined : convertido)
+  }
+  // o câmbio em uso: cada moeda ativa contra a principal, com o modo e a data
+  const cambios = ativas.filter((m) => m.codigo !== principal).map((m) => {
+    const um = valorDeUm(m.codigo, principal, cot)
+    const data = dados?.cotacoes[m.codigo]?.data ?? dados?.cotacoes[principal]?.data
+    const modo = dados?.config.cambio[m.codigo]?.modo ?? 'dinamico'
+    const inverso = um !== undefined && um < 0.1 ? valorDeUm(principal, m.codigo, cot) : undefined
+    const texto = um === undefined ? `${m.simbolo} · ${t('sem cotação')}`
+      : inverso !== undefined ? `${moedaDe(principal).simbolo} 1 = ${formatar(Math.round(inverso * 10 ** m.casas), m.codigo)}`
+      : `1 ${m.simbolo} = ${formatar(Math.round(um * 10 ** moedaDe(principal).casas), principal)}`
+    return { codigo: m.codigo, texto, data, modo }
+  })
+  const datas = ([...new Set(cambios.map((c) => c.data).filter(Boolean))] as string[]).sort()
+  const dias = datas[0] ? diasEntre(datas[0], dataLocal()) : 0
+  const fechar = () => setAberto(false)
   return (
-    <>
-
-      <Janela aberta={aberto} titulo={t('Conversor de moedas')} onFechar={() => setAberto(false)}>
+    <Janela aberta={aberto} titulo={`💱 ${t('Conversor de moedas')}`} onFechar={fechar}>
+      {!dados ? <Carregando /> : (
         <div className="space-y-3">
-          <div className="grid grid-cols-[7rem_1fr] gap-2">
-            <Selecao valor={moeda} onChange={setMoeda} opcoes={MOEDAS.filter((m) => dados?.config.moedasAtivas.includes(m.codigo)).map((m) => ({ id: m.codigo, nome: `${m.simbolo} ${m.codigo}` }))} />
-            <ValorInput moeda={moeda} valor={valor} onChange={setValor} />
+          {/* 1 a moeda e o valor */}
+          <div ref={campo} className="space-y-2.5 rounded-2xl bg-[var(--marca-suave)] p-2.5">
+            <div role="radiogroup" aria-label={t('Converter de')} className="grid gap-1 rounded-xl bg-[var(--cartao)]/70 p-1" style={{ gridTemplateColumns: `repeat(${ativas.length || 1}, minmax(0, 1fr))` }}>
+              {ativas.map((m) => (
+                <button key={m.codigo} type="button" role="radio" aria-checked={m.codigo === de} onClick={() => trocar(m.codigo, m.codigo === de ? valor : em(dados.cotacoes, m.codigo))}
+                  className={cx('flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-lg px-2 text-sm font-bold transition', m.codigo === de ? 'bg-[var(--marca)] text-white shadow-sm' : 'text-[var(--suave)] hover:text-[var(--texto)]')}>
+                  {m.simbolo}<span className="text-[11px] font-medium opacity-75">{m.codigo}</span>
+                </button>
+              ))}
+            </div>
+            <label className="block [&_input]:min-h-14 [&_input]:text-2xl [&_input]:font-bold">
+              <span className="sr-only">{t('Valor para converter')}</span>
+              <ValorInput key={de} moeda={de} valor={valor} onChange={setValor} placeholder="1" />
+            </label>
           </div>
-          {valor !== undefined && (
-            <ul className="space-y-1">
-              {MOEDAS.filter((m) => m.codigo !== moeda && dados?.config.moedasAtivas.includes(m.codigo)).map((m) => {
-                const v = (tab?: object) => conv(valor, moeda, m.codigo, (tab ?? {}) as TabelaCotacoes)
-                const venda = v(dados?.cotacoesVenda)
-                const compra = v(dados?.cotacoesCompra)
+
+          {/* 2 o resultado */}
+          <section aria-live="polite" className="space-y-1.5">
+            <h3 className="num px-1 text-xs font-semibold uppercase tracking-wider text-[var(--suave)]">
+              {valor === undefined ? t('Quanto vale {v}', { v: `${moedaDe(de).simbolo} 1` }) : t('{v} em', { v: formatar(valor, de) })}
+            </h3>
+            <ul className="divide-y divide-[var(--borda)] overflow-hidden rounded-2xl border border-[var(--borda)] bg-[var(--cartao)]">
+              {ativas.filter((m) => m.codigo !== de).map((m) => {
+                const v = em(dados.cotacoes, m.codigo)
+                const venda = em(dados.cotacoesVenda, m.codigo)
+                const compra = em(dados.cotacoesCompra, m.codigo)
+                const lados = valor !== undefined && (venda !== v || compra !== v)
                 return (
-                  <li key={m.codigo} className="rounded-xl bg-[var(--fundo)] p-3">
-                    <div className="num flex justify-between text-lg font-bold"><span>{m.nome}</span><span>{v(dados?.cotacoes) === undefined ? '—' : formatar(v(dados?.cotacoes)!, m.codigo)}</span></div>
-                    {(venda !== v(dados?.cotacoes) || compra !== v(dados?.cotacoes)) && (
-                      <div className="num flex justify-between text-xs text-[var(--suave)]"><span>{t('Venda')} {venda === undefined ? '—' : formatar(venda, m.codigo)}</span><span>{t('Compra')} {compra === undefined ? '—' : formatar(compra, m.codigo)}</span></div>
-                    )}
+                  <li key={m.codigo}>
+                    <button type="button" onClick={() => trocar(m.codigo, v)} aria-label={`${t(m.nome)}: ${v === undefined ? t('sem cotação') : formatar(v, m.codigo)}. ${t('Converter a partir de {m}', { m: m.simbolo })}`}
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-[var(--marca-suave)]">
+                      <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--marca-suave)] text-xs font-bold text-[var(--marca)]">{m.simbolo}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">{t(m.nome)}</span>
+                        {lados && (
+                          <span className="num block text-xs leading-snug text-[var(--suave)]">
+                            {t('Recebendo')} {venda === undefined ? '—' : formatar(venda, m.codigo)} · {t('Pagando')} {compra === undefined ? '—' : formatar(compra, m.codigo)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="num shrink-0 text-right text-xl font-bold">{v === undefined ? <span className="text-sm font-medium text-[var(--suave)]">{t('sem cotação')}</span> : formatar(v, m.codigo)}</span>
+                    </button>
                   </li>
                 )
               })}
             </ul>
+          </section>
+
+          {/* 3 o câmbio em uso */}
+          {cambios.length > 0 && (
+            <section className="rounded-2xl bg-[var(--fundo)] p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h3 className="num text-xs font-semibold uppercase tracking-wider text-[var(--suave)]">
+                  {t('Câmbio')}{datas.length === 1 && ` · ${diaMes(datas[0])}`}
+                  {dias > 7 && <span className="ml-1 normal-case tracking-normal text-[var(--alerta)]">· {t('há {n} dias', { n: dias })}</span>}
+                </h3>
+                {sessao.perfil === 'admin' && (
+                  <button type="button" onClick={() => (fechar(), ir('config', { aba: 'moedas' }))} className="min-h-9 shrink-0 rounded-lg px-2 text-xs font-semibold text-[var(--marca)] hover:bg-[var(--marca-suave)]">
+                    ⚙ {t('Ajustar câmbio')}
+                  </button>
+                )}
+              </div>
+              <ul className="space-y-1.5">
+                {cambios.map((c) => (
+                  <li key={c.codigo} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="num min-w-0 truncate font-semibold">{c.texto}{datas.length > 1 && c.data && <span className="ml-1 text-xs font-normal text-[var(--suave)]">({diaMes(c.data)})</span>}</span>
+                    <Pilula pequena tom={c.modo === 'fixo' ? 'alerta' : 'marca'}>{t(c.modo === 'fixo' ? 'Fixo' : 'Dinâmico')}</Pilula>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
-          <p className="text-xs text-[var(--suave)]">
-            {Object.values(dados?.cotacoes ?? {}).filter(Boolean).map((c) => `${c!.moeda}: ${c!.valor} (${c!.data.split('-').reverse().join('/')})`).join(' · ')}
-          </p>
         </div>
-      </Janela>
-    </>
+      )}
+    </Janela>
   )
 }
 
