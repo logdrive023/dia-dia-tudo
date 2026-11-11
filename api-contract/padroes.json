@@ -1178,5 +1178,1836 @@
         "regioes": []
       }
     }
-  }
+  },
+  "cidades": [
+    {
+      "nome": "La Paz",
+      "departamento": "La Paz",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Palca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mecapaca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Achocalla",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Alto",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Achacachi",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ancoraimes",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chua Cocani",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huarina",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiago de Huata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huatajata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Coro Coro",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Caquiaviri",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Calacoto",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Comanche",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Charaña",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Waldo Ballivián",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Nazacara de Pacajes",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Callapa",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Acosta",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mocomoco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Carabuco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Humanata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Escoma",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chuma",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ayata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Aucapata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sorata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Guanay",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tacacoma",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Quiabaya",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Combaya",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tipuani",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mapiri",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Teoponte",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Apolo",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pelechuco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Viacha",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Guaqui",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tiahuanaco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Desaguadero",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Andrés de Machaca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Jesús de Machaca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Taraco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Luribay",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sapahaqui",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yaco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Malla",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cairoma",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Inquisivi",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Quime",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cajuata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colquiri",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ichoca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Licoma Pampa",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chulumani",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Irupana",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yanacachi",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Palos Blancos",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "La Asunta",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pucarani",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Laja",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Batallas",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Pérez",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sica Sica",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Umala",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ayo Ayo",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Calamarca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Patacamaya",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colquencha",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Collana",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Coroico",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Coripata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ixiamas",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Buenaventura",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Charazani",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Curva",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Copacabana",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro de Tiquina",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tito Yupanqui",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro de Curahuara",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Papel Pampa",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chacarilla",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiago de Machaca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Catacora",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Caranavi",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Alto Beni",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cochabamba",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Aiquile",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pasorapa",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Omereque",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Independencia",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Morochata",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cocapata",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tarata",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Anzaldo",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Arbieto",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sacabamba",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Arani",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Vacas",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Arque",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tacopaya",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Capinota",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiváñez",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sicaya",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cliza",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Toco",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tolata",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Quillacollo",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sipe Sipe",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tiquipaya",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Vinto",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colcapirhua",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sacaba",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colomi",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Tunari",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tapacarí",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Totora",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pojo",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pocona",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chimoré",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Villarroel",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Entre Ríos",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mizque",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Vila Vila",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Alalay",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Punata",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Rivero",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Benito",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tacachi",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cuchumuela",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Bolívar",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tiraque",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Shinahota",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santa Cruz de la Sierra",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Cotoca",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Porongo",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "La Guardia",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Torno",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Warnes",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Okinawa Uno",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Ignacio de Velasco",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Miguel de Velasco",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Rafael de Velasco",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Buena Vista",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Carlos",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Yapacaní",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Juan de Yapacaní",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San José de Chiquitos",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pailón",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Roboré",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Portachuelo",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santa Rosa del Sara",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colpa Bélgica",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Lagunillas",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Charagua",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cabezas",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cuevo",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Gutiérrez (Kereimba Iyambae)",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Camiri",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Boyuibe",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Vallegrande",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Trigal",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Moro Moro",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Postrervalle",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pucará",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Samaipata",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pampagrande",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mairana",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Quirusillas",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Montero",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "General Saavedra",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mineros",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Fernández Alonso",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Concepción",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Javier",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Ramón",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Julián",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Antonio de Lomerío",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cuatro Cañadas",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Matías",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Comarapa",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Saipina",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Suárez",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Quijarro",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Carmen Rivero Tórrez",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ascensión de Guarayos",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Urubichá",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Puente",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Oruro",
+      "departamento": "Oruro",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Caracollo",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Choro",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Paria",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Challapata",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santuario de Quillacas",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Corque",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Choquecota",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Curahuara de Carangas",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Turco",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huachacalla",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Escara",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cruz de Machacamarca",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yunguyo de Litoral",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Esmeralda",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Poopó",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pazña",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Antequera",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huanuni",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Machacamarca",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Salinas de Garci Mendoza",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pampa Aullagas",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sabaya",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Coipasa",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chipaya",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Toledo",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Eucaliptus",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiago de Andamarca",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Belén de Andamarca",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Totora",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiago de Huari",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "La Rivera",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Todos Santos",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Carangas",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huayllamarca",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Potosí",
+      "departamento": "Potosí",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Tinguipaya",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yocalla",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Urmiri",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Uncía",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chayanta",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Llallagua",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chuquihuta",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Betanzos",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chaquí",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tacobamba",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colquechaca",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ravelo",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pocoata",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ocurí",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro de Macha",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro de Buena Vista",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Toro Toro",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiago de Cotagaita",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Vitichi",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sacaca",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Caripuyo",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tupiza",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Atocha",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colcha K",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro de Quemes",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pablo de Lípez",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mojinete",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Antonio de Esmoruco",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puna",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Caiza D",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ckochas",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Uyuni",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tomave",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Porco",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Arampampa",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Acasio",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Llica",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tahua",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villazón",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Agustín",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sucre",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Yotala",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Poroma",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Azurduy",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tarvita",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Zudáñez",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Presto",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Mojocoya",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Icla",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Padilla",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tomina",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sopachuy",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Alcalá",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Villar",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Monteagudo",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huacareta",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tarabuco",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yamparáez",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Camargo",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Lucas",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Incahuasi",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Charcas",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Serrano",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Abecia",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Culpina",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Las Carreras",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Vaca Guzmán (Muyupampa)",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huacaya",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Macharetí",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tarija",
+      "departamento": "Tarija",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Padcaya",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Bermejo",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yacuiba",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Caraparí",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Montes",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Uriondo",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yunchará",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Lorenzo",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Puente",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Entre Ríos",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Trinidad",
+      "departamento": "Beni",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "San Javier",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Riberalta",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Guayaramerín",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Reyes",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Borja",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santa Rosa",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Rurrenabaque",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santa Ana del Yacuma",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Exaltación",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Ignacio de Moxos",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Loreto",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Andrés",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Joaquín",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Ramón",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Siles",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Magdalena",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Baures",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huacaraje",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cobija",
+      "departamento": "Pando",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Porvenir",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Bolpebra",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Bella Flor",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Rico",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Filadelfia",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Gonzalo Moreno",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Lorenzo",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sena",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santa Rosa del Abuná",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ingavi",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Nueva Esperanza",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Nueva",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santos Mercado",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    }
+  ],
+  "bibliotecaServicos": [
+    {
+      "nome": "Corte",
+      "categoria": "Corte",
+      "preco": 80,
+      "duracaoMin": 40
+    },
+    {
+      "nome": "Escova",
+      "categoria": "Escova",
+      "preco": 60,
+      "duracaoMin": 40
+    },
+    {
+      "nome": "Tintura",
+      "categoria": "Cor",
+      "preco": 300,
+      "duracaoMin": 120,
+      "insumos": [
+        {
+          "nome": "Tinta",
+          "valor": 15
+        },
+        {
+          "nome": "Água oxigenada",
+          "valor": 5
+        }
+      ]
+    },
+    {
+      "nome": "Mechas/Luzes",
+      "categoria": "Cor",
+      "preco": 450,
+      "duracaoMin": 180,
+      "insumos": [
+        {
+          "nome": "Descolorante",
+          "valor": 25
+        },
+        {
+          "nome": "Água oxigenada",
+          "valor": 10
+        },
+        {
+          "nome": "Papel alumínio",
+          "valor": 5
+        }
+      ]
+    },
+    {
+      "nome": "Descoloração",
+      "categoria": "Cor",
+      "preco": 350,
+      "duracaoMin": 150,
+      "insumos": [
+        {
+          "nome": "Descolorante",
+          "valor": 20
+        },
+        {
+          "nome": "Água oxigenada",
+          "valor": 10
+        }
+      ]
+    },
+    {
+      "nome": "Hidratação",
+      "categoria": "Tratamento",
+      "preco": 100,
+      "duracaoMin": 45,
+      "insumos": [
+        {
+          "nome": "Máscara",
+          "valor": 10
+        }
+      ]
+    },
+    {
+      "nome": "Depilação",
+      "categoria": "Estética",
+      "preco": 70,
+      "duracaoMin": 30,
+      "insumos": [
+        {
+          "nome": "Cera",
+          "valor": 8
+        }
+      ]
+    },
+    {
+      "nome": "Unha (mão)",
+      "categoria": "Unhas",
+      "preco": 50,
+      "duracaoMin": 40
+    },
+    {
+      "nome": "Unha (pé)",
+      "categoria": "Unhas",
+      "preco": 60,
+      "duracaoMin": 45
+    },
+    {
+      "nome": "Maquiagem",
+      "categoria": "Maquiagem",
+      "preco": 150,
+      "duracaoMin": 60
+    },
+    {
+      "nome": "Penteado",
+      "categoria": "Penteado",
+      "preco": 120,
+      "duracaoMin": 60
+    },
+    {
+      "nome": "Barba",
+      "categoria": "Barba",
+      "preco": 50,
+      "duracaoMin": 30
+    }
+  ]
 }
