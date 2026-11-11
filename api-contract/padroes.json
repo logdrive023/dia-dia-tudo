@@ -468,5 +468,139 @@
         }
       ]
     }
-  ]
+  ],
+  "nomesAcao": {
+    "recusado": "Tentativa recusada",
+    "salvarVendaAberta": "Venda guardada em aberto",
+    "descartarVendaAberta": "Venda em aberto descartada",
+    "tirarDaVendaAberta": "Pacote saiu de uma venda em aberto",
+    "reduzirNaVendaAberta": "Parte do pacote saiu de uma venda em aberto",
+    "salvarCidade": "Cidade cadastrada",
+    "impostosEstimados": "Impostos estimados (registro)",
+    "redividirGastoViagem": "Gasto da viagem redividido",
+    "desfazerLigacao": "Ligação de compras desfeita",
+    "apagarViagem": "Viagem apagada",
+    "pagamentoParcialCompra": "Linhas já pagas no registro",
+    "criarCompra": "Pedido de compra registrado",
+    "avancarTriagem": "Etapa da triagem",
+    "cancelarCompra": "Compra cancelada",
+    "conferirPesoCompra": "Conferência de peso",
+    "concluirVenda": "Venda concluída",
+    "agendar": "Atendimento agendado",
+    "atenderAgendamento": "Atendimento feito",
+    "salvarEvento": "Compromisso na agenda",
+    "excluirEvento": "Compromisso excluído da agenda",
+    "concluirEvento": "Compromisso feito",
+    "cancelarVenda": "Venda cancelada",
+    "corrigirVenda": "Venda corrigida",
+    "pagarComissao": "Comissão paga",
+    "criarUsuario": "Usuário criado",
+    "alterarUsuario": "Usuário alterado",
+    "trocarSenha": "Senha trocada",
+    "entrar": "Entrou no sistema",
+    "separarLote": "Lote separado",
+    "unificarLotes": "Lotes unificados",
+    "triarLotes": "Triagem feita",
+    "tirarDaMistura": "Mistura desfeita",
+    "moverFaseTriagem": "Lote mudou de coluna na triagem",
+    "salvarFluxoTriagem": "Etapas da triagem mudadas",
+    "ajustarEstoque": "Estoque ajustado",
+    "marcarLotes": "Lotes alterados em massa",
+    "editarAtributosLote": "Atributos do lote editados",
+    "marcarEtiquetasImpressas": "Etiqueta impressa",
+    "refazerEtiqueta": "Etiqueta cancelada · nova via",
+    "salvarCodigos": "Regra dos códigos mudada",
+    "salvarSigla": "Sigla da pessoa mudada",
+    "trocarCodigoCompra": "Código da compra trocado",
+    "trocarCodigoLote": "Código do lote trocado",
+    "salvarItem": "Item salvo",
+    "regraServico": "Comissão/insumos do serviço mudados",
+    "precoAlterado": "Preço mudado no atendimento",
+    "insumoAjustado": "Insumos ajustados no atendimento",
+    "criarServicoRapido": "Serviço criado no atendimento",
+    "restaurarBibliotecaServicos": "Biblioteca de serviços restaurada",
+    "lancarCaixa": "Lançamento no caixa",
+    "estornarLancamento": "Lançamento desfeito",
+    "encerrarDia": "Dia encerrado",
+    "reabrirDia": "Dia reaberto",
+    "registrarAcerto": "Acerto de conta",
+    "ajustarConta": "Ajuste de conta",
+    "criarEmprestimo": "Empréstimo criado",
+    "pagarEmprestimo": "Pagamento de empréstimo",
+    "ajustarParcela": "Parcela alterada",
+    "aumentarEmprestimo": "Emprestou mais",
+    "salvarPessoa": "Cadastro de pessoa",
+    "salvarTabelaPreco": "Tabela de preço salva",
+    "tabelaPrecoAnterior": "Versão anterior da tabela",
+    "tabelaPrecoVersao": "Versão da tabela publicada",
+    "salvarCotacao": "Cotação salva",
+    "salvarCambio": "Câmbio configurado",
+    "pagarSalario": "Salário pago",
+    "anexar": "Arquivo anexado",
+    "removerAnexo": "Anexo removido",
+    "salvarModulo": "Modalidade salva",
+    "salvarFluxoCompra": "Etapas da compra mudadas",
+    "salvarFormCompra": "Formulário de compra mudado",
+    "salvarAtributos": "Atributos do item mudados",
+    "salvarViagem": "Viagem de compra salva",
+    "adiantarViagem": "Adiantamento para a viagem",
+    "registrarDespesaViagem": "Gasto da viagem",
+    "anularDespesaViagem": "Gasto da viagem anulado",
+    "vincularCompras": "Compras ligadas à viagem",
+    "desvincularCompra": "Compra tirada da viagem",
+    "encerrarViagem": "Viagem encerrada (prestação de contas)",
+    "incorporarCustoViagem": "Gasto da viagem somado ao custo dos lotes",
+    "reabrirViagem": "Viagem reaberta",
+    "salvarCategoriasViagem": "Categorias de gasto de viagem mudadas",
+    "criarFinanciamento": "Adiantamento a parceiro (dinheiro para comprar cabelo)",
+    "registrarEntregaFinanciamento": "Entrega de cabelo abatendo o adiantamento",
+    "receberFinanciamento": "Adiantamento: recebi em dinheiro",
+    "pagarDiferencaFinanciamento": "Adiantamento: paguei a diferença ao parceiro",
+    "abaterComissaoFinanciamento": "Adiantamento: abatido da comissão",
+    "encerrarFinanciamento": "Adiantamento encerrado",
+    "ajustarFinanciamento": "Adiantamento alterado",
+    "reforcarFinanciamento": "Adiantou mais"
+  },
+  "categoriasAuditoria": {
+    "venda": {
+      "nome": "Vendas e agenda",
+      "icone": "💰"
+    },
+    "compra": {
+      "nome": "Compras",
+      "icone": "🛒"
+    },
+    "estoque": {
+      "nome": "Estoque e triagem",
+      "icone": "📦"
+    },
+    "viagens": {
+      "nome": "Viagens",
+      "icone": "🧳"
+    },
+    "dinheiro": {
+      "nome": "Dinheiro",
+      "icone": "💵"
+    },
+    "pessoas": {
+      "nome": "Pessoas",
+      "icone": "👤"
+    },
+    "acesso": {
+      "nome": "Acesso e usuários",
+      "icone": "🔒"
+    },
+    "config": {
+      "nome": "Configurações",
+      "icone": "⚙️"
+    },
+    "recusa": {
+      "nome": "Recusadas",
+      "icone": "⛔"
+    },
+    "outros": {
+      "nome": "Outros",
+      "icone": "•"
+    }
+  }
 }

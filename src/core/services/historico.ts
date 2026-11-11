@@ -85,7 +85,7 @@ async function linkDe(ctx: Ctx, id: Id, cache: Map<Id, LinkEvento | null>): Prom
   return l
 }
 
-const NOMES_ACAO: Record<string, string> = {
+export const NOMES_ACAO: Record<string, string> = {
   recusado: 'Tentativa recusada',
   salvarVendaAberta: 'Venda guardada em aberto',
   descartarVendaAberta: 'Venda em aberto descartada',
