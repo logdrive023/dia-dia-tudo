@@ -4,7 +4,8 @@ import { criarRegistro } from '../areas'
 import { CIDADES_BOLIVIA } from '../dados/cidadesBolivia'
 import { AJUSTES_PADRAO, FERIADOS, PAISES_FERIADO } from '../dados/feriados'
 import { BIBLIOTECA_SERVICOS } from '../domain/comissao'
-import { IMPOSTOS_PADRAO_BO, IMPOSTOS_PADRAO_BR } from '../dados/impostos'
+import { IMPOSTOS_PADRAO_BO, IMPOSTOS_PADRAO_BR, NOMES_REGIME } from '../dados/impostos'
+import { CIERRE, REGRAS_BO } from '../dados/tributosBO'
 import { NOMES_CATEGORIA } from './auditoria'
 import { resumoModulos } from './cadastros'
 import { CONFIG_PADRAO } from './contexto'
@@ -31,5 +32,9 @@ export function padroesServidor() {
     // as cidades da Bolívia que já vêm cadastradas e a biblioteca de serviços do salão (Corte, Tintura…)
     cidades: CIDADES_BOLIVIA,
     bibliotecaServicos: BIBLIOTECA_SERVICOS,
+    // impostos: o nome de cada regime e as regras tributárias da Bolívia VERSIONADAS (alíquotas, prazos, formulários,
+    // retenções) e o cierre de gestión por tipo de atividade — o Imposto de Renda do servidor lê daqui
+    nomesRegime: NOMES_REGIME,
+    tributosBO: { regras: REGRAS_BO, cierre: CIERRE },
   }
 }

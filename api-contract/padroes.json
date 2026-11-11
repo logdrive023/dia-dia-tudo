@@ -3009,5 +3009,335 @@
       "preco": 50,
       "duracaoMin": 30
     }
-  ]
+  ],
+  "nomesRegime": {
+    "general": {
+      "nome": "Régimen General",
+      "explica": "Factura con IVA 13%, paga IT 3% sobre los ingresos e IUE 25% sobre la utilidad.",
+      "quem": "Empresas e comércios que emitem fatura (NIT no Régimen General). É o padrão.",
+      "comoFunciona": "Cada venda com fatura tem IVA 13% (dentro do preço) e IT 3%. Todo mês: IVA das vendas − IVA das compras com fatura, mais o IT. No fim do ano, IUE 25% sobre o lucro — e esse IUE se desconta do IT depois."
+    },
+    "rts": {
+      "nome": "Régimen Tributario Simplificado (RTS)",
+      "explica": "Cuota fija bimestral; sin IVA, IT ni IUE por separado y sin factura con crédito fiscal.",
+      "quem": "Pequenos comerciantes e artesãos com capital e vendas pequenos (dentro dos limites do RTS).",
+      "comoFunciona": "Paga uma cota FIXA a cada dois meses, conforme a categoria. Não há IVA nem IT por venda e não se emite fatura com crédito fiscal — por isso a venda não mostra imposto."
+    },
+    "simples": {
+      "nome": "Simples Nacional",
+      "explica": "DAS: uma alíquota única sobre a receita bruta (já inclui IRPJ, CSLL, PIS, COFINS e ICMS/ISS).",
+      "quem": "Micro e pequenas empresas no Brasil (faturamento até o limite do Simples).",
+      "comoFunciona": "Uma guia só por mês (DAS) com uma alíquota efetiva sobre a receita bruta, que sobe conforme o faturamento dos últimos 12 meses."
+    },
+    "presumido": {
+      "nome": "Lucro Presumido",
+      "explica": "PIS 0,65% e COFINS 3% sobre a receita; IRPJ e CSLL sobre um lucro presumido.",
+      "quem": "Empresas no Brasil acima do Simples (ou que preferem este regime).",
+      "comoFunciona": "PIS e COFINS sobre a receita todo mês; IRPJ e CSLL a cada trimestre sobre um lucro \"presumido\" (uma porcentagem fixa da receita), não sobre o lucro real."
+    }
+  },
+  "tributosBO": {
+    "regras": [
+      {
+        "versao": "BO-2016",
+        "vigenteDesde": "2016-05-01",
+        "vigenteAte": "2022-12-31",
+        "obrigacoes": [
+          {
+            "id": "iva",
+            "sigla": "IVA",
+            "nome": "Imposto ao Valor Agregado",
+            "es": "Impuesto al Valor Agregado",
+            "descricao": "Sobre a venda de bens e serviços: débito das vendas com factura menos o crédito das compras com factura.",
+            "formulario": "F-200 (v5, SIAT)",
+            "periodicidade": "mensal",
+            "aliquotaBp": 1300,
+            "base": "Preço líquido da factura (\"por dentro\")",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT (dia 13 a 22)",
+            "fonte": "Ley 843 arts. 1–15; DS 21530",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "it",
+            "sigla": "IT",
+            "nome": "Imposto sobre as Transações",
+            "es": "Impuesto a las Transacciones",
+            "descricao": "Sobre o ingresso bruto do mês, dê lucro ou não. O IUE pago do ano anterior compensa o IT.",
+            "formulario": "F-400 (v5, SIAT)",
+            "periodicidade": "mensal",
+            "aliquotaBp": 300,
+            "base": "Ingresso bruto do mês",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT (dia 13 a 22)",
+            "fonte": "Ley 843 arts. 72–77; DS 21532",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "iue",
+            "sigla": "IUE",
+            "nome": "Imposto sobre os Lucros das Empresas",
+            "es": "Impuesto sobre las Utilidades de las Empresas",
+            "descricao": "Sobre o lucro do ano (estados financeiros): lucro contábil + ajustes = lucro tributável × 25%.",
+            "formulario": "F-500",
+            "periodicidade": "anual",
+            "aliquotaBp": 2500,
+            "base": "Lucro tributável do exercício",
+            "vencimento": "120 dias depois do cierre de gestión",
+            "fonte": "Ley 843 arts. 36–50; DS 24051 arts. 39–40",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "retIue",
+            "sigla": "RET-IUE",
+            "nome": "Retenção de IUE (compras sem factura)",
+            "es": "Retención IUE",
+            "descricao": "Quem compra de pessoa sem factura retém e paga o IUE dela: 5% em bens (25% de um lucro presumido de 20%).",
+            "formulario": "F-570",
+            "periodicidade": "mensal",
+            "aliquotaBp": 500,
+            "base": "Valor pago em compras de bens sem factura",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 24051 art. 3 (texto anterior ao DS 4850)",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "retIt",
+            "sigla": "RET-IT",
+            "nome": "Retenção de IT (compras sem factura)",
+            "es": "Retención IT",
+            "descricao": "Junto com a retenção de IUE: 3% do valor pago a quem não emite factura.",
+            "formulario": "F-410",
+            "periodicidade": "mensal",
+            "aliquotaBp": 300,
+            "base": "Valor pago em compras sem factura",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 21532; DS 4850",
+            "certeza": "S",
+            "calcula": true
+          },
+          {
+            "id": "rcIva",
+            "sigla": "RC-IVA",
+            "nome": "RC-IVA dos dependentes (agente de retenção)",
+            "es": "Régimen Complementario al IVA",
+            "descricao": "Sobre os salários acima de 2 salários mínimos, depois dos aportes; o empregado abate com facturas (F-110).",
+            "formulario": "F-608",
+            "periodicidade": "mensal",
+            "aliquotaBp": 1300,
+            "base": "Salário líquido de aportes acima de 2 SMN",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 21531 arts. 8 e 11",
+            "certeza": "S",
+            "calcula": false
+          },
+          {
+            "id": "rcv",
+            "sigla": "RCV",
+            "nome": "Registro de Compras e Vendas (SIAT)",
+            "es": "Registro de Compras y Ventas",
+            "descricao": "O livro digital das facturas de compra e venda no SIAT — enviar todo mês, mesmo sem movimento.",
+            "formulario": "SIAT en Línea",
+            "periodicidade": "mensal",
+            "base": "Facturas do mês",
+            "vencimento": "Mês seguinte (antes das declarações)",
+            "fonte": "Libro de Compras y Ventas IVA (até 2021) / RCV",
+            "certeza": "S",
+            "calcula": false
+          },
+          {
+            "id": "eeff",
+            "sigla": "EEFF",
+            "nome": "Estados financeiros",
+            "es": "Estados Financieros",
+            "descricao": "Balanço, estado de resultados e notas, com o IUE. Com parecer de auditoria se as vendas passam do limite.",
+            "formulario": "Digital no SIAT (F-605)",
+            "periodicidade": "anual",
+            "base": "O exercício inteiro",
+            "vencimento": "120 dias depois do cierre de gestión",
+            "fonte": "DS 24051 arts. 35–36; RND 101800000004",
+            "certeza": "S",
+            "calcula": false
+          }
+        ],
+        "retencao": {
+          "bensIueBp": 500,
+          "bensItBp": 300,
+          "servicoBp": 1250,
+          "servicoTipo": "IUE",
+          "servicoItBp": 300
+        },
+        "limiteAuditoria": 120000000,
+        "notas": [
+          "Serviços sem factura: retenção IUE 12,5% + IT 3% (antes do DS 4850)."
+        ]
+      },
+      {
+        "versao": "BO-2023",
+        "vigenteDesde": "2023-01-01",
+        "obrigacoes": [
+          {
+            "id": "iva",
+            "sigla": "IVA",
+            "nome": "Imposto ao Valor Agregado",
+            "es": "Impuesto al Valor Agregado",
+            "descricao": "Sobre a venda de bens e serviços: débito das vendas com factura menos o crédito das compras com factura.",
+            "formulario": "F-200 (v5, SIAT)",
+            "periodicidade": "mensal",
+            "aliquotaBp": 1300,
+            "base": "Preço líquido da factura (\"por dentro\")",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT (dia 13 a 22)",
+            "fonte": "Ley 843 arts. 1–15; DS 21530",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "it",
+            "sigla": "IT",
+            "nome": "Imposto sobre as Transações",
+            "es": "Impuesto a las Transacciones",
+            "descricao": "Sobre o ingresso bruto do mês, dê lucro ou não. O IUE pago do ano anterior compensa o IT.",
+            "formulario": "F-400 (v5, SIAT)",
+            "periodicidade": "mensal",
+            "aliquotaBp": 300,
+            "base": "Ingresso bruto do mês",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT (dia 13 a 22)",
+            "fonte": "Ley 843 arts. 72–77; DS 21532",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "iue",
+            "sigla": "IUE",
+            "nome": "Imposto sobre os Lucros das Empresas",
+            "es": "Impuesto sobre las Utilidades de las Empresas",
+            "descricao": "Sobre o lucro do ano (estados financeiros): lucro contábil + ajustes = lucro tributável × 25%.",
+            "formulario": "F-500",
+            "periodicidade": "anual",
+            "aliquotaBp": 2500,
+            "base": "Lucro tributável do exercício",
+            "vencimento": "120 dias depois do cierre de gestión",
+            "fonte": "Ley 843 arts. 36–50; DS 24051 arts. 39–40",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "retIue",
+            "sigla": "RET-IUE",
+            "nome": "Retenção de IUE (compras sem factura)",
+            "es": "Retención IUE",
+            "descricao": "Quem compra de pessoa sem factura retém e paga o IUE dela: 5% em bens (25% de um lucro presumido de 20%).",
+            "formulario": "F-570",
+            "periodicidade": "mensal",
+            "aliquotaBp": 500,
+            "base": "Valor pago em compras de bens sem factura",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 24051 art. 3; DS 4850 (desde 01/01/2023)",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "retIt",
+            "sigla": "RET-IT",
+            "nome": "Retenção de IT (compras sem factura)",
+            "es": "Retención IT",
+            "descricao": "Junto com a retenção de IUE: 3% do valor pago a quem não emite factura.",
+            "formulario": "F-410",
+            "periodicidade": "mensal",
+            "aliquotaBp": 300,
+            "base": "Valor pago em compras sem factura",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 21532; DS 4850",
+            "certeza": "S",
+            "calcula": true
+          },
+          {
+            "id": "rcIva",
+            "sigla": "RC-IVA",
+            "nome": "RC-IVA dos dependentes (agente de retenção)",
+            "es": "Régimen Complementario al IVA",
+            "descricao": "Sobre os salários acima de 2 salários mínimos, depois dos aportes; o empregado abate com facturas (F-110).",
+            "formulario": "F-608",
+            "periodicidade": "mensal",
+            "aliquotaBp": 1300,
+            "base": "Salário líquido de aportes acima de 2 SMN",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 21531 arts. 8 e 11",
+            "certeza": "S",
+            "calcula": false
+          },
+          {
+            "id": "rcv",
+            "sigla": "RCV",
+            "nome": "Registro de Compras e Vendas (SIAT)",
+            "es": "Registro de Compras y Ventas",
+            "descricao": "O livro digital das facturas de compra e venda no SIAT — enviar todo mês, mesmo sem movimento.",
+            "formulario": "SIAT en Línea",
+            "periodicidade": "mensal",
+            "base": "Facturas do mês",
+            "vencimento": "Mês seguinte (antes das declarações)",
+            "fonte": "RND 102100000011",
+            "certeza": "S",
+            "calcula": false
+          },
+          {
+            "id": "eeff",
+            "sigla": "EEFF",
+            "nome": "Estados financeiros",
+            "es": "Estados Financieros",
+            "descricao": "Balanço, estado de resultados e notas, com o IUE. Com parecer de auditoria se as vendas passam do limite.",
+            "formulario": "Digital no SIAT (F-605)",
+            "periodicidade": "anual",
+            "base": "O exercício inteiro",
+            "vencimento": "120 dias depois do cierre de gestión",
+            "fonte": "DS 24051 arts. 35–36; RND 101800000004",
+            "certeza": "S",
+            "calcula": false
+          }
+        ],
+        "retencao": {
+          "bensIueBp": 500,
+          "bensItBp": 300,
+          "servicoBp": 1300,
+          "servicoTipo": "RC-IVA",
+          "servicoItBp": 300
+        },
+        "limiteAuditoria": 120000000,
+        "notas": [
+          "DS 4850: serviços sem factura passam a reter RC-IVA 13% (F-604) + IT 3%; bens seguem IUE 5% + IT 3%.",
+          "DS 5327 (02/2025) só compensava o IT com IUE pago em dia; DS 5563 (03/2026) tirou essa exigência (fonte secundária).",
+          "RND 102600000014 sobe o limite do parecer de auditoria para Bs 1.700.000 nos exercícios que fecham a partir de 2027 (fonte secundária)."
+        ]
+      }
+    ],
+    "cierre": {
+      "comercial": {
+        "mes": 12,
+        "dia": 31,
+        "nome": "Comercial"
+      },
+      "servicos": {
+        "mes": 12,
+        "dia": 31,
+        "nome": "Serviços"
+      },
+      "industrial": {
+        "mes": 3,
+        "dia": 31,
+        "nome": "Industrial"
+      },
+      "agro": {
+        "mes": 6,
+        "dia": 30,
+        "nome": "Agropecuária / agroindustrial"
+      },
+      "mineira": {
+        "mes": 9,
+        "dia": 30,
+        "nome": "Mineração"
+      }
+    }
+  }
 }
