@@ -12,10 +12,12 @@
 //   npm run dia-de-trabalho -- 1500 --ver      devagar, com a janela aberta e uma faixa dizendo o passo (~8 min)
 //   npm run dia-de-trabalho -- 150 --detalhes  mostra o texto das telas (para entender um passo que falhou)
 //   npm run dia-de-trabalho -- 150 --ate 9     só até o passo 9
+//   --fotos  foto de todo passo (sem ela: só do passo que falhou; --ver também fotografa tudo)
+//   --detalhes também mostra as checagens que passaram (o relatório.md sempre tem todas)
 //
 // Precisa do servidor de desenvolvimento no ar (npm run dev, em http://127.0.0.1:5174). Os dados de exemplo do dono
 // (localhost) não são tocados: o navegador é novo e usa 127.0.0.1. Fotos e relatório em node_modules/.cache/dia-de-trabalho/.
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium } from 'playwright-core'
 
@@ -24,8 +26,10 @@ const VER = process.argv.includes('--ver')
 const SO = process.argv.includes('--ate') ? Number(process.argv[process.argv.indexOf('--ate') + 1]) : 99
 const B = process.env.URL_APP ?? 'http://127.0.0.1:5174', PASTA = join(process.cwd(), 'node_modules', '.cache', 'dia-de-trabalho')
 const DETALHES = process.argv.includes('--detalhes')
+const FOTOS = VER || process.argv.includes('--fotos')
 /** o texto das telas (para entender um passo que falhou): só com --detalhes */
 const detalhe = (x) => DETALHES && console.log(x)
+rmSync(PASTA, { recursive: true, force: true }) // sem fotos velhas de outra rodada
 mkdirSync(PASTA, { recursive: true })
 // senha de teste nova a cada rodada (só existe neste navegador descartável)
 const SENHA = 'Teste' + Math.random().toString(36).slice(2, 9) + 'a7'
@@ -61,10 +65,13 @@ async function passo(n, titulo, fazer, conferir = async () => []) {
   } catch (e) { p.ok = false; p.erro = String(e?.message ?? e).split('\n').slice(0, 7).join(' ').slice(0, 520) }
   if (p.checagens.some((c) => !c.ok && !c.friccao)) p.ok = false
   await faixa(`${p.ok ? '✓' : '✗'} Passo ${n} · ${titulo}`)
-  await pg.screenshot({ path: join(PASTA, `${String(n).padStart(2, '0')}.png`), fullPage: true }).catch(() => {})
+  // foto só do que falhou (ou de tudo com --fotos / --ver): menos tempo e menos disco
+  p.foto = FOTOS || !p.ok
+  if (p.foto) await pg.screenshot({ path: join(PASTA, `${String(n).padStart(2, '0')}.png`), fullPage: true }).catch(() => {})
   passos.push(p)
   console.log(`${p.ok ? '✓' : '✗'} ${n}. ${titulo} (${p.ms} ms, ${p.toques} toques)${p.erro ? `\n   ERRO: ${p.erro}` : ''}`)
-  for (const c of p.checagens) console.log(`   ${c.ok ? '·' : c.friccao ? '◌ fricção:' : '⚠'} ${c.o}${c.detalhe ? ` — ${c.detalhe}` : ''}`)
+  // no terminal só o que importa (erro e fricção); o relatorio.md guarda todas as checagens
+  for (const c of p.checagens.filter((x) => DETALHES || !x.ok)) console.log(`   ${c.ok ? '·' : c.friccao ? '◌ fricção:' : '⚠'} ${c.o}${c.detalhe ? ` — ${c.detalhe}` : ''}`)
 }
 const lote = async () => pg.evaluate(async () => {
   const dbs = await indexedDB.databases()
@@ -261,13 +268,16 @@ async function dia() {
   }, async () => {
     const tx = await texto()
     detalhe('   [vitrine sem etiqueta] ' + v0.slice(0, 300))
-    return [chec('Sem etiqueta a vitrine explica por que está vazia', /etiqueta/i.test(v0), v0.match(/Na vitrine \d+[^.]{0,120}/)?.[0], true), chec('Com etiqueta, não entra sozinho: 2 em Prontos para a vitrine', /Prontos para a vitrine \(2\)/i.test(h.fila)), chec('Depois de Pôr todos: 2 na vitrine', /Na vitrine 2/.test(tx), tx.match(/Na vitrine \d+/)?.[0])]
+    return [chec('Sem etiqueta a vitrine explica por que está vazia', /etiqueta/i.test(v0), v0.match(/Na vitrine \d+[^.]{0,120}/)?.[0], true), chec('Com etiqueta, não entra sozinho: 2 em Prontos para a vitrine', /Fora \(2\)/i.test(h.fila) && /Na vitrine \(0\)/i.test(h.fila)), chec('Depois de Pôr todos: 2 na vitrine', /Na vitrine 2/.test(tx), tx.match(/Na vitrine \d+/)?.[0])]
   })
 
   let t10 = '', loja = ''
   await passo(10, 'Alterar a vitrine e ver como o cliente', async () => {
     await ir('vitrine')
     await esperar(800)
+    // no celular a vitrine tem sub-abas (Pacotes · Loja): os campos de texto ficam na aba Loja
+    const abaLoja = pg.getByRole('tab', { name: /^Loja/ })
+    if (await abaLoja.isVisible().catch(() => false)) await clicar(abaLoja)
     await pg.getByPlaceholder('Meu negócio').fill('Cabelos Sucre')
     await pg.getByPlaceholder('+591 70000000').fill('+591 70012345')
     await clicar(pg.getByRole('radio', { name: /Preço da tabela/ }))
@@ -286,7 +296,7 @@ async function dia() {
   await passo(11, 'Relatórios: a viagem entrou certo?', async () => {
     await ir('relatorios')
     await esperar(800)
-    await clicar(pg.getByRole('tab', { name: 'Viagens', exact: true }))
+    await clicar(pg.getByRole('tab', { name: /Viagens$/ }))
     await esperar(1200)
     rv = await texto()
     await ir('caixa'); await esperar(800); cx = await texto()
@@ -486,11 +496,11 @@ try {
     `Pausa entre as ações: ${LENTO} ms · navegador novo, banco zerado, tela de celular (390 px).`, '',
     '| Passo | Tempo | Toques | Resultado |', '|---|---|---|---|',
     ...passos.map((x) => `| ${x.n}. ${x.titulo} | ${x.ms} ms | ${x.toques} | ${x.ok ? '✓' : '✗'}${x.erro ? ` ${x.erro}` : ''} |`), '',
-    ...passos.flatMap((x) => [`## ${x.n}. ${x.titulo}`, '', ...x.checagens.map((c) => `- ${c.ok ? '✓' : c.friccao ? '◌ fricção:' : '⚠'} ${c.o}${c.detalhe ? ` — ${c.detalhe}` : ''}`), '', `![passo ${x.n}](${String(x.n).padStart(2, '0')}.png)`, '']),
+    ...passos.flatMap((x) => [`## ${x.n}. ${x.titulo}`, '', ...x.checagens.map((c) => `- ${c.ok ? '✓' : c.friccao ? '◌ fricção:' : '⚠'} ${c.o}${c.detalhe ? ` — ${c.detalhe}` : ''}`), '', ...(x.foto ? [`![passo ${x.n}](${String(x.n).padStart(2, '0')}.png)`, ''] : [])]),
     ...(erros.length ? ['## Erros no console', '', ...erros.map((e) => `- ${e}`), ''] : []),
   ].join('\n'))
   const f = passos.filter((p) => !p.ok)
-  console.log(`\n${f.length ? `✗ ${f.length} passo(s) com problema: ${f.map((x) => x.n).join(', ')}` : '✓ o dia inteiro bateu'} · fotos e relatório em ${PASTA}`)
+  console.log(`\n${f.length ? `✗ ${f.length} passo(s) com problema: ${f.map((x) => x.n).join(', ')}` : '✓ o dia inteiro bateu'} · relatório${passos.some((x) => x.foto) ? " e fotos" : ""} em ${PASTA}`)
   process.exit(f.length ? 1 : 0)
 } catch (e) {
   console.error('FALHOU', e.message.slice(0, 500))
