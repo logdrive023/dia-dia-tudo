@@ -7,6 +7,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Botao, Campo, Entrada, cx, gramasTexto } from '../../../shared/ui/base'
 import { useApp } from '../../../shared/ui/contexto'
+import { useUrlFoto } from '../../../shared/ui/fotos'
 import { useT } from '../../../shared/ui/i18n'
 import { TabelaDados } from '../../../shared/ui/tabelaDados'
 
@@ -22,12 +23,23 @@ export interface PacoteLista {
   disponivel?: number
   limite?: number
   oculto?: boolean
+  /** a foto do pacote (só a miniatura); sem foto, a linha fica só com o texto */
+  foto?: { id: string; miniatura?: string }
 }
 
 export const kg = (g: number) => (g >= 1000 ? `${(g / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : gramasTexto(g))
 
 /** o limite que vale de verdade (um limite maior ou igual ao saldo = mostra tudo) */
 const limiteAtivo = (x: PacoteLista) => (x.limite && x.limite < (x.disponivel ?? x.gramas) ? x.limite : undefined)
+
+/** a miniatura do pacote (40 px); sem foto, não ocupa espaço */
+function Miniatura({ foto, grande }: { foto?: PacoteLista['foto']; grande?: boolean }) {
+  const url = useUrlFoto(foto)
+  if (!foto) return null
+  return url
+    ? <img src={url} alt="" loading="lazy" className={cx('shrink-0 rounded-lg object-cover ring-1 ring-[var(--borda)]', grande ? 'h-12 w-12' : 'h-10 w-10')} />
+    : <span aria-hidden className={cx('shrink-0 animate-pulse rounded-lg bg-[var(--fundo)]', grande ? 'h-12 w-12' : 'h-10 w-10')} />
+}
 
 /** o campo em gramas: vazio = tudo. Salva ao sair (ou Enter); Esc desiste. */
 function CampoGramas({ x, onLimite, onFim, travado, largo }: { x: PacoteLista; onLimite(g: number): void; onFim?(): void; travado?: boolean; largo?: boolean }) {
@@ -119,11 +131,14 @@ export function ListaPacotesVitrine({ linhas, escolher, ocupado, onNaVitrine, on
       chave={(x) => x.id}
       colunas={[
         { id: 'pacote', titulo: 'Pacote', classe: 'w-full min-w-[12rem]', celula: (x) => (
-          <button type="button" onClick={() => abrir(x)} title={t('Abrir no estoque')} className="alvo-amplo group inline-flex items-baseline gap-1.5 text-left">
+          <button type="button" onClick={() => abrir(x)} title={t('Abrir no estoque')} className="alvo-amplo group inline-flex items-center gap-3 text-left">
+            <Miniatura foto={x.foto} />
+            <span className="inline-flex items-baseline gap-1.5">
             <b className="font-mono text-[var(--marca)] group-hover:underline">{x.codigo}</b>
             <span className="font-semibold group-hover:underline">{nome(x)}</span>
             {x.cor && <span className="text-[var(--suave)]">· {t(x.cor)}</span>}
             <span aria-hidden className="text-[var(--marca)] opacity-0 transition group-hover:opacity-100">›</span>
+            </span>
           </button>
         ) },
         { id: 'quantidade', titulo: 'Quantidade', direita: true, classe: 'whitespace-nowrap', celula: (x) => <Quantidade key={limiteAtivo(x) ?? 'tudo'} x={x} travado={ocupado} onLimite={(g) => onLimite(x.id, g)} /> },
@@ -134,6 +149,7 @@ export function ListaPacotesVitrine({ linhas, escolher, ocupado, onNaVitrine, on
         titulo: (x) => `${x.medida} cm${x.cor ? ` · ${t(x.cor)}` : ''}`,
         valor: (x) => kg(x.gramas),
         codigo: (x) => x.codigo ?? '',
+        midia: (x) => (x.foto ? <Miniatura foto={x.foto} grande /> : undefined),
         tom: (x) => (naVitrine(x) ? 'bom' : undefined),
         situacao: (x) => ({ texto: t(!naVitrine(x) ? (escolher ? 'Fora da vitrine' : 'Escondido') : 'Na vitrine'), tom: naVitrine(x) ? 'bom' : 'suave' }),
         resumo: (x) => (limiteAtivo(x) ? t('{v} de {t}', { v: kg(x.gramas), t: kg(x.disponivel ?? x.gramas) }) : precoTexto(x)),
