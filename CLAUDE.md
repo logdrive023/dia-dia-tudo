@@ -60,13 +60,20 @@ Regras:
   Para ver passo a passo, devagar: `npm run diagnostico` (ou `npm run diagnostico -- 1000`).
 - **Primeiro acesso pela tela** (`scripts/primeiro-acesso.mjs`, precisa do `npm run dev`): um navegador novo, banco zerado,
   faz viagem → compra → triagem → estoque → venda → cancelar → venda certa com 2 s entre as ações e confere cada tela
-  (avisos, saldo, caixa, auditoria, campos sem nome, botão dentro de botão). Mexeu num desses fluxos: `npm run primeiro-acesso -- 300`.
+  (avisos, saldo, caixa, auditoria, campos sem nome, botão dentro de botão). Mexeu num desses fluxos: `npm run primeiro-acesso`
+  (300 ms entre as ações por padrão; `-- --ate N` só até o passo N).
   Relatório e fotos em `node_modules/.cache/primeiro-acesso/`.
 - **Dia de trabalho misturado** (`scripts/dia-de-trabalho.mjs`, precisa do `npm run dev`): banco zerado, celular, ordem
   embaralhada (viagem, gasto errado e anulado, compra, triagem, etiquetas, vitrine, relatório, funcionária em espanhol
   que erra a venda e o admin corrige, 11 vendas, cancelar e refazer) conferindo estoque, caixa e viagem a cada ação.
   Mexeu em vários fluxos de uma vez ou antes de entregar: `npm run dia-de-trabalho` (~3 min; `-- 1500 --ver` mostra a
   janela; `--detalhes` mostra o texto das telas). Relatório e fotos em `node_modules/.cache/dia-de-trabalho/`.
+- **Saída curta nos dois scripts:** o terminal mostra só erro, fricção e o resumo; foto só do passo que falhou
+  (`--fotos` fotografa tudo; `--detalhes` mostra também o que passou). O `relatorio.md` sempre tem todas as checagens.
+- **Validar tela sempre num subagente** (sem o dono pedir): varredura, `primeiro-acesso`, `dia-de-trabalho` e capturas
+  rodam num subagente (Agent, modelo mais barato) que sobe o que precisar, roda, lê o relatório e devolve **só** falhas,
+  fricções e o número de passos ok — nunca o relatório inteiro nem fotos. Assim a conversa principal não relê páginas de
+  saída a cada passo. A sessão principal só abre o navegador quando o subagente acha algo que precisa ver.
 - **Servidor Go** (`../dia-dia-tudo-backend`, ver o CLAUDE.md de lá): mexeu no canal (`core/seguranca/envelope.ts`,
   `adapters/api/`) ou numa funcionalidade já portada (hoje: Unidades) → rodar lá `scripts\ponta-a-ponta.ps1` (sobe o
   servidor e roda `npm run test:ponta` daqui). Fora da suíte normal: precisa do servidor no ar.

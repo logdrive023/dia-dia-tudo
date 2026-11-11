@@ -5,21 +5,28 @@
 // Em cada passo: o tempo, as CHECAGENS de tela (dica ⓘ à vista, aviso de feito, saldo, caixa…) e uma foto.
 // No fim: relatório em node_modules/.cache/primeiro-acesso/relatorio.md (+ fotos). Sai com erro se algo falhar.
 //
-//   npm run primeiro-acesso              2 s entre as ações (como uma pessoa)
-//   npm run primeiro-acesso -- 300       rápido (para conferir depois de mudar uma tela)
-//   npm run primeiro-acesso -- 2000 --ver   mostra o navegador
+//   npm run primeiro-acesso              rápido, 300 ms entre as ações (para conferir depois de mudar uma tela)
+//   npm run primeiro-acesso -- 2000      2 s entre as ações (como uma pessoa)
+//   npm run primeiro-acesso -- --ver     mostra o navegador (2 s entre as ações, se não disser outro número)
+//   npm run primeiro-acesso -- --ate 4   só até o passo 4
+//   --fotos  foto de todo passo (sem ela: só do passo que falhou) · --detalhes  mostra também as checagens que passaram
 //
 // Precisa do servidor de desenvolvimento no ar (npm run dev, em http://127.0.0.1:5174). Os dados de exemplo do dono
 // (localhost) não são tocados: o navegador é novo e usa 127.0.0.1.
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium } from 'playwright-core'
 
 const args = process.argv.slice(2)
-const LENTO = Number(args.find((a) => /^\d+$/.test(a)) ?? 2000)
 const VER = args.includes('--ver')
+// 300 ms: com 0 as dicas ⓘ ainda não apareceram quando a checagem olha (medido: o passo 1 falha)
+const LENTO = Number(args.find((a) => /^\d+$/.test(a)) ?? (VER ? 2000 : 300))
+const FOTOS = VER || args.includes('--fotos')
+const DETALHES = args.includes('--detalhes')
+const ATE = args.includes('--ate') ? Number(args[args.indexOf('--ate') + 1]) : 99
 const URL_BASE = process.env.URL_APP ?? 'http://127.0.0.1:5174'
 const PASTA = join(process.cwd(), 'node_modules', '.cache', 'primeiro-acesso')
+rmSync(PASTA, { recursive: true, force: true }) // sem fotos velhas de outra rodada
 mkdirSync(PASTA, { recursive: true })
 
 const passos = []
@@ -55,6 +62,7 @@ const dicasNaTela = () => pg.getByRole('button', { name: 'Explicação' }).count
 
 /** um passo: pausa (como uma pessoa), faz, confere e fotografa. Checagem que falha vira "achado", não para o resto. */
 async function passo(n, titulo, fazer, conferir = async () => []) {
+  if (n > ATE) return true
   await esperar(LENTO)
   const t0 = Date.now()
   const p = { n, titulo, ms: 0, ok: true, checagens: [], erro: '' }
@@ -68,10 +76,13 @@ async function passo(n, titulo, fazer, conferir = async () => []) {
   }
   // ERRO reprova o passo; FRICÇÃO (uso que poderia ser mais fácil) só fica anotada no relatório
   if (p.checagens.some((c) => !c.ok && !c.friccao)) p.ok = false
-  await pg.screenshot({ path: join(PASTA, `${String(n).padStart(2, '0')}.png`), fullPage: true }).catch(() => {})
+  // foto só do que falhou (ou de tudo com --fotos / --ver): menos tempo e menos disco
+  p.foto = FOTOS || !p.ok
+  if (p.foto) await pg.screenshot({ path: join(PASTA, `${String(n).padStart(2, '0')}.png`), fullPage: true }).catch(() => {})
   passos.push(p)
   console.log(`${p.ok ? '✓' : '✗'} ${n}. ${titulo} (${p.ms} ms)${p.erro ? `\n   ERRO: ${p.erro}` : ''}`)
-  for (const c of p.checagens) console.log(`   ${c.ok ? '·' : c.friccao ? '◌ fricção:' : '⚠'} ${c.o}${c.detalhe ? ` — ${c.detalhe}` : ''}`)
+  // no terminal só o que importa (erro e fricção); o relatorio.md guarda todas as checagens
+  for (const c of p.checagens.filter((x) => DETALHES || !x.ok)) console.log(`   ${c.ok ? '·' : c.friccao ? '◌ fricção:' : '⚠'} ${c.o}${c.detalhe ? ` — ${c.detalhe}` : ''}`)
   return p.ok
 }
 const chec = (o, ok, detalhe = '', friccao = false) => ({ o, ok: !!ok, detalhe, friccao })
@@ -303,9 +314,9 @@ const linhasMd = [
   '|---|---|---|',
   ...passos.map((x) => `| ${x.n}. ${x.titulo} | ${x.ms} ms | ${x.ok ? '✓' : '✗'}${x.erro ? ` ${x.erro}` : ''} |`),
   '',
-  ...passos.flatMap((x) => [`## ${x.n}. ${x.titulo}`, '', ...x.checagens.map((c) => `- ${c.ok ? '✓' : c.friccao ? '◌ fricção:' : '⚠'} ${c.o}${c.detalhe ? ` — ${c.detalhe}` : ''}`), '', `![passo ${x.n}](${String(x.n).padStart(2, '0')}.png)`, '']),
+  ...passos.flatMap((x) => [`## ${x.n}. ${x.titulo}`, '', ...x.checagens.map((c) => `- ${c.ok ? '✓' : c.friccao ? '◌ fricção:' : '⚠'} ${c.o}${c.detalhe ? ` — ${c.detalhe}` : ''}`), '', ...(x.foto ? [`![passo ${x.n}](${String(x.n).padStart(2, '0')}.png)`, ''] : [])]),
   ...(errosConsole.length ? ['## Erros no console', '', ...errosConsole.map((e) => `- ${e}`), ''] : []),
 ]
 writeFileSync(join(PASTA, 'relatorio.md'), linhasMd.join('\n'))
-console.log(`\n${falhas.length ? `✗ ${falhas.length} passo(s) com problema` : '✓ caminho inteiro sem problema'} · fotos e relatório em ${PASTA}`)
+console.log(`\n${falhas.length ? `✗ ${falhas.length} passo(s) com problema` : '✓ caminho inteiro sem problema'} · relatório${passos.some((x) => x.foto) ? " e fotos" : ""} em ${PASTA}`)
 process.exit(falhas.length ? 1 : 0)
