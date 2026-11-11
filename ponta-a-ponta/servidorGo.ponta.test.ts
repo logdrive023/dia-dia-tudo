@@ -58,7 +58,7 @@ describe('servidor Go × app (canal cifrado de verdade)', () => {
 
   it('o que ainda não foi portado responde com mensagem clara (a tela não quebra)', async () => {
     const api = await conectado()
-    await expect(api.consulta('vitrine', {})).rejects.toThrow(/Ainda não existe no servidor/)
+    await expect(api.consulta('dre', {})).rejects.toThrow(/Ainda não existe no servidor/)
   })
 
   it('sem login: o servidor recusa', async () => {
