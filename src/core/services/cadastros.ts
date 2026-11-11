@@ -15,7 +15,7 @@ import { auditar, type Configuracoes, type Ctx, cotacoesAtuais, exigirVersao, le
 import { situacaoDe } from './emprestimos'
 import { type ModuloConfig, moduloDeConfig } from '../modulosConfig'
 import { validarCobrancas } from './cobranca'
-import { type AtributosConfig, type CampoDef, ETAPA_FINAL, type FluxoCompraConfig } from '../modulos'
+import { type AtributosConfig, type CampoDef, ETAPA_FINAL, type FluxoCompraConfig, type RegistroModulos } from '../modulos'
 
 export async function salvarPessoa(
   ctx: Ctx,
@@ -477,6 +477,11 @@ export async function removerAnexo(ctx: Ctx, d: { id: Id }) {
 
 // ---------- consultas ----------
 
+/** Os módulos como a tela os recebe (só dados, sem funções). O servidor Go recebe a mesma lista em padroes.json. */
+export function resumoModulos(registro: RegistroModulos) {
+  return registro.todos().map((m) => ({ id: m.id, nome: m.nome, icone: m.icone, descricao: m.descricao, personalizado: !!m.personalizado, recursos: m.recursos, temCompra: !!m.compra, temVenda: !!m.venda, pergunta: m.venda?.pergunta, telaPropria: m.telaPropria, etapas: (m.compra?.etapas ?? []).map((e) => ({ id: e.id, nome: e.nome, ajuda: e.ajuda, faz: e.faz ?? [] })), tiposItem: m.tiposItem.map((x) => ({ id: x.id, nome: x.nome, unidade: x.unidade, controlaEstoque: x.controlaEstoque, campos: x.campos })) }))
+}
+
 export async function configuracoes(ctx: Ctx, _p: object = {}) {
   const cfg = await lerConfig(ctx)
   const cot = await cotacoesAtuais(ctx)
@@ -489,7 +494,7 @@ export async function configuracoes(ctx: Ctx, _p: object = {}) {
     cotacoesCompra: await cotacoesAtuais(ctx, 'compra'),
     historico,
     cotacaoVelha: Object.values(cot).some((c) => c && diasEntre(c.data, hoje) > cfg.diasCotacaoVelha),
-    modulos: ctx.modulos.todos().map((m) => ({ id: m.id, nome: m.nome, icone: m.icone, descricao: m.descricao, personalizado: !!m.personalizado, recursos: m.recursos, temCompra: !!m.compra, temVenda: !!m.venda, pergunta: m.venda?.pergunta, telaPropria: m.telaPropria, etapas: (m.compra?.etapas ?? []).map((e) => ({ id: e.id, nome: e.nome, ajuda: e.ajuda, faz: e.faz ?? [] })), tiposItem: m.tiposItem.map((x) => ({ id: x.id, nome: x.nome, unidade: x.unidade, controlaEstoque: x.controlaEstoque, campos: x.campos })) })),
+    modulos: resumoModulos(ctx.modulos),
     personalizados: ((await ctx.repos.config.obter('modulosPersonalizados'))?.valor as ModuloConfig[]) ?? [],
   }
 }

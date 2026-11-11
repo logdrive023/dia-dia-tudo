@@ -1,0 +1,3343 @@
+{
+  "config": {
+    "nomeNegocio": "Meu negócio",
+    "idioma": "pt",
+    "socios": [],
+    "cambioAuto": "inicioDoDia",
+    "cambio": {},
+    "moedaPrincipal": "BOB",
+    "moedasAtivas": [
+      "BOB",
+      "USD",
+      "BRL"
+    ],
+    "formas": [
+      {
+        "id": "dinheiro",
+        "nome": "Dinheiro (efectivo)",
+        "vivo": true,
+        "moedas": [
+          "BOB",
+          "USD",
+          "BRL",
+          "PYG"
+        ]
+      },
+      {
+        "id": "qr",
+        "nome": "QR",
+        "vivo": false,
+        "moedas": [
+          "BOB"
+        ]
+      },
+      {
+        "id": "pix",
+        "nome": "Pix",
+        "vivo": false,
+        "moedas": [
+          "BRL"
+        ],
+        "descontoBp": 0
+      },
+      {
+        "id": "credito",
+        "nome": "Crédito",
+        "vivo": false,
+        "moedas": [
+          "BRL"
+        ]
+      },
+      {
+        "id": "debito",
+        "nome": "Débito",
+        "vivo": false,
+        "moedas": [
+          "BRL"
+        ]
+      },
+      {
+        "id": "transferencia",
+        "nome": "Transferência",
+        "vivo": false,
+        "moedas": [
+          "BOB",
+          "USD",
+          "BRL",
+          "PYG"
+        ]
+      }
+    ],
+    "diasTriagemParada": 3,
+    "diasLoteParado": 60,
+    "diasCotacaoVelha": 7,
+    "modulosAtivos": [
+      "cabelo",
+      "salao",
+      "emprestimos",
+      "produtos"
+    ],
+    "comissaoPadraoBp": 5000,
+    "comissaoFuncionarioMuda": false,
+    "juntarMesmaEtapa": false,
+    "avisarVendaBruto": true,
+    "controleTurno": false,
+    "compraPagaNoAto": true,
+    "saldoPequenoG": 50,
+    "modeloNota": "carta",
+    "impostosNaNota": true,
+    "feriadosAjustes": [
+      {
+        "ano": 2026,
+        "acao": "mover",
+        "feriadoId": "estadoPlurinacional",
+        "data": "2026-01-23",
+        "fonte": "DS 5521/2026"
+      },
+      {
+        "ano": 2026,
+        "acao": "mover",
+        "feriadoId": "anoNuevoAndino",
+        "data": "2026-06-22",
+        "fonte": "DS 5521/2026"
+      },
+      {
+        "ano": 2026,
+        "acao": "extra",
+        "data": "2026-08-07",
+        "es": "Feriado nacional adicional (Independencia)",
+        "pt": "Feriado nacional adicional (Independência)",
+        "categoria": "nacional",
+        "fonte": "DS 5521/2026"
+      }
+    ],
+    "feriadosPais": "BO",
+    "feriadosRegiao": "santaCruz",
+    "funcionariaNaoVende": [],
+    "funcionariaAgenda": [
+      "atendimento",
+      "compromisso"
+    ],
+    "funcionariaTelas": [],
+    "funcionariaIdioma": "es",
+    "funcionariaConfig": [],
+    "fiscal": {
+      "pais": "BO",
+      "regimeBO": "general",
+      "regimeBR": "simples",
+      "vendasComFatura": true,
+      "comprasComFatura": false,
+      "ivaBp": 1300,
+      "itBp": 300,
+      "iueBp": 2500,
+      "rtsCuotaBimestral": 0,
+      "simplesBp": 600,
+      "pisBp": 65,
+      "cofinsBp": 300,
+      "icmsIssBp": 0,
+      "irpjCsllBp": 228,
+      "mostrarNasOperacoes": true,
+      "modoPreco": "dentro",
+      "mostrarNoTotal": true,
+      "mostrarQuadro": true,
+      "impostos": [
+        {
+          "id": "iva",
+          "sigla": "IVA",
+          "nome": "Impuesto al Valor Agregado",
+          "taxaBp": 1300,
+          "ligado": true,
+          "vendaProduto": true,
+          "vendaServico": true,
+          "compra": "credito",
+          "fonte": "Ley 843, arts. 1 y 15 (texto ordenado vigente)",
+          "vigenteDesde": "1986-05-20",
+          "conferidoEm": "2026-11-04",
+          "explica": "Va incluido en el precio (\"por dentro\"): el 13% del total facturado es del fisco. En la compra con factura es crédito fiscal.",
+          "porQue": "É o imposto sobre o consumo da Bolívia: quem compra paga, e a loja só repassa ao fisco. Por isso vem DENTRO do preço — dos Bs 100 cobrados, Bs 13 são do governo.",
+          "naPratica": "Todo mês se paga o IVA das vendas MENOS o IVA das compras feitas com fatura (crédito fiscal). Cabelo comprado sem fatura não dá crédito. Venda sem fatura (ou regime RTS) não tem IVA por venda."
+        },
+        {
+          "id": "it",
+          "sigla": "IT",
+          "nome": "Impuesto a las Transacciones",
+          "taxaBp": 300,
+          "ligado": true,
+          "vendaProduto": true,
+          "vendaServico": true,
+          "compra": "nao",
+          "fonte": "Ley 843, arts. 72 a 77 (alícuota 3% por Ley 1606)",
+          "vigenteDesde": "1995-01-01",
+          "conferidoEm": "2026-11-04",
+          "explica": "3% sobre el ingreso bruto, sin descontar costos. El IUE pagado se compensa con el IT siguiente.",
+          "porQue": "É um imposto sobre o faturamento bruto: incide sobre tudo o que entra, dê lucro ou não. Existe para o Estado arrecadar sobre cada transação.",
+          "naPratica": "O IUE (25% sobre o lucro, pago uma vez por ano) já pago se desconta do IT dos meses seguintes. Quem está no RTS não paga IT por venda."
+        }
+      ]
+    }
+  },
+  "impostosPadrao": [
+    {
+      "id": "iva",
+      "sigla": "IVA",
+      "nome": "Impuesto al Valor Agregado",
+      "taxaBp": 1300,
+      "ligado": true,
+      "vendaProduto": true,
+      "vendaServico": true,
+      "compra": "credito",
+      "fonte": "Ley 843, arts. 1 y 15 (texto ordenado vigente)",
+      "vigenteDesde": "1986-05-20",
+      "conferidoEm": "2026-11-04",
+      "explica": "Va incluido en el precio (\"por dentro\"): el 13% del total facturado es del fisco. En la compra con factura es crédito fiscal.",
+      "porQue": "É o imposto sobre o consumo da Bolívia: quem compra paga, e a loja só repassa ao fisco. Por isso vem DENTRO do preço — dos Bs 100 cobrados, Bs 13 são do governo.",
+      "naPratica": "Todo mês se paga o IVA das vendas MENOS o IVA das compras feitas com fatura (crédito fiscal). Cabelo comprado sem fatura não dá crédito. Venda sem fatura (ou regime RTS) não tem IVA por venda."
+    },
+    {
+      "id": "it",
+      "sigla": "IT",
+      "nome": "Impuesto a las Transacciones",
+      "taxaBp": 300,
+      "ligado": true,
+      "vendaProduto": true,
+      "vendaServico": true,
+      "compra": "nao",
+      "fonte": "Ley 843, arts. 72 a 77 (alícuota 3% por Ley 1606)",
+      "vigenteDesde": "1995-01-01",
+      "conferidoEm": "2026-11-04",
+      "explica": "3% sobre el ingreso bruto, sin descontar costos. El IUE pagado se compensa con el IT siguiente.",
+      "porQue": "É um imposto sobre o faturamento bruto: incide sobre tudo o que entra, dê lucro ou não. Existe para o Estado arrecadar sobre cada transação.",
+      "naPratica": "O IUE (25% sobre o lucro, pago uma vez por ano) já pago se desconta do IT dos meses seguintes. Quem está no RTS não paga IT por venda."
+    },
+    {
+      "id": "das",
+      "sigla": "DAS",
+      "nome": "Simples Nacional (alíquota efetiva)",
+      "taxaBp": 600,
+      "ligado": true,
+      "vendaProduto": true,
+      "vendaServico": true,
+      "compra": "nao",
+      "fonte": "Lei Complementar 123/2006 (Anexos I e III)",
+      "vigenteDesde": "2018-01-01",
+      "conferidoEm": "2026-11-04",
+      "explica": "Uma alíquota efetiva sobre a receita bruta, que depende da faixa de faturamento dos últimos 12 meses.",
+      "porQue": "É o regime simplificado do Brasil para pequenas empresas: junta vários impostos (IRPJ, CSLL, PIS, COFINS, ICMS/ISS) numa guia só, o DAS.",
+      "naPratica": "A alíquota efetiva muda com o faturamento dos últimos 12 meses: o valor aqui é uma estimativa com a taxa configurada."
+    }
+  ],
+  "modulos": [
+    {
+      "id": "cabelo",
+      "nome": "Cabelo",
+      "icone": "💇‍♀️",
+      "descricao": "Compra, separação, estoque em gramas e venda pela tabela de preço.",
+      "personalizado": false,
+      "temCompra": true,
+      "temVenda": true,
+      "pergunta": "É cabelo?",
+      "etapas": [
+        {
+          "id": "recebido",
+          "nome": "Chegou",
+          "ajuda": "O cabelo chegou (ou foi oferecido). Tire fotos.",
+          "faz": []
+        },
+        {
+          "id": "conferido",
+          "nome": "Conferido",
+          "ajuda": "Pesado e conferido: ajuste gramas e valor se for preciso (fica registrado o motivo).",
+          "faz": []
+        },
+        {
+          "id": "pago",
+          "nome": "Pago",
+          "ajuda": "Pagamento feito (pode ser parte: o resto fica na conta da pessoa).",
+          "faz": [
+            "pagamento"
+          ]
+        },
+        {
+          "id": "concluido",
+          "nome": "Concluído",
+          "ajuda": "Pagamento e entrega acertados. O cabelo já está na Triagem desde que a compra foi registrada.",
+          "faz": [
+            "estoque"
+          ]
+        }
+      ],
+      "tiposItem": [
+        {
+          "id": "lote",
+          "nome": "Lote de cabelo",
+          "unidade": "grama",
+          "controlaEstoque": true,
+          "campos": [
+            {
+              "id": "estado",
+              "nome": "Situação",
+              "tipo": "lista",
+              "opcoes": [
+                "Bruto",
+                "Não identificado",
+                "Separado"
+              ],
+              "fixo": true,
+              "ajuda": "Bruto = ainda não foi separado por medida/categoria."
+            },
+            {
+              "id": "comprimento",
+              "nome": "Medida",
+              "tipo": "numero",
+              "unidade": "cm",
+              "fixo": true,
+              "ajuda": "Comprimento em cm (40, 50, 55, 60…). Bruto misturado pode ficar sem medida."
+            },
+            {
+              "id": "categoria",
+              "nome": "Categoria",
+              "tipo": "lista",
+              "opcoes": [
+                "Normal",
+                "Tinte",
+                "CH",
+                "CH+",
+                "Rojo",
+                "Quemado",
+                "Menudo",
+                "Entresaque"
+              ],
+              "fixo": true,
+              "ajuda": "Normal, Tinte (tingido), CH, Rojo, Quemado… Cada uma pode ter sua tabela de preço."
+            },
+            {
+              "id": "cor",
+              "nome": "Cor",
+              "tipo": "lista",
+              "opcoes": [
+                "Preto",
+                "Castanho escuro",
+                "Castanho",
+                "Castanho claro",
+                "Loiro",
+                "Ruivo",
+                "Grisalho",
+                "Misturado"
+              ]
+            },
+            {
+              "id": "textura",
+              "nome": "Textura",
+              "tipo": "lista",
+              "opcoes": [
+                "Liso",
+                "Ondulado",
+                "Cacheado",
+                "Crespo"
+              ]
+            },
+            {
+              "id": "origem",
+              "nome": "Origem",
+              "tipo": "lista",
+              "opcoes": [
+                "Bolívia",
+                "Paraguai",
+                "Brasil",
+                "Peru",
+                "Outro"
+              ]
+            },
+            {
+              "id": "remy",
+              "nome": "Remy (cutícula alinhada)",
+              "tipo": "simNao",
+              "ajuda": "Fios no mesmo sentido, da raiz à ponta. Não quer dizer virgem."
+            },
+            {
+              "id": "obs",
+              "nome": "Observação",
+              "tipo": "texto"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "salao",
+      "nome": "Salão",
+      "icone": "✂️",
+      "descricao": "Serviços, agenda por profissional e unidade, comissões e manutenção.",
+      "personalizado": false,
+      "temCompra": false,
+      "temVenda": true,
+      "pergunta": "É serviço?",
+      "etapas": [],
+      "tiposItem": [
+        {
+          "id": "servico",
+          "nome": "Serviço",
+          "unidade": "servico",
+          "controlaEstoque": false,
+          "campos": [
+            {
+              "id": "categoria",
+              "nome": "Tipo",
+              "tipo": "lista",
+              "opcoes": [
+                "Corte",
+                "Cor",
+                "Tratamento",
+                "Mega hair",
+                "Escova",
+                "Estética",
+                "Unhas",
+                "Maquiagem",
+                "Penteado",
+                "Barba",
+                "Outro"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "emprestimos",
+      "nome": "Empréstimos",
+      "icone": "🤝",
+      "descricao": "Dinheiro emprestado e pego emprestado, com parcelas, atraso e cobrança.",
+      "personalizado": false,
+      "temCompra": false,
+      "temVenda": false,
+      "telaPropria": "emprestimos",
+      "etapas": [],
+      "tiposItem": []
+    },
+    {
+      "id": "produtos",
+      "nome": "Produtos",
+      "icone": "🛍️",
+      "descricao": "Peças com cor (bijuteria, acessórios, roupas…): exemplo de módulo feito só com configuração.",
+      "personalizado": false,
+      "temCompra": true,
+      "temVenda": true,
+      "pergunta": "É produto?",
+      "etapas": [
+        {
+          "id": "recebido",
+          "nome": "Pedido feito",
+          "ajuda": "Pedido ao fornecedor.",
+          "faz": []
+        },
+        {
+          "id": "pago",
+          "nome": "Pago",
+          "ajuda": "Pagamento feito.",
+          "faz": [
+            "pagamento"
+          ]
+        },
+        {
+          "id": "concluido",
+          "nome": "Chegou",
+          "ajuda": "Entrou no estoque.",
+          "faz": [
+            "estoque"
+          ]
+        }
+      ],
+      "tiposItem": [
+        {
+          "id": "peca",
+          "nome": "Peça",
+          "unidade": "peca",
+          "controlaEstoque": true,
+          "campos": [
+            {
+              "id": "grupo",
+              "nome": "Grupo",
+              "tipo": "texto"
+            },
+            {
+              "id": "cor",
+              "nome": "Cor",
+              "tipo": "texto"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "compras": [
+    {
+      "moduloId": "cabelo",
+      "tipoItem": "lote",
+      "avisarParadaDias": 3,
+      "pedirComprovanteOrigem": true,
+      "etapas": [
+        {
+          "id": "recebido",
+          "nome": "Chegou",
+          "ajuda": "O cabelo chegou (ou foi oferecido). Tire fotos.",
+          "lembrar": [
+            "fotos"
+          ]
+        },
+        {
+          "id": "conferido",
+          "nome": "Conferido",
+          "ajuda": "Pesado e conferido: ajuste gramas e valor se for preciso (fica registrado o motivo)."
+        },
+        {
+          "id": "pago",
+          "nome": "Pago",
+          "ajuda": "Pagamento feito (pode ser parte: o resto fica na conta da pessoa).",
+          "faz": [
+            "pagamento"
+          ],
+          "lembrar": [
+            "comprovante"
+          ]
+        },
+        {
+          "id": "concluido",
+          "nome": "Concluído",
+          "ajuda": "Pagamento e entrega acertados. O cabelo já está na Triagem desde que a compra foi registrada.",
+          "faz": [
+            "estoque"
+          ]
+        }
+      ],
+      "tipo": {
+        "id": "lote",
+        "nome": "Lote de cabelo",
+        "unidade": "grama",
+        "controlaEstoque": true,
+        "nasceNaCompra": true,
+        "obrigatorios": []
+      }
+    },
+    {
+      "moduloId": "produtos",
+      "tipoItem": "peca",
+      "avisarParadaDias": 7,
+      "etapas": [
+        {
+          "id": "recebido",
+          "nome": "Pedido feito",
+          "ajuda": "Pedido ao fornecedor."
+        },
+        {
+          "id": "pago",
+          "nome": "Pago",
+          "ajuda": "Pagamento feito.",
+          "faz": [
+            "pagamento"
+          ]
+        },
+        {
+          "id": "concluido",
+          "nome": "Chegou",
+          "ajuda": "Entrou no estoque.",
+          "faz": [
+            "estoque"
+          ]
+        }
+      ],
+      "tipo": {
+        "id": "peca",
+        "nome": "Peça",
+        "unidade": "peca",
+        "controlaEstoque": true,
+        "nasceNaCompra": false,
+        "obrigatorios": []
+      }
+    }
+  ],
+  "nomesAcao": {
+    "recusado": "Tentativa recusada",
+    "salvarVendaAberta": "Venda guardada em aberto",
+    "descartarVendaAberta": "Venda em aberto descartada",
+    "tirarDaVendaAberta": "Pacote saiu de uma venda em aberto",
+    "reduzirNaVendaAberta": "Parte do pacote saiu de uma venda em aberto",
+    "salvarCidade": "Cidade cadastrada",
+    "impostosEstimados": "Impostos estimados (registro)",
+    "redividirGastoViagem": "Gasto da viagem redividido",
+    "desfazerLigacao": "Ligação de compras desfeita",
+    "apagarViagem": "Viagem apagada",
+    "pagamentoParcialCompra": "Linhas já pagas no registro",
+    "criarCompra": "Pedido de compra registrado",
+    "avancarTriagem": "Etapa da triagem",
+    "cancelarCompra": "Compra cancelada",
+    "conferirPesoCompra": "Conferência de peso",
+    "concluirVenda": "Venda concluída",
+    "agendar": "Atendimento agendado",
+    "atenderAgendamento": "Atendimento feito",
+    "salvarEvento": "Compromisso na agenda",
+    "excluirEvento": "Compromisso excluído da agenda",
+    "concluirEvento": "Compromisso feito",
+    "cancelarVenda": "Venda cancelada",
+    "corrigirVenda": "Venda corrigida",
+    "pagarComissao": "Comissão paga",
+    "criarUsuario": "Usuário criado",
+    "alterarUsuario": "Usuário alterado",
+    "trocarSenha": "Senha trocada",
+    "entrar": "Entrou no sistema",
+    "separarLote": "Lote separado",
+    "unificarLotes": "Lotes unificados",
+    "triarLotes": "Triagem feita",
+    "tirarDaMistura": "Mistura desfeita",
+    "moverFaseTriagem": "Lote mudou de coluna na triagem",
+    "salvarFluxoTriagem": "Etapas da triagem mudadas",
+    "ajustarEstoque": "Estoque ajustado",
+    "marcarLotes": "Lotes alterados em massa",
+    "editarAtributosLote": "Atributos do lote editados",
+    "marcarEtiquetasImpressas": "Etiqueta impressa",
+    "refazerEtiqueta": "Etiqueta cancelada · nova via",
+    "salvarCodigos": "Regra dos códigos mudada",
+    "salvarSigla": "Sigla da pessoa mudada",
+    "trocarCodigoCompra": "Código da compra trocado",
+    "trocarCodigoLote": "Código do lote trocado",
+    "salvarItem": "Item salvo",
+    "regraServico": "Comissão/insumos do serviço mudados",
+    "precoAlterado": "Preço mudado no atendimento",
+    "insumoAjustado": "Insumos ajustados no atendimento",
+    "criarServicoRapido": "Serviço criado no atendimento",
+    "restaurarBibliotecaServicos": "Biblioteca de serviços restaurada",
+    "lancarCaixa": "Lançamento no caixa",
+    "estornarLancamento": "Lançamento desfeito",
+    "encerrarDia": "Dia encerrado",
+    "reabrirDia": "Dia reaberto",
+    "registrarAcerto": "Acerto de conta",
+    "ajustarConta": "Ajuste de conta",
+    "criarEmprestimo": "Empréstimo criado",
+    "pagarEmprestimo": "Pagamento de empréstimo",
+    "ajustarParcela": "Parcela alterada",
+    "aumentarEmprestimo": "Emprestou mais",
+    "salvarPessoa": "Cadastro de pessoa",
+    "salvarTabelaPreco": "Tabela de preço salva",
+    "tabelaPrecoAnterior": "Versão anterior da tabela",
+    "tabelaPrecoVersao": "Versão da tabela publicada",
+    "salvarCotacao": "Cotação salva",
+    "salvarCambio": "Câmbio configurado",
+    "pagarSalario": "Salário pago",
+    "anexar": "Arquivo anexado",
+    "removerAnexo": "Anexo removido",
+    "salvarModulo": "Modalidade salva",
+    "salvarFluxoCompra": "Etapas da compra mudadas",
+    "salvarFormCompra": "Formulário de compra mudado",
+    "salvarAtributos": "Atributos do item mudados",
+    "salvarViagem": "Viagem de compra salva",
+    "adiantarViagem": "Adiantamento para a viagem",
+    "registrarDespesaViagem": "Gasto da viagem",
+    "anularDespesaViagem": "Gasto da viagem anulado",
+    "vincularCompras": "Compras ligadas à viagem",
+    "desvincularCompra": "Compra tirada da viagem",
+    "encerrarViagem": "Viagem encerrada (prestação de contas)",
+    "incorporarCustoViagem": "Gasto da viagem somado ao custo dos lotes",
+    "reabrirViagem": "Viagem reaberta",
+    "salvarCategoriasViagem": "Categorias de gasto de viagem mudadas",
+    "criarFinanciamento": "Adiantamento a parceiro (dinheiro para comprar cabelo)",
+    "registrarEntregaFinanciamento": "Entrega de cabelo abatendo o adiantamento",
+    "receberFinanciamento": "Adiantamento: recebi em dinheiro",
+    "pagarDiferencaFinanciamento": "Adiantamento: paguei a diferença ao parceiro",
+    "abaterComissaoFinanciamento": "Adiantamento: abatido da comissão",
+    "encerrarFinanciamento": "Adiantamento encerrado",
+    "ajustarFinanciamento": "Adiantamento alterado",
+    "reforcarFinanciamento": "Adiantou mais"
+  },
+  "categoriasAuditoria": {
+    "venda": {
+      "nome": "Vendas e agenda",
+      "icone": "💰"
+    },
+    "compra": {
+      "nome": "Compras",
+      "icone": "🛒"
+    },
+    "estoque": {
+      "nome": "Estoque e triagem",
+      "icone": "📦"
+    },
+    "viagens": {
+      "nome": "Viagens",
+      "icone": "🧳"
+    },
+    "dinheiro": {
+      "nome": "Dinheiro",
+      "icone": "💵"
+    },
+    "pessoas": {
+      "nome": "Pessoas",
+      "icone": "👤"
+    },
+    "acesso": {
+      "nome": "Acesso e usuários",
+      "icone": "🔒"
+    },
+    "config": {
+      "nome": "Configurações",
+      "icone": "⚙️"
+    },
+    "recusa": {
+      "nome": "Recusadas",
+      "icone": "⛔"
+    },
+    "outros": {
+      "nome": "Outros",
+      "icone": "•"
+    }
+  },
+  "feriados": {
+    "lista": [
+      {
+        "id": "anoNovo",
+        "es": "Año Nuevo",
+        "pt": "Ano-Novo",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 1,
+          "dia": 1
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "estadoPlurinacional",
+        "es": "Día del Estado Plurinacional de Bolivia",
+        "pt": "Dia do Estado Plurinacional da Bolívia",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 1,
+          "dia": 22
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "carnavalSeg",
+        "es": "Carnaval (lunes)",
+        "pt": "Carnaval (segunda)",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "pascoa",
+          "dias": -48
+        },
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "carnavalTer",
+        "es": "Carnaval (martes)",
+        "pt": "Carnaval (terça)",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "pascoa",
+          "dias": -47
+        },
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "viernesSanto",
+        "es": "Viernes Santo",
+        "pt": "Sexta-feira Santa",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "pascoa",
+          "dias": -2
+        },
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "trabajo",
+        "es": "Día del Trabajo",
+        "pt": "Dia do Trabalho",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 5,
+          "dia": 1
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "corpusChristi",
+        "es": "Corpus Christi",
+        "pt": "Corpus Christi",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "pascoa",
+          "dias": 60
+        },
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "anoNuevoAndino",
+        "es": "Año Nuevo Andino Amazónico y del Chaco",
+        "pt": "Ano-Novo Andino Amazônico e do Chaco",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 6,
+          "dia": 21
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "independencia",
+        "es": "Día de la Independencia de Bolivia",
+        "pt": "Dia da Independência da Bolívia",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 8,
+          "dia": 6
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "todosSantos",
+        "es": "Día de Todos los Difuntos",
+        "pt": "Dia de Finados",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 2
+        },
+        "confirmacaoAnual": true,
+        "fonte": "DS 2750/2016 (traslado a confirmar)"
+      },
+      {
+        "id": "navidad",
+        "es": "Navidad",
+        "pt": "Natal",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 12,
+          "dia": 25
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "santaCruz",
+        "es": "Aniversario de Santa Cruz (efeméride departamental)",
+        "pt": "Dia de Santa Cruz (efeméride departamental)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "santaCruz",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 9,
+          "dia": 24
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Decreto departamental do ano / Ministério do Trabalho"
+      },
+      {
+        "id": "oruro",
+        "es": "Aniversario de Oruro (10 de febrero de 1781)",
+        "pt": "Dia de Oruro (10 de fevereiro de 1781)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "oruro",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 2,
+          "dia": 10
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "tarija",
+        "es": "Aniversario de Tarija (15 de abril de 1817)",
+        "pt": "Dia de Tarija (15 de abril de 1817)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "tarija",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 4,
+          "dia": 15
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "chuquisaca",
+        "es": "Aniversario de Chuquisaca (25 de mayo de 1809)",
+        "pt": "Dia de Chuquisaca (25 de maio de 1809)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "chuquisaca",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 5,
+          "dia": 25
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "laPaz",
+        "es": "Aniversario de La Paz (16 de julio de 1809)",
+        "pt": "Dia de La Paz (16 de julho de 1809)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "laPaz",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 7,
+          "dia": 16
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "cochabamba",
+        "es": "Aniversario de Cochabamba (14 de septiembre de 1810)",
+        "pt": "Dia de Cochabamba (14 de setembro de 1810)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "cochabamba",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 9,
+          "dia": 14
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "pando",
+        "es": "Aniversario de Pando (24 de septiembre de 1938)",
+        "pt": "Dia de Pando (24 de setembro de 1938)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "pando",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 9,
+          "dia": 24
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "potosi",
+        "es": "Aniversario de Potosí (10 de noviembre de 1810)",
+        "pt": "Dia de Potosí (10 de novembro de 1810)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "potosi",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 10
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "beni",
+        "es": "Aniversario de Beni (18 de noviembre de 1842)",
+        "pt": "Dia de Beni (18 de novembro de 1842)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "beni",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 18
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "br-anoNovo",
+        "es": "Año Nuevo",
+        "pt": "Confraternização Universal",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 1,
+          "dia": 1
+        },
+        "fonte": "Lei 662/1949"
+      },
+      {
+        "id": "br-tiradentes",
+        "es": "Tiradentes",
+        "pt": "Tiradentes",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 4,
+          "dia": 21
+        },
+        "fonte": "Lei 10.607/2002"
+      },
+      {
+        "id": "br-trabalho",
+        "es": "Día del Trabajo",
+        "pt": "Dia do Trabalho",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 5,
+          "dia": 1
+        },
+        "fonte": "Lei 662/1949"
+      },
+      {
+        "id": "br-independencia",
+        "es": "Independencia de Brasil",
+        "pt": "Independência do Brasil",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 9,
+          "dia": 7
+        },
+        "fonte": "Lei 662/1949"
+      },
+      {
+        "id": "br-aparecida",
+        "es": "Nuestra Señora Aparecida",
+        "pt": "Nossa Senhora Aparecida",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 10,
+          "dia": 12
+        },
+        "fonte": "Lei 6.802/1980"
+      },
+      {
+        "id": "br-finados",
+        "es": "Día de los Difuntos",
+        "pt": "Finados",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 2
+        },
+        "fonte": "Lei 10.607/2002"
+      },
+      {
+        "id": "br-republica",
+        "es": "Proclamación de la República",
+        "pt": "Proclamação da República",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 15
+        },
+        "fonte": "Lei 662/1949"
+      },
+      {
+        "id": "br-conscienciaNegra",
+        "es": "Día de Zumbi y de la Conciencia Negra",
+        "pt": "Dia de Zumbi e da Consciência Negra",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 20
+        },
+        "fonte": "Lei 14.759/2023"
+      },
+      {
+        "id": "br-natal",
+        "es": "Navidad",
+        "pt": "Natal",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 12,
+          "dia": 25
+        },
+        "fonte": "Lei 662/1949"
+      },
+      {
+        "id": "br-sextaSanta",
+        "es": "Viernes Santo",
+        "pt": "Sexta-feira Santa",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "pascoa",
+          "dias": -2
+        },
+        "fonte": "Lei 9.093/1995 (feriado religioso)"
+      }
+    ],
+    "ajustesPadrao": [
+      {
+        "ano": 2026,
+        "acao": "mover",
+        "feriadoId": "estadoPlurinacional",
+        "data": "2026-01-23",
+        "fonte": "DS 5521/2026"
+      },
+      {
+        "ano": 2026,
+        "acao": "mover",
+        "feriadoId": "anoNuevoAndino",
+        "data": "2026-06-22",
+        "fonte": "DS 5521/2026"
+      },
+      {
+        "ano": 2026,
+        "acao": "extra",
+        "data": "2026-08-07",
+        "es": "Feriado nacional adicional (Independencia)",
+        "pt": "Feriado nacional adicional (Independência)",
+        "categoria": "nacional",
+        "fonte": "DS 5521/2026"
+      }
+    ],
+    "paises": {
+      "BO": {
+        "nome": "Bolívia",
+        "bandeira": "🇧🇴",
+        "tipoRegiao": "Departamento",
+        "regioes": [
+          {
+            "id": "beni",
+            "nome": "Beni"
+          },
+          {
+            "id": "chuquisaca",
+            "nome": "Chuquisaca"
+          },
+          {
+            "id": "cochabamba",
+            "nome": "Cochabamba"
+          },
+          {
+            "id": "laPaz",
+            "nome": "La Paz"
+          },
+          {
+            "id": "oruro",
+            "nome": "Oruro"
+          },
+          {
+            "id": "pando",
+            "nome": "Pando"
+          },
+          {
+            "id": "potosi",
+            "nome": "Potosí"
+          },
+          {
+            "id": "santaCruz",
+            "nome": "Santa Cruz"
+          },
+          {
+            "id": "tarija",
+            "nome": "Tarija"
+          }
+        ]
+      },
+      "BR": {
+        "nome": "Brasil",
+        "bandeira": "🇧🇷",
+        "tipoRegiao": "Estado",
+        "regioes": []
+      }
+    }
+  },
+  "cidades": [
+    {
+      "nome": "La Paz",
+      "departamento": "La Paz",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Palca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mecapaca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Achocalla",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Alto",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Achacachi",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ancoraimes",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chua Cocani",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huarina",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiago de Huata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huatajata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Coro Coro",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Caquiaviri",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Calacoto",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Comanche",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Charaña",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Waldo Ballivián",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Nazacara de Pacajes",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Callapa",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Acosta",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mocomoco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Carabuco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Humanata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Escoma",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chuma",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ayata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Aucapata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sorata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Guanay",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tacacoma",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Quiabaya",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Combaya",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tipuani",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mapiri",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Teoponte",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Apolo",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pelechuco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Viacha",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Guaqui",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tiahuanaco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Desaguadero",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Andrés de Machaca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Jesús de Machaca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Taraco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Luribay",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sapahaqui",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yaco",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Malla",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cairoma",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Inquisivi",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Quime",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cajuata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colquiri",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ichoca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Licoma Pampa",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chulumani",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Irupana",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yanacachi",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Palos Blancos",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "La Asunta",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pucarani",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Laja",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Batallas",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Pérez",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sica Sica",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Umala",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ayo Ayo",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Calamarca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Patacamaya",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colquencha",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Collana",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Coroico",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Coripata",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ixiamas",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Buenaventura",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Charazani",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Curva",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Copacabana",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro de Tiquina",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tito Yupanqui",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro de Curahuara",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Papel Pampa",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chacarilla",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiago de Machaca",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Catacora",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Caranavi",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Alto Beni",
+      "departamento": "La Paz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cochabamba",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Aiquile",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pasorapa",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Omereque",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Independencia",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Morochata",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cocapata",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tarata",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Anzaldo",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Arbieto",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sacabamba",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Arani",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Vacas",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Arque",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tacopaya",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Capinota",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiváñez",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sicaya",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cliza",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Toco",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tolata",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Quillacollo",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sipe Sipe",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tiquipaya",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Vinto",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colcapirhua",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sacaba",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colomi",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Tunari",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tapacarí",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Totora",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pojo",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pocona",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chimoré",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Villarroel",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Entre Ríos",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mizque",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Vila Vila",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Alalay",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Punata",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Rivero",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Benito",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tacachi",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cuchumuela",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Bolívar",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tiraque",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Shinahota",
+      "departamento": "Cochabamba",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santa Cruz de la Sierra",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Cotoca",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Porongo",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "La Guardia",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Torno",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Warnes",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Okinawa Uno",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Ignacio de Velasco",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Miguel de Velasco",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Rafael de Velasco",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Buena Vista",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Carlos",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Yapacaní",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Juan de Yapacaní",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San José de Chiquitos",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pailón",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Roboré",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Portachuelo",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santa Rosa del Sara",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colpa Bélgica",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Lagunillas",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Charagua",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cabezas",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cuevo",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Gutiérrez (Kereimba Iyambae)",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Camiri",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Boyuibe",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Vallegrande",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Trigal",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Moro Moro",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Postrervalle",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pucará",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Samaipata",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pampagrande",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mairana",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Quirusillas",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Montero",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "General Saavedra",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mineros",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Fernández Alonso",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Concepción",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Javier",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Ramón",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Julián",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Antonio de Lomerío",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cuatro Cañadas",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Matías",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Comarapa",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Saipina",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Suárez",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Quijarro",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Carmen Rivero Tórrez",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ascensión de Guarayos",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Urubichá",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Puente",
+      "departamento": "Santa Cruz",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Oruro",
+      "departamento": "Oruro",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Caracollo",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Choro",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Paria",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Challapata",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santuario de Quillacas",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Corque",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Choquecota",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Curahuara de Carangas",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Turco",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huachacalla",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Escara",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cruz de Machacamarca",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yunguyo de Litoral",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Esmeralda",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Poopó",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pazña",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Antequera",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huanuni",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Machacamarca",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Salinas de Garci Mendoza",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pampa Aullagas",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sabaya",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Coipasa",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chipaya",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Toledo",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Eucaliptus",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiago de Andamarca",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Belén de Andamarca",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Totora",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiago de Huari",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "La Rivera",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Todos Santos",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Carangas",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huayllamarca",
+      "departamento": "Oruro",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Potosí",
+      "departamento": "Potosí",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Tinguipaya",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yocalla",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Urmiri",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Uncía",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chayanta",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Llallagua",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chuquihuta",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Betanzos",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Chaquí",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tacobamba",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colquechaca",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ravelo",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Pocoata",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ocurí",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro de Macha",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro de Buena Vista",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Toro Toro",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santiago de Cotagaita",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Vitichi",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sacaca",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Caripuyo",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tupiza",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Atocha",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Colcha K",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro de Quemes",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pablo de Lípez",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Mojinete",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Antonio de Esmoruco",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puna",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Caiza D",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ckochas",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Uyuni",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tomave",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Porco",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Arampampa",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Acasio",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Llica",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tahua",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villazón",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Agustín",
+      "departamento": "Potosí",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sucre",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Yotala",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Poroma",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Azurduy",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tarvita",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Zudáñez",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Presto",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Mojocoya",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Icla",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Padilla",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tomina",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sopachuy",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Alcalá",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Villar",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Monteagudo",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huacareta",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tarabuco",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yamparáez",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Camargo",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Lucas",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Incahuasi",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Charcas",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Serrano",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Abecia",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Culpina",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Las Carreras",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Vaca Guzmán (Muyupampa)",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huacaya",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Macharetí",
+      "departamento": "Chuquisaca",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Tarija",
+      "departamento": "Tarija",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Padcaya",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Bermejo",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yacuiba",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Caraparí",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Montes",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Uriondo",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Yunchará",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Lorenzo",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "El Puente",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Entre Ríos",
+      "departamento": "Tarija",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Trinidad",
+      "departamento": "Beni",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "San Javier",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Riberalta",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Guayaramerín",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Reyes",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Borja",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santa Rosa",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Rurrenabaque",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santa Ana del Yacuma",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Exaltación",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Ignacio de Moxos",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Loreto",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Andrés",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Joaquín",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Ramón",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Siles",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Magdalena",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Baures",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Huacaraje",
+      "departamento": "Beni",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Cobija",
+      "departamento": "Pando",
+      "pais": "Bolívia",
+      "capital": true
+    },
+    {
+      "nome": "Porvenir",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Bolpebra",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Bella Flor",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Rico",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Pedro",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Filadelfia",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Puerto Gonzalo Moreno",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "San Lorenzo",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Sena",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santa Rosa del Abuná",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Ingavi",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Nueva Esperanza",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Villa Nueva",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    },
+    {
+      "nome": "Santos Mercado",
+      "departamento": "Pando",
+      "pais": "Bolívia"
+    }
+  ],
+  "bibliotecaServicos": [
+    {
+      "nome": "Corte",
+      "categoria": "Corte",
+      "preco": 80,
+      "duracaoMin": 40
+    },
+    {
+      "nome": "Escova",
+      "categoria": "Escova",
+      "preco": 60,
+      "duracaoMin": 40
+    },
+    {
+      "nome": "Tintura",
+      "categoria": "Cor",
+      "preco": 300,
+      "duracaoMin": 120,
+      "insumos": [
+        {
+          "nome": "Tinta",
+          "valor": 15
+        },
+        {
+          "nome": "Água oxigenada",
+          "valor": 5
+        }
+      ]
+    },
+    {
+      "nome": "Mechas/Luzes",
+      "categoria": "Cor",
+      "preco": 450,
+      "duracaoMin": 180,
+      "insumos": [
+        {
+          "nome": "Descolorante",
+          "valor": 25
+        },
+        {
+          "nome": "Água oxigenada",
+          "valor": 10
+        },
+        {
+          "nome": "Papel alumínio",
+          "valor": 5
+        }
+      ]
+    },
+    {
+      "nome": "Descoloração",
+      "categoria": "Cor",
+      "preco": 350,
+      "duracaoMin": 150,
+      "insumos": [
+        {
+          "nome": "Descolorante",
+          "valor": 20
+        },
+        {
+          "nome": "Água oxigenada",
+          "valor": 10
+        }
+      ]
+    },
+    {
+      "nome": "Hidratação",
+      "categoria": "Tratamento",
+      "preco": 100,
+      "duracaoMin": 45,
+      "insumos": [
+        {
+          "nome": "Máscara",
+          "valor": 10
+        }
+      ]
+    },
+    {
+      "nome": "Depilação",
+      "categoria": "Estética",
+      "preco": 70,
+      "duracaoMin": 30,
+      "insumos": [
+        {
+          "nome": "Cera",
+          "valor": 8
+        }
+      ]
+    },
+    {
+      "nome": "Unha (mão)",
+      "categoria": "Unhas",
+      "preco": 50,
+      "duracaoMin": 40
+    },
+    {
+      "nome": "Unha (pé)",
+      "categoria": "Unhas",
+      "preco": 60,
+      "duracaoMin": 45
+    },
+    {
+      "nome": "Maquiagem",
+      "categoria": "Maquiagem",
+      "preco": 150,
+      "duracaoMin": 60
+    },
+    {
+      "nome": "Penteado",
+      "categoria": "Penteado",
+      "preco": 120,
+      "duracaoMin": 60
+    },
+    {
+      "nome": "Barba",
+      "categoria": "Barba",
+      "preco": 50,
+      "duracaoMin": 30
+    }
+  ],
+  "nomesRegime": {
+    "general": {
+      "nome": "Régimen General",
+      "explica": "Factura con IVA 13%, paga IT 3% sobre los ingresos e IUE 25% sobre la utilidad.",
+      "quem": "Empresas e comércios que emitem fatura (NIT no Régimen General). É o padrão.",
+      "comoFunciona": "Cada venda com fatura tem IVA 13% (dentro do preço) e IT 3%. Todo mês: IVA das vendas − IVA das compras com fatura, mais o IT. No fim do ano, IUE 25% sobre o lucro — e esse IUE se desconta do IT depois."
+    },
+    "rts": {
+      "nome": "Régimen Tributario Simplificado (RTS)",
+      "explica": "Cuota fija bimestral; sin IVA, IT ni IUE por separado y sin factura con crédito fiscal.",
+      "quem": "Pequenos comerciantes e artesãos com capital e vendas pequenos (dentro dos limites do RTS).",
+      "comoFunciona": "Paga uma cota FIXA a cada dois meses, conforme a categoria. Não há IVA nem IT por venda e não se emite fatura com crédito fiscal — por isso a venda não mostra imposto."
+    },
+    "simples": {
+      "nome": "Simples Nacional",
+      "explica": "DAS: uma alíquota única sobre a receita bruta (já inclui IRPJ, CSLL, PIS, COFINS e ICMS/ISS).",
+      "quem": "Micro e pequenas empresas no Brasil (faturamento até o limite do Simples).",
+      "comoFunciona": "Uma guia só por mês (DAS) com uma alíquota efetiva sobre a receita bruta, que sobe conforme o faturamento dos últimos 12 meses."
+    },
+    "presumido": {
+      "nome": "Lucro Presumido",
+      "explica": "PIS 0,65% e COFINS 3% sobre a receita; IRPJ e CSLL sobre um lucro presumido.",
+      "quem": "Empresas no Brasil acima do Simples (ou que preferem este regime).",
+      "comoFunciona": "PIS e COFINS sobre a receita todo mês; IRPJ e CSLL a cada trimestre sobre um lucro \"presumido\" (uma porcentagem fixa da receita), não sobre o lucro real."
+    }
+  },
+  "tributosBO": {
+    "regras": [
+      {
+        "versao": "BO-2016",
+        "vigenteDesde": "2016-05-01",
+        "vigenteAte": "2022-12-31",
+        "obrigacoes": [
+          {
+            "id": "iva",
+            "sigla": "IVA",
+            "nome": "Imposto ao Valor Agregado",
+            "es": "Impuesto al Valor Agregado",
+            "descricao": "Sobre a venda de bens e serviços: débito das vendas com factura menos o crédito das compras com factura.",
+            "formulario": "F-200 (v5, SIAT)",
+            "periodicidade": "mensal",
+            "aliquotaBp": 1300,
+            "base": "Preço líquido da factura (\"por dentro\")",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT (dia 13 a 22)",
+            "fonte": "Ley 843 arts. 1–15; DS 21530",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "it",
+            "sigla": "IT",
+            "nome": "Imposto sobre as Transações",
+            "es": "Impuesto a las Transacciones",
+            "descricao": "Sobre o ingresso bruto do mês, dê lucro ou não. O IUE pago do ano anterior compensa o IT.",
+            "formulario": "F-400 (v5, SIAT)",
+            "periodicidade": "mensal",
+            "aliquotaBp": 300,
+            "base": "Ingresso bruto do mês",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT (dia 13 a 22)",
+            "fonte": "Ley 843 arts. 72–77; DS 21532",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "iue",
+            "sigla": "IUE",
+            "nome": "Imposto sobre os Lucros das Empresas",
+            "es": "Impuesto sobre las Utilidades de las Empresas",
+            "descricao": "Sobre o lucro do ano (estados financeiros): lucro contábil + ajustes = lucro tributável × 25%.",
+            "formulario": "F-500",
+            "periodicidade": "anual",
+            "aliquotaBp": 2500,
+            "base": "Lucro tributável do exercício",
+            "vencimento": "120 dias depois do cierre de gestión",
+            "fonte": "Ley 843 arts. 36–50; DS 24051 arts. 39–40",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "retIue",
+            "sigla": "RET-IUE",
+            "nome": "Retenção de IUE (compras sem factura)",
+            "es": "Retención IUE",
+            "descricao": "Quem compra de pessoa sem factura retém e paga o IUE dela: 5% em bens (25% de um lucro presumido de 20%).",
+            "formulario": "F-570",
+            "periodicidade": "mensal",
+            "aliquotaBp": 500,
+            "base": "Valor pago em compras de bens sem factura",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 24051 art. 3 (texto anterior ao DS 4850)",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "retIt",
+            "sigla": "RET-IT",
+            "nome": "Retenção de IT (compras sem factura)",
+            "es": "Retención IT",
+            "descricao": "Junto com a retenção de IUE: 3% do valor pago a quem não emite factura.",
+            "formulario": "F-410",
+            "periodicidade": "mensal",
+            "aliquotaBp": 300,
+            "base": "Valor pago em compras sem factura",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 21532; DS 4850",
+            "certeza": "S",
+            "calcula": true
+          },
+          {
+            "id": "rcIva",
+            "sigla": "RC-IVA",
+            "nome": "RC-IVA dos dependentes (agente de retenção)",
+            "es": "Régimen Complementario al IVA",
+            "descricao": "Sobre os salários acima de 2 salários mínimos, depois dos aportes; o empregado abate com facturas (F-110).",
+            "formulario": "F-608",
+            "periodicidade": "mensal",
+            "aliquotaBp": 1300,
+            "base": "Salário líquido de aportes acima de 2 SMN",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 21531 arts. 8 e 11",
+            "certeza": "S",
+            "calcula": false
+          },
+          {
+            "id": "rcv",
+            "sigla": "RCV",
+            "nome": "Registro de Compras e Vendas (SIAT)",
+            "es": "Registro de Compras y Ventas",
+            "descricao": "O livro digital das facturas de compra e venda no SIAT — enviar todo mês, mesmo sem movimento.",
+            "formulario": "SIAT en Línea",
+            "periodicidade": "mensal",
+            "base": "Facturas do mês",
+            "vencimento": "Mês seguinte (antes das declarações)",
+            "fonte": "Libro de Compras y Ventas IVA (até 2021) / RCV",
+            "certeza": "S",
+            "calcula": false
+          },
+          {
+            "id": "eeff",
+            "sigla": "EEFF",
+            "nome": "Estados financeiros",
+            "es": "Estados Financieros",
+            "descricao": "Balanço, estado de resultados e notas, com o IUE. Com parecer de auditoria se as vendas passam do limite.",
+            "formulario": "Digital no SIAT (F-605)",
+            "periodicidade": "anual",
+            "base": "O exercício inteiro",
+            "vencimento": "120 dias depois do cierre de gestión",
+            "fonte": "DS 24051 arts. 35–36; RND 101800000004",
+            "certeza": "S",
+            "calcula": false
+          }
+        ],
+        "retencao": {
+          "bensIueBp": 500,
+          "bensItBp": 300,
+          "servicoBp": 1250,
+          "servicoTipo": "IUE",
+          "servicoItBp": 300
+        },
+        "limiteAuditoria": 120000000,
+        "notas": [
+          "Serviços sem factura: retenção IUE 12,5% + IT 3% (antes do DS 4850)."
+        ]
+      },
+      {
+        "versao": "BO-2023",
+        "vigenteDesde": "2023-01-01",
+        "obrigacoes": [
+          {
+            "id": "iva",
+            "sigla": "IVA",
+            "nome": "Imposto ao Valor Agregado",
+            "es": "Impuesto al Valor Agregado",
+            "descricao": "Sobre a venda de bens e serviços: débito das vendas com factura menos o crédito das compras com factura.",
+            "formulario": "F-200 (v5, SIAT)",
+            "periodicidade": "mensal",
+            "aliquotaBp": 1300,
+            "base": "Preço líquido da factura (\"por dentro\")",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT (dia 13 a 22)",
+            "fonte": "Ley 843 arts. 1–15; DS 21530",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "it",
+            "sigla": "IT",
+            "nome": "Imposto sobre as Transações",
+            "es": "Impuesto a las Transacciones",
+            "descricao": "Sobre o ingresso bruto do mês, dê lucro ou não. O IUE pago do ano anterior compensa o IT.",
+            "formulario": "F-400 (v5, SIAT)",
+            "periodicidade": "mensal",
+            "aliquotaBp": 300,
+            "base": "Ingresso bruto do mês",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT (dia 13 a 22)",
+            "fonte": "Ley 843 arts. 72–77; DS 21532",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "iue",
+            "sigla": "IUE",
+            "nome": "Imposto sobre os Lucros das Empresas",
+            "es": "Impuesto sobre las Utilidades de las Empresas",
+            "descricao": "Sobre o lucro do ano (estados financeiros): lucro contábil + ajustes = lucro tributável × 25%.",
+            "formulario": "F-500",
+            "periodicidade": "anual",
+            "aliquotaBp": 2500,
+            "base": "Lucro tributável do exercício",
+            "vencimento": "120 dias depois do cierre de gestión",
+            "fonte": "Ley 843 arts. 36–50; DS 24051 arts. 39–40",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "retIue",
+            "sigla": "RET-IUE",
+            "nome": "Retenção de IUE (compras sem factura)",
+            "es": "Retención IUE",
+            "descricao": "Quem compra de pessoa sem factura retém e paga o IUE dela: 5% em bens (25% de um lucro presumido de 20%).",
+            "formulario": "F-570",
+            "periodicidade": "mensal",
+            "aliquotaBp": 500,
+            "base": "Valor pago em compras de bens sem factura",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 24051 art. 3; DS 4850 (desde 01/01/2023)",
+            "certeza": "O",
+            "calcula": true
+          },
+          {
+            "id": "retIt",
+            "sigla": "RET-IT",
+            "nome": "Retenção de IT (compras sem factura)",
+            "es": "Retención IT",
+            "descricao": "Junto com a retenção de IUE: 3% do valor pago a quem não emite factura.",
+            "formulario": "F-410",
+            "periodicidade": "mensal",
+            "aliquotaBp": 300,
+            "base": "Valor pago em compras sem factura",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 21532; DS 4850",
+            "certeza": "S",
+            "calcula": true
+          },
+          {
+            "id": "rcIva",
+            "sigla": "RC-IVA",
+            "nome": "RC-IVA dos dependentes (agente de retenção)",
+            "es": "Régimen Complementario al IVA",
+            "descricao": "Sobre os salários acima de 2 salários mínimos, depois dos aportes; o empregado abate com facturas (F-110).",
+            "formulario": "F-608",
+            "periodicidade": "mensal",
+            "aliquotaBp": 1300,
+            "base": "Salário líquido de aportes acima de 2 SMN",
+            "vencimento": "Mês seguinte, pelo último dígito do NIT",
+            "fonte": "DS 21531 arts. 8 e 11",
+            "certeza": "S",
+            "calcula": false
+          },
+          {
+            "id": "rcv",
+            "sigla": "RCV",
+            "nome": "Registro de Compras e Vendas (SIAT)",
+            "es": "Registro de Compras y Ventas",
+            "descricao": "O livro digital das facturas de compra e venda no SIAT — enviar todo mês, mesmo sem movimento.",
+            "formulario": "SIAT en Línea",
+            "periodicidade": "mensal",
+            "base": "Facturas do mês",
+            "vencimento": "Mês seguinte (antes das declarações)",
+            "fonte": "RND 102100000011",
+            "certeza": "S",
+            "calcula": false
+          },
+          {
+            "id": "eeff",
+            "sigla": "EEFF",
+            "nome": "Estados financeiros",
+            "es": "Estados Financieros",
+            "descricao": "Balanço, estado de resultados e notas, com o IUE. Com parecer de auditoria se as vendas passam do limite.",
+            "formulario": "Digital no SIAT (F-605)",
+            "periodicidade": "anual",
+            "base": "O exercício inteiro",
+            "vencimento": "120 dias depois do cierre de gestión",
+            "fonte": "DS 24051 arts. 35–36; RND 101800000004",
+            "certeza": "S",
+            "calcula": false
+          }
+        ],
+        "retencao": {
+          "bensIueBp": 500,
+          "bensItBp": 300,
+          "servicoBp": 1300,
+          "servicoTipo": "RC-IVA",
+          "servicoItBp": 300
+        },
+        "limiteAuditoria": 120000000,
+        "notas": [
+          "DS 4850: serviços sem factura passam a reter RC-IVA 13% (F-604) + IT 3%; bens seguem IUE 5% + IT 3%.",
+          "DS 5327 (02/2025) só compensava o IT com IUE pago em dia; DS 5563 (03/2026) tirou essa exigência (fonte secundária).",
+          "RND 102600000014 sobe o limite do parecer de auditoria para Bs 1.700.000 nos exercícios que fecham a partir de 2027 (fonte secundária)."
+        ]
+      }
+    ],
+    "cierre": {
+      "comercial": {
+        "mes": 12,
+        "dia": 31,
+        "nome": "Comercial"
+      },
+      "servicos": {
+        "mes": 12,
+        "dia": 31,
+        "nome": "Serviços"
+      },
+      "industrial": {
+        "mes": 3,
+        "dia": 31,
+        "nome": "Industrial"
+      },
+      "agro": {
+        "mes": 6,
+        "dia": 30,
+        "nome": "Agropecuária / agroindustrial"
+      },
+      "mineira": {
+        "mes": 9,
+        "dia": 30,
+        "nome": "Mineração"
+      }
+    }
+  }
+}

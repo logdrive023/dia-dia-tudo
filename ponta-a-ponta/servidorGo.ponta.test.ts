@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest'
 import { BackendApi } from '../src/adapters/api/backendApi'
 import { ErroNegocio } from '../src/core/domain/erros'
 import { novoId } from '../src/core/domain/ids'
+import type { NomeConsulta } from '../src/core/services'
 import { MSG_ALTERADO_POR_OUTRA } from '../src/core/services/contexto'
 
 const url = process.env.TUDO_API_URL ?? 'http://127.0.0.1:8080'
@@ -56,9 +57,10 @@ describe('servidor Go × app (canal cifrado de verdade)', () => {
     expect((e as ErroNegocio).campo).toBe('nome')
   })
 
-  it('o que ainda não foi portado responde com mensagem clara (a tela não quebra)', async () => {
+  it('um pedido que o servidor não conhece responde com mensagem clara (a tela não quebra)', async () => {
     const api = await conectado()
-    await expect(api.consulta('estoque', {})).rejects.toThrow(/Ainda não existe no servidor/)
+    // todo o app já está no servidor: um nome que não existe faz o papel do "ainda não portado"
+    await expect(api.consulta('naoExisteNoServidor' as NomeConsulta, {} as never)).rejects.toThrow(/Ainda não existe no servidor/)
   })
 
   it('sem login: o servidor recusa', async () => {
