@@ -22,6 +22,7 @@
     "diagnostico": "node scripts/diagnostico.mjs",
     "primeiro-acesso": "node scripts/primeiro-acesso.mjs",
     "dia-de-trabalho": "node scripts/dia-de-trabalho.mjs",
+    "tela-servidor": "node scripts/tela-servidor.mjs",
     "responsivo:fotos": "node scripts/responsivo.mjs --fotos"
   },
   "dependencies": {
