@@ -469,6 +469,92 @@
       ]
     }
   ],
+  "compras": [
+    {
+      "moduloId": "cabelo",
+      "tipoItem": "lote",
+      "avisarParadaDias": 3,
+      "pedirComprovanteOrigem": true,
+      "etapas": [
+        {
+          "id": "recebido",
+          "nome": "Chegou",
+          "ajuda": "O cabelo chegou (ou foi oferecido). Tire fotos.",
+          "lembrar": [
+            "fotos"
+          ]
+        },
+        {
+          "id": "conferido",
+          "nome": "Conferido",
+          "ajuda": "Pesado e conferido: ajuste gramas e valor se for preciso (fica registrado o motivo)."
+        },
+        {
+          "id": "pago",
+          "nome": "Pago",
+          "ajuda": "Pagamento feito (pode ser parte: o resto fica na conta da pessoa).",
+          "faz": [
+            "pagamento"
+          ],
+          "lembrar": [
+            "comprovante"
+          ]
+        },
+        {
+          "id": "concluido",
+          "nome": "Concluído",
+          "ajuda": "Pagamento e entrega acertados. O cabelo já está na Triagem desde que a compra foi registrada.",
+          "faz": [
+            "estoque"
+          ]
+        }
+      ],
+      "tipo": {
+        "id": "lote",
+        "nome": "Lote de cabelo",
+        "unidade": "grama",
+        "controlaEstoque": true,
+        "nasceNaCompra": true,
+        "obrigatorios": []
+      }
+    },
+    {
+      "moduloId": "produtos",
+      "tipoItem": "peca",
+      "avisarParadaDias": 7,
+      "etapas": [
+        {
+          "id": "recebido",
+          "nome": "Pedido feito",
+          "ajuda": "Pedido ao fornecedor."
+        },
+        {
+          "id": "pago",
+          "nome": "Pago",
+          "ajuda": "Pagamento feito.",
+          "faz": [
+            "pagamento"
+          ]
+        },
+        {
+          "id": "concluido",
+          "nome": "Chegou",
+          "ajuda": "Entrou no estoque.",
+          "faz": [
+            "estoque"
+          ]
+        }
+      ],
+      "tipo": {
+        "id": "peca",
+        "nome": "Peça",
+        "unidade": "peca",
+        "controlaEstoque": true,
+        "nasceNaCompra": false,
+        "obrigatorios": []
+      }
+    }
+  ],
   "nomesAcao": {
     "recusado": "Tentativa recusada",
     "salvarVendaAberta": "Venda guardada em aberto",
