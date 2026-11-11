@@ -2,7 +2,9 @@
 //   Pacote (código · medida · cor — abre a ficha no ESTOQUE) · Quantidade (o que vai para a vitrine: "1,3 kg" ou
 //   "500 g de 1,3 kg"; tocar muda ali mesmo) · preço (se o modo pedir) · Na vitrine (pôr/tirar).
 // Celular: cartão que abre no lugar, com os mesmos campos. A regra (o limite nunca passa do saldo) é do serviço.
-import { type ReactNode, useState } from 'react'
+// Pôr/tirar: a linha fica realçada por um instante e o selo "✓ Na vitrine" / "Fora" aparece ao lado da chave
+// (a linha não muda de lugar: dá para ver o que mudou).
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Botao, Campo, Entrada, cx, gramasTexto } from '../../../shared/ui/base'
 import { useApp } from '../../../shared/ui/contexto'
 import { useT } from '../../../shared/ui/i18n'
@@ -84,11 +86,30 @@ export function ListaPacotesVitrine({ linhas, escolher, ocupado, onNaVitrine, on
   const t = useT()
   const { ir } = useApp()
   const abrir = (x: PacoteLista) => ir('lote', { id: x.id })
+  // o que acabou de mudar: realce + selo por ~1,8 s
+  const [mudou, setMudou] = useState<Record<string, 'entrou' | 'saiu'>>({})
+  const relogios = useRef<Record<string, number>>({})
+  useEffect(() => () => Object.values(relogios.current).forEach((r) => window.clearTimeout(r)), [])
+  const alternar = (x: PacoteLista, entrar: boolean) => {
+    onNaVitrine([x.id], entrar)
+    setMudou((m) => ({ ...m, [x.id]: entrar ? 'entrou' : 'saiu' }))
+    window.clearTimeout(relogios.current[x.id])
+    relogios.current[x.id] = window.setTimeout(() => setMudou((m) => { const { [x.id]: _, ...resto } = m; return resto }), 1800)
+  }
+  /** a chave já mostra o novo estado no toque (não espera salvar) */
+  const naVitrine = (x: PacoteLista) => (mudou[x.id] ? mudou[x.id] === 'entrou' : !x.oculto)
+  const selo = (x: PacoteLista) => mudou[x.id] && (
+    <span role="status" className={cx('ml-2 inline-flex animate-[entrada-tela_.25s_ease-out] items-center rounded-full px-2 py-0.5 text-xs font-semibold',
+      mudou[x.id] === 'entrou' ? 'bg-[var(--bom)]/15 text-[var(--bom)]' : 'bg-[var(--fundo)] text-[var(--suave)]')}>
+      {mudou[x.id] === 'entrou' ? `✓ ${t('Na vitrine')}` : t('Fora da vitrine')}
+    </span>
+  )
   const nome = (x: PacoteLista) => <>{x.medida} cm{x.categoria && x.categoria !== 'Normal' ? ` · ${t(x.categoria)}` : ''}</>
   return (
     <TabelaDados<PacoteLista>
       linhas={linhas}
       chave={(x) => x.id}
+      realce={(x) => (mudou[x.id] === 'entrou' ? 'marcada' : undefined)}
       colunas={[
         { id: 'pacote', titulo: 'Pacote', classe: 'w-full min-w-[12rem]', celula: (x) => (
           <button type="button" onClick={() => abrir(x)} title={t('Abrir no estoque')} className="alvo-amplo group inline-flex items-baseline gap-1.5 text-left">
@@ -100,7 +121,7 @@ export function ListaPacotesVitrine({ linhas, escolher, ocupado, onNaVitrine, on
         ) },
         { id: 'quantidade', titulo: 'Quantidade', direita: true, classe: 'whitespace-nowrap', celula: (x) => <Quantidade key={limiteAtivo(x) ?? 'tudo'} x={x} travado={ocupado} onLimite={(g) => onLimite(x.id, g)} /> },
         ...(preco ? [{ id: 'preco', titulo: 'Preço/g', direita: true, classe: 'whitespace-nowrap', celula: (x: PacoteLista) => preco(x) }] : []),
-        { id: 'na', titulo: 'Na vitrine', classe: 'whitespace-nowrap', celula: (x) => <Chave ligado={!x.oculto} rotulo={`${t('Na vitrine')} ${x.codigo ?? ''}`} travado={ocupado} onChange={(v) => onNaVitrine([x.id], v)} /> },
+        { id: 'na', titulo: 'Na vitrine', classe: 'whitespace-nowrap', celula: (x) => <span className="inline-flex items-center"><Chave ligado={naVitrine(x)} rotulo={`${t('Na vitrine')} ${x.codigo ?? ''}`} travado={ocupado} onChange={(v) => alternar(x, v)} />{selo(x)}</span> },
       ]}
       celular={{
         titulo: (x) => `${x.medida} cm${x.cor ? ` · ${t(x.cor)}` : ''}`,
@@ -118,10 +139,11 @@ export function ListaPacotesVitrine({ linhas, escolher, ocupado, onNaVitrine, on
             </Campo>
             {preco && <Campo rotulo="Preço por grama" comoDiv>{preco(x)}</Campo>}
             <div className="flex flex-wrap gap-2">
-              <Botao variante={x.oculto ? 'primario' : 'secundario'} disabled={ocupado} onClick={() => onNaVitrine([x.id], !!x.oculto)}>
+              <Botao variante={x.oculto ? 'primario' : 'secundario'} disabled={ocupado} onClick={() => alternar(x, !!x.oculto)}>
                 {x.oculto ? `🛍️ ${t(escolher ? 'Pôr na vitrine' : 'Mostrar na vitrine')}` : t(escolher ? 'Tirar da vitrine' : 'Esconder da vitrine')}
               </Botao>
               <Botao variante="secundario" onClick={() => abrir(x)}>📦 {t('Abrir no estoque')}</Botao>
+              {selo(x)}
             </div>
           </div>
         ),
