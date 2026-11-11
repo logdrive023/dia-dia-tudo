@@ -74,10 +74,12 @@ Regras:
   rodam num subagente (Agent, modelo mais barato) que sobe o que precisar, roda, lê o relatório e devolve **só** falhas,
   fricções e o número de passos ok — nunca o relatório inteiro nem fotos. Assim a conversa principal não relê páginas de
   saída a cada passo. A sessão principal só abre o navegador quando o subagente acha algo que precisa ver.
-- **Tela contra o servidor** (`npm run tela-servidor`, ~1 min, sobe tudo sozinho: Postgres do backend, servidor Go em
-  :8090, app em modo API em :5175, empresa de teste nova): entra, grava uma unidade pela tela e confere no Postgres, e
+- **Tela contra o servidor** (`npm run tela-servidor`, ~30 s, sobe tudo sozinho: Postgres do backend, servidor Go **no
+  Docker** em :8090 (o Windows não bloqueia), app em modo API em :5175, empresa de teste nova): entra, grava uma unidade pela tela e confere no Postgres, e
   lista por tela o que ainda falta portar (relatório em `node_modules/.cache/tela-servidor/`). Não troca os outros
-  scripts (eles seguem no banco do navegador). Portou algo no servidor → rodar e ver a lista diminuir.
+  scripts (eles seguem no banco do navegador). Portou algo no servidor → rodar e ver a lista diminuir. Mudou a
+  configuração padrão, um imposto padrão ou um módulo → `npx vite-node scripts/exportar-padroes.ts` (o servidor lê
+  `api-contract/padroes.json`; o teste `padroesServidor` avisa se ficou velho).
 - **Servidor Go** (`../dia-dia-tudo-backend`, ver o CLAUDE.md de lá): mexeu no canal (`core/seguranca/envelope.ts`,
   `adapters/api/`) ou numa funcionalidade já portada (hoje: Unidades) → rodar lá `scripts\ponta-a-ponta.ps1` (sobe o
   servidor e roda `npm run test:ponta` daqui). Fora da suíte normal: precisa do servidor no ar.

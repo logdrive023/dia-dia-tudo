@@ -1,7 +1,7 @@
 // TELA CONTRA O SERVIDOR (ponta a ponta de verdade: tela → servidor Go → Postgres). Os outros scripts de tela
 // (primeiro-acesso, dia-de-trabalho, varredura) continuam no banco do navegador — este NÃO os substitui.
 //
-// Sozinho: sobe o Postgres do backend (docker, porta 5433), compila e sobe o servidor Go (127.0.0.1:8090), cria uma
+// Sozinho: sobe o Postgres do backend (docker, porta 5433), sobe o servidor Go NO DOCKER (127.0.0.1:8090), cria uma
 // EMPRESA DE TESTE nova e vazia (cmd/semear — nenhuma outra empresa é tocada), sobe o app em modo API
 // (127.0.0.1:5175) e abre um navegador de celular (390 px) que:
 //   1. entra com o administrador da empresa de teste
@@ -15,7 +15,7 @@
 //
 // Sai com erro só se o caminho de verdade falhar (subir, entrar, gravar a unidade). Tela que pede o que ainda não
 // existe no servidor NÃO é erro: vira a lista do que falta portar.
-import { spawn, spawnSync, execFileSync } from 'node:child_process'
+import { spawn, execFileSync } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { chromium } from 'playwright-core'
@@ -28,7 +28,8 @@ const TELAS = args.filter((a) => !a.startsWith('--')).length ? args.filter((a) =
 const RAIZ = process.cwd()
 const BACK = resolve(RAIZ, '..', 'dia-dia-tudo-backend')
 const PASTA = join(RAIZ, 'node_modules', '.cache', 'tela-servidor')
-const BANCO = process.env.BANCO_TESTE ?? 'postgres://tudo:tudo@127.0.0.1:5433/tudo?sslmode=disable'
+// o servidor roda DENTRO DO DOCKER (serviço "go" do docker-compose do backend): lá o Postgres se chama "postgres"
+const BANCO = process.env.BANCO_TESTE ?? 'postgres://tudo:tudo@postgres:5432/tudo?sslmode=disable'
 const API = 'http://127.0.0.1:8090', APP = 'http://127.0.0.1:5175'
 const RODADA = Date.now().toString(36)
 const EMPRESA = `teste-${RODADA}`, LOGIN = `t${RODADA}`, SENHA = `Teste-${RODADA}-9`
@@ -80,33 +81,17 @@ function pedidosEntre(t0, t1) {
   return r
 }
 
-/**
- * compila cmd/<nome>. O Controle de Aplicativos do Windows às vezes bloqueia um .exe recém-gerado (não é defeito do
- * código): aí compila de novo com outra opção, o que muda o binário, até ele rodar.
- */
-function construir(nome) {
-  const exe = join(BACK, '.tmp', `${nome}-tela.exe`)
-  for (const extra of [[], ['-ldflags=-w'], ['-ldflags=-s'], ['-trimpath']]) {
-    execFileSync('go', ['build', ...extra, '-o', exe, `./cmd/${nome}`], { cwd: BACK, stdio: 'inherit' })
-    const r = spawnSync(exe, [], { timeout: 1500, env: { ...process.env, BANCO: 'sqlite::memory:', ENDERECO: '127.0.0.1:0', ADMIN_SENHA: '' } })
-    if (!['UNKNOWN', 'EACCES', 'EPERM'].includes(r.error?.code)) return
-  }
-  throw new Error(`o Windows bloqueou ${nome}-tela.exe em todas as tentativas`)
-}
-
 let nav, codigo = 0
 try {
   // 1. banco + servidor + empresa de teste
   execFileSync('docker', ['compose', 'up', '-d', 'postgres'], { cwd: BACK, stdio: 'ignore' })
   for (let i = 0; i < 60 && !/accepting/.test(execFileSync('docker', ['exec', 'dia-dia-tudo-backend-postgres-1', 'pg_isready', '-U', 'tudo'], { encoding: 'utf8' }).toString()); i++) await esperar(500)
-  mkdirSync(join(BACK, '.tmp'), { recursive: true })
-  const exe = (n) => join(BACK, '.tmp', `${n}-tela.exe`)
-  construir('servidor')
-  construir('semear')
-  const amb = { ...process.env, BANCO, ENDERECO: '127.0.0.1:8090', CORS_ORIGENS: APP, ADMIN_SENHA: '' }
-  execFileSync(exe('semear'), ['-empresa', EMPRESA, '-login', LOGIN, '-senha', SENHA], { cwd: BACK, env: amb, encoding: 'utf8' })
-  subir(exe('servidor'), [], { cwd: BACK, env: amb }, logServidor)
-  await esperarUrl(`${API}/saude`, 30_000, (s) => s === 204)
+  // Go no Docker (contêiner Linux): o Controle de Aplicativos do Windows não bloqueia nada
+  const goDocker = (extra, cmd) => ['compose', 'run', '--rm', ...extra, '-e', `BANCO=${BANCO}`, '-e', 'ADMIN_SENHA=', 'go', 'go', 'run', ...cmd]
+  execFileSync('docker', goDocker([], ['./cmd/semear', '-empresa', EMPRESA, '-login', LOGIN, '-senha', SENHA]), { cwd: BACK, stdio: ['ignore', 'ignore', 'inherit'] })
+  execFileSync('docker', ['rm', '-f', 'tudo-tela'], { stdio: 'ignore' })
+  subir('docker', goDocker(['--name', 'tudo-tela', '-p', '127.0.0.1:8090:8090', '-e', 'ENDERECO=0.0.0.0:8090', '-e', `CORS_ORIGENS=${APP}`], ['./cmd/servidor']), { cwd: BACK }, logServidor)
+  await esperarUrl(`${API}/saude`, 120_000, (s) => s === 204)
 
   // 2. o app em modo API (os outros modos e o .env do app não mudam)
   const vite = join(RAIZ, 'node_modules', 'vite', 'bin', 'vite.js')
@@ -157,6 +142,7 @@ try {
 } finally {
   await nav?.close().catch(() => {})
   for (const p of filhos) p.kill()
+  try { execFileSync('docker', ['rm', '-f', 'tudo-tela'], { stdio: 'ignore' }) } catch { /* já parou */ }
 }
 
 // relatório: por tela e a lista única do que falta portar (a fila de trabalho do servidor)

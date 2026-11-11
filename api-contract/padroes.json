@@ -1,0 +1,472 @@
+{
+  "config": {
+    "nomeNegocio": "Meu negócio",
+    "idioma": "pt",
+    "socios": [],
+    "cambioAuto": "inicioDoDia",
+    "cambio": {},
+    "moedaPrincipal": "BOB",
+    "moedasAtivas": [
+      "BOB",
+      "USD",
+      "BRL"
+    ],
+    "formas": [
+      {
+        "id": "dinheiro",
+        "nome": "Dinheiro (efectivo)",
+        "vivo": true,
+        "moedas": [
+          "BOB",
+          "USD",
+          "BRL",
+          "PYG"
+        ]
+      },
+      {
+        "id": "qr",
+        "nome": "QR",
+        "vivo": false,
+        "moedas": [
+          "BOB"
+        ]
+      },
+      {
+        "id": "pix",
+        "nome": "Pix",
+        "vivo": false,
+        "moedas": [
+          "BRL"
+        ],
+        "descontoBp": 0
+      },
+      {
+        "id": "credito",
+        "nome": "Crédito",
+        "vivo": false,
+        "moedas": [
+          "BRL"
+        ]
+      },
+      {
+        "id": "debito",
+        "nome": "Débito",
+        "vivo": false,
+        "moedas": [
+          "BRL"
+        ]
+      },
+      {
+        "id": "transferencia",
+        "nome": "Transferência",
+        "vivo": false,
+        "moedas": [
+          "BOB",
+          "USD",
+          "BRL",
+          "PYG"
+        ]
+      }
+    ],
+    "diasTriagemParada": 3,
+    "diasLoteParado": 60,
+    "diasCotacaoVelha": 7,
+    "modulosAtivos": [
+      "cabelo",
+      "salao",
+      "emprestimos",
+      "produtos"
+    ],
+    "comissaoPadraoBp": 5000,
+    "comissaoFuncionarioMuda": false,
+    "juntarMesmaEtapa": false,
+    "avisarVendaBruto": true,
+    "controleTurno": false,
+    "compraPagaNoAto": true,
+    "saldoPequenoG": 50,
+    "modeloNota": "carta",
+    "impostosNaNota": true,
+    "feriadosAjustes": [
+      {
+        "ano": 2026,
+        "acao": "mover",
+        "feriadoId": "estadoPlurinacional",
+        "data": "2026-01-23",
+        "fonte": "DS 5521/2026"
+      },
+      {
+        "ano": 2026,
+        "acao": "mover",
+        "feriadoId": "anoNuevoAndino",
+        "data": "2026-06-22",
+        "fonte": "DS 5521/2026"
+      },
+      {
+        "ano": 2026,
+        "acao": "extra",
+        "data": "2026-08-07",
+        "es": "Feriado nacional adicional (Independencia)",
+        "pt": "Feriado nacional adicional (Independência)",
+        "categoria": "nacional",
+        "fonte": "DS 5521/2026"
+      }
+    ],
+    "feriadosPais": "BO",
+    "feriadosRegiao": "santaCruz",
+    "funcionariaNaoVende": [],
+    "funcionariaAgenda": [
+      "atendimento",
+      "compromisso"
+    ],
+    "funcionariaTelas": [],
+    "funcionariaIdioma": "es",
+    "funcionariaConfig": [],
+    "fiscal": {
+      "pais": "BO",
+      "regimeBO": "general",
+      "regimeBR": "simples",
+      "vendasComFatura": true,
+      "comprasComFatura": false,
+      "ivaBp": 1300,
+      "itBp": 300,
+      "iueBp": 2500,
+      "rtsCuotaBimestral": 0,
+      "simplesBp": 600,
+      "pisBp": 65,
+      "cofinsBp": 300,
+      "icmsIssBp": 0,
+      "irpjCsllBp": 228,
+      "mostrarNasOperacoes": true,
+      "modoPreco": "dentro",
+      "mostrarNoTotal": true,
+      "mostrarQuadro": true,
+      "impostos": [
+        {
+          "id": "iva",
+          "sigla": "IVA",
+          "nome": "Impuesto al Valor Agregado",
+          "taxaBp": 1300,
+          "ligado": true,
+          "vendaProduto": true,
+          "vendaServico": true,
+          "compra": "credito",
+          "fonte": "Ley 843, arts. 1 y 15 (texto ordenado vigente)",
+          "vigenteDesde": "1986-05-20",
+          "conferidoEm": "2026-11-04",
+          "explica": "Va incluido en el precio (\"por dentro\"): el 13% del total facturado es del fisco. En la compra con factura es crédito fiscal.",
+          "porQue": "É o imposto sobre o consumo da Bolívia: quem compra paga, e a loja só repassa ao fisco. Por isso vem DENTRO do preço — dos Bs 100 cobrados, Bs 13 são do governo.",
+          "naPratica": "Todo mês se paga o IVA das vendas MENOS o IVA das compras feitas com fatura (crédito fiscal). Cabelo comprado sem fatura não dá crédito. Venda sem fatura (ou regime RTS) não tem IVA por venda."
+        },
+        {
+          "id": "it",
+          "sigla": "IT",
+          "nome": "Impuesto a las Transacciones",
+          "taxaBp": 300,
+          "ligado": true,
+          "vendaProduto": true,
+          "vendaServico": true,
+          "compra": "nao",
+          "fonte": "Ley 843, arts. 72 a 77 (alícuota 3% por Ley 1606)",
+          "vigenteDesde": "1995-01-01",
+          "conferidoEm": "2026-11-04",
+          "explica": "3% sobre el ingreso bruto, sin descontar costos. El IUE pagado se compensa con el IT siguiente.",
+          "porQue": "É um imposto sobre o faturamento bruto: incide sobre tudo o que entra, dê lucro ou não. Existe para o Estado arrecadar sobre cada transação.",
+          "naPratica": "O IUE (25% sobre o lucro, pago uma vez por ano) já pago se desconta do IT dos meses seguintes. Quem está no RTS não paga IT por venda."
+        }
+      ]
+    }
+  },
+  "impostosPadrao": [
+    {
+      "id": "iva",
+      "sigla": "IVA",
+      "nome": "Impuesto al Valor Agregado",
+      "taxaBp": 1300,
+      "ligado": true,
+      "vendaProduto": true,
+      "vendaServico": true,
+      "compra": "credito",
+      "fonte": "Ley 843, arts. 1 y 15 (texto ordenado vigente)",
+      "vigenteDesde": "1986-05-20",
+      "conferidoEm": "2026-11-04",
+      "explica": "Va incluido en el precio (\"por dentro\"): el 13% del total facturado es del fisco. En la compra con factura es crédito fiscal.",
+      "porQue": "É o imposto sobre o consumo da Bolívia: quem compra paga, e a loja só repassa ao fisco. Por isso vem DENTRO do preço — dos Bs 100 cobrados, Bs 13 são do governo.",
+      "naPratica": "Todo mês se paga o IVA das vendas MENOS o IVA das compras feitas com fatura (crédito fiscal). Cabelo comprado sem fatura não dá crédito. Venda sem fatura (ou regime RTS) não tem IVA por venda."
+    },
+    {
+      "id": "it",
+      "sigla": "IT",
+      "nome": "Impuesto a las Transacciones",
+      "taxaBp": 300,
+      "ligado": true,
+      "vendaProduto": true,
+      "vendaServico": true,
+      "compra": "nao",
+      "fonte": "Ley 843, arts. 72 a 77 (alícuota 3% por Ley 1606)",
+      "vigenteDesde": "1995-01-01",
+      "conferidoEm": "2026-11-04",
+      "explica": "3% sobre el ingreso bruto, sin descontar costos. El IUE pagado se compensa con el IT siguiente.",
+      "porQue": "É um imposto sobre o faturamento bruto: incide sobre tudo o que entra, dê lucro ou não. Existe para o Estado arrecadar sobre cada transação.",
+      "naPratica": "O IUE (25% sobre o lucro, pago uma vez por ano) já pago se desconta do IT dos meses seguintes. Quem está no RTS não paga IT por venda."
+    },
+    {
+      "id": "das",
+      "sigla": "DAS",
+      "nome": "Simples Nacional (alíquota efetiva)",
+      "taxaBp": 600,
+      "ligado": true,
+      "vendaProduto": true,
+      "vendaServico": true,
+      "compra": "nao",
+      "fonte": "Lei Complementar 123/2006 (Anexos I e III)",
+      "vigenteDesde": "2018-01-01",
+      "conferidoEm": "2026-11-04",
+      "explica": "Uma alíquota efetiva sobre a receita bruta, que depende da faixa de faturamento dos últimos 12 meses.",
+      "porQue": "É o regime simplificado do Brasil para pequenas empresas: junta vários impostos (IRPJ, CSLL, PIS, COFINS, ICMS/ISS) numa guia só, o DAS.",
+      "naPratica": "A alíquota efetiva muda com o faturamento dos últimos 12 meses: o valor aqui é uma estimativa com a taxa configurada."
+    }
+  ],
+  "modulos": [
+    {
+      "id": "cabelo",
+      "nome": "Cabelo",
+      "icone": "💇‍♀️",
+      "descricao": "Compra, separação, estoque em gramas e venda pela tabela de preço.",
+      "personalizado": false,
+      "temCompra": true,
+      "temVenda": true,
+      "pergunta": "É cabelo?",
+      "etapas": [
+        {
+          "id": "recebido",
+          "nome": "Chegou",
+          "ajuda": "O cabelo chegou (ou foi oferecido). Tire fotos.",
+          "faz": []
+        },
+        {
+          "id": "conferido",
+          "nome": "Conferido",
+          "ajuda": "Pesado e conferido: ajuste gramas e valor se for preciso (fica registrado o motivo).",
+          "faz": []
+        },
+        {
+          "id": "pago",
+          "nome": "Pago",
+          "ajuda": "Pagamento feito (pode ser parte: o resto fica na conta da pessoa).",
+          "faz": [
+            "pagamento"
+          ]
+        },
+        {
+          "id": "concluido",
+          "nome": "Concluído",
+          "ajuda": "Pagamento e entrega acertados. O cabelo já está na Triagem desde que a compra foi registrada.",
+          "faz": [
+            "estoque"
+          ]
+        }
+      ],
+      "tiposItem": [
+        {
+          "id": "lote",
+          "nome": "Lote de cabelo",
+          "unidade": "grama",
+          "controlaEstoque": true,
+          "campos": [
+            {
+              "id": "estado",
+              "nome": "Situação",
+              "tipo": "lista",
+              "opcoes": [
+                "Bruto",
+                "Não identificado",
+                "Separado"
+              ],
+              "fixo": true,
+              "ajuda": "Bruto = ainda não foi separado por medida/categoria."
+            },
+            {
+              "id": "comprimento",
+              "nome": "Medida",
+              "tipo": "numero",
+              "unidade": "cm",
+              "fixo": true,
+              "ajuda": "Comprimento em cm (40, 50, 55, 60…). Bruto misturado pode ficar sem medida."
+            },
+            {
+              "id": "categoria",
+              "nome": "Categoria",
+              "tipo": "lista",
+              "opcoes": [
+                "Normal",
+                "Tinte",
+                "CH",
+                "CH+",
+                "Rojo",
+                "Quemado",
+                "Menudo",
+                "Entresaque"
+              ],
+              "fixo": true,
+              "ajuda": "Normal, Tinte (tingido), CH, Rojo, Quemado… Cada uma pode ter sua tabela de preço."
+            },
+            {
+              "id": "cor",
+              "nome": "Cor",
+              "tipo": "lista",
+              "opcoes": [
+                "Preto",
+                "Castanho escuro",
+                "Castanho",
+                "Castanho claro",
+                "Loiro",
+                "Ruivo",
+                "Grisalho",
+                "Misturado"
+              ]
+            },
+            {
+              "id": "textura",
+              "nome": "Textura",
+              "tipo": "lista",
+              "opcoes": [
+                "Liso",
+                "Ondulado",
+                "Cacheado",
+                "Crespo"
+              ]
+            },
+            {
+              "id": "origem",
+              "nome": "Origem",
+              "tipo": "lista",
+              "opcoes": [
+                "Bolívia",
+                "Paraguai",
+                "Brasil",
+                "Peru",
+                "Outro"
+              ]
+            },
+            {
+              "id": "remy",
+              "nome": "Remy (cutícula alinhada)",
+              "tipo": "simNao",
+              "ajuda": "Fios no mesmo sentido, da raiz à ponta. Não quer dizer virgem."
+            },
+            {
+              "id": "obs",
+              "nome": "Observação",
+              "tipo": "texto"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "salao",
+      "nome": "Salão",
+      "icone": "✂️",
+      "descricao": "Serviços, agenda por profissional e unidade, comissões e manutenção.",
+      "personalizado": false,
+      "temCompra": false,
+      "temVenda": true,
+      "pergunta": "É serviço?",
+      "etapas": [],
+      "tiposItem": [
+        {
+          "id": "servico",
+          "nome": "Serviço",
+          "unidade": "servico",
+          "controlaEstoque": false,
+          "campos": [
+            {
+              "id": "categoria",
+              "nome": "Tipo",
+              "tipo": "lista",
+              "opcoes": [
+                "Corte",
+                "Cor",
+                "Tratamento",
+                "Mega hair",
+                "Escova",
+                "Estética",
+                "Unhas",
+                "Maquiagem",
+                "Penteado",
+                "Barba",
+                "Outro"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "emprestimos",
+      "nome": "Empréstimos",
+      "icone": "🤝",
+      "descricao": "Dinheiro emprestado e pego emprestado, com parcelas, atraso e cobrança.",
+      "personalizado": false,
+      "temCompra": false,
+      "temVenda": false,
+      "telaPropria": "emprestimos",
+      "etapas": [],
+      "tiposItem": []
+    },
+    {
+      "id": "produtos",
+      "nome": "Produtos",
+      "icone": "🛍️",
+      "descricao": "Peças com cor (bijuteria, acessórios, roupas…): exemplo de módulo feito só com configuração.",
+      "personalizado": false,
+      "temCompra": true,
+      "temVenda": true,
+      "pergunta": "É produto?",
+      "etapas": [
+        {
+          "id": "recebido",
+          "nome": "Pedido feito",
+          "ajuda": "Pedido ao fornecedor.",
+          "faz": []
+        },
+        {
+          "id": "pago",
+          "nome": "Pago",
+          "ajuda": "Pagamento feito.",
+          "faz": [
+            "pagamento"
+          ]
+        },
+        {
+          "id": "concluido",
+          "nome": "Chegou",
+          "ajuda": "Entrou no estoque.",
+          "faz": [
+            "estoque"
+          ]
+        }
+      ],
+      "tiposItem": [
+        {
+          "id": "peca",
+          "nome": "Peça",
+          "unidade": "peca",
+          "controlaEstoque": true,
+          "campos": [
+            {
+              "id": "grupo",
+              "nome": "Grupo",
+              "tipo": "texto"
+            },
+            {
+              "id": "cor",
+              "nome": "Cor",
+              "tipo": "texto"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
