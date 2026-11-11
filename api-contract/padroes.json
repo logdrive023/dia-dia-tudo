@@ -688,5 +688,495 @@
       "nome": "Outros",
       "icone": "•"
     }
+  },
+  "feriados": {
+    "lista": [
+      {
+        "id": "anoNovo",
+        "es": "Año Nuevo",
+        "pt": "Ano-Novo",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 1,
+          "dia": 1
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "estadoPlurinacional",
+        "es": "Día del Estado Plurinacional de Bolivia",
+        "pt": "Dia do Estado Plurinacional da Bolívia",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 1,
+          "dia": 22
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "carnavalSeg",
+        "es": "Carnaval (lunes)",
+        "pt": "Carnaval (segunda)",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "pascoa",
+          "dias": -48
+        },
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "carnavalTer",
+        "es": "Carnaval (martes)",
+        "pt": "Carnaval (terça)",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "pascoa",
+          "dias": -47
+        },
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "viernesSanto",
+        "es": "Viernes Santo",
+        "pt": "Sexta-feira Santa",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "pascoa",
+          "dias": -2
+        },
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "trabajo",
+        "es": "Día del Trabajo",
+        "pt": "Dia do Trabalho",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 5,
+          "dia": 1
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "corpusChristi",
+        "es": "Corpus Christi",
+        "pt": "Corpus Christi",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "pascoa",
+          "dias": 60
+        },
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "anoNuevoAndino",
+        "es": "Año Nuevo Andino Amazónico y del Chaco",
+        "pt": "Ano-Novo Andino Amazônico e do Chaco",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 6,
+          "dia": 21
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "independencia",
+        "es": "Día de la Independencia de Bolivia",
+        "pt": "Dia da Independência da Bolívia",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 8,
+          "dia": 6
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "todosSantos",
+        "es": "Día de Todos los Difuntos",
+        "pt": "Dia de Finados",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 2
+        },
+        "confirmacaoAnual": true,
+        "fonte": "DS 2750/2016 (traslado a confirmar)"
+      },
+      {
+        "id": "navidad",
+        "es": "Navidad",
+        "pt": "Natal",
+        "categoria": "nacional",
+        "pais": "BO",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 12,
+          "dia": 25
+        },
+        "trasladaDomingo": true,
+        "fonte": "DS 2750/2016"
+      },
+      {
+        "id": "santaCruz",
+        "es": "Aniversario de Santa Cruz (efeméride departamental)",
+        "pt": "Dia de Santa Cruz (efeméride departamental)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "santaCruz",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 9,
+          "dia": 24
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Decreto departamental do ano / Ministério do Trabalho"
+      },
+      {
+        "id": "oruro",
+        "es": "Aniversario de Oruro (10 de febrero de 1781)",
+        "pt": "Dia de Oruro (10 de fevereiro de 1781)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "oruro",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 2,
+          "dia": 10
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "tarija",
+        "es": "Aniversario de Tarija (15 de abril de 1817)",
+        "pt": "Dia de Tarija (15 de abril de 1817)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "tarija",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 4,
+          "dia": 15
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "chuquisaca",
+        "es": "Aniversario de Chuquisaca (25 de mayo de 1809)",
+        "pt": "Dia de Chuquisaca (25 de maio de 1809)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "chuquisaca",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 5,
+          "dia": 25
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "laPaz",
+        "es": "Aniversario de La Paz (16 de julio de 1809)",
+        "pt": "Dia de La Paz (16 de julho de 1809)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "laPaz",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 7,
+          "dia": 16
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "cochabamba",
+        "es": "Aniversario de Cochabamba (14 de septiembre de 1810)",
+        "pt": "Dia de Cochabamba (14 de setembro de 1810)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "cochabamba",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 9,
+          "dia": 14
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "pando",
+        "es": "Aniversario de Pando (24 de septiembre de 1938)",
+        "pt": "Dia de Pando (24 de setembro de 1938)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "pando",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 9,
+          "dia": 24
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "potosi",
+        "es": "Aniversario de Potosí (10 de noviembre de 1810)",
+        "pt": "Dia de Potosí (10 de novembro de 1810)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "potosi",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 10
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "beni",
+        "es": "Aniversario de Beni (18 de noviembre de 1842)",
+        "pt": "Dia de Beni (18 de novembro de 1842)",
+        "categoria": "regional",
+        "pais": "BO",
+        "regiao": "beni",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 18
+        },
+        "confirmacaoAnual": true,
+        "fonte": "Efeméride departamental · decreto departamental do ano"
+      },
+      {
+        "id": "br-anoNovo",
+        "es": "Año Nuevo",
+        "pt": "Confraternização Universal",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 1,
+          "dia": 1
+        },
+        "fonte": "Lei 662/1949"
+      },
+      {
+        "id": "br-tiradentes",
+        "es": "Tiradentes",
+        "pt": "Tiradentes",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 4,
+          "dia": 21
+        },
+        "fonte": "Lei 10.607/2002"
+      },
+      {
+        "id": "br-trabalho",
+        "es": "Día del Trabajo",
+        "pt": "Dia do Trabalho",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 5,
+          "dia": 1
+        },
+        "fonte": "Lei 662/1949"
+      },
+      {
+        "id": "br-independencia",
+        "es": "Independencia de Brasil",
+        "pt": "Independência do Brasil",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 9,
+          "dia": 7
+        },
+        "fonte": "Lei 662/1949"
+      },
+      {
+        "id": "br-aparecida",
+        "es": "Nuestra Señora Aparecida",
+        "pt": "Nossa Senhora Aparecida",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 10,
+          "dia": 12
+        },
+        "fonte": "Lei 6.802/1980"
+      },
+      {
+        "id": "br-finados",
+        "es": "Día de los Difuntos",
+        "pt": "Finados",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 2
+        },
+        "fonte": "Lei 10.607/2002"
+      },
+      {
+        "id": "br-republica",
+        "es": "Proclamación de la República",
+        "pt": "Proclamação da República",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 15
+        },
+        "fonte": "Lei 662/1949"
+      },
+      {
+        "id": "br-conscienciaNegra",
+        "es": "Día de Zumbi y de la Conciencia Negra",
+        "pt": "Dia de Zumbi e da Consciência Negra",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 11,
+          "dia": 20
+        },
+        "fonte": "Lei 14.759/2023"
+      },
+      {
+        "id": "br-natal",
+        "es": "Navidad",
+        "pt": "Natal",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "fixa",
+          "mes": 12,
+          "dia": 25
+        },
+        "fonte": "Lei 662/1949"
+      },
+      {
+        "id": "br-sextaSanta",
+        "es": "Viernes Santo",
+        "pt": "Sexta-feira Santa",
+        "categoria": "nacional",
+        "pais": "BR",
+        "regra": {
+          "tipo": "pascoa",
+          "dias": -2
+        },
+        "fonte": "Lei 9.093/1995 (feriado religioso)"
+      }
+    ],
+    "ajustesPadrao": [
+      {
+        "ano": 2026,
+        "acao": "mover",
+        "feriadoId": "estadoPlurinacional",
+        "data": "2026-01-23",
+        "fonte": "DS 5521/2026"
+      },
+      {
+        "ano": 2026,
+        "acao": "mover",
+        "feriadoId": "anoNuevoAndino",
+        "data": "2026-06-22",
+        "fonte": "DS 5521/2026"
+      },
+      {
+        "ano": 2026,
+        "acao": "extra",
+        "data": "2026-08-07",
+        "es": "Feriado nacional adicional (Independencia)",
+        "pt": "Feriado nacional adicional (Independência)",
+        "categoria": "nacional",
+        "fonte": "DS 5521/2026"
+      }
+    ],
+    "paises": {
+      "BO": {
+        "nome": "Bolívia",
+        "bandeira": "🇧🇴",
+        "tipoRegiao": "Departamento",
+        "regioes": [
+          {
+            "id": "beni",
+            "nome": "Beni"
+          },
+          {
+            "id": "chuquisaca",
+            "nome": "Chuquisaca"
+          },
+          {
+            "id": "cochabamba",
+            "nome": "Cochabamba"
+          },
+          {
+            "id": "laPaz",
+            "nome": "La Paz"
+          },
+          {
+            "id": "oruro",
+            "nome": "Oruro"
+          },
+          {
+            "id": "pando",
+            "nome": "Pando"
+          },
+          {
+            "id": "potosi",
+            "nome": "Potosí"
+          },
+          {
+            "id": "santaCruz",
+            "nome": "Santa Cruz"
+          },
+          {
+            "id": "tarija",
+            "nome": "Tarija"
+          }
+        ]
+      },
+      "BR": {
+        "nome": "Brasil",
+        "bandeira": "🇧🇷",
+        "tipoRegiao": "Estado",
+        "regioes": []
+      }
+    }
   }
 }

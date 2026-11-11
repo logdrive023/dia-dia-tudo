@@ -1,6 +1,7 @@
 // O que o servidor Go precisa saber do SISTEMA (não da empresa): configuração padrão, impostos padrão e módulos.
 // Exportado por scripts/exportar-padroes.ts para api-contract/padroes.json (e a cópia do servidor).
 import { criarRegistro } from '../areas'
+import { AJUSTES_PADRAO, FERIADOS, PAISES_FERIADO } from '../dados/feriados'
 import { IMPOSTOS_PADRAO_BO, IMPOSTOS_PADRAO_BR } from '../dados/impostos'
 import { NOMES_CATEGORIA } from './auditoria'
 import { resumoModulos } from './cadastros'
@@ -23,5 +24,7 @@ export function padroesServidor() {
     // a auditoria: o nome de cada ação e as áreas (a área de cada ação o servidor calcula como categoriaDe)
     nomesAcao: NOMES_ACAO,
     categoriasAuditoria: NOMES_CATEGORIA,
+    // feriados (a lista da lei, os ajustes de decreto padrão e os países/regiões para o texto da abrangência)
+    feriados: { lista: FERIADOS, ajustesPadrao: AJUSTES_PADRAO, paises: PAISES_FERIADO },
   }
 }
