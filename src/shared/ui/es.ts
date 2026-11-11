@@ -5689,4 +5689,7 @@ export const ES: Record<string, string> = {
   'Quanto mostrar na vitrine: use gramas inteiras maiores que zero.': 'Cuánto mostrar en la vitrina: use gramos enteros mayores que cero.',
   'Mostrar tudo': 'Mostrar todo',
   'de {t}': 'de {t}',
+  'Fora': 'Fuera',
+  'Os pacotes prontos: ligue o que vai para a vitrine.': 'Los paquetes listos: encienda lo que va a la vitrina.',
+  'Nada na vitrine ainda: ligue os pacotes em “Fora”.': 'Nada en la vitrina todavía: encienda los paquetes en “Fuera”.',
 }
